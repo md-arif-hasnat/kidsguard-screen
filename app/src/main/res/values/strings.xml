@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">KidsGuard Screen</string>
+    <string name="accessibility_description">KidGuard prevents curious little hands from leaving the app when active.</string>
+
+    <!-- Play Store Metadata -->
+    <string name="short_description">Protect your phone from curious little hands with a fake dead battery lock.</string>
+    <string name="full_description">KidsGuard Screen is the ultimate family safety tool to protect your device from accidental use by children. \n\nFeatures: \n- Fake Dead Battery Screen: Stealthily locks your phone with a realistic dead battery animation.\n- Multiple Unlock Methods: Secure PIN, secret tap patterns, or volume key combinations.\n- Scheduled Lock: Automatically activate protection during specific times (e.g., bedtime).\n- Child Safety Focus: Prevents app switching and accidental touches while active.\n- Privacy First: No data collection, no ads, and no hidden permissions.</string>
+</resources>

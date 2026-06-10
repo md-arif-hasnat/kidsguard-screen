@@ -1,0 +1,54 @@
+package com.example.kidsguard.models
+
+import java.util.UUID
+
+enum class DevicePlatform { ANDROID, IOS }
+enum class UserRole { PARENT, CHILD, NONE }
+
+data class SafeZone(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Double,
+    val notifyOnEnter: Boolean = true,
+    val notifyOnExit: Boolean = true,
+    val enabled: Boolean = true
+)
+
+data class ActivityEvent(
+    val id: String = UUID.randomUUID().toString(),
+    val timestamp: Long = System.currentTimeMillis(),
+    val type: String, // e.g., "Entered", "Left"
+    val zoneName: String,
+    val details: String = ""
+)
+
+data class ParentDevice(
+    val id: String,
+    val platform: DevicePlatform,
+    val name: String
+)
+
+data class ChildDevice(
+    val id: String,
+    val platform: DevicePlatform,
+    val name: String,
+    val batteryLevel: Int = -1,
+    val isLocked: Boolean = false,
+    val lastActive: Long = System.currentTimeMillis()
+)
+
+data class LocationUpdate(
+    val latitude: Double,
+    val longitude: Double,
+    val timestamp: Long = System.currentTimeMillis(),
+    val accuracy: Float = 0f
+)
+
+data class RemoteCommand(
+    val id: String = UUID.randomUUID().toString(),
+    val command: String, // e.g., "LOCK", "UNLOCK"
+    val targetChildId: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
