@@ -35,12 +35,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,8 +49,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -61,6 +56,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.kidsguard.ui.theme.KidsGuardTheme
+import com.example.kidsguard.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -503,18 +499,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
     var startTime by remember { mutableStateOf(prefHelper.scheduleStartTime) }
     var endTime by remember { mutableStateOf(prefHelper.scheduleEndTime) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Parent Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    KidsGuardScaffold(title = "Parent Settings", onBack = onBack) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -522,8 +507,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text("Security", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
+            SectionHeader("Security")
             ListItem(
                 headlineContent = { Text("Change Unlock PIN") },
                 supportingContent = { Text("Current PIN is required to unlock or access settings") },
@@ -536,8 +520,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
-            Text("Unlock Options", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
+            SectionHeader("Unlock Options")
             
             ListItem(
                 headlineContent = { Text("Enable Volume Unlock") },
@@ -583,8 +566,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            Text("Schedule", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
+            SectionHeader("Schedule")
             
             ListItem(
                 headlineContent = { Text("Enable Scheduled Lock") },
@@ -638,8 +620,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
-            Text("Privacy Policy", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
+            SectionHeader("Privacy Policy")
             Text(
                 text = "KidsGuard Screen locks your device for children. We do not collect, store, or share any personal data or usage information.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -648,8 +629,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            Text("Account", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
+            SectionHeader("Account")
             ListItem(
                 headlineContent = { Text("Switch Role") },
                 supportingContent = { Text("Current role: ${prefHelper.userRole}") },
@@ -674,35 +654,23 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
                 title = { Text("Change PIN") },
                 text = {
                     Column {
-                        OutlinedTextField(
+                        PinInputField(
                             value = newPin,
                             onValueChange = {
-                                if (it.length <= 8 && it.all { c -> c.isDigit() }) {
-                                    newPin = it
-                                    isError = false
-                                }
+                                newPin = it
+                                isError = false
                             },
-                            label = { Text("Enter New PIN") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            label = "Enter New PIN"
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
+                        PinInputField(
                             value = confirmPin,
                             onValueChange = {
-                                if (it.length <= 8 && it.all { c -> c.isDigit() }) {
-                                    confirmPin = it
-                                    isError = false
-                                }
+                                confirmPin = it
+                                isError = false
                             },
-                            label = { Text("Confirm New PIN") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            visualTransformation = PasswordVisualTransformation(),
-                            isError = isError,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            label = "Confirm New PIN",
+                            isError = isError
                         )
                         if (isError) {
                             Text(
@@ -898,20 +866,14 @@ fun PinEntryDialog(
         title = { Text(title) },
         text = {
             Column {
-                OutlinedTextField(
+                PinInputField(
                     value = pin,
                     onValueChange = {
-                        if (it.length <= 8 && it.all { char -> char.isDigit() }) {
-                            pin = it
-                            isError = false
-                        }
+                        pin = it
+                        isError = false
                     },
-                    label = { Text("PIN") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = isError,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    label = "PIN",
+                    isError = isError
                 )
                 if (isError) {
                     Text(
@@ -1070,47 +1032,39 @@ fun ParentDashboardScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f).clickable { /* Live Map Placeholder */ },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Map, contentDescription = null)
-                        Text("Live Map", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenSafeZones() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null)
-                        Text("Safe Zones", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
+                DashboardActionCard(
+                    icon = Icons.Default.Map,
+                    label = "Live Map",
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.weight(1f),
+                    onClick = { /* Live Map Placeholder */ }
+                )
+                DashboardActionCard(
+                    icon = Icons.Default.LocationOn,
+                    label = "Safe Zones",
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenSafeZones
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenActivityFeed() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.List, contentDescription = null)
-                        Text("Activity Feed", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenLocationHistory() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null)
-                        Text("Location", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
+                DashboardActionCard(
+                    icon = Icons.Default.List,
+                    label = "Activity Feed",
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenActivityFeed
+                )
+                DashboardActionCard(
+                    icon = Icons.Default.LocationOn,
+                    label = "Location",
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenLocationHistory
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -1342,17 +1296,9 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
     var zoneToEdit by remember { mutableStateOf<SafeZone?>(null) }
     var zoneToDelete by remember { mutableStateOf<SafeZone?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Safe Zones") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
+    KidsGuardScaffold(
+        title = "Safe Zones",
+        onBack = onBack,
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Safe Zone")
@@ -1430,24 +1376,15 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
         }
 
         if (zoneToDelete != null) {
-            AlertDialog(
-                onDismissRequest = { zoneToDelete = null },
-                title = { Text("Delete Safe Zone") },
-                text = { Text("Are you sure you want to delete '${zoneToDelete?.name}'?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            zoneToDelete?.id?.let { repository.deleteSafeZone(it) }
-                            zoneToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Delete")
-                    }
+            ConfirmationDialog(
+                title = "Delete Safe Zone",
+                message = "Are you sure you want to delete '${zoneToDelete?.name}'?",
+                confirmText = "Delete",
+                onConfirm = {
+                    zoneToDelete?.id?.let { repository.deleteSafeZone(it) }
+                    zoneToDelete = null
                 },
-                dismissButton = {
-                    TextButton(onClick = { zoneToDelete = null }) { Text("Cancel") }
-                }
+                onDismiss = { zoneToDelete = null }
             )
         }
     }
@@ -1596,27 +1533,17 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
     val events by repository.activityEvents.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Activity Feed") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
-                    }
-                }
-            )
+    KidsGuardScaffold(
+        title = "Activity Feed",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { showClearDialog = true }) {
+                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+            }
         }
     ) { innerPadding ->
         if (events.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            EmptyStateMessage("No recent activity")
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -1624,12 +1551,9 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(events) { event ->
-                    val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
-                    val timeString = sdf.format(java.util.Date(event.timestamp))
-                    
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = timeString,
+                            text = formatTimestamp(event.timestamp),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1675,24 +1599,15 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
         }
 
         if (showClearDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearDialog = false },
-                title = { Text("Clear History") },
-                text = { Text("Are you sure you want to delete all activity events?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            repository.clearEvents()
-                            showClearDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Clear")
-                    }
+            ConfirmationDialog(
+                title = "Clear History",
+                message = "Are you sure you want to delete all activity events?",
+                confirmText = "Clear",
+                onConfirm = {
+                    repository.clearEvents()
+                    showClearDialog = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
-                }
+                onDismiss = { showClearDialog = false }
             )
         }
     }
@@ -1741,21 +1656,13 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Location History") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
-                    }
-                }
-            )
+    KidsGuardScaffold(
+        title = "Location History",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { showClearDialog = true }) {
+                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -1790,9 +1697,7 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
             }
 
             if (history.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                EmptyStateMessage("No location history recorded")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -1800,9 +1705,6 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(history) { point ->
-                        val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
-                        val timeString = sdf.format(java.util.Date(point.timestamp))
-                        
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
@@ -1811,7 +1713,7 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = timeString,
+                                        text = formatTimestamp(point.timestamp),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -1850,24 +1752,15 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
         }
 
         if (showClearDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearDialog = false },
-                title = { Text("Clear History") },
-                text = { Text("Delete all recorded location points?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            repository.clearLocationHistory()
-                            showClearDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Clear")
-                    }
+            ConfirmationDialog(
+                title = "Clear History",
+                message = "Delete all recorded location points?",
+                confirmText = "Clear",
+                onConfirm = {
+                    repository.clearLocationHistory()
+                    showClearDialog = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
-                }
+                onDismiss = { showClearDialog = false }
             )
         }
 
