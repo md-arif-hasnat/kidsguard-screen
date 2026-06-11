@@ -20,9 +20,11 @@ data class SafeZone(
 data class ActivityEvent(
     val id: String = UUID.randomUUID().toString(),
     val timestamp: Long = System.currentTimeMillis(),
-    val type: String, // e.g., "Entered", "Left"
-    val zoneName: String,
-    val details: String = ""
+    val type: String, // e.g., "KID_MODE_ENABLED", "PIN_SUCCESS"
+    val title: String,
+    val description: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 data class ParentDevice(

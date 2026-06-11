@@ -58,6 +58,7 @@ import com.example.kidsguard.ui.theme.KidsGuardTheme
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     private lateinit var prefHelper: PreferenceHelper
+    private lateinit var repository: SafeZoneRepository
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefHelper = PreferenceHelper(this)
+        repository = SafeZoneRepository()
         
         // Auto Re-lock: If it was locked, start locked
         if (prefHelper.isLocked) {
@@ -91,7 +93,8 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                             }
-                        }
+                        },
+                        repository = repository
                     )
                 }
             }
@@ -110,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 volumeUpTapCount++
                 if (volumeUpTapCount >= 4) {
                     Log.i("KidsGuard", "Emergency Volume Unlock triggered")
+                    repository.addEvent(ActivityEvent(type = "VOLUME_UNLOCK", title = "Volume Unlock", description = "Emergency exit triggered"))
                     currentScreenState.value = Screen.Home
                     prefHelper.isLocked = false
                     volumeUpTapCount = 0
@@ -233,10 +237,9 @@ enum class Screen {
 }
 
 @Composable
-fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
+fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit, repository: SafeZoneRepository) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
-    val repository = remember { SafeZoneRepository() }
     
     // Initial redirection based on role
     val startScreen = remember(currentScreen) {
@@ -274,9 +277,13 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
                 onSetupComplete = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Home -> HomeScreen(
-                onActivate = { onScreenChange(Screen.Locked) },
+                onActivate = { 
+                    repository.addEvent(ActivityEvent(type = "KID_MODE_ENABLED", title = "Kid Mode Enabled", description = "Manual activation"))
+                    onScreenChange(Screen.Locked) 
+                },
                 onOpenSettings = { onScreenChange(Screen.Settings) },
-                prefHelper = prefHelper
+                prefHelper = prefHelper,
+                repository = repository
             )
             Screen.ParentDashboard -> ParentDashboardScreen(
                 prefHelper = prefHelper,
@@ -293,8 +300,12 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Locked -> LockedScreen(
-                onUnlock = { onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) },
-                prefHelper = prefHelper
+                onUnlock = { 
+                    repository.addEvent(ActivityEvent(type = "KID_MODE_DISABLED", title = "Kid Mode Disabled", description = "Unlocked by child"))
+                    onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) 
+                },
+                prefHelper = prefHelper,
+                repository = repository
             )
             Screen.Settings -> SettingsScreen(
                 onBack = { onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) },
@@ -306,7 +317,7 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: PreferenceHelper) {
+fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: PreferenceHelper, repository: SafeZoneRepository) {
     val context = LocalContext.current.findActivity()
     var showPinDialog by remember { mutableStateOf(false) }
     
@@ -331,6 +342,7 @@ fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: P
         while(true) {
             val shouldBeLocked = isCurrentTimeInSchedule(prefHelper)
             if (shouldBeLocked && !prefHelper.isLocked) {
+                repository.addEvent(ActivityEvent(type = "KID_MODE_ENABLED", title = "Kid Mode Enabled", description = "Scheduled lock active"))
                 onActivate()
             }
             kotlinx.coroutines.delay(60000) // Check every minute
@@ -701,7 +713,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
 }
 
 @Composable
-fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper) {
+fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository: SafeZoneRepository) {
     var tapCount by remember { mutableIntStateOf(0) }
     var firstTapTime by remember { mutableLongStateOf(0L) }
     var showPinDialog by remember { mutableStateOf(false) }
@@ -748,6 +760,7 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper) {
                                 tapCount++
                                 if (tapCount >= prefHelper.secretTapsCount) {
                                     Log.i("KidsGuard", "Secret Tap Unlock triggered")
+                                    repository.addEvent(ActivityEvent(type = "SECRET_TAP_UNLOCK", title = "Secret Tap Unlock", description = "Top-left corner pattern"))
                                     onUnlock()
                                 }
                             }
@@ -830,7 +843,11 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper) {
                 onDismiss = { showPinDialog = false },
                 onCorrectPin = {
                     showPinDialog = false
+                    repository.addEvent(ActivityEvent(type = "PIN_SUCCESS", title = "PIN Unlock Success"))
                     onUnlock()
+                },
+                onIncorrectPin = {
+                    repository.addEvent(ActivityEvent(type = "PIN_FAILED", title = "PIN Unlock Failed", description = "Attempt blocked"))
                 },
                 correctPin = prefHelper.pin
             )
@@ -843,6 +860,7 @@ fun PinEntryDialog(
     title: String = "Enter PIN",
     onDismiss: () -> Unit,
     onCorrectPin: () -> Unit,
+    onIncorrectPin: () -> Unit = {},
     correctPin: String
 ) {
     var pin by remember { mutableStateOf("") }
@@ -885,6 +903,7 @@ fun PinEntryDialog(
                         onCorrectPin()
                     } else {
                         isError = true
+                        onIncorrectPin()
                         pin = ""
                     }
                 }
@@ -1535,6 +1554,7 @@ fun SafeZoneEditDialog(
 @Composable
 fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
     val events by repository.activityEvents.collectAsState()
+    var showClearDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -1544,34 +1564,96 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { showClearDialog = true }) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                    }
                 }
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(events) { event ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.size(12.dp).background(
-                            if (event.type == "Arrived" || event.type == "Entered") Color.Green else Color.Red,
-                            CircleShape
+        if (events.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(events) { event ->
+                    val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+                    val timeString = sdf.format(java.util.Date(event.timestamp))
+                    
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = timeString,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("${event.type} ${event.zoneName}", fontWeight = FontWeight.Bold)
-                        Text(event.details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val icon = when (event.type) {
+                                "KID_MODE_ENABLED", "APP_LOCKED" -> Icons.Default.Lock
+                                "KID_MODE_DISABLED", "APP_UNLOCKED", "PIN_SUCCESS", "SECRET_TAP_UNLOCK", "VOLUME_UNLOCK" -> Icons.Default.LockOpen
+                                "PIN_FAILED" -> Icons.Default.GppBad
+                                "SAFE_ZONE_ENTER" -> Icons.Default.LocationOn
+                                "SAFE_ZONE_EXIT" -> Icons.Default.Logout
+                                "BATTERY_LOW" -> Icons.Default.BatteryAlert
+                                else -> Icons.Default.Info
+                            }
+                            val tint = when (event.type) {
+                                "KID_MODE_ENABLED", "APP_LOCKED" -> Color.Red
+                                "KID_MODE_DISABLED", "APP_UNLOCKED", "PIN_SUCCESS" -> Color.Green
+                                "PIN_FAILED" -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.primary
+                            }
+                            
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = event.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (event.description.isNotEmpty()) {
+                            Text(
+                                text = event.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(start = 32.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(start = 32.dp))
                     }
                 }
-                HorizontalDivider(modifier = Modifier.padding(start = 28.dp))
             }
+        }
+
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                title = { Text("Clear History") },
+                text = { Text("Are you sure you want to delete all activity events?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            repository.clearEvents()
+                            showClearDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Clear")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+                }
+            )
         }
     }
 }
@@ -1580,7 +1662,8 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
 @Composable
 fun HomePreview() {
     KidsGuardTheme(darkTheme = true) {
-        KidsGuardApp(currentScreen = Screen.Home, onScreenChange = {})
+        val repository = SafeZoneRepository()
+        KidsGuardApp(currentScreen = Screen.Home, onScreenChange = {}, repository = repository)
     }
 }
 
