@@ -49,6 +49,15 @@ data class LocationUpdate(
     val accuracy: Float = 0f
 )
 
+data class LocationPoint(
+    val latitude: Double,
+    val longitude: Double,
+    val accuracy: Float,
+    val speed: Float,
+    val bearing: Float,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class PairingCode(
     val code: String, // Format: KDG-123456
     val expiresAt: Long

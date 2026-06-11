@@ -13,6 +13,7 @@ import android.view.KeyEvent
 import java.util.Calendar
 import com.example.kidsguard.models.*
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.repository.LocationRepository
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -59,6 +60,7 @@ import com.example.kidsguard.ui.theme.KidsGuardTheme
 class MainActivity : ComponentActivity() {
     private lateinit var prefHelper: PreferenceHelper
     private lateinit var repository: SafeZoneRepository
+    private lateinit var locationRepository: LocationRepository
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -67,6 +69,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         prefHelper = PreferenceHelper(this)
         repository = SafeZoneRepository()
+        locationRepository = LocationRepository(this)
         
         // Auto Re-lock: If it was locked, start locked
         if (prefHelper.isLocked) {
@@ -94,7 +97,8 @@ class MainActivity : ComponentActivity() {
                                 ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                             }
                         },
-                        repository = repository
+                        repository = repository,
+                        locationRepository = locationRepository
                     )
                 }
             }
@@ -233,11 +237,16 @@ fun getBatteryLevel(context: Context): Int {
 }
 
 enum class Screen {
-    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup
+    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup, LocationHistory
 }
 
 @Composable
-fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit, repository: SafeZoneRepository) {
+fun KidsGuardApp(
+    currentScreen: Screen, 
+    onScreenChange: (Screen) -> Unit, 
+    repository: SafeZoneRepository,
+    locationRepository: LocationRepository
+) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
     
@@ -289,7 +298,8 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit, reposi
                 prefHelper = prefHelper,
                 onOpenSettings = { onScreenChange(Screen.Settings) },
                 onOpenSafeZones = { onScreenChange(Screen.SafeZoneList) },
-                onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) }
+                onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
+                onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) }
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -297,6 +307,10 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit, reposi
             )
             Screen.ActivityFeed -> ActivityFeedScreen(
                 repository = repository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
+            )
+            Screen.LocationHistory -> LocationHistoryScreen(
+                repository = locationRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Locked -> LockedScreen(
@@ -981,7 +995,8 @@ fun ParentDashboardScreen(
     prefHelper: PreferenceHelper, 
     onOpenSettings: () -> Unit,
     onOpenSafeZones: () -> Unit,
-    onOpenActivityFeed: () -> Unit
+    onOpenActivityFeed: () -> Unit,
+    onOpenLocationHistory: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -1075,17 +1090,29 @@ fun ParentDashboardScreen(
                     }
                 }
                 Card(
-                    modifier = Modifier.weight(1f).clickable { 
-                        prefHelper.isLocked = !prefHelper.isLocked
-                    },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (prefHelper.isLocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    modifier = Modifier.weight(1f).clickable { onOpenLocationHistory() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(if (prefHelper.isLocked) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null)
-                        Text(if (prefHelper.isLocked) "Remote Unlock" else "Remote Lock", style = MaterialTheme.typography.titleMedium)
+                        Icon(Icons.Default.LocationOn, contentDescription = null)
+                        Text("Location", style = MaterialTheme.typography.titleMedium)
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { 
+                    prefHelper.isLocked = !prefHelper.isLocked
+                },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (prefHelper.isLocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(if (prefHelper.isLocked) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null)
+                    Text(if (prefHelper.isLocked) "Remote Unlock" else "Remote Lock", style = MaterialTheme.typography.titleMedium)
                 }
             }
 
@@ -1658,12 +1685,124 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
+    val history by repository.locationHistory.collectAsState()
+    var showClearDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Location History") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showClearDialog = true }) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        if (history.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(history) { point ->
+                    val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+                    val timeString = sdf.format(java.util.Date(point.timestamp))
+                    
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = timeString,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Accuracy: ${point.accuracy.toInt()}m",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Lat:", style = MaterialTheme.typography.labelSmall)
+                                    Text(point.latitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Lng:", style = MaterialTheme.typography.labelSmall)
+                                    Text(point.longitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Speed: ${"%.1f".format(point.speed * 3.6)} km/h",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                title = { Text("Clear History") },
+                text = { Text("Delete all recorded location points?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            repository.clearLocationHistory()
+                            showClearDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Clear")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun HomePreview() {
     KidsGuardTheme(darkTheme = true) {
         val repository = SafeZoneRepository()
-        KidsGuardApp(currentScreen = Screen.Home, onScreenChange = {}, repository = repository)
+        val locationRepository = LocationRepository(LocalContext.current)
+        KidsGuardApp(
+            currentScreen = Screen.Home, 
+            onScreenChange = {}, 
+            repository = repository,
+            locationRepository = locationRepository
+        )
     }
 }
 
