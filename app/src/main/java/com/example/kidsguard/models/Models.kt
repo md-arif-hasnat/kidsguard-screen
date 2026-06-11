@@ -46,9 +46,21 @@ data class LocationUpdate(
     val accuracy: Float = 0f
 )
 
+data class PairingCode(
+    val code: String, // Format: KDG-123456
+    val expiresAt: Long
+)
+
+data class DeviceStatus(
+    val isOnline: Boolean,
+    val batteryPercentage: Int,
+    val isKidGuardActive: Boolean,
+    val lastUpdated: Long
+)
+
 data class RemoteCommand(
     val id: String = UUID.randomUUID().toString(),
-    val command: String, // e.g., "LOCK", "UNLOCK"
+    val command: String, // e.g., "LOCK", "UNLOCK", "RING"
     val targetChildId: String,
     val timestamp: Long = System.currentTimeMillis()
 )

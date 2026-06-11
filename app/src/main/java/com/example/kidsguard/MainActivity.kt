@@ -156,6 +156,14 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getString("paired_child_id", null)
         set(value) = prefs.edit().putString("paired_child_id", value).apply()
 
+    var childName: String
+        get() = prefs.getString("child_name", "") ?: ""
+        set(value) = prefs.edit().putString("child_name", value).apply()
+
+    var deviceName: String
+        get() = prefs.getString("device_name", android.os.Build.MODEL) ?: android.os.Build.MODEL
+        set(value) = prefs.edit().putString("device_name", value).apply()
+
     var isScheduleEnabled: Boolean
         get() = prefs.getBoolean("schedule_enabled", false)
         set(value) = prefs.edit().putBoolean("schedule_enabled", value).apply()
@@ -221,7 +229,7 @@ fun getBatteryLevel(context: Context): Int {
 }
 
 enum class Screen {
-    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed
+    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup
 }
 
 @Composable
@@ -232,10 +240,13 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
     
     // Initial redirection based on role
     val startScreen = remember(currentScreen) {
-        if (currentScreen == Screen.Home && prefHelper.userRole == "NONE") {
-            Screen.RoleSelection
-        } else if (currentScreen == Screen.Home && prefHelper.userRole == "PARENT") {
-            Screen.ParentDashboard
+        if (currentScreen == Screen.Home) {
+            when (prefHelper.userRole) {
+                "NONE" -> Screen.RoleSelection
+                "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+                else -> currentScreen
+            }
         } else {
             currentScreen
         }
@@ -246,8 +257,21 @@ fun KidsGuardApp(currentScreen: Screen, onScreenChange: (Screen) -> Unit) {
             Screen.RoleSelection -> RoleSelectionScreen(
                 onRoleSelected = { role: String ->
                     prefHelper.userRole = role
-                    onScreenChange(if (role == "PARENT") Screen.ParentDashboard else Screen.Home)
+                    val nextScreen = when(role) {
+                        "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                        "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+                        else -> Screen.RoleSelection
+                    }
+                    onScreenChange(nextScreen)
                 }
+            )
+            Screen.ChildSetup -> ChildSetupScreen(
+                prefHelper = prefHelper,
+                onSetupComplete = { onScreenChange(Screen.Home) }
+            )
+            Screen.ParentSetup -> ParentSetupScreen(
+                prefHelper = prefHelper,
+                onSetupComplete = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Home -> HomeScreen(
                 onActivate = { onScreenChange(Screen.Locked) },
@@ -940,7 +964,6 @@ fun ParentDashboardScreen(
     onOpenSafeZones: () -> Unit,
     onOpenActivityFeed: () -> Unit
 ) {
-    var showPairDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Scaffold(
@@ -962,137 +985,292 @@ fun ParentDashboardScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            if (prefHelper.pairedChildId == null) {
-                Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            modifier = Modifier.size(80.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No child device paired",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Pair a device to monitor status and remote lock.",
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = { showPairDialog = true },
-                            modifier = Modifier.fillMaxWidth().height(56.dp)
-                        ) {
-                            Text("Pair Child Device")
-                        }
-                    }
-                }
-            } else {
-                Text("Monitored Device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        ListItem(
-                            headlineContent = { Text("Child's Phone") },
-                            supportingContent = { Text("ID: ${prefHelper.pairedChildId}") },
-                            trailingContent = {
+            Text("Monitored Device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    ListItem(
+                        headlineContent = { Text(prefHelper.childName.ifEmpty { "Child's Phone" }) },
+                        supportingContent = { Text("Device: ${prefHelper.deviceName}") },
+                        trailingContent = {
+                            Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = if (prefHelper.isLocked) "LOCKED" else "UNLOCKED",
                                     color = if (prefHelper.isLocked) Color.Red else Color.Green,
                                     fontWeight = FontWeight.Bold
                                 )
+                                Text(
+                                    text = "Online",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Green
+                                )
                             }
-                        )
-                        HorizontalDivider()
-                        ListItem(
-                            headlineContent = { Text("Battery Level") },
-                            trailingContent = { Text("85%") } // Mocked
-                        )
-                        ListItem(
-                            headlineContent = { Text("Last Active") },
-                            trailingContent = { Text("Just now") }
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Card(
-                        modifier = Modifier.weight(1f).clickable { onOpenSafeZones() },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null)
-                            Text("Safe Zones", style = MaterialTheme.typography.titleMedium)
                         }
-                    }
-                    Card(
-                        modifier = Modifier.weight(1f).clickable { onOpenActivityFeed() },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.List, contentDescription = null)
-                            Text("Activity Feed", style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
+                    )
+                    HorizontalDivider()
+                    ListItem(
+                        headlineContent = { Text("Battery Level") },
+                        trailingContent = { Text("85%") } // Mocked
+                    )
+                    ListItem(
+                        headlineContent = { Text("Last Updated") },
+                        trailingContent = { Text("Just now") }
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Button(
-                    onClick = { 
-                        // Mock Remote Lock Command
-                        prefHelper.isLocked = true 
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card(
+                    modifier = Modifier.weight(1f).clickable { /* Live Map Placeholder */ },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
-                    Text("Activate Remote KidGuard Lock")
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Map, contentDescription = null)
+                        Text("Live Map", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
+                Card(
+                    modifier = Modifier.weight(1f).clickable { onOpenSafeZones() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null)
+                        Text("Safe Zones", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card(
+                    modifier = Modifier.weight(1f).clickable { onOpenActivityFeed() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.List, contentDescription = null)
+                        Text("Activity Feed", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+                Card(
+                    modifier = Modifier.weight(1f).clickable { 
+                        prefHelper.isLocked = !prefHelper.isLocked
+                    },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (prefHelper.isLocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(if (prefHelper.isLocked) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null)
+                        Text(if (prefHelper.isLocked) "Remote Unlock" else "Remote Lock", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Button(
+                onClick = onOpenSettings,
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Settings")
+            }
+        }
+    }
+}
+
+@Composable
+fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit) {
+    var name by remember { mutableStateOf(prefHelper.childName) }
+    var code by remember { mutableStateOf("") }
+    var isGenerating by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.ChildCare,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Child Device Setup",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Child's Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Device Info", style = MaterialTheme.typography.labelLarge)
+                Text(text = prefHelper.deviceName, style = MaterialTheme.typography.bodyLarge)
             }
         }
 
-        if (showPairDialog) {
-            var code by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { showPairDialog = false },
-                title = { Text("Pair Child Device") },
-                text = {
-                    Column {
-                        Text("Enter the pairing code shown on the child's device.")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = code,
-                            onValueChange = { if (it.length <= 6) code = it },
-                            label = { Text("Pairing Code") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (code.isEmpty()) {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        prefHelper.childName = name
+                        code = "KDG-${(100000..999999).random()}"
+                        prefHelper.pairingCode = code
                     }
                 },
-                confirmButton = {
-                    Button(onClick = {
-                        if (code.length == 6) {
-                            prefHelper.pairedChildId = "DEVICE_$code"
-                            showPairDialog = false
-                        }
-                    }) {
-                        Text("Pair")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showPairDialog = false }) { Text("Cancel") }
-                }
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = name.isNotBlank()
+            ) {
+                Text("Generate Pairing Code")
+            }
+        } else {
+            Text("Your Pairing Code", style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = code,
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // QR Placeholder
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .background(Color.White, RoundedCornerShape(8.dp))
+                    .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+            imageVector = Icons.Default.QrCode,
+            contentDescription = null,
+            modifier = Modifier.size(150.dp),
+            tint = Color.Black
+        )
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            Text(
+                text = "Waiting for parent to connect...",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+            TextButton(onClick = onSetupComplete) {
+                Text("Skip to Dashboard (Mock Connect)")
+            }
+        }
+    }
+}
+
+@Composable
+fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit) {
+    var code by remember { mutableStateOf("") }
+    var isConnecting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.SupervisorAccount,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Connect to Child Device",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Enter the KDG code shown on your child's phone",
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OutlinedTextField(
+            value = code,
+            onValueChange = { 
+                code = it.uppercase()
+                error = ""
+            },
+            label = { Text("Pairing Code (e.g., KDG-123456)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            isError = error.isNotEmpty(),
+            supportingText = { if (error.isNotEmpty()) Text(error) }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                if (code.startsWith("KDG-") && code.length == 10) {
+                    isConnecting = true
+                    // Mock connection delay
+                    prefHelper.pairedChildId = "MOCK_CHILD_ID"
+                    prefHelper.childName = "Alex" // Mock name
+                    onSetupComplete()
+                } else {
+                    error = "Invalid code format. Use KDG-123456"
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            enabled = code.isNotBlank()
+        ) {
+            if (isConnecting) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                Text("Connect")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "OR",
+            style = MaterialTheme.typography.labelMedium
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        OutlinedButton(
+            onClick = { /* Scan QR Mock */ },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Scan QR Code")
         }
     }
 }
