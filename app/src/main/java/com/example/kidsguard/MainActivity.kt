@@ -225,8 +225,17 @@ fun isCurrentTimeInSchedule(prefHelper: PreferenceHelper): Boolean {
     
     fun parseToMinutes(time: String): Int {
         val parts = time.split(":")
-        if (parts.size != 2) return 0
-        return (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
+        if (parts.size != 2) {
+            Log.w("KidsGuard", "Invalid schedule time format: '$time', expected HH:mm")
+            return 0
+        }
+        val hours = parts[0].toIntOrNull()
+        val minutes = parts[1].toIntOrNull()
+        if (hours == null || minutes == null || hours !in 0..23 || minutes !in 0..59) {
+            Log.w("KidsGuard", "Invalid schedule time values in: '$time'")
+            return 0
+        }
+        return hours * 60 + minutes
     }
     
     val startMin = parseToMinutes(prefHelper.scheduleStartTime)
@@ -241,10 +250,19 @@ fun isCurrentTimeInSchedule(prefHelper: PreferenceHelper): Boolean {
 }
 
 fun getBatteryLevel(context: Context): Int {
-    val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
-        context.registerReceiver(null, ifilter)
+    return try {
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+            context.registerReceiver(null, ifilter)
+        }
+        val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        if (level == -1) {
+            Log.w("KidsGuard", "Could not determine battery level")
+        }
+        level
+    } catch (e: Exception) {
+        Log.e("KidsGuard", "Failed to read battery level", e)
+        -1
     }
-    return batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
 }
 
 enum class Screen {
@@ -1719,6 +1737,8 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
             locationProvider.requestSingleUpdate { point ->
                 if (point != null) {
                     repository.addLocationPoint(point)
+                } else {
+                    Log.w("KidsGuard", "Location permission granted but no location available")
                 }
             }
         } else {
@@ -1732,6 +1752,8 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                 locationProvider.requestSingleUpdate { point ->
                     if (point != null) {
                         repository.addLocationPoint(point)
+                    } else {
+                        Log.w("KidsGuard", "Location request returned null despite permission granted")
                     }
                 }
             }
