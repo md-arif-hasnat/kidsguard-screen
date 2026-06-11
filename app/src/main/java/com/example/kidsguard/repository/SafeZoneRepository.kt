@@ -15,9 +15,9 @@ class SafeZoneRepository {
     init {
         // Mock data
         _safeZones.value = listOf(
-            SafeZone(name = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 500.0),
-            SafeZone(name = "School", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0),
-            SafeZone(name = "Playground", latitude = 37.7649, longitude = -122.4094, radiusMeters = 1000.0)
+            SafeZone(name = "Home", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 500.0),
+            SafeZone(name = "School", type = "School", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0),
+            SafeZone(name = "Playground", type = "Playground", latitude = 37.7649, longitude = -122.4094, radiusMeters = 1000.0)
         )
         
         _activityEvents.value = listOf(

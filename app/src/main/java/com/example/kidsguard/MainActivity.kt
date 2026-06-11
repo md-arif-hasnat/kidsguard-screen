@@ -1280,6 +1280,8 @@ fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit)
 fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
     val safeZones by repository.safeZones.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var zoneToEdit by remember { mutableStateOf<SafeZone?>(null) }
+    var zoneToDelete by remember { mutableStateOf<SafeZone?>(null) }
 
     Scaffold(
         topBar = {
@@ -1299,7 +1301,9 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1307,19 +1311,38 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ListItem(
                         headlineContent = { Text(zone.name, fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("Radius: ${zone.radiusMeters.toInt()}m") },
+                        supportingContent = { 
+                            Column {
+                                Text("Type: ${zone.type}")
+                                Text("Radius: ${zone.radiusMeters.toInt()}m")
+                            }
+                        },
                         leadingContent = {
-                            val icon = when {
-                                zone.name.contains("Home", ignoreCase = true) -> Icons.Default.Home
-                                zone.name.contains("School", ignoreCase = true) -> Icons.Default.School
+                            val icon = when (zone.type) {
+                                "Home" -> Icons.Default.Home
+                                "School" -> Icons.Default.School
+                                "Playground" -> Icons.Default.SportsBaseball
+                                "Mosque" -> Icons.Default.Place
+                                "Grandma" -> Icons.Default.Person
                                 else -> Icons.Default.LocationOn
                             }
                             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         },
                         trailingContent = {
-                            Switch(checked = zone.enabled, onCheckedChange = {
-                                repository.updateSafeZone(zone.copy(enabled = it))
-                            })
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(
+                                    checked = zone.enabled,
+                                    onCheckedChange = {
+                                        repository.updateSafeZone(zone.copy(enabled = it))
+                                    }
+                                )
+                                IconButton(onClick = { zoneToEdit = zone }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(onClick = { zoneToDelete = zone }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     )
                 }
@@ -1327,58 +1350,185 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
         }
 
         if (showAddDialog) {
-            var name by remember { mutableStateOf("") }
-            var radius by remember { mutableFloatStateOf(500f) }
-            
+            SafeZoneEditDialog(
+                onDismiss = { showAddDialog = false },
+                onSave = { newZone ->
+                    repository.addSafeZone(newZone)
+                    showAddDialog = false
+                }
+            )
+        }
+
+        if (zoneToEdit != null) {
+            SafeZoneEditDialog(
+                initialZone = zoneToEdit,
+                onDismiss = { zoneToEdit = null },
+                onSave = { updatedZone ->
+                    repository.updateSafeZone(updatedZone)
+                    zoneToEdit = null
+                }
+            )
+        }
+
+        if (zoneToDelete != null) {
             AlertDialog(
-                onDismissRequest = { showAddDialog = false },
-                title = { Text("Add Safe Zone") },
-                text = {
-                    Column {
-                        // Map Placeholder
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(150.dp)
-                                .background(Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Map Picker Placeholder", color = Color.White)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text("Zone Name (e.g., Home)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Radius: ${radius.toInt()}m")
-                        Slider(
-                            value = radius,
-                            onValueChange = { radius = it },
-                            valueRange = 50f..5000f,
-                            steps = 99
-                        )
-                    }
-                },
+                onDismissRequest = { zoneToDelete = null },
+                title = { Text("Delete Safe Zone") },
+                text = { Text("Are you sure you want to delete '${zoneToDelete?.name}'?") },
                 confirmButton = {
-                    Button(onClick = {
-                        if (name.isNotBlank()) {
-                            repository.addSafeZone(SafeZone(name = name, latitude = 0.0, longitude = 0.0, radiusMeters = radius.toDouble()))
-                            showAddDialog = false
-                        }
-                    }) {
-                        Text("Save")
+                    Button(
+                        onClick = {
+                            zoneToDelete?.id?.let { repository.deleteSafeZone(it) }
+                            zoneToDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { zoneToDelete = null }) { Text("Cancel") }
                 }
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SafeZoneEditDialog(
+    initialZone: SafeZone? = null,
+    onDismiss: () -> Unit,
+    onSave: (SafeZone) -> Unit
+) {
+    var name by remember { mutableStateOf(initialZone?.name ?: "") }
+    var type by remember { mutableStateOf(initialZone?.type ?: "Home") }
+    var radius by remember { mutableFloatStateOf(initialZone?.radiusMeters?.toFloat() ?: 500f) }
+    var notifyOnEnter by remember { mutableStateOf(initialZone?.notifyOnEnter ?: true) }
+    var notifyOnExit by remember { mutableStateOf(initialZone?.notifyOnExit ?: true) }
+    var enabled by remember { mutableStateOf(initialZone?.enabled ?: true) }
+    
+    var typeMenuExpanded by remember { mutableStateOf(false) }
+    val zoneTypes = listOf("Home", "School", "Playground", "Mosque", "Grandma", "Custom")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialZone == null) "Add Safe Zone" else "Edit Safe Zone") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Map Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .background(Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Map, contentDescription = null, tint = Color.White)
+                        Text("Map picker will be added later", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Zone Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = typeMenuExpanded,
+                    onExpandedChange = { typeMenuExpanded = !typeMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = type,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Zone Type") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = typeMenuExpanded,
+                        onDismissRequest = { typeMenuExpanded = false }
+                    ) {
+                        zoneTypes.forEach { selectionOption ->
+                            DropdownMenuItem(
+                                text = { Text(selectionOption) },
+                                onClick = {
+                                    type = selectionOption
+                                    typeMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Column {
+                    Text("Radius: ${radius.toInt()}m", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = radius,
+                        onValueChange = { radius = it },
+                        valueRange = 50f..5000f,
+                        steps = 99
+                    )
+                }
+
+                ListItem(
+                    headlineContent = { Text("Notify on Enter") },
+                    trailingContent = {
+                        Switch(checked = notifyOnEnter, onCheckedChange = { notifyOnEnter = it })
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Notify on Exit") },
+                    trailingContent = {
+                        Switch(checked = notifyOnExit, onCheckedChange = { notifyOnExit = it })
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Enabled") },
+                    trailingContent = {
+                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        val zone = (initialZone ?: SafeZone(name = name, latitude = 0.0, longitude = 0.0, radiusMeters = radius.toDouble())).copy(
+                            name = name,
+                            type = type,
+                            radiusMeters = radius.toDouble(),
+                            notifyOnEnter = notifyOnEnter,
+                            notifyOnExit = notifyOnExit,
+                            enabled = enabled
+                        )
+                        onSave(zone)
+                    }
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
