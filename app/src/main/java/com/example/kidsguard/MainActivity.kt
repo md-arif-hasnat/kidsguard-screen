@@ -11,7 +11,10 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import com.example.kidsguard.BuildConfig
 import android.Manifest
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.Calendar
 import com.example.kidsguard.models.*
 import com.example.kidsguard.repository.SafeZoneRepository
@@ -97,7 +100,7 @@ class MainActivity : ComponentActivity() {
                     KidsGuardApp(
                         currentScreen = currentScreenState.value,
                         onScreenChange = { screen ->
-                            Log.d("KidsGuard", "Screen changing to: $screen")
+                            if (BuildConfig.DEBUG) Log.d("KidsGuard", "Screen changing to: $screen")
                             currentScreenState.value = screen
                             prefHelper.isLocked = (screen == Screen.Locked)
                             
@@ -127,7 +130,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 volumeUpTapCount++
                 if (volumeUpTapCount >= 4) {
-                    Log.i("KidsGuard", "Emergency Volume Unlock triggered")
+                    if (BuildConfig.DEBUG) Log.i("KidsGuard", "Emergency Volume Unlock triggered")
                     repository.addEvent(ActivityEvent(type = "VOLUME_UNLOCK", title = "Volume Unlock", description = "Emergency exit triggered"))
                     currentScreenState.value = Screen.Home
                     prefHelper.isLocked = false
@@ -143,9 +146,69 @@ class MainActivity : ComponentActivity() {
 class PreferenceHelper(context: Context) {
     private val prefs = context.getSharedPreferences("kidsguard_prefs", Context.MODE_PRIVATE)
 
-    var pin: String
-        get() = prefs.getString("pin", "1234") ?: "1234"
-        set(value) = prefs.edit().putString("pin", value).apply()
+    private val pinSalt: String
+        get() {
+            var salt = prefs.getString("pin_salt", null)
+            if (salt == null) {
+                val bytes = ByteArray(16)
+                SecureRandom().nextBytes(bytes)
+                salt = bytes.joinToString("") { "%02x".format(it) }
+                prefs.edit().putString("pin_salt", salt).apply()
+            }
+            return salt
+        }
+
+    private fun hashPin(raw: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val salted = raw + pinSalt
+        return digest.digest(salted.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    fun verifyPin(attempt: String): Boolean = hashPin(attempt) == pinHash
+
+    private var pinHash: String
+        get() {
+            val stored = prefs.getString("pin_hash", null)
+            if (stored == null) {
+                val defaultHash = hashPin("1234")
+                prefs.edit().putString("pin_hash", defaultHash).apply()
+                return defaultHash
+            }
+            return stored
+        }
+        set(value) = prefs.edit().putString("pin_hash", value).apply()
+
+    fun changePin(newPin: String) {
+        pinHash = hashPin(newPin)
+    }
+
+    var failedPinAttempts: Int
+        get() = prefs.getInt("failed_pin_attempts", 0)
+        set(value) = prefs.edit().putInt("failed_pin_attempts", value).apply()
+
+    var lockoutEndTime: Long
+        get() = prefs.getLong("lockout_end_time", 0L)
+        set(value) = prefs.edit().putLong("lockout_end_time", value).apply()
+
+    fun recordFailedAttempt() {
+        failedPinAttempts++
+        if (failedPinAttempts >= 5) {
+            val backoffMs = 30_000L * (1L shl (failedPinAttempts / 5 - 1).coerceAtMost(4))
+            lockoutEndTime = System.currentTimeMillis() + backoffMs
+        }
+    }
+
+    fun resetFailedAttempts() {
+        failedPinAttempts = 0
+        lockoutEndTime = 0L
+    }
+
+    fun isLockedOut(): Boolean = System.currentTimeMillis() < lockoutEndTime
+
+    fun remainingLockoutSeconds(): Int {
+        val remaining = lockoutEndTime - System.currentTimeMillis()
+        return if (remaining > 0) (remaining / 1000).toInt() else 0
+    }
 
     var secretTapsCount: Int
         get() = prefs.getInt("secret_taps_count", 5)
@@ -168,7 +231,14 @@ class PreferenceHelper(context: Context) {
         set(value) = prefs.edit().putString("user_role", value).apply()
 
     var pairingCode: String
-        get() = prefs.getString("pairing_code", (100000..999999).random().toString()) ?: ""
+        get() {
+            var code = prefs.getString("pairing_code", null)
+            if (code == null) {
+                code = SecureRandom().nextInt(900000).plus(100000).toString()
+                prefs.edit().putString("pairing_code", code).apply()
+            }
+            return code
+        }
         set(value) = prefs.edit().putString("pairing_code", value).apply()
 
     var pairedChildId: String?
@@ -484,7 +554,7 @@ fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: P
                     showPinDialog = false
                     onOpenSettings()
                 },
-                correctPin = prefHelper.pin
+                prefHelper = prefHelper
             )
         }
     }
@@ -493,7 +563,6 @@ fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: P
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
-    var pin by remember { mutableStateOf(prefHelper.pin) }
     var secretTapsCount by remember { mutableFloatStateOf(prefHelper.secretTapsCount.toFloat()) }
     var secretTapsEnabled by remember { mutableStateOf(prefHelper.isSecretTapsEnabled) }
     var volumeUnlockEnabled by remember { mutableStateOf(prefHelper.isVolumeUnlockEnabled) }
@@ -718,8 +787,7 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
                     Button(
                         onClick = {
                             if (newPin.isNotEmpty() && newPin == confirmPin) {
-                                prefHelper.pin = newPin
-                                pin = newPin
+                                prefHelper.changePin(newPin)
                                 showPinChangeDialog = false
                             } else {
                                 isError = true
@@ -786,7 +854,7 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
                             } else {
                                 tapCount++
                                 if (tapCount >= prefHelper.secretTapsCount) {
-                                    Log.i("KidsGuard", "Secret Tap Unlock triggered")
+                                    if (BuildConfig.DEBUG) Log.i("KidsGuard", "Secret Tap Unlock triggered")
                                     repository.addEvent(ActivityEvent(type = "SECRET_TAP_UNLOCK", title = "Secret Tap Unlock", description = "Top-left corner pattern"))
                                     onUnlock()
                                 }
@@ -876,7 +944,7 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
                 onIncorrectPin = {
                     repository.addEvent(ActivityEvent(type = "PIN_FAILED", title = "PIN Unlock Failed", description = "Attempt blocked"))
                 },
-                correctPin = prefHelper.pin
+                prefHelper = prefHelper
             )
         }
     }
@@ -888,16 +956,35 @@ fun PinEntryDialog(
     onDismiss: () -> Unit,
     onCorrectPin: () -> Unit,
     onIncorrectPin: () -> Unit = {},
-    correctPin: String
+    prefHelper: PreferenceHelper
 ) {
     var pin by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("Incorrect PIN") }
+    var isLockedOut by remember { mutableStateOf(prefHelper.isLockedOut()) }
+    var remainingSeconds by remember { mutableIntStateOf(prefHelper.remainingLockoutSeconds()) }
+
+    LaunchedEffect(isLockedOut) {
+        while (isLockedOut) {
+            kotlinx.coroutines.delay(1000)
+            remainingSeconds = prefHelper.remainingLockoutSeconds()
+            isLockedOut = prefHelper.isLockedOut()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column {
+                if (isLockedOut) {
+                    Text(
+                        text = "Too many failed attempts. Try again in ${remainingSeconds}s.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = pin,
                     onValueChange = {
@@ -911,11 +998,12 @@ fun PinEntryDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = isError,
                     singleLine = true,
+                    enabled = !isLockedOut,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (isError) {
                     Text(
-                        text = "Incorrect PIN",
+                        text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(start = 16.dp, top = 4.dp)
@@ -926,14 +1014,29 @@ fun PinEntryDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (pin == correctPin) {
+                    if (prefHelper.isLockedOut()) {
+                        isLockedOut = true
+                        remainingSeconds = prefHelper.remainingLockoutSeconds()
+                        return@Button
+                    }
+                    if (prefHelper.verifyPin(pin)) {
+                        prefHelper.resetFailedAttempts()
                         onCorrectPin()
                     } else {
+                        prefHelper.recordFailedAttempt()
                         isError = true
+                        if (prefHelper.isLockedOut()) {
+                            isLockedOut = true
+                            remainingSeconds = prefHelper.remainingLockoutSeconds()
+                            errorMessage = "Too many attempts. Locked out."
+                        } else {
+                            errorMessage = "Incorrect PIN (${5 - prefHelper.failedPinAttempts} attempts left)"
+                        }
                         onIncorrectPin()
                         pin = ""
                     }
-                }
+                },
+                enabled = !isLockedOut
             ) {
                 Text("Unlock")
             }
@@ -1195,7 +1298,7 @@ fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit) 
                 onClick = {
                     if (name.isNotBlank()) {
                         prefHelper.childName = name
-                        code = "KDG-${(100000..999999).random()}"
+                        code = "KDG-${SecureRandom().nextInt(900000) + 100000}"
                         prefHelper.pairingCode = code
                     }
                 },
