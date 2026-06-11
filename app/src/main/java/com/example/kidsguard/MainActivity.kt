@@ -6,19 +6,25 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.Manifest
 import java.util.Calendar
 import com.example.kidsguard.models.*
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.repository.LocationRepository
+import com.example.kidsguard.location.LocalLocationProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,10 +77,15 @@ class MainActivity : ComponentActivity() {
         repository = SafeZoneRepository()
         locationRepository = LocationRepository(this)
         
-        // Auto Re-lock: If it was locked, start locked
-        if (prefHelper.isLocked) {
-            currentScreenState.value = Screen.Locked
+        // Determine initial screen based on role and pairing status
+        val initialScreen = when {
+            prefHelper.isLocked -> Screen.Locked
+            prefHelper.userRole == "NONE" -> Screen.RoleSelection
+            prefHelper.userRole == "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+            prefHelper.userRole == "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+            else -> Screen.Home
         }
+        currentScreenState.value = initialScreen
 
         enableEdgeToEdge()
         setContent {
@@ -250,13 +261,15 @@ fun KidsGuardApp(
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
     
-    // Initial redirection based on role
-    val startScreen = remember(currentScreen) {
+    // Initial redirection based on role and pairing status
+    val userRole = prefHelper.userRole
+    val pairedId = prefHelper.pairedChildId
+    val startScreen = remember(currentScreen, userRole, pairedId) {
         if (currentScreen == Screen.Home) {
-            when (prefHelper.userRole) {
+            when (userRole) {
                 "NONE" -> Screen.RoleSelection
-                "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
-                "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+                "PARENT" -> if (pairedId == null) Screen.ParentSetup else Screen.ParentDashboard
+                "CHILD" -> if (pairedId == null) Screen.ChildSetup else Screen.Home
                 else -> currentScreen
             }
         } else {
@@ -1690,6 +1703,43 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
 fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
     val history by repository.locationHistory.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
+    var showPermissionExplanation by remember { mutableStateOf(false) }
+    var permissionDeniedMessage by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val locationProvider = remember { LocalLocationProvider(context) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                      permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            locationProvider.requestSingleUpdate { point ->
+                if (point != null) {
+                    repository.addLocationPoint(point)
+                }
+            }
+        } else {
+            permissionDeniedMessage = true
+        }
+    }
+
+    fun handleLocationRequest() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> {
+                locationProvider.requestSingleUpdate { point ->
+                    if (point != null) {
+                        repository.addLocationPoint(point)
+                    }
+                }
+            }
+            else -> {
+                showPermissionExplanation = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1706,60 +1756,92 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { handleLocationRequest() },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Get Current Location")
+            }
         }
     ) { innerPadding ->
-        if (history.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.padding(innerPadding)) {
+            if (permissionDeniedMessage) {
+                Card(
+                    modifier = Modifier.padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Permission Denied", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+                            Text("Location permission is required to fetch current GPS coordinates.", style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { 
+                            permissionDeniedMessage = false
+                            showPermissionExplanation = true 
+                        }) {
+                            Text("Retry")
+                        }
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(history) { point ->
-                    val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
-                    val timeString = sdf.format(java.util.Date(point.timestamp))
-                    
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = timeString,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "Accuracy: ${point.accuracy.toInt()}m",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Lat:", style = MaterialTheme.typography.labelSmall)
-                                    Text(point.latitude.toString(), style = MaterialTheme.typography.bodyMedium)
+
+            if (history.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(history) { point ->
+                        val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+                        val timeString = sdf.format(java.util.Date(point.timestamp))
+                        
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = timeString,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Accuracy: ${point.accuracy.toInt()}m",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Lng:", style = MaterialTheme.typography.labelSmall)
-                                    Text(point.longitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Lat:", style = MaterialTheme.typography.labelSmall)
+                                        Text(point.latitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Lng:", style = MaterialTheme.typography.labelSmall)
+                                        Text(point.longitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                    }
                                 }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Speed: ${"%.1f".format(point.speed * 3.6)} km/h",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Speed: ${"%.1f".format(point.speed * 3.6)} km/h",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
                     }
@@ -1785,6 +1867,34 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (showPermissionExplanation) {
+            AlertDialog(
+                onDismissRequest = { showPermissionExplanation = false },
+                title = { Text("Location Permission") },
+                text = { 
+                    Text("KidsGuard needs your location to provide accurate safety monitoring and history. Please grant location access on the next screen.") 
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        showPermissionExplanation = false
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }) {
+                        Text("Grant Permission")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPermissionExplanation = false }) {
+                        Text("Later")
+                    }
                 }
             )
         }
