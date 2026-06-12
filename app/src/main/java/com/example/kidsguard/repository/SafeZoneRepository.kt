@@ -50,4 +50,8 @@ class SafeZoneRepository {
     fun clearEvents() {
         _activityEvents.value = emptyList()
     }
+
+    fun clearAllSafeZones() {
+        _safeZones.value = emptyList()
+    }
 }

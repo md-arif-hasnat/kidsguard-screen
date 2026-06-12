@@ -248,7 +248,7 @@ fun getBatteryLevel(context: Context): Int {
 }
 
 enum class Screen {
-    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup, LocationHistory
+    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup, LocationHistory, DeveloperMenu
 }
 
 @Composable
@@ -288,15 +288,24 @@ fun KidsGuardApp(
                         else -> Screen.RoleSelection
                     }
                     onScreenChange(nextScreen)
-                }
+                },
+                onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) }
             )
             Screen.ChildSetup -> ChildSetupScreen(
                 prefHelper = prefHelper,
-                onSetupComplete = { onScreenChange(Screen.Home) }
+                onSetupComplete = { onScreenChange(Screen.Home) },
+                onBack = { 
+                    prefHelper.userRole = "NONE"
+                    onScreenChange(Screen.RoleSelection) 
+                }
             )
             Screen.ParentSetup -> ParentSetupScreen(
                 prefHelper = prefHelper,
-                onSetupComplete = { onScreenChange(Screen.ParentDashboard) }
+                onSetupComplete = { onScreenChange(Screen.ParentDashboard) },
+                onBack = { 
+                    prefHelper.userRole = "NONE"
+                    onScreenChange(Screen.RoleSelection) 
+                }
             )
             Screen.Home -> HomeScreen(
                 onActivate = { 
@@ -304,6 +313,7 @@ fun KidsGuardApp(
                     onScreenChange(Screen.Locked) 
                 },
                 onOpenSettings = { onScreenChange(Screen.Settings) },
+                onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) },
                 prefHelper = prefHelper,
                 repository = repository
             )
@@ -312,7 +322,8 @@ fun KidsGuardApp(
                 onOpenSettings = { onScreenChange(Screen.Settings) },
                 onOpenSafeZones = { onScreenChange(Screen.SafeZoneList) },
                 onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
-                onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) }
+                onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
+                onBack = { onScreenChange(Screen.RoleSelection) }
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -338,16 +349,39 @@ fun KidsGuardApp(
                 onBack = { onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) },
                 prefHelper = prefHelper
             )
+            Screen.DeveloperMenu -> DeveloperMenuScreen(
+                onBack = { 
+                    if (prefHelper.userRole == "NONE") {
+                        onScreenChange(Screen.RoleSelection)
+                    } else {
+                        onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
+                    }
+                },
+                prefHelper = prefHelper,
+                repository = repository,
+                locationRepository = locationRepository,
+                onScreenChange = onScreenChange
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: PreferenceHelper, repository: SafeZoneRepository) {
+fun HomeScreen(
+    onActivate: () -> Unit, 
+    onOpenSettings: () -> Unit, 
+    onOpenDeveloperMenu: () -> Unit,
+    prefHelper: PreferenceHelper, 
+    repository: SafeZoneRepository
+) {
     val context = LocalContext.current.findActivity()
     var showPinDialog by remember { mutableStateOf(false) }
     
+    // Developer Menu hidden access
+    var logoTapCount by remember { mutableIntStateOf(0) }
+    var lastLogoTapTime by remember { mutableLongStateOf(0L) }
+
     LaunchedEffect(context) {
         context?.window?.let { window ->
             val controller = WindowCompat.getInsetsController(window, window.decorView)
@@ -400,7 +434,24 @@ fun HomeScreen(onActivate: () -> Unit, onOpenSettings: () -> Unit, prefHelper: P
             Icon(
                 imageVector = Icons.Default.Shield,
                 contentDescription = null,
-                modifier = Modifier.size(120.dp),
+                modifier = Modifier
+                    .size(120.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastLogoTapTime > 2000) {
+                            logoTapCount = 1
+                        } else {
+                            logoTapCount++
+                        }
+                        lastLogoTapTime = now
+                        if (logoTapCount >= 7) {
+                            logoTapCount = 0
+                            onOpenDeveloperMenu()
+                        }
+                    },
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(32.dp))
@@ -947,7 +998,7 @@ fun PinEntryDialog(
 }
 
 @Composable
-fun RoleSelectionScreen(onRoleSelected: (String) -> Unit) {
+fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -999,6 +1050,14 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit) {
                 Text("Set up protection on this device.", style = MaterialTheme.typography.bodyMedium)
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        TextButton(onClick = onOpenDeveloperMenu) {
+            Icon(Icons.Default.BugReport, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Developer Tools")
+        }
     }
 }
 
@@ -1009,14 +1068,21 @@ fun ParentDashboardScreen(
     onOpenSettings: () -> Unit,
     onOpenSafeZones: () -> Unit,
     onOpenActivityFeed: () -> Unit,
-    onOpenLocationHistory: () -> Unit
+    onOpenLocationHistory: () -> Unit,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    var showExitDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Parent Dashboard") },
+                navigationIcon = {
+                    IconButton(onClick = { showExitDialog = true }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Change Role")
+                    }
+                },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -1140,196 +1206,248 @@ fun ParentDashboardScreen(
                 Text("Settings")
             }
         }
+
+        if (showExitDialog) {
+            AlertDialog(
+                onDismissRequest = { showExitDialog = false },
+                title = { Text("Change Role") },
+                text = { Text("Are you sure you want to go back to role selection? This will logout of the parent dashboard.") },
+                confirmButton = {
+                    Button(onClick = {
+                        showExitDialog = false
+                        prefHelper.userRole = "NONE"
+                        onBack()
+                    }) {
+                        Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showExitDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit) {
+fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit, onBack: () -> Unit) {
     var name by remember { mutableStateOf(prefHelper.childName) }
     var code by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.ChildCare,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Child Device Setup",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Child's Name") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Device Info", style = MaterialTheme.typography.labelLarge)
-                Text(text = prefHelper.deviceName, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        if (code.isEmpty()) {
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        prefHelper.childName = name
-                        code = "KDG-${(100000..999999).random()}"
-                        prefHelper.pairingCode = code
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Child Setup") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = name.isNotBlank()
-            ) {
-                Text("Generate Pairing Code")
-            }
-        } else {
-            Text("Your Pairing Code", style = MaterialTheme.typography.labelLarge)
-            Text(
-                text = code,
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                }
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // QR Placeholder
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .background(Color.White, RoundedCornerShape(8.dp))
-                    .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-            imageVector = Icons.Default.QrCode,
-            contentDescription = null,
-            modifier = Modifier.size(150.dp),
-            tint = Color.Black
-        )
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChildCare,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Waiting for parent to connect...",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp)
+                text = "Child Device Setup",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Child's Name") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Device Info", style = MaterialTheme.typography.labelLarge)
+                    Text(text = prefHelper.deviceName, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
-            TextButton(onClick = onSetupComplete) {
-                Text("Skip to Dashboard (Mock Connect)")
+
+            if (code.isEmpty()) {
+                Button(
+                    onClick = {
+                        if (name.isNotBlank()) {
+                            prefHelper.childName = name
+                            code = "KDG-${(100000..999999).random()}"
+                            prefHelper.pairingCode = code
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = name.isNotBlank()
+                ) {
+                    Text("Generate Pairing Code")
+                }
+            } else {
+                Text("Your Pairing Code", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = code,
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // QR Placeholder
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .background(Color.White, RoundedCornerShape(8.dp))
+                        .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                imageVector = Icons.Default.QrCode,
+                contentDescription = null,
+                modifier = Modifier.size(150.dp),
+                tint = Color.Black
+            )
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Text(
+                    text = "Waiting for parent to connect...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+                TextButton(onClick = onSetupComplete) {
+                    Text("Skip to Dashboard (Mock Connect)")
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit) {
+fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit, onBack: () -> Unit) {
     var code by remember { mutableStateOf("") }
     var isConnecting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.SupervisorAccount,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Connect to Child Device",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Enter the KDG code shown on your child's phone",
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = code,
-            onValueChange = { 
-                code = it.uppercase()
-                error = ""
-            },
-            label = { Text("Pairing Code (e.g., KDG-123456)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            isError = error.isNotEmpty(),
-            supportingText = { if (error.isNotEmpty()) Text(error) }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = {
-                if (code.startsWith("KDG-") && code.length == 10) {
-                    isConnecting = true
-                    // Mock connection delay
-                    prefHelper.pairedChildId = "MOCK_CHILD_ID"
-                    prefHelper.childName = "Alex" // Mock name
-                    onSetupComplete()
-                } else {
-                    error = "Invalid code format. Use KDG-123456"
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Parent Setup") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = code.isNotBlank()
-        ) {
-            if (isConnecting) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-            } else {
-                Text("Connect")
-            }
+            )
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "OR",
-            style = MaterialTheme.typography.labelMedium
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        OutlinedButton(
-            onClick = { /* Scan QR Mock */ },
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Scan QR Code")
+            Icon(
+                imageVector = Icons.Default.SupervisorAccount,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Connect to Child Device",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Enter the KDG code shown on your child's phone",
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            OutlinedTextField(
+                value = code,
+                onValueChange = { 
+                    code = it.uppercase()
+                    error = ""
+                },
+                label = { Text("Pairing Code (e.g., KDG-123456)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = error.isNotEmpty(),
+                supportingText = { if (error.isNotEmpty()) Text(error) }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    if (code.startsWith("KDG-") && code.length == 10) {
+                        isConnecting = true
+                        // Mock connection delay
+                        prefHelper.pairedChildId = "MOCK_CHILD_ID"
+                        prefHelper.childName = "Alex" // Mock name
+                        onSetupComplete()
+                    } else {
+                        error = "Invalid code format. Use KDG-123456"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = code.isNotBlank()
+            ) {
+                if (isConnecting) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Connect")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "OR",
+                style = MaterialTheme.typography.labelMedium
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            OutlinedButton(
+                onClick = { /* Scan QR Mock */ },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Scan QR Code")
+            }
         }
     }
 }
@@ -1920,4 +2038,166 @@ fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeveloperMenuScreen(
+    onBack: () -> Unit,
+    prefHelper: PreferenceHelper,
+    repository: SafeZoneRepository,
+    locationRepository: LocationRepository,
+    onScreenChange: (Screen) -> Unit
+) {
+    var showConfirmDialog by remember { mutableStateOf<String?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Developer Tools") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DeveloperActionItem(
+                title = "Reset Role Selection",
+                description = "Resets user role to NONE and clears pairing data.",
+                onClick = { showConfirmDialog = "RESET_ROLE" }
+            )
+            DeveloperActionItem(
+                title = "Clear Pairing Data",
+                description = "Clears child ID, name, and pairing code.",
+                onClick = { showConfirmDialog = "CLEAR_PAIRING" }
+            )
+            DeveloperActionItem(
+                title = "Clear Activity History",
+                description = "Deletes all events from the activity feed.",
+                onClick = { showConfirmDialog = "CLEAR_ACTIVITY" }
+            )
+            DeveloperActionItem(
+                title = "Clear Location History",
+                description = "Deletes all recorded location points.",
+                onClick = { showConfirmDialog = "CLEAR_LOCATION" }
+            )
+            DeveloperActionItem(
+                title = "Clear Safe Zones",
+                description = "Removes all defined safe zones.",
+                onClick = { showConfirmDialog = "CLEAR_SAFEZONES" }
+            )
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            DeveloperActionItem(
+                title = "Force KidGuard Lock",
+                description = "Immediately activate the lock screen.",
+                color = MaterialTheme.colorScheme.error,
+                onClick = {
+                    prefHelper.isLocked = true
+                    onScreenChange(Screen.Locked)
+                }
+            )
+            DeveloperActionItem(
+                title = "Force Unlock",
+                description = "Immediately deactivate the lock screen.",
+                color = Color.Green,
+                onClick = {
+                    prefHelper.isLocked = false
+                    onScreenChange(Screen.Home)
+                }
+            )
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            Button(
+                onClick = { showConfirmDialog = "RESET_ALL" },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Reset Everything (Keep Security Settings)")
+            }
+        }
+
+        if (showConfirmDialog != null) {
+            AlertDialog(
+                onDismissRequest = { showConfirmDialog = null },
+                title = { Text("Confirm Action") },
+                text = { Text("Are you sure you want to proceed? This action cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            when (showConfirmDialog) {
+                                "RESET_ROLE" -> {
+                                    prefHelper.userRole = "NONE"
+                                    prefHelper.pairedChildId = null
+                                    prefHelper.childName = ""
+                                    prefHelper.pairingCode = ""
+                                    onScreenChange(Screen.RoleSelection)
+                                }
+                                "CLEAR_PAIRING" -> {
+                                    prefHelper.pairedChildId = null
+                                    prefHelper.childName = ""
+                                    prefHelper.pairingCode = ""
+                                }
+                                "CLEAR_ACTIVITY" -> repository.clearEvents()
+                                "CLEAR_LOCATION" -> locationRepository.clearLocationHistory()
+                                "CLEAR_SAFEZONES" -> repository.clearAllSafeZones()
+                                "RESET_ALL" -> {
+                                    prefHelper.userRole = "NONE"
+                                    prefHelper.pairedChildId = null
+                                    prefHelper.childName = ""
+                                    prefHelper.pairingCode = ""
+                                    prefHelper.isLocked = false
+                                    repository.clearEvents()
+                                    repository.clearAllSafeZones()
+                                    locationRepository.clearLocationHistory()
+                                    onScreenChange(Screen.RoleSelection)
+                                }
+                            }
+                            showConfirmDialog = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showConfirmDialog = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun DeveloperActionItem(
+    title: String,
+    description: String,
+    color: Color = MaterialTheme.colorScheme.primary,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+            Text(text = description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
