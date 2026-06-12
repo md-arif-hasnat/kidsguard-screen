@@ -999,6 +999,10 @@ fun PinEntryDialog(
 
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: () -> Unit) {
+    // Developer Menu hidden access
+    var logoTapCount by remember { mutableIntStateOf(0) }
+    var lastLogoTapTime by remember { mutableLongStateOf(0L) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1009,7 +1013,24 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
         Icon(
             imageVector = Icons.Default.Shield,
             contentDescription = null,
-            modifier = Modifier.size(100.dp),
+            modifier = Modifier
+                .size(100.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastLogoTapTime > 2000) {
+                        logoTapCount = 1
+                    } else {
+                        logoTapCount++
+                    }
+                    lastLogoTapTime = now
+                    if (logoTapCount >= 7) {
+                        logoTapCount = 0
+                        onOpenDeveloperMenu()
+                    }
+                },
             tint = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(32.dp))
@@ -1049,14 +1070,6 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
                 Text("I am a Child", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("Set up protection on this device.", style = MaterialTheme.typography.bodyMedium)
             }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        TextButton(onClick = onOpenDeveloperMenu) {
-            Icon(Icons.Default.BugReport, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Developer Tools")
         }
     }
 }
