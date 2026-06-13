@@ -1,6 +1,7 @@
 package com.example.kidsguard.repository
 
 import android.content.Context
+import android.util.Log
 import com.example.kidsguard.models.LocationPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,19 +49,23 @@ class LocationRepository(private val context: Context) {
     }
 
     private fun saveHistory(history: List<LocationPoint>) {
-        val jsonArray = JSONArray()
-        history.take(100).forEach { point -> // Limit to 100 points for simple persistence
-            val jsonObject = JSONObject().apply {
-                put("lat", point.latitude)
-                put("lng", point.longitude)
-                put("accuracy", point.accuracy.toDouble())
-                put("speed", point.speed.toDouble())
-                put("bearing", point.bearing.toDouble())
-                put("timestamp", point.timestamp)
+        try {
+            val jsonArray = JSONArray()
+            history.take(100).forEach { point ->
+                val jsonObject = JSONObject().apply {
+                    put("lat", point.latitude)
+                    put("lng", point.longitude)
+                    put("accuracy", point.accuracy.toDouble())
+                    put("speed", point.speed.toDouble())
+                    put("bearing", point.bearing.toDouble())
+                    put("timestamp", point.timestamp)
+                }
+                jsonArray.put(jsonObject)
             }
-            jsonArray.put(jsonObject)
+            prefs.edit().putString("history_json", jsonArray.toString()).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save location history", e)
         }
-        prefs.edit().putString("history_json", jsonArray.toString()).apply()
     }
 
     private fun loadHistory(): List<LocationPoint> {
@@ -82,9 +87,14 @@ class LocationRepository(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse location history JSON, falling back to mock data", e)
             return mockHistory()
         }
         return if (history.isEmpty()) mockHistory() else history
+    }
+
+    companion object {
+        private const val TAG = "LocationRepository"
     }
 
     private fun mockHistory(): List<LocationPoint> {

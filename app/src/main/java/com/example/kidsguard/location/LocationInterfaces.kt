@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.util.Log
 import com.example.kidsguard.models.LocationPoint
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -34,7 +35,8 @@ class LocalLocationProvider(private val context: Context) : LocationProvider {
                     requestSingleUpdateLocationManager(onResult)
                 }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                Log.w(TAG, "FusedLocationProvider failed, falling back to LocationManager", e)
                 requestSingleUpdateLocationManager(onResult)
             }
     }
@@ -73,8 +75,14 @@ class LocalLocationProvider(private val context: Context) : LocationProvider {
             }
             
             if (provider != null) {
-                locationManager.requestSingleUpdate(provider, listener, null)
+                try {
+                    locationManager.requestSingleUpdate(provider, listener, null)
+                } catch (e: Exception) {
+                    Log.e(TAG, "LocationManager.requestSingleUpdate failed for provider=$provider", e)
+                    onResult(null)
+                }
             } else {
+                Log.w(TAG, "No location provider available (GPS and Network both disabled)")
                 onResult(null)
             }
         }
@@ -88,6 +96,10 @@ class LocalLocationProvider(private val context: Context) : LocationProvider {
         // Future local GPS implementation
     }
     
+    companion object {
+        private const val TAG = "LocalLocationProvider"
+    }
+
     private fun Location.toLocationPoint() = LocationPoint(
         latitude = latitude,
         longitude = longitude,
