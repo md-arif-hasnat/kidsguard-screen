@@ -260,6 +260,7 @@ fun KidsGuardApp(
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
+    val locationProvider = remember { LocalLocationProvider(context) }
     
     // Initial redirection based on role and pairing status
     val userRole = prefHelper.userRole
@@ -323,7 +324,10 @@ fun KidsGuardApp(
                 onOpenSafeZones = { onScreenChange(Screen.SafeZoneList) },
                 onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
                 onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
-                onBack = { onScreenChange(Screen.RoleSelection) }
+                onBack = { onScreenChange(Screen.RoleSelection) },
+                locationRepository = locationRepository,
+                safeZoneRepository = repository,
+                locationProvider = locationProvider
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -335,7 +339,8 @@ fun KidsGuardApp(
             )
             Screen.LocationHistory -> LocationHistoryScreen(
                 repository = locationRepository,
-                onBack = { onScreenChange(Screen.ParentDashboard) }
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                locationProvider = locationProvider
             )
             Screen.Locked -> LockedScreen(
                 onUnlock = { 
@@ -1082,10 +1087,58 @@ fun ParentDashboardScreen(
     onOpenSafeZones: () -> Unit,
     onOpenActivityFeed: () -> Unit,
     onOpenLocationHistory: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    locationRepository: LocationRepository,
+    safeZoneRepository: SafeZoneRepository,
+    locationProvider: LocalLocationProvider
 ) {
     val context = LocalContext.current
     var showExitDialog by remember { mutableStateOf(false) }
+    var isFetchingLocation by remember { mutableStateOf(false) }
+    var showPermissionExplanation by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                      permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            isFetchingLocation = true
+            locationProvider.requestSingleUpdate { point ->
+                isFetchingLocation = false
+                if (point != null) {
+                    locationRepository.addLocationPoint(point)
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "LOCATION_FETCHED",
+                        title = "Location Updated",
+                        description = "Manual request successful"
+                    ))
+                }
+            }
+        }
+    }
+
+    fun handleLocationRequest() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> {
+                isFetchingLocation = true
+                locationProvider.requestSingleUpdate { point ->
+                    isFetchingLocation = false
+                    if (point != null) {
+                        locationRepository.addLocationPoint(point)
+                        safeZoneRepository.addEvent(ActivityEvent(
+                            type = "LOCATION_FETCHED",
+                            title = "Location Updated",
+                            description = "Manual request successful"
+                        ))
+                    }
+                }
+            }
+            else -> {
+                showPermissionExplanation = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1146,6 +1199,22 @@ fun ParentDashboardScreen(
                 }
             }
             
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = { handleLocationRequest() },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !isFetchingLocation
+            ) {
+                if (isFetchingLocation) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(Icons.Default.MyLocation, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Get Current Location")
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1237,6 +1306,34 @@ fun ParentDashboardScreen(
                 dismissButton = {
                     TextButton(onClick = { showExitDialog = false }) {
                         Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showPermissionExplanation) {
+            AlertDialog(
+                onDismissRequest = { showPermissionExplanation = false },
+                title = { Text("Location Permission") },
+                text = { 
+                    Text("KidsGuard needs location access to fetch coordinates for monitoring. Please grant access on the next screen.") 
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        showPermissionExplanation = false
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }) {
+                        Text("Grant Permission")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPermissionExplanation = false }) {
+                        Text("Later")
                     }
                 }
             )
@@ -1831,15 +1928,18 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
+fun LocationHistoryScreen(
+    repository: LocationRepository, 
+    onBack: () -> Unit,
+    locationProvider: LocalLocationProvider
+) {
     val history by repository.locationHistory.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
     var showPermissionExplanation by remember { mutableStateOf(false) }
     var permissionDeniedMessage by remember { mutableStateOf(false) }
+    var isFetchingLocation by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val locationProvider = remember { LocalLocationProvider(context) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -1847,7 +1947,9 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
+            isFetchingLocation = true
             locationProvider.requestSingleUpdate { point ->
+                isFetchingLocation = false
                 if (point != null) {
                     repository.addLocationPoint(point)
                 }
@@ -1860,7 +1962,9 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
     fun handleLocationRequest() {
         when {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> {
+                isFetchingLocation = true
                 locationProvider.requestSingleUpdate { point ->
+                    isFetchingLocation = false
                     if (point != null) {
                         repository.addLocationPoint(point)
                     }
@@ -1882,6 +1986,16 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { handleLocationRequest() },
+                        enabled = !isFetchingLocation
+                    ) {
+                        if (isFetchingLocation) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                    }
                     IconButton(onClick = { showClearDialog = true }) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
                     }
@@ -1891,13 +2005,18 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { handleLocationRequest() },
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Get Current Location")
+                if (isFetchingLocation) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Get Current Location")
+                }
             }
         }
     ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
+        Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             if (permissionDeniedMessage) {
                 Card(
                     modifier = Modifier.padding(16.dp),
@@ -1922,7 +2041,16 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
 
             if (history.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.LocationOff, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("No location history recorded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             } else {
                 LazyColumn(
@@ -1931,10 +2059,13 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(history) { point ->
-                        val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+                        val sdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
                         val timeString = sdf.format(java.util.Date(point.timestamp))
                         
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1947,30 +2078,43 @@ fun LocationHistoryScreen(repository: LocationRepository, onBack: () -> Unit) {
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
                                     )
-                                    Text(
-                                        text = "Accuracy: ${point.accuracy.toInt()}m",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("Lat:", style = MaterialTheme.typography.labelSmall)
-                                        Text(point.latitude.toString(), style = MaterialTheme.typography.bodyMedium)
-                                    }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("Lng:", style = MaterialTheme.typography.labelSmall)
-                                        Text(point.longitude.toString(), style = MaterialTheme.typography.bodyMedium)
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "±${point.accuracy.toInt()}m",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("LATITUDE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("%.6f".format(point.latitude), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("LONGITUDE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("%.6f".format(point.longitude), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.secondary)
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Speed: ${"%.1f".format(point.speed * 3.6)} km/h",
-                                        style = MaterialTheme.typography.bodySmall
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(Icons.Default.Explore, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.secondary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "${point.bearing.toInt()}°",
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                             }
