@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -25,6 +26,7 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.tracking.TrackingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +45,8 @@ fun ParentDashboardScreen(
     var showExitDialog by remember { mutableStateOf(false) }
     var isFetchingLocation by remember { mutableStateOf(false) }
     var showPermissionExplanation by remember { mutableStateOf(false) }
+    
+    val trackingState by locationRepository.trackingState.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -111,6 +115,10 @@ fun ParentDashboardScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            TrackingStatusCard(trackingState)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text("Monitored Device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -285,5 +293,63 @@ fun ParentDashboardScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+fun TrackingStatusCard(state: TrackingState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Background Tracking",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    color = when(state) {
+                        TrackingState.RUNNING -> Color.Green.copy(alpha = 0.2f)
+                        TrackingState.STOPPED -> MaterialTheme.colorScheme.errorContainer
+                        else -> MaterialTheme.colorScheme.secondaryContainer
+                    },
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        state.name,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when(state) {
+                            TrackingState.RUNNING -> Color.Green
+                            TrackingState.STOPPED -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            TrackingStatusItem("Tracking Enabled", "YES")
+            TrackingStatusItem("Configured Interval", "60s")
+            TrackingStatusItem("History Enabled", "YES")
+        }
+    }
+}
+
+@Composable
+fun TrackingStatusItem(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
 }

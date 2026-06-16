@@ -2,6 +2,7 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.tracking.TrackingState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
@@ -12,15 +13,20 @@ class LocationRepository(private val context: Context) {
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
     val locationHistory: StateFlow<List<LocationPoint>> = _locationHistory
 
+    private val _trackingState = MutableStateFlow(TrackingState.STOPPED)
+    val trackingState: StateFlow<TrackingState> = _trackingState
+
     private var _isTracking = false
     val isTracking: Boolean get() = _isTracking
 
     fun startTracking() {
         _isTracking = true
+        _trackingState.value = TrackingState.RUNNING
     }
 
     fun stopTracking() {
         _isTracking = false
+        _trackingState.value = TrackingState.STOPPED
     }
 
     fun getCurrentLocation(): LocationPoint? {
