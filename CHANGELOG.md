@@ -71,3 +71,16 @@
 ## v0.1.8
 
 * MainActivity Modular Refactor
+
+## v0.1.9
+
+* Real GPS Current Location
+* Local Location History
+* Location Permission Flow
+
+## v0.2.0
+
+* Production Background Tracking Engine (Architecture)
+* Tracking Config and State management
+* Tracking Repository and Manager initialization
+* Tracking Debug Tools in Developer Menu

@@ -91,16 +91,22 @@ Completed
 
 ---
 
-# Next Planned Phases
-
-Phase 9
+# Phase 9
 
 * Real GPS
 * Local Tracking
 
-Phase 10
+Status:
+Completed
 
-* Background Tracking
+---
+
+# Phase 10
+
+* Background Tracking Engine (Architecture)
+
+Status:
+Completed (Architecture only)
 
 Phase 11
 

@@ -16,6 +16,8 @@ import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.tracking.BackgroundTrackingManager
+import com.example.kidsguard.tracking.TrackingRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,9 +26,13 @@ fun DeveloperMenuScreen(
     prefHelper: PreferenceHelper,
     repository: SafeZoneRepository,
     locationRepository: LocationRepository,
-    onScreenChange: (Screen) -> Unit
+    onScreenChange: (Screen) -> Unit,
+    trackingRepository: TrackingRepository,
+    trackingManager: BackgroundTrackingManager
 ) {
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
+    val trackingState by trackingRepository.currentState.collectAsState()
+    val trackingConfig by trackingRepository.currentConfig.collectAsState()
 
     Scaffold(
         topBar = {
@@ -74,6 +80,18 @@ fun DeveloperMenuScreen(
                 onClick = { showConfirmDialog = "CLEAR_SAFEZONES" }
             )
             
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Tracking Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val lastLocation by locationRepository.locationHistory.collectAsState()
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("State: ${trackingState.name}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Config: $trackingConfig", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Saved: ${lastLocation.firstOrNull()?.latitude}, ${lastLocation.firstOrNull()?.longitude}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             DeveloperActionItem(

@@ -20,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.kidsguard.location.LocalLocationProvider
+import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
+import com.example.kidsguard.repository.SafeZoneRepository
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,7 +31,8 @@ import java.util.*
 fun LocationHistoryScreen(
     repository: LocationRepository, 
     onBack: () -> Unit,
-    locationProvider: LocalLocationProvider
+    locationProvider: LocalLocationProvider,
+    safeZoneRepository: SafeZoneRepository
 ) {
     val history by repository.locationHistory.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
@@ -50,6 +53,11 @@ fun LocationHistoryScreen(
                 isFetchingLocation = false
                 if (point != null) {
                     repository.addLocationPoint(point)
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "LOCATION_FETCHED",
+                        title = "Location Updated",
+                        description = "GPS coordinates captured"
+                    ))
                 }
             }
         } else {
@@ -65,6 +73,11 @@ fun LocationHistoryScreen(
                     isFetchingLocation = false
                     if (point != null) {
                         repository.addLocationPoint(point)
+                        safeZoneRepository.addEvent(ActivityEvent(
+                            type = "LOCATION_FETCHED",
+                            title = "Location Updated",
+                            description = "GPS coordinates captured"
+                        ))
                     }
                 }
             }

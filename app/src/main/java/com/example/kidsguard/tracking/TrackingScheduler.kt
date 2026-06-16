@@ -1,31 +1,54 @@
 package com.example.kidsguard.tracking
 
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+
 interface TrackingScheduler {
     fun start()
     fun stop()
     fun pause()
     fun resume()
     fun setInterval(seconds: Long)
+    fun getState(): TrackingState
 }
 
-class LocalTrackingScheduler : TrackingScheduler {
+class LocalTrackingScheduler(private val context: Context) : TrackingScheduler {
     override fun start() {
-        // Future implementation
+        val intent = Intent(context, BackgroundTrackingService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
     }
 
     override fun stop() {
-        // Future implementation
+        val intent = Intent(context, BackgroundTrackingService::class.java)
+        context.stopService(intent)
     }
 
     override fun pause() {
-        // Future implementation
+        // For now, stop is enough, or we could implement a custom action
+        stop()
     }
 
     override fun resume() {
-        // Future implementation
+        start()
     }
 
     override fun setInterval(seconds: Long) {
-        // Future implementation
+        // To update interval, we might need to restart the service or send an intent
+        // For now, let's just restart if it was running
+    }
+
+    override fun getState(): TrackingState {
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+            if (BackgroundTrackingService::class.java.name == service.service.className) {
+                return TrackingState.RUNNING
+            }
+        }
+        return TrackingState.STOPPED
     }
 }

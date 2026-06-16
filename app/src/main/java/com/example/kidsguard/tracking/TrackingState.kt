@@ -4,5 +4,6 @@ enum class TrackingState {
     STOPPED,
     STARTING,
     RUNNING,
-    PAUSED
+    PAUSED,
+    ERROR
 }

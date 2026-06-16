@@ -17,6 +17,9 @@ import com.example.kidsguard.navigation.KidsGuardApp
 import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.tracking.BackgroundTrackingManager
+import com.example.kidsguard.tracking.LocalTrackingScheduler
+import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,6 +27,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var prefHelper: PreferenceHelper
     private lateinit var repository: SafeZoneRepository
     private lateinit var locationRepository: LocationRepository
+    private lateinit var trackingRepository: TrackingRepository
+    private lateinit var trackingManager: BackgroundTrackingManager
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -33,6 +38,10 @@ class MainActivity : ComponentActivity() {
         prefHelper = PreferenceHelper(this)
         repository = SafeZoneRepository()
         locationRepository = LocationRepository(this)
+        trackingRepository = TrackingRepository(this)
+        trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
+        
+        trackingManager.initialize()
         
         // Determine initial screen based on role and pairing status
         val initialScreen = when {
@@ -66,7 +75,9 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         repository = repository,
-                        locationRepository = locationRepository
+                        locationRepository = locationRepository,
+                        trackingRepository = trackingRepository,
+                        trackingManager = trackingManager
                     )
                 }
             }

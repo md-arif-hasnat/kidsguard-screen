@@ -9,6 +9,8 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.tracking.BackgroundTrackingManager
+import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
 
 @Composable
@@ -16,7 +18,9 @@ fun KidsGuardApp(
     currentScreen: Screen, 
     onScreenChange: (Screen) -> Unit, 
     repository: SafeZoneRepository,
-    locationRepository: LocationRepository
+    locationRepository: LocationRepository,
+    trackingRepository: TrackingRepository,
+    trackingManager: BackgroundTrackingManager
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -87,7 +91,9 @@ fun KidsGuardApp(
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
-                locationProvider = locationProvider
+                locationProvider = locationProvider,
+                trackingRepository = trackingRepository,
+                trackingManager = trackingManager
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -100,7 +106,8 @@ fun KidsGuardApp(
             Screen.LocationHistory -> LocationHistoryScreen(
                 repository = locationRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
-                locationProvider = locationProvider
+                locationProvider = locationProvider,
+                safeZoneRepository = repository
             )
             Screen.Locked -> LockedScreen(
                 onUnlock = { 
@@ -125,7 +132,9 @@ fun KidsGuardApp(
                 prefHelper = prefHelper,
                 repository = repository,
                 locationRepository = locationRepository,
-                onScreenChange = onScreenChange
+                onScreenChange = onScreenChange,
+                trackingRepository = trackingRepository,
+                trackingManager = trackingManager
             )
         }
     }

@@ -26,6 +26,9 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.tracking.BackgroundTrackingManager
+import com.example.kidsguard.tracking.TrackingConfig
+import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.tracking.TrackingState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,33 +42,65 @@ fun ParentDashboardScreen(
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
-    locationProvider: LocalLocationProvider
+    locationProvider: LocalLocationProvider,
+    trackingRepository: TrackingRepository,
+    trackingManager: BackgroundTrackingManager
 ) {
     val context = LocalContext.current
     var showExitDialog by remember { mutableStateOf(false) }
     var isFetchingLocation by remember { mutableStateOf(false) }
     var showPermissionExplanation by remember { mutableStateOf(false) }
+    var showBackgroundPermissionExplanation by remember { mutableStateOf(false) }
+    var permissionDeniedMessage by remember { mutableStateOf(false) }
     
-    val trackingState by locationRepository.trackingState.collectAsState()
+    val trackingState by trackingRepository.currentState.collectAsState()
+    val trackingConfig by trackingRepository.currentConfig.collectAsState()
+
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            trackingManager.startTracking()
+        } else {
+            permissionDeniedMessage = true
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val notificationsGranted = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] == true
+        } else true
+
         if (granted) {
-            isFetchingLocation = true
-            locationProvider.requestSingleUpdate { point ->
-                isFetchingLocation = false
-                if (point != null) {
-                    locationRepository.addLocationPoint(point)
-                    safeZoneRepository.addEvent(ActivityEvent(
-                        type = "LOCATION_FETCHED",
-                        title = "Location Updated",
-                        description = "Manual request successful"
-                    ))
-                }
+            // Check for background location if we want to start tracking
+            if (prefHelper.userRole == "CHILD") {
+                showBackgroundPermissionExplanation = true
             }
+        } else {
+            permissionDeniedMessage = true
+        }
+    }
+
+    fun handleStartTracking() {
+        val hasFineLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= 29) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        } else true
+
+        if (!hasFineLocation) {
+            val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                perms.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            permissionLauncher.launch(perms.toTypedArray())
+        } else if (!hasBackgroundLocation && android.os.Build.VERSION.SDK_INT >= 29) {
+            showBackgroundPermissionExplanation = true
+        } else {
+            trackingManager.startTracking()
         }
     }
 
@@ -115,7 +150,36 @@ fun ParentDashboardScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            TrackingStatusCard(trackingState)
+            if (permissionDeniedMessage) {
+                Card(
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Permission Denied", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+                            Text("Location permission is required for GPS tracking.", style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { 
+                            permissionDeniedMessage = false
+                            showPermissionExplanation = true 
+                        }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+
+            TrackingStatusCard(
+                state = trackingState, 
+                config = trackingConfig,
+                onStart = { handleStartTracking() },
+                onStop = { trackingManager.stopTracking() },
+                onPause = { trackingManager.pauseTracking() },
+                onResume = { trackingManager.resumeTracking() }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -293,11 +357,42 @@ fun ParentDashboardScreen(
                 }
             )
         }
+        if (showBackgroundPermissionExplanation) {
+            AlertDialog(
+                onDismissRequest = { showBackgroundPermissionExplanation = false },
+                title = { Text("Background Location") },
+                text = { 
+                    Text("To track your child even when the app is closed, please select 'Allow all the time' in the next screen settings.") 
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        showBackgroundPermissionExplanation = false
+                        if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                    }) {
+                        Text("Grant Permission")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBackgroundPermissionExplanation = false }) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun TrackingStatusCard(state: TrackingState) {
+fun TrackingStatusCard(
+    state: TrackingState, 
+    config: TrackingConfig,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -336,9 +431,35 @@ fun TrackingStatusCard(state: TrackingState) {
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            TrackingStatusItem("Tracking Enabled", "YES")
-            TrackingStatusItem("Configured Interval", "60s")
-            TrackingStatusItem("History Enabled", "YES")
+            TrackingStatusItem("Tracking Enabled", if (config.trackingEnabled) "YES" else "NO")
+            TrackingStatusItem("Update Interval", "${config.updateIntervalSeconds}s")
+            TrackingStatusItem("History Enabled", if (config.saveHistory) "YES" else "NO")
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (state == TrackingState.RUNNING) {
+                    TextButton(onClick = onPause) {
+                        Text("Pause", color = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onStop) {
+                        Text("Stop Tracking", color = MaterialTheme.colorScheme.error)
+                    }
+                } else if (state == TrackingState.PAUSED) {
+                    Button(onClick = onResume) {
+                        Text("Resume")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onStop) {
+                        Text("Stop", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    Button(onClick = onStart) {
+                        Text("Start Tracking")
+                    }
+                }
+            }
         }
     }
 }
