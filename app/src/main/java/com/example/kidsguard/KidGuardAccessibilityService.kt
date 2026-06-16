@@ -3,6 +3,7 @@ package com.example.kidsguard
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
+import com.example.kidsguard.data.PreferenceHelper
 
 class KidGuardAccessibilityService : AccessibilityService() {
 
