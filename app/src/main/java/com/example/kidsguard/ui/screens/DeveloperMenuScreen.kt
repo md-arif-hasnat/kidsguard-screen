@@ -84,11 +84,13 @@ fun DeveloperMenuScreen(
 
             Text("Tracking Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             val lastLocation by locationRepository.locationHistory.collectAsState()
+            val safeZones by repository.safeZones.collectAsState()
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("State: ${trackingState.name}", style = MaterialTheme.typography.bodyMedium)
                     Text("Config: $trackingConfig", style = MaterialTheme.typography.bodySmall)
                     Text("Last Saved: ${lastLocation.firstOrNull()?.latitude}, ${lastLocation.firstOrNull()?.longitude}", style = MaterialTheme.typography.bodySmall)
+                    Text("Safe Zones: ${safeZones.size}", style = MaterialTheme.typography.bodySmall)
                 }
             }
 

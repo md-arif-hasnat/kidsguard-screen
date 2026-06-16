@@ -88,6 +88,7 @@ fun KidsGuardApp(
                 onOpenSafeZones = { onScreenChange(Screen.SafeZoneList) },
                 onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
                 onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
+                onOpenLiveMap = { onScreenChange(Screen.LiveMap) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -108,6 +109,12 @@ fun KidsGuardApp(
                 onBack = { onScreenChange(Screen.ParentDashboard) },
                 locationProvider = locationProvider,
                 safeZoneRepository = repository
+            )
+            Screen.LiveMap -> MapScreen(
+                locationRepository = locationRepository,
+                safeZoneRepository = repository,
+                trackingRepository = trackingRepository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Locked -> LockedScreen(
                 onUnlock = { 

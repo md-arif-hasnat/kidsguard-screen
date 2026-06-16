@@ -39,6 +39,7 @@ fun ParentDashboardScreen(
     onOpenSafeZones: () -> Unit,
     onOpenActivityFeed: () -> Unit,
     onOpenLocationHistory: () -> Unit,
+    onOpenLiveMap: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -238,7 +239,7 @@ fun ParentDashboardScreen(
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Card(
-                    modifier = Modifier.weight(1f).clickable { /* Live Map Placeholder */ },
+                    modifier = Modifier.weight(1f).clickable { onOpenLiveMap() },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
