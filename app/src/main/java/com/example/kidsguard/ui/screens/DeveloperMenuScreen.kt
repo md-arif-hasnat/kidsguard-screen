@@ -18,6 +18,10 @@ import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.CommandType
+import com.example.kidsguard.sync.LocalMockSyncProvider
+import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncRemoteCommand
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 
@@ -30,13 +34,17 @@ fun DeveloperMenuScreen(
     locationRepository: LocationRepository,
     onScreenChange: (Screen) -> Unit,
     trackingRepository: TrackingRepository,
-    trackingManager: BackgroundTrackingManager
+    trackingManager: BackgroundTrackingManager,
+    syncProvider: RemoteSyncProvider
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val notificationEngine = remember { LocalNotificationEngine(context) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
     val trackingState by trackingRepository.currentState.collectAsState()
     val trackingConfig by trackingRepository.currentConfig.collectAsState()
+
+    val mockProvider = syncProvider as? LocalMockSyncProvider
+    val isSyncConnected by syncProvider.isConnected.collectAsState()
 
     Scaffold(
         topBar = {
@@ -144,6 +152,40 @@ fun DeveloperMenuScreen(
                     Text("Current Zone: ${if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) nearest?.name else "None"}", style = MaterialTheme.typography.bodySmall)
                     Text("Nearest Zone: ${nearest?.name} (${distance?.toInt() ?: 0}m)", style = MaterialTheme.typography.bodySmall)
                     Text("Last Event: ${lastEvent.firstOrNull()?.title}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Remote Sync Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Connection: ${if (isSyncConnected) "CONNECTED" else "DISCONNECTED"}", style = MaterialTheme.typography.bodySmall)
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW))
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("LOCK", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.UNLOCK_NOW))
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("UNLOCK", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.REFRESH_LOCATION))
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("REFRESH GPS", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            if (isSyncConnected) syncProvider.disconnect() else syncProvider.connect()
+                        }, modifier = Modifier.weight(1f)) {
+                            Text(if (isSyncConnected) "GO OFFLINE" else "GO ONLINE", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
             }
 

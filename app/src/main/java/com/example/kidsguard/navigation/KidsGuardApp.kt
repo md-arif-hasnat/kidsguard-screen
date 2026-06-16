@@ -9,6 +9,7 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
@@ -20,7 +21,8 @@ fun KidsGuardApp(
     repository: SafeZoneRepository,
     locationRepository: LocationRepository,
     trackingRepository: TrackingRepository,
-    trackingManager: BackgroundTrackingManager
+    trackingManager: BackgroundTrackingManager,
+    syncProvider: RemoteSyncProvider
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -94,7 +96,8 @@ fun KidsGuardApp(
                 safeZoneRepository = repository,
                 locationProvider = locationProvider,
                 trackingRepository = trackingRepository,
-                trackingManager = trackingManager
+                trackingManager = trackingManager,
+                syncProvider = syncProvider
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -141,7 +144,8 @@ fun KidsGuardApp(
                 locationRepository = locationRepository,
                 onScreenChange = onScreenChange,
                 trackingRepository = trackingRepository,
-                trackingManager = trackingManager
+                trackingManager = trackingManager,
+                syncProvider = syncProvider
             )
         }
     }

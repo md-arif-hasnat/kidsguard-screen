@@ -17,6 +17,8 @@ import com.example.kidsguard.navigation.KidsGuardApp
 import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.LocalMockSyncProvider
+import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationRepository: LocationRepository
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var trackingManager: BackgroundTrackingManager
+    private lateinit var syncProvider: LocalMockSyncProvider
+    private lateinit var commandHandler: RemoteCommandHandler
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -40,8 +44,20 @@ class MainActivity : ComponentActivity() {
         locationRepository = LocationRepository(this, repository)
         trackingRepository = TrackingRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
+        syncProvider = LocalMockSyncProvider()
+        commandHandler = RemoteCommandHandler(prefHelper, trackingManager, syncProvider)
         
         trackingManager.initialize()
+        syncProvider.connect()
+        
+        // Setup command listener
+        prefHelper.pairingCode.let { code ->
+            if (code.isNotEmpty()) {
+                syncProvider.listenForRemoteCommands(code) { command ->
+                    commandHandler.handleCommand(command)
+                }
+            }
+        }
         
         // Determine initial screen based on role and pairing status
         val initialScreen = when {
@@ -77,7 +93,8 @@ class MainActivity : ComponentActivity() {
                         repository = repository,
                         locationRepository = locationRepository,
                         trackingRepository = trackingRepository,
-                        trackingManager = trackingManager
+                        trackingManager = trackingManager,
+                        syncProvider = syncProvider
                     )
                 }
             }

@@ -84,3 +84,11 @@
 * Tracking Config and State management
 * Tracking Repository and Manager initialization
 * Tracking Debug Tools in Developer Menu
+
+## v0.2.1
+
+* Firebase-ready Remote Sync Architecture
+* RemoteSyncProvider interface and LocalMockSyncProvider
+* RemoteCommandHandler for execution of remote instructions
+* Remote Sync Status card in Parent Dashboard
+* Remote Sync Debug tools in Developer Menu

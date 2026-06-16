@@ -108,7 +108,20 @@ Completed
 Status:
 Completed (Architecture only)
 
-Phase 11
+---
+
+# Phase 11
+
+* Firebase-ready Remote Sync Architecture
+
+Status:
+Completed (Architecture only)
+
+---
+
+# Next Planned Phases
+
+Phase 12
 
 * Google Maps
 
