@@ -27,6 +27,11 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
     var startTime by remember { mutableStateOf(prefHelper.scheduleStartTime) }
     var endTime by remember { mutableStateOf(prefHelper.scheduleEndTime) }
 
+    var isSafeZoneNotify by remember { mutableStateOf(prefHelper.isSafeZoneNotificationsEnabled) }
+    var isTrackingNotify by remember { mutableStateOf(prefHelper.isTrackingNotificationsEnabled) }
+    var isBatteryNotify by remember { mutableStateOf(prefHelper.isBatteryNotificationsEnabled) }
+    var isSosNotify by remember { mutableStateOf(prefHelper.isSosNotificationsEnabled) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -159,6 +164,67 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Text("Notifications", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ListItem(
+                headlineContent = { Text("Safe Zone Alerts") },
+                supportingContent = { Text("Notify when child enters or leaves safe zones") },
+                trailingContent = {
+                    Switch(
+                        checked = isSafeZoneNotify,
+                        onCheckedChange = {
+                            isSafeZoneNotify = it
+                            prefHelper.isSafeZoneNotificationsEnabled = it
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Tracking Status") },
+                supportingContent = { Text("Notify when tracking starts or stops") },
+                trailingContent = {
+                    Switch(
+                        checked = isTrackingNotify,
+                        onCheckedChange = {
+                            isTrackingNotify = it
+                            prefHelper.isTrackingNotificationsEnabled = it
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Battery Alerts") },
+                supportingContent = { Text("Notify when child device battery is low") },
+                trailingContent = {
+                    Switch(
+                        checked = isBatteryNotify,
+                        onCheckedChange = {
+                            isBatteryNotify = it
+                            prefHelper.isBatteryNotificationsEnabled = it
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("SOS Alerts") },
+                supportingContent = { Text("Notify during emergency events") },
+                trailingContent = {
+                    Switch(
+                        checked = isSosNotify,
+                        onCheckedChange = {
+                            isSosNotify = it
+                            prefHelper.isSosNotificationsEnabled = it
+                        }
+                    )
+                }
+            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             

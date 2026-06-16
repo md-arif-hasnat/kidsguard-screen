@@ -4,15 +4,19 @@ import android.annotation.SuppressLint
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.kidsguard.R
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.google.android.gms.location.*
@@ -24,6 +28,8 @@ class BackgroundTrackingService : Service() {
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
+    private lateinit var notificationEngine: LocalNotificationEngine
+    private lateinit var prefHelper: PreferenceHelper
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -35,10 +41,13 @@ class BackgroundTrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        locationRepository = LocationRepository(applicationContext)
+        val appContext = applicationContext
+        locationRepository = LocationRepository(appContext)
         safeZoneRepository = SafeZoneRepository() 
-        trackingRepository = TrackingRepository(applicationContext)
+        trackingRepository = TrackingRepository(appContext)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        notificationEngine = LocalNotificationEngine(appContext)
+        prefHelper = PreferenceHelper(appContext)
 
         createNotificationChannel()
         setupLocationCallback()
@@ -51,6 +60,10 @@ class BackgroundTrackingService : Service() {
         
         trackingRepository.updateState(TrackingState.RUNNING)
         
+        if (prefHelper.isTrackingNotificationsEnabled) {
+            notificationEngine.sendSafetyAlert("KidsGuard Active", "Location tracking started")
+        }
+
         safeZoneRepository.addEvent(ActivityEvent(
             type = "TRACKING_STARTED",
             title = "Background Tracking Active",
@@ -74,9 +87,30 @@ class BackgroundTrackingService : Service() {
                     )
                     Log.d(TAG, "Captured location: $point")
                     locationRepository.addLocationPoint(point)
+                    
+                    checkBatteryLevel()
                 }
             }
         }
+    }
+
+    private fun checkBatteryLevel() {
+        val batteryLevel = getBatteryLevel(this)
+        if (batteryLevel != -1 && batteryLevel <= 15) {
+            if (prefHelper.isBatteryNotificationsEnabled) {
+                notificationEngine.sendSafetyAlert(
+                    "Battery Low", 
+                    "${prefHelper.childName.ifEmpty { "Child" }}'s device battery is below 15%"
+                )
+            }
+        }
+    }
+
+    private fun getBatteryLevel(context: Context): Int {
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+            context.registerReceiver(null, ifilter)
+        }
+        return batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
     }
 
     @SuppressLint("MissingPermission")

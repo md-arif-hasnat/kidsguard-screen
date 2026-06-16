@@ -1,5 +1,6 @@
 package com.example.kidsguard.tracking
 
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
 import com.example.kidsguard.models.SafeZone
@@ -7,7 +8,9 @@ import com.example.kidsguard.repository.SafeZoneRepository
 import kotlin.math.*
 
 class LocalSafeZoneChecker(
-    private val safeZoneRepository: SafeZoneRepository
+    private val safeZoneRepository: SafeZoneRepository,
+    private val notificationEngine: NotificationEngine,
+    private val prefHelper: PreferenceHelper
 ) : SafeZoneChecker {
 
     // Tracks the last known "inside" status for each zone ID to detect transitions
@@ -27,6 +30,8 @@ class LocalSafeZoneChecker(
             if (currentlyInside && !previouslyInside) {
                 // Entered Zone
                 if (zone.notifyOnEnter) {
+                    val body = "${prefHelper.childName.ifEmpty { "Child" }} arrived at ${zone.name}"
+                    
                     safeZoneRepository.addEvent(ActivityEvent(
                         type = "SAFE_ZONE_ENTER",
                         title = "Entered ${zone.name}",
@@ -34,10 +39,16 @@ class LocalSafeZoneChecker(
                         latitude = point.latitude,
                         longitude = point.longitude
                     ))
+
+                    if (prefHelper.isSafeZoneNotificationsEnabled) {
+                        notificationEngine.sendSafetyAlert("KidsGuard Alert", body)
+                    }
                 }
             } else if (!currentlyInside && previouslyInside) {
                 // Left Zone
                 if (zone.notifyOnExit) {
+                    val body = "${prefHelper.childName.ifEmpty { "Child" }} left ${zone.name}"
+
                     safeZoneRepository.addEvent(ActivityEvent(
                         type = "SAFE_ZONE_EXIT",
                         title = "Left ${zone.name}",
@@ -45,6 +56,10 @@ class LocalSafeZoneChecker(
                         latitude = point.latitude,
                         longitude = point.longitude
                     ))
+
+                    if (prefHelper.isSafeZoneNotificationsEnabled) {
+                        notificationEngine.sendSafetyAlert("KidsGuard Alert", body)
+                    }
                 }
             }
 

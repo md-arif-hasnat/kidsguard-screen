@@ -1,7 +1,9 @@
 package com.example.kidsguard.repository
 
 import android.content.Context
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.example.kidsguard.tracking.SafeZoneChecker
 import com.example.kidsguard.tracking.TrackingState
@@ -18,7 +20,9 @@ class LocationRepository(
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
     val locationHistory: StateFlow<List<LocationPoint>> = _locationHistory
 
-    private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { LocalSafeZoneChecker(it) }
+    private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { 
+        LocalSafeZoneChecker(it, LocalNotificationEngine(context), PreferenceHelper(context)) 
+    }
 
     private val _trackingState = MutableStateFlow(TrackingState.STOPPED)
     val trackingState: StateFlow<TrackingState> = _trackingState

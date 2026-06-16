@@ -72,10 +72,7 @@ fun ParentDashboardScreen(
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        val notificationsGranted = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            permissions[Manifest.permission.POST_NOTIFICATIONS] == true
-        } else true
-
+        
         if (granted) {
             // Check for background location if we want to start tracking
             if (prefHelper.userRole == "CHILD") {
@@ -91,6 +88,9 @@ fun ParentDashboardScreen(
         val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= 29) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
         } else true
+        val hasNotificationPermission = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
 
         if (!hasFineLocation) {
             val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -98,6 +98,8 @@ fun ParentDashboardScreen(
                 perms.add(Manifest.permission.POST_NOTIFICATIONS)
             }
             permissionLauncher.launch(perms.toTypedArray())
+        } else if (android.os.Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         } else if (!hasBackgroundLocation && android.os.Build.VERSION.SDK_INT >= 29) {
             showBackgroundPermissionExplanation = true
         } else {
@@ -186,7 +188,8 @@ fun ParentDashboardScreen(
 
             val lastLocation by locationRepository.locationHistory.collectAsState()
             val safeZones by safeZoneRepository.safeZones.collectAsState()
-            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(safeZoneRepository) }
+            val notificationEngine = remember { com.example.kidsguard.notifications.LocalNotificationEngine(context) }
+            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(safeZoneRepository, notificationEngine, prefHelper) }
             val nearest = lastLocation.firstOrNull()?.let { point ->
                 safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
             }

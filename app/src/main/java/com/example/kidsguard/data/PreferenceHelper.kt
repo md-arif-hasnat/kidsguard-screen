@@ -62,6 +62,22 @@ class PreferenceHelper(context: Context) {
     var scheduleEndTime: String
         get() = prefs.getString("schedule_end", "08:00") ?: "08:00"
         set(value) = prefs.edit().putString("schedule_end", value).apply()
+
+    var isSafeZoneNotificationsEnabled: Boolean
+        get() = prefs.getBoolean("safe_zone_notifications", true)
+        set(value) = prefs.edit().putBoolean("safe_zone_notifications", value).apply()
+
+    var isTrackingNotificationsEnabled: Boolean
+        get() = prefs.getBoolean("tracking_notifications", true)
+        set(value) = prefs.edit().putBoolean("tracking_notifications", value).apply()
+
+    var isBatteryNotificationsEnabled: Boolean
+        get() = prefs.getBoolean("battery_notifications", true)
+        set(value) = prefs.edit().putBoolean("battery_notifications", value).apply()
+
+    var isSosNotificationsEnabled: Boolean
+        get() = prefs.getBoolean("sos_notifications", true)
+        set(value) = prefs.edit().putBoolean("sos_notifications", value).apply()
 }
 
 object RemoteStatusService {

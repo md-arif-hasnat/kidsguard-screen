@@ -12,7 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.tracking.TrackingRepository
@@ -34,7 +37,10 @@ fun MapScreen(
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val safeZones by safeZoneRepository.safeZones.collectAsState()
     val trackingState by trackingRepository.currentState.collectAsState()
-    val checker = remember { LocalSafeZoneChecker(safeZoneRepository) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefHelper = remember { PreferenceHelper(context) }
+    val notificationEngine = remember { LocalNotificationEngine(context) }
+    val checker = remember { LocalSafeZoneChecker(safeZoneRepository, notificationEngine, prefHelper) }
     
     val currentLocation = locationHistory.firstOrNull()
     val currentLatLng = currentLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(0.0, 0.0)

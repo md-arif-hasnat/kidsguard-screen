@@ -13,7 +13,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.navigation.Screen
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.tracking.BackgroundTrackingManager
@@ -30,6 +32,8 @@ fun DeveloperMenuScreen(
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notificationEngine = remember { LocalNotificationEngine(context) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
     val trackingState by trackingRepository.currentState.collectAsState()
     val trackingConfig by trackingRepository.currentConfig.collectAsState()
@@ -82,10 +86,44 @@ fun DeveloperMenuScreen(
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("Notification Tests", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { 
+                    val title = "Entered Home"
+                    notificationEngine.sendSafetyAlert("KidsGuard Alert", "${prefHelper.childName.ifEmpty { "Child" }} arrived at Home")
+                    repository.addEvent(ActivityEvent(type = "SAFE_ZONE_ENTER", title = title))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Enter", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    val title = "Left School"
+                    notificationEngine.sendSafetyAlert("KidsGuard Alert", "${prefHelper.childName.ifEmpty { "Child" }} left School")
+                    repository.addEvent(ActivityEvent(type = "SAFE_ZONE_EXIT", title = title))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Exit", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { 
+                    notificationEngine.sendSafetyAlert("Battery Low", "Child device battery is below 15%")
+                    repository.addEvent(ActivityEvent(type = "BATTERY_LOW", title = "Battery Low", description = "Below 15%"))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Battery", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    notificationEngine.sendSafetyAlert("SOS Alert", "Emergency event triggered!")
+                    repository.addEvent(ActivityEvent(type = "SOS", title = "SOS Alert", description = "Manual test"))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("SOS", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             Text("Tracking Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             val lastLocation by locationRepository.locationHistory.collectAsState()
             val safeZones by repository.safeZones.collectAsState()
-            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(repository) }
+            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(repository, notificationEngine, prefHelper) }
             val lastEvent by repository.activityEvents.collectAsState()
             
             val nearest = lastLocation.firstOrNull()?.let { point ->
