@@ -85,12 +85,27 @@ fun DeveloperMenuScreen(
             Text("Tracking Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             val lastLocation by locationRepository.locationHistory.collectAsState()
             val safeZones by repository.safeZones.collectAsState()
+            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(repository) }
+            val lastEvent by repository.activityEvents.collectAsState()
+            
+            val nearest = lastLocation.firstOrNull()?.let { point ->
+                safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
+            }
+            val distance = nearest?.let { zone ->
+                lastLocation.firstOrNull()?.let { point ->
+                    checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
+                }
+            }
+
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("State: ${trackingState.name}", style = MaterialTheme.typography.bodyMedium)
                     Text("Config: $trackingConfig", style = MaterialTheme.typography.bodySmall)
                     Text("Last Saved: ${lastLocation.firstOrNull()?.latitude}, ${lastLocation.firstOrNull()?.longitude}", style = MaterialTheme.typography.bodySmall)
                     Text("Safe Zones: ${safeZones.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Current Zone: ${if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) nearest?.name else "None"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Nearest Zone: ${nearest?.name} (${distance?.toInt() ?: 0}m)", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Event: ${lastEvent.firstOrNull()?.title}", style = MaterialTheme.typography.bodySmall)
                 }
             }
 

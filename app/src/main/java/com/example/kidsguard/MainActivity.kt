@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         prefHelper = PreferenceHelper(this)
         repository = SafeZoneRepository()
-        locationRepository = LocationRepository(this)
+        locationRepository = LocationRepository(this, repository)
         trackingRepository = TrackingRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         

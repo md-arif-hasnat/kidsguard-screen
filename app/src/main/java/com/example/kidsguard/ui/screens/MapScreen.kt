@@ -16,6 +16,7 @@ import com.example.kidsguard.models.LocationPoint
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.tracking.TrackingRepository
+import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -33,6 +34,7 @@ fun MapScreen(
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val safeZones by safeZoneRepository.safeZones.collectAsState()
     val trackingState by trackingRepository.currentState.collectAsState()
+    val checker = remember { LocalSafeZoneChecker(safeZoneRepository) }
     
     val currentLocation = locationHistory.firstOrNull()
     val currentLatLng = currentLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(0.0, 0.0)
@@ -101,18 +103,25 @@ fun MapScreen(
                 // Safe Zones
                 safeZones.forEach { zone ->
                     val zoneLatLng = LatLng(zone.latitude, zone.longitude)
+                    val distance = currentLocation?.let { 
+                        checker.calculateDistance(it.latitude, it.longitude, zone.latitude, zone.longitude) 
+                    }
+                    val isInside = distance != null && distance <= zone.radiusMeters
+
                     Circle(
                         center = zoneLatLng,
                         radius = zone.radiusMeters,
-                        fillColor = Color.Blue.copy(alpha = 0.1f),
-                        strokeColor = Color.Blue.copy(alpha = 0.5f),
+                        fillColor = if (isInside) Color.Green.copy(alpha = 0.1f) else Color.Blue.copy(alpha = 0.1f),
+                        strokeColor = if (isInside) Color.Green.copy(alpha = 0.5f) else Color.Blue.copy(alpha = 0.5f),
                         strokeWidth = 2f
                     )
                     Marker(
                         state = MarkerState(position = zoneLatLng),
                         title = zone.name,
+                        snippet = distance?.let { "Dist: ${it.toInt()}m ${if (isInside) "(Inside)" else ""}" },
                         icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
-                            com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE
+                            if (isInside) com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN 
+                            else com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE
                         )
                     )
                 }

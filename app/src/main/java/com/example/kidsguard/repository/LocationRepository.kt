@@ -2,16 +2,23 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.tracking.LocalSafeZoneChecker
+import com.example.kidsguard.tracking.SafeZoneChecker
 import com.example.kidsguard.tracking.TrackingState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class LocationRepository(private val context: Context) {
+class LocationRepository(
+    private val context: Context,
+    private val safeZoneRepository: SafeZoneRepository? = null
+) {
     private val prefs = context.getSharedPreferences("location_history_prefs", Context.MODE_PRIVATE)
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
     val locationHistory: StateFlow<List<LocationPoint>> = _locationHistory
+
+    private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { LocalSafeZoneChecker(it) }
 
     private val _trackingState = MutableStateFlow(TrackingState.STOPPED)
     val trackingState: StateFlow<TrackingState> = _trackingState
@@ -46,6 +53,11 @@ class LocationRepository(private val context: Context) {
         currentList.add(0, point)
         _locationHistory.value = currentList
         saveHistory(currentList)
+
+        // Trigger Safe Zone Check
+        safeZoneRepository?.let { repo ->
+            safeZoneChecker?.checkLocation(point, repo.safeZones.value)
+        }
     }
 
     fun clearLocationHistory() {

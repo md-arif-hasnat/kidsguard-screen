@@ -184,6 +184,39 @@ fun ParentDashboardScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
 
+            val lastLocation by locationRepository.locationHistory.collectAsState()
+            val safeZones by safeZoneRepository.safeZones.collectAsState()
+            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(safeZoneRepository) }
+            val nearest = lastLocation.firstOrNull()?.let { point ->
+                safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
+            }
+            val distance = nearest?.let { zone ->
+                lastLocation.firstOrNull()?.let { point ->
+                    checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Safe Zone Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) 
+                            "Current Zone: ${nearest?.name}" else "Status: Outside Zones",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    if (distance != null && distance > (nearest?.radiusMeters ?: 0.0)) {
+                        Text(
+                            text = "Nearest: ${nearest?.name} (${distance.toInt()}m away)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text("Monitored Device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
             
