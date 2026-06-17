@@ -32,10 +32,13 @@ fun MapScreen(
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
     trackingRepository: TrackingRepository,
+    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
     onBack: () -> Unit
 ) {
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val safeZones by safeZoneRepository.safeZones.collectAsState()
+    val knownRoutes by knownRouteRepository.knownRoutes.collectAsState()
+    val deviations by knownRouteRepository.deviationEvents.collectAsState()
     val trackingState by trackingRepository.currentState.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -128,6 +131,28 @@ fun MapScreen(
                         icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
                             if (isInside) com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN 
                             else com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE
+                        )
+                    )
+                }
+
+                // Known Routes
+                knownRoutes.filter { it.enabled }.forEach { route ->
+                    Polyline(
+                        points = route.routePoints.map { LatLng(it.latitude, it.longitude) },
+                        color = Color.Gray.copy(alpha = 0.5f),
+                        width = 8f,
+                        pattern = listOf(com.google.android.gms.maps.model.Dash(20f), com.google.android.gms.maps.model.Gap(10f))
+                    )
+                }
+
+                // Active Deviations
+                deviations.filter { !it.resolved }.forEach { deviation ->
+                    Marker(
+                        state = MarkerState(position = LatLng(deviation.latitude, deviation.longitude)),
+                        title = "DEVIATION DETECTED",
+                        snippet = deviation.message,
+                        icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
+                            com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_ORANGE
                         )
                     )
                 }

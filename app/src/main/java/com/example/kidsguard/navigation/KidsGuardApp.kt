@@ -12,6 +12,7 @@ import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
+import com.example.kidsguard.routeintelligence.KnownRouteRepository
 
 @Composable
 fun KidsGuardApp(
@@ -22,6 +23,7 @@ fun KidsGuardApp(
     sosRepository: com.example.kidsguard.repository.SosRepository,
     routeRepository: com.example.kidsguard.repository.RouteRepository,
     dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
+    knownRouteRepository: KnownRouteRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
@@ -114,6 +116,8 @@ fun KidsGuardApp(
                 onOpenSosHistory = { onScreenChange(Screen.SosHistory) },
                 onOpenRouteHistory = { onScreenChange(Screen.RouteHistory) },
                 onOpenDailySummary = { onScreenChange(Screen.DailySummary) },
+                onOpenKnownRoutes = { onScreenChange(Screen.KnownRoutes) },
+                onOpenRouteDeviations = { onScreenChange(Screen.RouteDeviations) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -125,10 +129,19 @@ fun KidsGuardApp(
                 sosRepository = sosRepository,
                 routeRepository = routeRepository,
                 updateRepository = updateRepository,
-                dailySummaryRepository = dailySummaryRepository
+                dailySummaryRepository = dailySummaryRepository,
+                knownRouteRepository = knownRouteRepository
             )
             Screen.DailySummary -> DailySummaryScreen(
                 repository = dailySummaryRepository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
+            )
+            Screen.KnownRoutes -> KnownRoutesScreen(
+                repository = knownRouteRepository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
+            )
+            Screen.RouteDeviations -> RouteDeviationsScreen(
+                repository = knownRouteRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.RouteHistory -> RouteHistoryScreen(
@@ -168,6 +181,7 @@ fun KidsGuardApp(
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
                 trackingRepository = trackingRepository,
+                knownRouteRepository = knownRouteRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.SosHistory -> SosHistoryScreen(
@@ -206,7 +220,8 @@ fun KidsGuardApp(
                 routeRepository = routeRepository,
                 locationProvider = locationProvider,
                 updateRepository = updateRepository,
-                dailySummaryRepository = dailySummaryRepository
+                dailySummaryRepository = dailySummaryRepository,
+                knownRouteRepository = knownRouteRepository
             )
         }
     }

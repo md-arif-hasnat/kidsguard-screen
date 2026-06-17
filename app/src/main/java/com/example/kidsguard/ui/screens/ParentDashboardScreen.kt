@@ -54,6 +54,8 @@ fun ParentDashboardScreen(
     onOpenSosHistory: () -> Unit,
     onOpenRouteHistory: () -> Unit,
     onOpenDailySummary: () -> Unit,
+    onOpenKnownRoutes: () -> Unit,
+    onOpenRouteDeviations: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -65,12 +67,15 @@ fun ParentDashboardScreen(
     sosRepository: com.example.kidsguard.repository.SosRepository,
     routeRepository: com.example.kidsguard.repository.RouteRepository,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
-    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository
+    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
+    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
     val summary by dailySummaryRepository.latestSummary.collectAsState()
+    val deviations by knownRouteRepository.deviationEvents.collectAsState()
+    val activeDeviations = deviations.filter { !it.resolved }
 
     val activeSos by sosRepository.activeSos.collectAsState()
     
@@ -126,6 +131,9 @@ fun ParentDashboardScreen(
                         data = state.data,
                         summary = summary,
                         onViewSummary = { onOpenDailySummary() },
+                        activeDeviations = activeDeviations,
+                        onOpenKnownRoutes = onOpenKnownRoutes,
+                        onOpenRouteDeviations = onOpenRouteDeviations,
                         activeSos = activeSos,
                         onResolveSos = { sosRepository.resolveSos(it) },
                         onViewSosHistory = onOpenSosHistory,
@@ -220,6 +228,55 @@ fun SosAlertCard(
 }
 
 @Composable
+fun RouteIntelligenceCard(
+    activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
+    onManageRoutes: () -> Unit,
+    onViewDeviations: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Timeline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Route Intelligence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (activeDeviations.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("${activeDeviations.size} Route Deviations!", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            Text("Last: ${activeDeviations.first().message}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                Text("No active route deviations detected.", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onViewDeviations, modifier = Modifier.weight(1f)) {
+                    Text("Deviations", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(onClick = onManageRoutes, modifier = Modifier.weight(1f)) {
+                    Text("Manage Routes", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AiSummaryCard(
     summary: com.example.kidsguard.ai.DailySummary?,
     onViewSummary: () -> Unit
@@ -267,6 +324,9 @@ fun DashboardContent(
     data: DashboardUiModel,
     summary: com.example.kidsguard.ai.DailySummary?,
     onViewSummary: () -> Unit,
+    activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
+    onOpenKnownRoutes: () -> Unit,
+    onOpenRouteDeviations: () -> Unit,
     activeSos: com.example.kidsguard.models.SosEvent?,
     onResolveSos: (String) -> Unit,
     onViewSosHistory: () -> Unit,
@@ -294,6 +354,13 @@ fun DashboardContent(
 
         ChildStatusCard(data)
         LocationSummaryCard(data, onOpenLiveMap)
+        
+        RouteIntelligenceCard(
+            activeDeviations = activeDeviations,
+            onManageRoutes = onOpenKnownRoutes,
+            onViewDeviations = onOpenRouteDeviations
+        )
+
         SafeZoneSummaryCard(data)
         
         Card(modifier = Modifier.fillMaxWidth()) {

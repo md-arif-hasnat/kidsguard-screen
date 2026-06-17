@@ -46,7 +46,8 @@ fun DeveloperMenuScreen(
     routeRepository: RouteRepository,
     locationProvider: com.example.kidsguard.location.LocationProvider,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
-    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository
+    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
+    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -509,6 +510,53 @@ fun DeveloperMenuScreen(
                     Text("Last Route Distance: ${"%.1f".format((routeSessions.firstOrNull()?.totalDistanceMeters ?: 0.0) / 1000)} km", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { routeRepository.generateRouteSessions() }, modifier = Modifier.fillMaxWidth()) {
                         Text("Regenerate Routes", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Route Intelligence Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { 
+                        val points = locationHistory.take(20)
+                        if (points.size >= 2) {
+                            knownRouteRepository.addKnownRoute(com.example.kidsguard.routeintelligence.KnownRoute(
+                                name = "Test Route ${System.currentTimeMillis() % 1000}",
+                                routePoints = points,
+                                toleranceMeters = 100.0
+                            ))
+                            android.widget.Toast.makeText(context, "Mock route created from history", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Need at least 2 GPS points in history", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Mock Known Route from History", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(onClick = { 
+                        val routes = knownRouteRepository.knownRoutes.value
+                        if (routes.isNotEmpty()) {
+                            val route = routes.first()
+                            val point = route.routePoints.first()
+                            val devPoint = com.example.kidsguard.models.LocationPoint(
+                                point.latitude + 0.005, // ~500m away
+                                point.longitude + 0.005,
+                                10f, 0f, 0f, System.currentTimeMillis()
+                            )
+                            locationRepository.addLocationPoint(devPoint)
+                            android.widget.Toast.makeText(context, "Simulated deviation 500m away", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Create a known route first", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Simulate Deviation (500m)", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(onClick = { 
+                        knownRouteRepository.clearAll()
+                        android.widget.Toast.makeText(context, "Route intelligence data cleared", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Clear Route Intel Data", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

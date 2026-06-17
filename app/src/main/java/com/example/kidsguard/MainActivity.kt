@@ -19,6 +19,7 @@ import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.repository.SosRepository
+import com.example.kidsguard.routeintelligence.KnownRouteRepository
 import com.example.kidsguard.ai.DailySummaryRepository
 import com.example.kidsguard.ai.LocalRuleBasedSummaryProvider
 import com.example.kidsguard.sync.FirebaseConfig
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sosRepository: SosRepository
     private lateinit var routeRepository: RouteRepository
     private lateinit var dailySummaryRepository: DailySummaryRepository
+    private lateinit var knownRouteRepository: KnownRouteRepository
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var updateRepository: UpdateRepository
     private lateinit var trackingManager: BackgroundTrackingManager
@@ -53,7 +55,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         prefHelper = PreferenceHelper(this)
         repository = SafeZoneRepository()
-        locationRepository = LocationRepository(this, repository)
+        knownRouteRepository = KnownRouteRepository(this)
+        locationRepository = LocationRepository(this, repository, knownRouteRepository)
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider())
@@ -131,6 +134,7 @@ class MainActivity : ComponentActivity() {
                         locationRepository = locationRepository,
                         sosRepository = sosRepository,
                         routeRepository = routeRepository,
+                        knownRouteRepository = knownRouteRepository,
                         dailySummaryRepository = dailySummaryRepository,
                         trackingRepository = trackingRepository,
                         trackingManager = trackingManager,
