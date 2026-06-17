@@ -19,6 +19,7 @@ import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.CommandType
+import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.LocalMockSyncProvider
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncRemoteCommand
@@ -35,13 +36,17 @@ fun DeveloperMenuScreen(
     onScreenChange: (Screen) -> Unit,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
-    syncProvider: RemoteSyncProvider
+    syncProvider: RemoteSyncProvider,
+    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val notificationEngine = remember { LocalNotificationEngine(context) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
     val trackingState by trackingRepository.currentState.collectAsState()
     val trackingConfig by trackingRepository.currentConfig.collectAsState()
+
+    val lastRemoteCommand by commandHandler.lastCommandReceived.collectAsState()
+    val lastExecutionResult by commandHandler.lastExecutionResult.collectAsState()
 
     val mockProvider = syncProvider as? LocalMockSyncProvider
     val isSyncConnected by syncProvider.isConnected.collectAsState()
@@ -66,6 +71,69 @@ fun DeveloperMenuScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text("Remote Sync Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val lastSync by syncProvider.lastSyncTimestamp.collectAsState()
+            
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Sync Provider: Local Mock", style = MaterialTheme.typography.bodySmall)
+                    Text("Status: ${if (isSyncConnected) "CONNECTED" else "DISCONNECTED"}", style = MaterialTheme.typography.bodySmall)
+                    val sdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+                    Text("Last Sync: ${if (lastSync > 0) sdf.format(java.util.Date(lastSync)) else "Never"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Pending Commands: 0", style = MaterialTheme.typography.bodySmall)
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            android.util.Log.d("DeveloperMenu", "LOCK button clicked")
+                            val cmd = SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW)
+                            // Call handler directly for immediate local feedback in dev menu
+                            commandHandler.handleCommand(cmd)
+                            // Also simulate via provider to test the sync infrastructure
+                            mockProvider?.simulateRemoteCommand(cmd)
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("LOCK", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            android.util.Log.d("DeveloperMenu", "UNLOCK button clicked")
+                            val cmd = SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.UNLOCK_NOW)
+                            commandHandler.handleCommand(cmd)
+                            mockProvider?.simulateRemoteCommand(cmd)
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("UNLOCK", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            android.util.Log.d("DeveloperMenu", "REFRESH button clicked")
+                            val cmd = SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.REFRESH_LOCATION)
+                            commandHandler.handleCommand(cmd)
+                            mockProvider?.simulateRemoteCommand(cmd)
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("REFRESH GPS", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            if (isSyncConnected) syncProvider.disconnect() else syncProvider.connect()
+                        }, modifier = Modifier.weight(1f)) {
+                            Text(if (isSyncConnected) "OFFLINE" else "ONLINE", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Button(
+                        onClick = { mockProvider?.clearMockSyncData() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Clear Mock Sync Data", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Execution Status", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("Last Command: $lastRemoteCommand", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Result: $lastExecutionResult", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             DeveloperActionItem(
                 title = "Reset Role Selection",
                 description = "Resets user role to NONE and clears pairing data.",
@@ -157,34 +225,29 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            Text("Remote Sync Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Text("Firebase Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val isFirebaseConfigured = FirebaseConfig.isFirebaseConfigured(context)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Connection: ${if (isSyncConnected) "CONNECTED" else "DISCONNECTED"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Firebase Configured: ${if (isFirebaseConfigured) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Current Provider: ${FirebaseConfig.currentProviderName(context)}", style = MaterialTheme.typography.bodySmall)
                     
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { 
-                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW))
-                        }, modifier = Modifier.weight(1f)) {
-                            Text("LOCK", style = MaterialTheme.typography.labelSmall)
-                        }
-                        Button(onClick = { 
-                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.UNLOCK_NOW))
-                        }, modifier = Modifier.weight(1f)) {
-                            Text("UNLOCK", style = MaterialTheme.typography.labelSmall)
-                        }
+                    if (!isFirebaseConfigured) {
+                        Text(
+                            "WARNING: google-services.json missing in app/ folder.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { 
-                            mockProvider?.simulateRemoteCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.REFRESH_LOCATION))
-                        }, modifier = Modifier.weight(1f)) {
-                            Text("REFRESH GPS", style = MaterialTheme.typography.labelSmall)
-                        }
-                        Button(onClick = { 
-                            if (isSyncConnected) syncProvider.disconnect() else syncProvider.connect()
-                        }, modifier = Modifier.weight(1f)) {
-                            Text(if (isSyncConnected) "GO OFFLINE" else "GO ONLINE", style = MaterialTheme.typography.labelSmall)
-                        }
+                    
+                    Button(
+                        onClick = { 
+                            val configured = FirebaseConfig.isFirebaseConfigured(context)
+                            android.widget.Toast.makeText(context, "Selection logic check: Use ${if (configured) "Firebase" else "Mock"}", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Test Provider Selection", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

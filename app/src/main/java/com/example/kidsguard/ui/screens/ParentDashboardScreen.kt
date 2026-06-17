@@ -26,6 +26,7 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingConfig
@@ -162,7 +163,12 @@ fun ParentDashboardScreen(
                 // ... existing permission denied card ...
             }
 
-            RemoteSyncStatusCard(isConnected, lastSync)
+            RemoteSyncStatusCard(
+                isConnected = isConnected, 
+                lastSync = lastSync, 
+                providerName = FirebaseConfig.currentProviderName(context),
+                isFirebaseConfigured = FirebaseConfig.isFirebaseConfigured(context)
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -413,7 +419,12 @@ fun ParentDashboardScreen(
 }
 
 @Composable
-fun RemoteSyncStatusCard(isConnected: Boolean, lastSync: Long) {
+fun RemoteSyncStatusCard(
+    isConnected: Boolean, 
+    lastSync: Long, 
+    providerName: String,
+    isFirebaseConfigured: Boolean
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -444,7 +455,8 @@ fun RemoteSyncStatusCard(isConnected: Boolean, lastSync: Long) {
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            TrackingStatusItem("Sync Provider", "Local Mock")
+            TrackingStatusItem("Sync Provider", providerName)
+            TrackingStatusItem("Firebase Configured", if (isFirebaseConfigured) "YES" else "NO")
             val sdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
             TrackingStatusItem("Last Sync", if (lastSync > 0) sdf.format(java.util.Date(lastSync)) else "Never")
             TrackingStatusItem("Pending Commands", "0")

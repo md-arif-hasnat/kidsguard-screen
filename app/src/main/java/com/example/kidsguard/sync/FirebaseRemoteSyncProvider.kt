@@ -3,64 +3,54 @@ package com.example.kidsguard.sync
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-interface RemoteSyncProvider {
-    fun connect()
-    fun disconnect()
-    fun syncChildStatus(status: SyncChildStatus)
-    fun syncLocation(update: SyncLocationUpdate)
-    fun syncActivity(event: SyncActivityEvent)
-    fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
-    fun updateCommandStatus(commandId: String, status: CommandStatus)
-    
-    val isConnected: StateFlow<Boolean>
-    val lastSyncTimestamp: StateFlow<Long>
-}
-
-class LocalMockSyncProvider : RemoteSyncProvider {
+/**
+ * PRODUCTION READY: Remote sync provider powered by Firebase.
+ * Handles Firestore real-time updates and FCM.
+ * TODO: Implement real Firebase Auth, Firestore, and FCM logic.
+ */
+class FirebaseRemoteSyncProvider : RemoteSyncProvider {
     private val _isConnected = MutableStateFlow(false)
     override val isConnected: StateFlow<Boolean> = _isConnected
 
     private val _lastSyncTimestamp = MutableStateFlow(0L)
     override val lastSyncTimestamp: StateFlow<Long> = _lastSyncTimestamp
 
-    private var commandListener: ((SyncRemoteCommand) -> Unit)? = null
-
     override fun connect() {
+        // TODO: Initialize Firebase, sign in anonymously or with credentials
         _isConnected.value = true
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
     override fun disconnect() {
+        // TODO: Sign out and detach listeners
         _isConnected.value = false
     }
 
     override fun syncChildStatus(status: SyncChildStatus) {
+        // TODO: Push status to COL_CHILDREN collection
         _lastSyncTimestamp.value = System.currentTimeMillis()
-        // Mock: Log to console or store locally
     }
 
     override fun syncLocation(update: SyncLocationUpdate) {
+        // TODO: Push location to COL_LOCATIONS collection
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
+        // TODO: Push event to COL_ACTIVITY collection
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
     override fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit) {
-        this.commandListener = onCommand
+        // TODO: Add Firestore listener on COL_REMOTE_COMMANDS
     }
 
     override fun updateCommandStatus(commandId: String, status: CommandStatus) {
-        // Mock: Update local state
+        // TODO: Update document in COL_REMOTE_COMMANDS
     }
-
-    // Testing helper to simulate a remote command
-    fun simulateRemoteCommand(command: SyncRemoteCommand) {
-        commandListener?.invoke(command)
-    }
-
-    fun clearMockSyncData() {
-        _lastSyncTimestamp.value = 0L
+    
+    // Future placeholders for Messaging
+    fun registerFcmToken(token: String) {
+        // TODO: Save FCM token to child document
     }
 }

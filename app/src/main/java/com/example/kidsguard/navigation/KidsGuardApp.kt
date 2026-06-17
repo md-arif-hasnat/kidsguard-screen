@@ -22,7 +22,8 @@ fun KidsGuardApp(
     locationRepository: LocationRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
-    syncProvider: RemoteSyncProvider
+    syncProvider: RemoteSyncProvider,
+    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -145,7 +146,8 @@ fun KidsGuardApp(
                 onScreenChange = onScreenChange,
                 trackingRepository = trackingRepository,
                 trackingManager = trackingManager,
-                syncProvider = syncProvider
+                syncProvider = syncProvider,
+                commandHandler = commandHandler
             )
         }
     }
