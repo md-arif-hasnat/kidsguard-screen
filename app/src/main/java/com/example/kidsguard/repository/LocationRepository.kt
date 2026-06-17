@@ -4,6 +4,8 @@ import android.content.Context
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.LocationPoint
 import com.example.kidsguard.notifications.LocalNotificationEngine
+import com.example.kidsguard.routeintelligence.RouteDeviationChecker
+import com.example.kidsguard.routeintelligence.KnownRouteRepository
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.example.kidsguard.tracking.SafeZoneChecker
 import com.example.kidsguard.tracking.TrackingState
@@ -14,7 +16,8 @@ import org.json.JSONObject
 
 class LocationRepository(
     private val context: Context,
-    private val safeZoneRepository: SafeZoneRepository? = null
+    private val safeZoneRepository: SafeZoneRepository? = null,
+    private val knownRouteRepository: KnownRouteRepository? = null
 ) {
     private val prefs = context.getSharedPreferences("location_history_prefs", Context.MODE_PRIVATE)
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
@@ -22,6 +25,12 @@ class LocationRepository(
 
     private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { 
         LocalSafeZoneChecker(it, LocalNotificationEngine(context), PreferenceHelper(context)) 
+    }
+
+    private val deviationChecker: RouteDeviationChecker? = knownRouteRepository?.let {
+        safeZoneRepository?.let { safeRepo ->
+            RouteDeviationChecker(it, safeRepo, LocalNotificationEngine(context))
+        }
     }
 
     private val _trackingState = MutableStateFlow(TrackingState.STOPPED)
@@ -62,6 +71,9 @@ class LocationRepository(
         safeZoneRepository?.let { repo ->
             safeZoneChecker?.checkLocation(point, repo.safeZones.value)
         }
+
+        // Trigger Route Deviation Check
+        deviationChecker?.checkDeviation(point, PreferenceHelper(context).pairedChildId ?: "unknown_child")
     }
 
     fun clearLocationHistory() {
