@@ -9,7 +9,6 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
-import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
@@ -22,6 +21,7 @@ fun KidsGuardApp(
     locationRepository: LocationRepository,
     sosRepository: com.example.kidsguard.repository.SosRepository,
     routeRepository: com.example.kidsguard.repository.RouteRepository,
+    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
@@ -113,6 +113,7 @@ fun KidsGuardApp(
                 onOpenLiveMap = { onScreenChange(Screen.LiveMap) },
                 onOpenSosHistory = { onScreenChange(Screen.SosHistory) },
                 onOpenRouteHistory = { onScreenChange(Screen.RouteHistory) },
+                onOpenDailySummary = { onScreenChange(Screen.DailySummary) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -123,7 +124,12 @@ fun KidsGuardApp(
                 commandHandler = commandHandler,
                 sosRepository = sosRepository,
                 routeRepository = routeRepository,
-                updateRepository = updateRepository
+                updateRepository = updateRepository,
+                dailySummaryRepository = dailySummaryRepository
+            )
+            Screen.DailySummary -> DailySummaryScreen(
+                repository = dailySummaryRepository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.RouteHistory -> RouteHistoryScreen(
                 repository = routeRepository,
@@ -199,7 +205,8 @@ fun KidsGuardApp(
                 sosRepository = sosRepository,
                 routeRepository = routeRepository,
                 locationProvider = locationProvider,
-                updateRepository = updateRepository
+                updateRepository = updateRepository,
+                dailySummaryRepository = dailySummaryRepository
             )
         }
     }

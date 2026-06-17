@@ -28,6 +28,7 @@ import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncRemoteCommand
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,9 +45,11 @@ fun DeveloperMenuScreen(
     sosRepository: com.example.kidsguard.repository.SosRepository,
     routeRepository: RouteRepository,
     locationProvider: com.example.kidsguard.location.LocationProvider,
-    updateRepository: com.example.kidsguard.update.UpdateRepository
+    updateRepository: com.example.kidsguard.update.UpdateRepository,
+    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val notificationEngine = remember { LocalNotificationEngine(context) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
     
@@ -212,6 +215,28 @@ fun DeveloperMenuScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
             ) {
                 Text("Clear All Test Data", style = MaterialTheme.typography.labelSmall)
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("AI Summary Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { 
+                        scope.launch {
+                            dailySummaryRepository.generateDailySummary(System.currentTimeMillis())
+                            android.widget.Toast.makeText(context, "Summary generated", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Generate Today Summary", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(onClick = { 
+                        dailySummaryRepository.clearSummaryHistory()
+                        android.widget.Toast.makeText(context, "History cleared", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Clear Summary History", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -424,11 +449,24 @@ fun DeveloperMenuScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text("Tracking Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(repository, notificationEngine, prefHelper) }
+            val lastEvent by repository.activityEvents.collectAsState()
+            val safeZones by repository.safeZones.collectAsState()
+            
+            val nearest = locationHistory.firstOrNull()?.let { point ->
+                safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
+            }
+            val distance = nearest?.let { zone ->
+                locationHistory.firstOrNull()?.let { point ->
+                    checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
+                }
+            }
+
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("State: ${trackingState.name}", style = MaterialTheme.typography.bodyMedium)
                     Text("Config: $trackingConfig", style = MaterialTheme.typography.bodySmall)
-                    Text("Last Saved: ${lastLocation.firstOrNull()?.latitude}, ${lastLocation.firstOrNull()?.longitude}", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Saved: ${locationHistory.firstOrNull()?.latitude}, ${locationHistory.firstOrNull()?.longitude}", style = MaterialTheme.typography.bodySmall)
                     Text("Safe Zones: ${safeZones.size}", style = MaterialTheme.typography.bodySmall)
                     Text("Current Zone: ${if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) nearest?.name else "None"}", style = MaterialTheme.typography.bodySmall)
                     Text("Nearest Zone: ${nearest?.name} (${distance?.toInt() ?: 0}m)", style = MaterialTheme.typography.bodySmall)
@@ -463,10 +501,11 @@ fun DeveloperMenuScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text("Route Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val routeSessions by routeRepository.routeSessions.collectAsState()
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Total Routes: ${routeSessions.size}", style = MaterialTheme.typography.bodySmall)
-                    Text("Total GPS Points: ${lastLocation.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total GPS Points: ${locationHistory.size}", style = MaterialTheme.typography.bodySmall)
                     Text("Last Route Distance: ${"%.1f".format((routeSessions.firstOrNull()?.totalDistanceMeters ?: 0.0) / 1000)} km", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { routeRepository.generateRouteSessions() }, modifier = Modifier.fillMaxWidth()) {
                         Text("Regenerate Routes", style = MaterialTheme.typography.labelSmall)
@@ -479,7 +518,7 @@ fun DeveloperMenuScreen(
             Text("Dashboard Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Total GPS Points: ${lastLocation.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total GPS Points: ${locationHistory.size}", style = MaterialTheme.typography.bodySmall)
                     Text("Total Activities: ${allEvents.size}", style = MaterialTheme.typography.bodySmall)
                     Text("Total Notifications: ${allEvents.count { it.type.contains("ALERT") || it.type.contains("ENTER") || it.type.contains("EXIT") }}", style = MaterialTheme.typography.bodySmall)
                     Text("Total Safe Zones: ${safeZones.size}", style = MaterialTheme.typography.bodySmall)
@@ -621,6 +660,26 @@ fun DeveloperMenuScreen(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+fun DeveloperActionItem(
+    title: String,
+    description: String,
+    color: Color = MaterialTheme.colorScheme.primary,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+            Text(text = description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

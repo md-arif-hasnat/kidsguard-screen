@@ -1,6 +1,7 @@
 package com.example.kidsguard.ui.dashboard
 
 import android.content.Context
+import com.example.kidsguard.ai.DailySummary
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
@@ -41,18 +42,19 @@ class DashboardRepository(
         trackingRepository.currentConfig,
         syncProvider.isConnected,
         syncProvider.lastSyncTimestamp,
-        commandHandler.lastCommandReceived,
-        routeRepository.routeSessions
+        commandHandler.lastCommandReceived
     ) { args: Array<Any> ->
+        @Suppress("UNCHECKED_CAST")
         val locationHistory = args[0] as List<LocationPoint>
+        @Suppress("UNCHECKED_CAST")
         val safeZones = args[1] as List<SafeZone>
+        @Suppress("UNCHECKED_CAST")
         val events = args[2] as List<ActivityEvent>
         val trackingState = args[3] as TrackingState
         val trackingConfig = args[4] as TrackingConfig
         val isConnected = args[5] as Boolean
         val lastSync = args[6] as Long
         val lastCommand = args[7] as String
-        val routeSessions = args[8] as List<RouteSession>
         
         val lastLocation = locationHistory.firstOrNull()
         val nearest = lastLocation?.let { point ->
@@ -70,6 +72,7 @@ class DashboardRepository(
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         
         val eventsToday = events.count { it.timestamp >= today }

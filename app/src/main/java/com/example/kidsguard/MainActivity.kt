@@ -19,6 +19,8 @@ import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.repository.SosRepository
+import com.example.kidsguard.ai.DailySummaryRepository
+import com.example.kidsguard.ai.LocalRuleBasedSummaryProvider
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
 import com.example.kidsguard.sync.LocalMockSyncProvider
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationRepository: LocationRepository
     private lateinit var sosRepository: SosRepository
     private lateinit var routeRepository: RouteRepository
+    private lateinit var dailySummaryRepository: DailySummaryRepository
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var updateRepository: UpdateRepository
     private lateinit var trackingManager: BackgroundTrackingManager
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
         locationRepository = LocationRepository(this, repository)
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
+        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider())
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
@@ -127,6 +131,7 @@ class MainActivity : ComponentActivity() {
                         locationRepository = locationRepository,
                         sosRepository = sosRepository,
                         routeRepository = routeRepository,
+                        dailySummaryRepository = dailySummaryRepository,
                         trackingRepository = trackingRepository,
                         trackingManager = trackingManager,
                         syncProvider = syncProvider,

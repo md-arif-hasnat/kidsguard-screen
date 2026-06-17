@@ -53,6 +53,7 @@ fun ParentDashboardScreen(
     onOpenLiveMap: () -> Unit,
     onOpenSosHistory: () -> Unit,
     onOpenRouteHistory: () -> Unit,
+    onOpenDailySummary: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -63,10 +64,13 @@ fun ParentDashboardScreen(
     commandHandler: RemoteCommandHandler,
     sosRepository: com.example.kidsguard.repository.SosRepository,
     routeRepository: com.example.kidsguard.repository.RouteRepository,
-    updateRepository: com.example.kidsguard.update.UpdateRepository
+    updateRepository: com.example.kidsguard.update.UpdateRepository,
+    dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    
+    val summary by dailySummaryRepository.latestSummary.collectAsState()
 
     val activeSos by sosRepository.activeSos.collectAsState()
     
@@ -120,6 +124,8 @@ fun ParentDashboardScreen(
                 is DashboardState.Success -> {
                     DashboardContent(
                         data = state.data,
+                        summary = summary,
+                        onViewSummary = { onOpenDailySummary() },
                         activeSos = activeSos,
                         onResolveSos = { sosRepository.resolveSos(it) },
                         onViewSosHistory = onOpenSosHistory,
@@ -214,8 +220,53 @@ fun SosAlertCard(
 }
 
 @Composable
+fun AiSummaryCard(
+    summary: com.example.kidsguard.ai.DailySummary?,
+    onViewSummary: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onViewSummary() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Today Summary", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (summary != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${summary.safetyScore}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = summary.summaryText,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                Text("No summary generated for today yet.", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = onViewSummary, modifier = Modifier.align(Alignment.End)) {
+                Text("View Details")
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
 fun DashboardContent(
     data: DashboardUiModel,
+    summary: com.example.kidsguard.ai.DailySummary?,
+    onViewSummary: () -> Unit,
     activeSos: com.example.kidsguard.models.SosEvent?,
     onResolveSos: (String) -> Unit,
     onViewSosHistory: () -> Unit,
@@ -238,6 +289,8 @@ fun DashboardContent(
         if (activeSos != null) {
             SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
         }
+
+        AiSummaryCard(summary, onViewSummary)
 
         ChildStatusCard(data)
         LocationSummaryCard(data, onOpenLiveMap)
