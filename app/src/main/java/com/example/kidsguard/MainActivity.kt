@@ -27,6 +27,7 @@ import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
+import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sosRepository: SosRepository
     private lateinit var routeRepository: RouteRepository
     private lateinit var trackingRepository: TrackingRepository
+    private lateinit var updateRepository: UpdateRepository
     private lateinit var trackingManager: BackgroundTrackingManager
     private lateinit var syncProvider: RemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
         trackingRepository = TrackingRepository(this)
+        updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
@@ -127,7 +130,8 @@ class MainActivity : ComponentActivity() {
                         trackingRepository = trackingRepository,
                         trackingManager = trackingManager,
                         syncProvider = syncProvider,
-                        commandHandler = commandHandler
+                        commandHandler = commandHandler,
+                        updateRepository = updateRepository
                     )
                 }
             }

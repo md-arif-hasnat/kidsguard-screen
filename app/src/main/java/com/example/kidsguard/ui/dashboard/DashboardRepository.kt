@@ -107,7 +107,8 @@ class DashboardRepository(
                 trackingConfigSummary = "${trackingConfig.updateIntervalSeconds}s updates",
                 totalPointsSaved = locationHistory.size,
                 lastGpsPointTime = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
-                totalDistanceToday = "${"%.1f".format(routeRepository.getTotalDistanceToday() / 1000)} km"
+                totalDistanceToday = "${"%.1f".format(routeRepository.getTotalDistanceToday() / 1000)} km",
+                isMockChild = prefHelper.pairedChildId == "mock_child_001"
             )
         )
     }

@@ -62,7 +62,8 @@ fun ParentDashboardScreen(
     syncProvider: RemoteSyncProvider,
     commandHandler: RemoteCommandHandler,
     sosRepository: com.example.kidsguard.repository.SosRepository,
-    routeRepository: com.example.kidsguard.repository.RouteRepository
+    routeRepository: com.example.kidsguard.repository.RouteRepository,
+    updateRepository: com.example.kidsguard.update.UpdateRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -273,6 +274,14 @@ fun DashboardContent(
             onOpenSafeZones = onOpenSafeZones
         )
         
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "v1.0.0 (Debug)", 
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -283,7 +292,23 @@ fun ChildStatusCard(data: DashboardUiModel) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text(data.childName.ifEmpty { "Unnamed Child" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(data.childName.ifEmpty { "Unnamed Child" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        if (data.isMockChild) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text(
+                                    "QA Mode Active - Mock Child",
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                     Text(data.deviceName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 OnlineStatusBadge(data.isOnline)

@@ -9,6 +9,7 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
@@ -24,7 +25,8 @@ fun KidsGuardApp(
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
-    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler
+    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
+    updateRepository: com.example.kidsguard.update.UpdateRepository
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -120,7 +122,8 @@ fun KidsGuardApp(
                 syncProvider = syncProvider,
                 commandHandler = commandHandler,
                 sosRepository = sosRepository,
-                routeRepository = routeRepository
+                routeRepository = routeRepository,
+                updateRepository = updateRepository
             )
             Screen.RouteHistory -> RouteHistoryScreen(
                 repository = routeRepository,
@@ -194,7 +197,9 @@ fun KidsGuardApp(
                 syncProvider = syncProvider,
                 commandHandler = commandHandler,
                 sosRepository = sosRepository,
-                routeRepository = routeRepository
+                routeRepository = routeRepository,
+                locationProvider = locationProvider,
+                updateRepository = updateRepository
             )
         }
     }

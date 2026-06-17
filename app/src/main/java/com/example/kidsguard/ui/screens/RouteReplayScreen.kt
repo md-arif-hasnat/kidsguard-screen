@@ -114,7 +114,7 @@ fun RouteReplayScreen(
                     
                     // Current Replay Marker
                     Marker(
-                        state = MarkerState(position = latLngs[currentPointIndex]),
+                        state = rememberMarkerState(position = latLngs[currentPointIndex]),
                         title = "Replay position",
                         icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
                             com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE

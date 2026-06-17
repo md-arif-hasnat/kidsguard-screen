@@ -114,6 +114,20 @@ fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit,
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Scan QR Code")
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            TextButton(
+                onClick = {
+                    prefHelper.userRole = "PARENT"
+                    prefHelper.pairedChildId = "mock_child_001"
+                    prefHelper.childName = "Test Child"
+                    prefHelper.deviceName = "Android Emulator"
+                    onSetupComplete()
+                }
+            ) {
+                Text("Use Mock Child for Testing", color = MaterialTheme.colorScheme.secondary)
+            }
         }
     }
 }

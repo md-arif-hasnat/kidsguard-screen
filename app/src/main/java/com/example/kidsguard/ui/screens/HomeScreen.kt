@@ -278,44 +278,6 @@ fun HomeScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            if (activeSos != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("SOS ACTIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            Text("Emergency alerts sent to parent", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Button(
-                            onClick = { sosRepository.resolveSos(activeSos!!.id) },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Resolve", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-            } else {
-                Button(
-                    onClick = { showSosConfirm = true },
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Icon(Icons.Default.Emergency, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Emergency SOS", style = MaterialTheme.typography.titleLarge)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
             
             Text(
                 text = "Application Status",
@@ -389,7 +351,7 @@ fun HomeScreen(
                                 "Emergency SOS triggered"
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                     ) {
                         Text("YES, TRIGGER SOS")
                     }
