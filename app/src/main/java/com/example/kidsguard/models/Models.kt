@@ -90,3 +90,14 @@ data class SosEvent(
     val message: String = "Emergency SOS Triggered",
     val status: SosStatus = SosStatus.CREATED
 )
+
+data class RouteSession(
+    val id: String = UUID.randomUUID().toString(),
+    val startTime: Long,
+    val endTime: Long,
+    val totalPoints: Int,
+    val totalDistanceMeters: Double,
+    val averageSpeed: Float,
+    val maxSpeed: Float,
+    val points: List<LocationPoint> = emptyList()
+)

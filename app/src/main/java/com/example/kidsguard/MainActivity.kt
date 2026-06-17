@@ -16,6 +16,7 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.navigation.KidsGuardApp
 import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.repository.LocationRepository
+import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.repository.SosRepository
 import com.example.kidsguard.sync.FirebaseConfig
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var repository: SafeZoneRepository
     private lateinit var locationRepository: LocationRepository
     private lateinit var sosRepository: SosRepository
+    private lateinit var routeRepository: RouteRepository
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var trackingManager: BackgroundTrackingManager
     private lateinit var syncProvider: RemoteSyncProvider
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
         repository = SafeZoneRepository()
         locationRepository = LocationRepository(this, repository)
         sosRepository = SosRepository(this)
+        routeRepository = RouteRepository(locationRepository)
         trackingRepository = TrackingRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         
@@ -120,6 +123,7 @@ class MainActivity : ComponentActivity() {
                         repository = repository,
                         locationRepository = locationRepository,
                         sosRepository = sosRepository,
+                        routeRepository = routeRepository,
                         trackingRepository = trackingRepository,
                         trackingManager = trackingManager,
                         syncProvider = syncProvider,

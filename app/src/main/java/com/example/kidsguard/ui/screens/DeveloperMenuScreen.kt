@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -17,6 +18,7 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.navigation.Screen
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
+import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.CommandType
 import com.example.kidsguard.sync.FirebaseConfig
@@ -38,7 +40,8 @@ fun DeveloperMenuScreen(
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
     commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
-    sosRepository: com.example.kidsguard.repository.SosRepository
+    sosRepository: com.example.kidsguard.repository.SosRepository,
+    routeRepository: RouteRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val notificationEngine = remember { LocalNotificationEngine(context) }
@@ -287,6 +290,21 @@ fun DeveloperMenuScreen(
                     sosRepository.clearSosHistory()
                 }, modifier = Modifier.weight(1f)) {
                     Text("Clear SOS", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Route Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val routeSessions by routeRepository.routeSessions.collectAsState()
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Total Routes: ${routeSessions.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total GPS Points: ${lastLocation.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Route Distance: ${"%.1f".format((routeSessions.firstOrNull()?.totalDistanceMeters ?: 0.0) / 1000)} km", style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { routeRepository.generateRouteSessions() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Regenerate Routes", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
 

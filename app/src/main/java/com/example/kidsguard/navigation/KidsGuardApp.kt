@@ -1,8 +1,7 @@
 package com.example.kidsguard.navigation
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
@@ -21,6 +20,7 @@ fun KidsGuardApp(
     repository: SafeZoneRepository,
     locationRepository: LocationRepository,
     sosRepository: com.example.kidsguard.repository.SosRepository,
+    routeRepository: com.example.kidsguard.repository.RouteRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
@@ -29,6 +29,8 @@ fun KidsGuardApp(
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
     val locationProvider = remember { LocalLocationProvider(context) }
+    
+    var selectedRouteId by remember { mutableStateOf<String?>(null) }
     
     // Initial redirection based on role and pairing status
     val userRole = prefHelper.userRole
@@ -108,6 +110,7 @@ fun KidsGuardApp(
                 onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
                 onOpenLiveMap = { onScreenChange(Screen.LiveMap) },
                 onOpenSosHistory = { onScreenChange(Screen.SosHistory) },
+                onOpenRouteHistory = { onScreenChange(Screen.RouteHistory) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -116,8 +119,28 @@ fun KidsGuardApp(
                 trackingManager = trackingManager,
                 syncProvider = syncProvider,
                 commandHandler = commandHandler,
-                sosRepository = sosRepository
+                sosRepository = sosRepository,
+                routeRepository = routeRepository
             )
+            Screen.RouteHistory -> RouteHistoryScreen(
+                repository = routeRepository,
+                onRouteSelected = { id: String ->
+                    selectedRouteId = id
+                    onScreenChange(Screen.RouteReplay)
+                },
+                onBack = { onScreenChange(Screen.ParentDashboard) }
+            )
+            Screen.RouteReplay -> {
+                val route = selectedRouteId?.let { routeRepository.getRouteDetails(it) }
+                if (route != null) {
+                    RouteReplayScreen(
+                        route = route,
+                        onBack = { onScreenChange(Screen.RouteHistory) }
+                    )
+                } else {
+                    onScreenChange(Screen.RouteHistory)
+                }
+            }
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
@@ -170,7 +193,8 @@ fun KidsGuardApp(
                 trackingManager = trackingManager,
                 syncProvider = syncProvider,
                 commandHandler = commandHandler,
-                sosRepository = sosRepository
+                sosRepository = sosRepository,
+                routeRepository = routeRepository
             )
         }
     }

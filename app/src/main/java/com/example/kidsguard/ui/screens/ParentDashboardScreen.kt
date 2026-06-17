@@ -52,6 +52,7 @@ fun ParentDashboardScreen(
     onOpenLocationHistory: () -> Unit,
     onOpenLiveMap: () -> Unit,
     onOpenSosHistory: () -> Unit,
+    onOpenRouteHistory: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -60,7 +61,8 @@ fun ParentDashboardScreen(
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
     commandHandler: RemoteCommandHandler,
-    sosRepository: com.example.kidsguard.repository.SosRepository
+    sosRepository: com.example.kidsguard.repository.SosRepository,
+    routeRepository: com.example.kidsguard.repository.RouteRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -68,7 +70,7 @@ fun ParentDashboardScreen(
     val activeSos by sosRepository.activeSos.collectAsState()
     
     val dashboardRepository = remember {
-        DashboardRepository(context, prefHelper, safeZoneRepository, locationRepository, trackingRepository, syncProvider, commandHandler)
+        DashboardRepository(context, prefHelper, safeZoneRepository, locationRepository, trackingRepository, syncProvider, commandHandler, routeRepository)
     }
     
     val dashboardState by dashboardRepository.dashboardState.collectAsState(DashboardState.Loading)
@@ -124,6 +126,7 @@ fun ParentDashboardScreen(
                         onOpenActivityFeed = onOpenActivityFeed,
                         onOpenSafeZones = onOpenSafeZones,
                         onOpenLocationHistory = onOpenLocationHistory,
+                        onOpenRouteHistory = onOpenRouteHistory,
                         onLock = {
                             commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW))
                         },
@@ -219,6 +222,7 @@ fun DashboardContent(
     onOpenActivityFeed: () -> Unit,
     onOpenSafeZones: () -> Unit,
     onOpenLocationHistory: () -> Unit,
+    onOpenRouteHistory: () -> Unit,
     onLock: () -> Unit,
     onUnlock: () -> Unit,
     onRefreshLocation: () -> Unit
@@ -237,6 +241,24 @@ fun DashboardContent(
         ChildStatusCard(data)
         LocationSummaryCard(data, onOpenLiveMap)
         SafeZoneSummaryCard(data)
+        
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Movement History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Points: ${data.totalPointsSaved}", style = MaterialTheme.typography.bodySmall)
+                    Text("Distance Today: ${data.totalDistanceToday}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = onOpenRouteHistory, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Route, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View Route History")
+                }
+            }
+        }
+
         ActivitySummaryCard(data, onOpenActivityFeed)
         TrackingSummaryCard(data)
         

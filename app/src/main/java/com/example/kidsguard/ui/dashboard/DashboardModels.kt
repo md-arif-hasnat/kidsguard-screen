@@ -29,7 +29,8 @@ data class DashboardUiModel(
     
     val trackingConfigSummary: String = "",
     val totalPointsSaved: Int = 0,
-    val lastGpsPointTime: String = "Never"
+    val lastGpsPointTime: String = "Never",
+    val totalDistanceToday: String = "0 km"
 )
 
 sealed class DashboardState {

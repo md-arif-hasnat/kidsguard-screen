@@ -4,8 +4,10 @@ import android.content.Context
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.models.RouteSession
 import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.repository.LocationRepository
+import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.RemoteSyncProvider
@@ -25,7 +27,8 @@ class DashboardRepository(
     private val locationRepository: LocationRepository,
     private val trackingRepository: TrackingRepository,
     private val syncProvider: RemoteSyncProvider,
-    private val commandHandler: RemoteCommandHandler
+    private val commandHandler: RemoteCommandHandler,
+    private val routeRepository: RouteRepository
 ) {
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private val checker = LocalSafeZoneChecker(safeZoneRepository, com.example.kidsguard.notifications.LocalNotificationEngine(context), prefHelper)
@@ -38,7 +41,8 @@ class DashboardRepository(
         trackingRepository.currentConfig,
         syncProvider.isConnected,
         syncProvider.lastSyncTimestamp,
-        commandHandler.lastCommandReceived
+        commandHandler.lastCommandReceived,
+        routeRepository.routeSessions
     ) { args: Array<Any> ->
         val locationHistory = args[0] as List<LocationPoint>
         val safeZones = args[1] as List<SafeZone>
@@ -48,6 +52,7 @@ class DashboardRepository(
         val isConnected = args[5] as Boolean
         val lastSync = args[6] as Long
         val lastCommand = args[7] as String
+        val routeSessions = args[8] as List<RouteSession>
         
         val lastLocation = locationHistory.firstOrNull()
         val nearest = lastLocation?.let { point ->
@@ -101,7 +106,8 @@ class DashboardRepository(
                 
                 trackingConfigSummary = "${trackingConfig.updateIntervalSeconds}s updates",
                 totalPointsSaved = locationHistory.size,
-                lastGpsPointTime = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never"
+                lastGpsPointTime = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
+                totalDistanceToday = "${"%.1f".format(routeRepository.getTotalDistanceToday() / 1000)} km"
             )
         )
     }
