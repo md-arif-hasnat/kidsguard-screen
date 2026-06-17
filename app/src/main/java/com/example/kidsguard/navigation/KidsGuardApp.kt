@@ -20,6 +20,7 @@ fun KidsGuardApp(
     onScreenChange: (Screen) -> Unit, 
     repository: SafeZoneRepository,
     locationRepository: LocationRepository,
+    sosRepository: com.example.kidsguard.repository.SosRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
@@ -86,7 +87,9 @@ fun KidsGuardApp(
                 onOpenTrackingStatus = { onScreenChange(Screen.TrackingStatus) },
                 onOpenPermissionChecklist = { onScreenChange(Screen.PermissionChecklist) },
                 prefHelper = prefHelper,
-                repository = repository
+                repository = repository,
+                sosRepository = sosRepository,
+                locationRepository = locationRepository
             )
             Screen.TrackingStatus -> TrackingStatusScreen(
                 onBack = { onScreenChange(Screen.Home) },
@@ -104,6 +107,7 @@ fun KidsGuardApp(
                 onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
                 onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
                 onOpenLiveMap = { onScreenChange(Screen.LiveMap) },
+                onOpenSosHistory = { onScreenChange(Screen.SosHistory) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -111,7 +115,8 @@ fun KidsGuardApp(
                 trackingRepository = trackingRepository,
                 trackingManager = trackingManager,
                 syncProvider = syncProvider,
-                commandHandler = commandHandler
+                commandHandler = commandHandler,
+                sosRepository = sosRepository
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
@@ -131,6 +136,10 @@ fun KidsGuardApp(
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
                 trackingRepository = trackingRepository,
+                onBack = { onScreenChange(Screen.ParentDashboard) }
+            )
+            Screen.SosHistory -> SosHistoryScreen(
+                repository = sosRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.Locked -> LockedScreen(
@@ -160,7 +169,8 @@ fun KidsGuardApp(
                 trackingRepository = trackingRepository,
                 trackingManager = trackingManager,
                 syncProvider = syncProvider,
-                commandHandler = commandHandler
+                commandHandler = commandHandler,
+                sosRepository = sosRepository
             )
         }
     }

@@ -51,6 +51,7 @@ fun ParentDashboardScreen(
     onOpenActivityFeed: () -> Unit,
     onOpenLocationHistory: () -> Unit,
     onOpenLiveMap: () -> Unit,
+    onOpenSosHistory: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -58,10 +59,13 @@ fun ParentDashboardScreen(
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
-    commandHandler: RemoteCommandHandler
+    commandHandler: RemoteCommandHandler,
+    sosRepository: com.example.kidsguard.repository.SosRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val activeSos by sosRepository.activeSos.collectAsState()
     
     val dashboardRepository = remember {
         DashboardRepository(context, prefHelper, safeZoneRepository, locationRepository, trackingRepository, syncProvider, commandHandler)
@@ -113,6 +117,9 @@ fun ParentDashboardScreen(
                 is DashboardState.Success -> {
                     DashboardContent(
                         data = state.data,
+                        activeSos = activeSos,
+                        onResolveSos = { sosRepository.resolveSos(it) },
+                        onViewSosHistory = onOpenSosHistory,
                         onOpenLiveMap = onOpenLiveMap,
                         onOpenActivityFeed = onOpenActivityFeed,
                         onOpenSafeZones = onOpenSafeZones,
@@ -159,8 +166,55 @@ fun ParentDashboardScreen(
 }
 
 @Composable
+fun SosAlertCard(
+    event: com.example.kidsguard.models.SosEvent,
+    onResolve: (String) -> Unit,
+    onViewHistory: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("ACTIVE SOS ALERT", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("A child has triggered an emergency alert.", style = MaterialTheme.typography.bodyMedium)
+            
+            if (event.latitude != null) {
+                Text("Location: ${"%.5f".format(event.latitude)}, ${"%.5f".format(event.longitude)}", style = MaterialTheme.typography.bodySmall)
+            }
+            Text("Battery: ${event.batteryPercent ?: "Unknown"}%", style = MaterialTheme.typography.bodySmall)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { onResolve(event.id) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Resolve SOS")
+                }
+                OutlinedButton(
+                    onClick = onViewHistory,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("SOS History")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun DashboardContent(
     data: DashboardUiModel,
+    activeSos: com.example.kidsguard.models.SosEvent?,
+    onResolveSos: (String) -> Unit,
+    onViewSosHistory: () -> Unit,
     onOpenLiveMap: () -> Unit,
     onOpenActivityFeed: () -> Unit,
     onOpenSafeZones: () -> Unit,
@@ -176,6 +230,10 @@ fun DashboardContent(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (activeSos != null) {
+            SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
+        }
+
         ChildStatusCard(data)
         LocationSummaryCard(data, onOpenLiveMap)
         SafeZoneSummaryCard(data)

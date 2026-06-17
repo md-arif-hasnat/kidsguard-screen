@@ -76,3 +76,17 @@ data class RemoteCommand(
     val targetChildId: String,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+enum class SosStatus { CREATED, ACTIVE, RESOLVED }
+
+data class SosEvent(
+    val id: String = UUID.randomUUID().toString(),
+    val childId: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracy: Float? = null,
+    val batteryPercent: Int? = null,
+    val message: String = "Emergency SOS Triggered",
+    val status: SosStatus = SosStatus.CREATED
+)

@@ -38,11 +38,16 @@ fun HomeScreen(
     onOpenTrackingStatus: () -> Unit,
     onOpenPermissionChecklist: () -> Unit,
     prefHelper: PreferenceHelper, 
-    repository: SafeZoneRepository
+    repository: SafeZoneRepository,
+    sosRepository: com.example.kidsguard.repository.SosRepository,
+    locationRepository: com.example.kidsguard.repository.LocationRepository
 ) {
     val context = LocalContext.current
     val activity = context.findActivity()
     var showPinDialog by remember { mutableStateOf(false) }
+    var showSosConfirm by remember { mutableStateOf(false) }
+    
+    val activeSos by sosRepository.activeSos.collectAsState()
     
     // Developer Menu hidden access
     var logoTapCount by remember { mutableIntStateOf(0) }
@@ -201,6 +206,44 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            if (activeSos != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("SOS ACTIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            Text("Emergency alerts sent to parent", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Button(
+                            onClick = { sosRepository.resolveSos(activeSos!!.id) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Resolve", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { showSosConfirm = true },
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Emergency, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Emergency SOS", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Button(
                 onClick = onActivate,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -231,6 +274,44 @@ fun HomeScreen(
                     Icon(Icons.Default.GpsFixed, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Tracking", maxLines = 1)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (activeSos != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("SOS ACTIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            Text("Emergency alerts sent to parent", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Button(
+                            onClick = { sosRepository.resolveSos(activeSos!!.id) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Resolve", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { showSosConfirm = true },
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Emergency, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Emergency SOS", style = MaterialTheme.typography.titleLarge)
                 }
             }
 
@@ -276,6 +357,48 @@ fun HomeScreen(
                     onOpenSettings()
                 },
                 correctPin = prefHelper.pin
+            )
+        }
+
+        if (showSosConfirm) {
+            AlertDialog(
+                onDismissRequest = { showSosConfirm = false },
+                title = { Text("Trigger Emergency SOS?") },
+                text = { Text("This will notify your parent and capture your current location.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showSosConfirm = false
+                            val location = locationRepository.getCurrentLocation()
+                            val battery = com.example.kidsguard.data.getBatteryLevel(context)
+                            val event = com.example.kidsguard.models.SosEvent(
+                                childId = prefHelper.pairingCode,
+                                latitude = location?.latitude,
+                                longitude = location?.longitude,
+                                accuracy = location?.accuracy,
+                                batteryPercent = battery
+                            )
+                            sosRepository.triggerSos(event)
+                            repository.addEvent(com.example.kidsguard.models.ActivityEvent(
+                                type = "SOS_TRIGGERED",
+                                title = "SOS Emergency Triggered",
+                                description = "Manual trigger from device"
+                            ))
+                            com.example.kidsguard.notifications.LocalNotificationEngine(context).sendSafetyAlert(
+                                "KidsGuard SOS Alert",
+                                "Emergency SOS triggered"
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("YES, TRIGGER SOS")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSosConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
     }

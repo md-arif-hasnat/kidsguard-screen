@@ -37,11 +37,14 @@ fun DeveloperMenuScreen(
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
-    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler
+    commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
+    sosRepository: com.example.kidsguard.repository.SosRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val notificationEngine = remember { LocalNotificationEngine(context) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
+    
+    val activeSos by sosRepository.activeSos.collectAsState()
     val trackingState by trackingRepository.currentState.collectAsState()
     val trackingConfig by trackingRepository.currentConfig.collectAsState()
 
@@ -260,6 +263,30 @@ fun DeveloperMenuScreen(
                     Text("Current Zone: ${if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) nearest?.name else "None"}", style = MaterialTheme.typography.bodySmall)
                     Text("Nearest Zone: ${nearest?.name} (${distance?.toInt() ?: 0}m)", style = MaterialTheme.typography.bodySmall)
                     Text("Last Event: ${lastEvent.firstOrNull()?.title}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("SOS Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { 
+                    sosRepository.triggerSos(com.example.kidsguard.models.SosEvent(
+                        childId = prefHelper.pairingCode,
+                        message = "DEBUG TEST SOS"
+                    ))
+                }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
+                    Text("Trigger SOS", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    activeSos?.let { sosRepository.resolveSos(it.id) }
+                }, modifier = Modifier.weight(1f), enabled = activeSos != null) {
+                    Text("Resolve Active", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    sosRepository.clearSosHistory()
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Clear SOS", style = MaterialTheme.typography.labelSmall)
                 }
             }
 
