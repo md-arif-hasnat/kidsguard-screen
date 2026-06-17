@@ -4,9 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,12 +29,18 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.CommandType
 import com.example.kidsguard.sync.FirebaseConfig
+import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncRemoteCommand
 import com.example.kidsguard.tracking.BackgroundTrackingManager
-import com.example.kidsguard.tracking.TrackingConfig
 import com.example.kidsguard.tracking.TrackingRepository
-import com.example.kidsguard.tracking.TrackingState
+import com.example.kidsguard.ui.dashboard.DashboardRepository
+import com.example.kidsguard.ui.dashboard.DashboardState
+import com.example.kidsguard.ui.dashboard.DashboardUiModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,90 +57,27 @@ fun ParentDashboardScreen(
     locationProvider: LocalLocationProvider,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
-    syncProvider: RemoteSyncProvider
+    syncProvider: RemoteSyncProvider,
+    commandHandler: RemoteCommandHandler
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    val dashboardRepository = remember {
+        DashboardRepository(context, prefHelper, safeZoneRepository, locationRepository, trackingRepository, syncProvider, commandHandler)
+    }
+    
+    val dashboardState by dashboardRepository.dashboardState.collectAsState(DashboardState.Loading)
+    
+    var isRefreshing by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
-    var isFetchingLocation by remember { mutableStateOf(false) }
-    var showPermissionExplanation by remember { mutableStateOf(false) }
-    var showBackgroundPermissionExplanation by remember { mutableStateOf(false) }
-    var permissionDeniedMessage by remember { mutableStateOf(false) }
-    
-    val trackingState by trackingRepository.currentState.collectAsState()
-    val trackingConfig by trackingRepository.currentConfig.collectAsState()
-    
-    val isConnected by syncProvider.isConnected.collectAsState()
-    val lastSync by syncProvider.lastSyncTimestamp.collectAsState()
 
-    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            trackingManager.startTracking()
-        } else {
-            permissionDeniedMessage = true
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                      permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        
-        if (granted) {
-            // Check for background location if we want to start tracking
-            if (prefHelper.userRole == "CHILD") {
-                showBackgroundPermissionExplanation = true
-            }
-        } else {
-            permissionDeniedMessage = true
-        }
-    }
-
-    fun handleStartTracking() {
-        val hasFineLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= 29) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-        } else true
-        val hasNotificationPermission = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else true
-
-        if (!hasFineLocation) {
-            val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                perms.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            permissionLauncher.launch(perms.toTypedArray())
-        } else if (android.os.Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
-        } else if (!hasBackgroundLocation && android.os.Build.VERSION.SDK_INT >= 29) {
-            showBackgroundPermissionExplanation = true
-        } else {
-            trackingManager.startTracking()
-        }
-    }
-
-    fun handleLocationRequest() {
-        when {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> {
-                isFetchingLocation = true
-                locationProvider.requestSingleUpdate { point ->
-                    isFetchingLocation = false
-                    if (point != null) {
-                        locationRepository.addLocationPoint(point)
-                        safeZoneRepository.addEvent(ActivityEvent(
-                            type = "LOCATION_FETCHED",
-                            title = "Location Updated",
-                            description = "Manual request successful"
-                        ))
-                    }
-                }
-            }
-            else -> {
-                showPermissionExplanation = true
-            }
+    fun refreshDashboard() {
+        scope.launch {
+            isRefreshing = true
+            // In a real app, this would trigger repository refreshes
+            delay(1000)
+            isRefreshing = false
         }
     }
 
@@ -145,6 +91,13 @@ fun ParentDashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { refreshDashboard() }) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -152,193 +105,32 @@ fun ParentDashboardScreen(
             )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            if (permissionDeniedMessage) {
-                // ... existing permission denied card ...
-            }
-
-            RemoteSyncStatusCard(
-                isConnected = isConnected, 
-                lastSync = lastSync, 
-                providerName = FirebaseConfig.currentProviderName(context),
-                isFirebaseConfigured = FirebaseConfig.isFirebaseConfigured(context)
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TrackingStatusCard(
-                state = trackingState, 
-                config = trackingConfig,
-                onStart = { handleStartTracking() },
-                onStop = { trackingManager.stopTracking() },
-                onPause = { trackingManager.pauseTracking() },
-                onResume = { trackingManager.resumeTracking() }
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val lastLocation by locationRepository.locationHistory.collectAsState()
-            val safeZones by safeZoneRepository.safeZones.collectAsState()
-            val notificationEngine = remember { com.example.kidsguard.notifications.LocalNotificationEngine(context) }
-            val checker = remember { com.example.kidsguard.tracking.LocalSafeZoneChecker(safeZoneRepository, notificationEngine, prefHelper) }
-            val nearest = lastLocation.firstOrNull()?.let { point ->
-                safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
-            }
-            val distance = nearest?.let { zone ->
-                lastLocation.firstOrNull()?.let { point ->
-                    checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (val state = dashboardState) {
+                is DashboardState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Safe Zone Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (distance != null && distance <= (nearest?.radiusMeters ?: 0.0)) 
-                            "Current Zone: ${nearest?.name}" else "Status: Outside Zones",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    if (distance != null && distance > (nearest?.radiusMeters ?: 0.0)) {
-                        Text(
-                            text = "Nearest: ${nearest?.name} (${distance.toInt()}m away)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("Monitored Device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    ListItem(
-                        headlineContent = { Text(prefHelper.childName.ifEmpty { "Child's Phone" }) },
-                        supportingContent = { Text("Device: ${prefHelper.deviceName}") },
-                        trailingContent = {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = if (prefHelper.isLocked) "LOCKED" else "UNLOCKED",
-                                    color = if (prefHelper.isLocked) Color.Red else Color.Green,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Online",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.Green
-                                )
-                            }
+                is DashboardState.Success -> {
+                    DashboardContent(
+                        data = state.data,
+                        onOpenLiveMap = onOpenLiveMap,
+                        onOpenActivityFeed = onOpenActivityFeed,
+                        onOpenSafeZones = onOpenSafeZones,
+                        onOpenLocationHistory = onOpenLocationHistory,
+                        onLock = {
+                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW))
+                        },
+                        onUnlock = {
+                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.UNLOCK_NOW))
+                        },
+                        onRefreshLocation = {
+                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.REFRESH_LOCATION))
                         }
                     )
-                    HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text("Battery Level") },
-                        trailingContent = { Text("85%") } // Mocked
-                    )
-                    ListItem(
-                        headlineContent = { Text("Last Updated") },
-                        trailingContent = { Text("Just now") }
-                    )
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { handleLocationRequest() },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !isFetchingLocation
-            ) {
-                if (isFetchingLocation) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Icon(Icons.Default.MyLocation, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Get Current Location")
+                is DashboardState.Error -> {
+                    Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
                 }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenLiveMap() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Map, contentDescription = null)
-                        Text("Live Map", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenSafeZones() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null)
-                        Text("Safe Zones", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenActivityFeed() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.List, contentDescription = null)
-                        Text("Activity Feed", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-                Card(
-                    modifier = Modifier.weight(1f).clickable { onOpenLocationHistory() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null)
-                        Text("Location", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { 
-                    prefHelper.isLocked = !prefHelper.isLocked
-                },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (prefHelper.isLocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(if (prefHelper.isLocked) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null)
-                    Text(if (prefHelper.isLocked) "Remote Unlock" else "Remote Lock", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Button(
-                onClick = onOpenSettings,
-                modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Settings")
             }
         }
 
@@ -363,194 +155,246 @@ fun ParentDashboardScreen(
                 }
             )
         }
+    }
+}
 
-        if (showPermissionExplanation) {
-            AlertDialog(
-                onDismissRequest = { showPermissionExplanation = false },
-                title = { Text("Location Permission") },
-                text = { 
-                    Text("KidsGuard needs location access to fetch coordinates for monitoring. Please grant access on the next screen.") 
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        showPermissionExplanation = false
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }) {
-                        Text("Grant Permission")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showPermissionExplanation = false }) {
-                        Text("Later")
-                    }
+@Composable
+fun DashboardContent(
+    data: DashboardUiModel,
+    onOpenLiveMap: () -> Unit,
+    onOpenActivityFeed: () -> Unit,
+    onOpenSafeZones: () -> Unit,
+    onOpenLocationHistory: () -> Unit,
+    onLock: () -> Unit,
+    onUnlock: () -> Unit,
+    onRefreshLocation: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ChildStatusCard(data)
+        LocationSummaryCard(data, onOpenLiveMap)
+        SafeZoneSummaryCard(data)
+        ActivitySummaryCard(data, onOpenActivityFeed)
+        TrackingSummaryCard(data)
+        
+        Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        
+        QuickActionsGrid(
+            onLock = onLock,
+            onUnlock = onUnlock,
+            onRefreshLocation = onRefreshLocation,
+            onOpenMap = onOpenLiveMap,
+            onOpenActivity = onOpenActivityFeed,
+            onOpenSafeZones = onOpenSafeZones
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun ChildStatusCard(data: DashboardUiModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text(data.childName.ifEmpty { "Unnamed Child" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(data.deviceName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            )
-        }
-        if (showBackgroundPermissionExplanation) {
-            AlertDialog(
-                onDismissRequest = { showBackgroundPermissionExplanation = false },
-                title = { Text("Background Location") },
-                text = { 
-                    Text("To track your child even when the app is closed, please select 'Allow all the time' in the next screen settings.") 
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        showBackgroundPermissionExplanation = false
-                        if (android.os.Build.VERSION.SDK_INT >= 29) {
-                            backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                        }
-                    }) {
-                        Text("Grant Permission")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showBackgroundPermissionExplanation = false }) {
-                        Text("Later")
-                    }
-                }
-            )
+                OnlineStatusBadge(data.isOnline)
+            }
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatusInfoItem(Icons.Default.BatteryChargingFull, "${data.batteryPercent}%", if (data.isCharging) "Charging" else "On Battery")
+                StatusInfoItem(Icons.Default.GpsFixed, data.trackingState, "Tracking")
+                StatusInfoItem(if (data.kidGuardStatus == "LOCKED") Icons.Default.Lock else Icons.Default.LockOpen, data.kidGuardStatus, "KidGuard")
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Last seen: ${data.lastSeen}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-fun RemoteSyncStatusCard(
-    isConnected: Boolean, 
-    lastSync: Long, 
-    providerName: String,
-    isFirebaseConfigured: Boolean
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
+fun LocationSummaryCard(data: DashboardUiModel, onOpenMap: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Remote Sync",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Surface(
-                    color = if (isConnected) Color.Green.copy(alpha = 0.2f) else MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        if (isConnected) "ONLINE" else "OFFLINE",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isConnected) Color.Green else MaterialTheme.colorScheme.error
-                    )
+            Text("Location Summary", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (data.currentLat != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text("LAT: ${"%.5f".format(data.currentLat)}", style = MaterialTheme.typography.bodyMedium)
+                        Text("LNG: ${"%.5f".format(data.currentLng)}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("±${data.accuracy?.toInt() ?: 0}m", style = MaterialTheme.typography.bodyMedium)
+                        Text("${"%.1f".format((data.speed ?: 0f) * 3.6)} km/h", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Updated: ${data.lastLocationUpdate}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("No location data available", style = MaterialTheme.typography.bodyMedium, color = Color.Red)
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Map, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Open Live Map")
+            }
+        }
+    }
+}
+
+@Composable
+fun SafeZoneSummaryCard(data: DashboardUiModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Safe Zone Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text("Current: ${data.currentZone}", style = MaterialTheme.typography.bodyLarge, color = if (data.currentZone != "Outside Zones") Color.Green else MaterialTheme.colorScheme.primary)
+            Text("Nearest: ${data.nearestZone} (${data.distanceToNearest})", style = MaterialTheme.typography.bodySmall)
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Last Enter", style = MaterialTheme.typography.labelSmall)
+                    Text(data.lastEnterEvent, style = MaterialTheme.typography.bodyMedium)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Last Exit", style = MaterialTheme.typography.labelSmall)
+                    Text(data.lastExitEvent, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActivitySummaryCard(data: DashboardUiModel, onOpenFeed: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Activity Today", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Badge { Text("${data.totalEventsToday}") }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            TrackingStatusItem("Sync Provider", providerName)
-            TrackingStatusItem("Firebase Configured", if (isFirebaseConfigured) "YES" else "NO")
-            val sdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
-            TrackingStatusItem("Last Sync", if (lastSync > 0) sdf.format(java.util.Date(lastSync)) else "Never")
-            TrackingStatusItem("Pending Commands", "0")
-        }
-    }
-}
-
-@Composable
-fun TrackingStatusCard(
-    state: TrackingState, 
-    config: TrackingConfig,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onPause: () -> Unit,
-    onResume: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Background Tracking",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Surface(
-                    color = when(state) {
-                        TrackingState.RUNNING -> Color.Green.copy(alpha = 0.2f)
-                        TrackingState.STOPPED -> MaterialTheme.colorScheme.errorContainer
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        state.name,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = when(state) {
-                            TrackingState.RUNNING -> Color.Green
-                            TrackingState.STOPPED -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSecondaryContainer
-                        }
-                    )
-                }
-            }
+            
+            ActivitySummaryItem("Latest", data.lastActivityTitle)
+            ActivitySummaryItem("Notification", data.lastNotificationTitle)
+            ActivitySummaryItem("Remote Command", data.lastCommandTitle)
+            
             Spacer(modifier = Modifier.height(12.dp))
-            TrackingStatusItem("Tracking Enabled", if (config.trackingEnabled) "YES" else "NO")
-            TrackingStatusItem("Update Interval", "${config.updateIntervalSeconds}s")
-            TrackingStatusItem("History Enabled", if (config.saveHistory) "YES" else "NO")
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (state == TrackingState.RUNNING) {
-                    TextButton(onClick = onPause) {
-                        Text("Pause", color = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onStop) {
-                        Text("Stop Tracking", color = MaterialTheme.colorScheme.error)
-                    }
-                } else if (state == TrackingState.PAUSED) {
-                    Button(onClick = onResume) {
-                        Text("Resume")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onStop) {
-                        Text("Stop", color = MaterialTheme.colorScheme.error)
-                    }
-                } else {
-                    Button(onClick = onStart) {
-                        Text("Start Tracking")
-                    }
-                }
+            TextButton(onClick = onOpenFeed, modifier = Modifier.fillMaxWidth()) {
+                Text("View Full Activity Feed")
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
         }
     }
 }
 
 @Composable
-fun TrackingStatusItem(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+fun TrackingSummaryCard(data: DashboardUiModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Tracking Service", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Config", style = MaterialTheme.typography.labelSmall)
+                    Text(data.trackingConfigSummary, style = MaterialTheme.typography.bodyMedium)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Saved Points", style = MaterialTheme.typography.labelSmall)
+                    Text("${data.totalPointsSaved}", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Last GPS Signal: ${data.lastGpsPointTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun QuickActionsGrid(
+    onLock: () -> Unit,
+    onUnlock: () -> Unit,
+    onRefreshLocation: () -> Unit,
+    onOpenMap: () -> Unit,
+    onOpenActivity: () -> Unit,
+    onOpenSafeZones: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.Lock, "Lock Now", Color.Red, onLock, Modifier.weight(1f))
+            QuickActionButton(Icons.Default.LockOpen, "Unlock", Color.Green, onUnlock, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.Refresh, "Refresh GPS", MaterialTheme.colorScheme.primary, onRefreshLocation, Modifier.weight(1f))
+            QuickActionButton(Icons.Default.Map, "Open Map", MaterialTheme.colorScheme.secondary, onOpenMap, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.List, "Activity", MaterialTheme.colorScheme.tertiary, onOpenActivity, Modifier.weight(1f))
+            QuickActionButton(Icons.Default.LocationOn, "Safe Zones", MaterialTheme.colorScheme.secondary, onOpenSafeZones, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+fun QuickActionButton(icon: ImageVector, label: String, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier.height(56.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(containerColor = color.copy(alpha = 0.1f), contentColor = color)
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+fun ActivitySummaryItem(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text("$label: ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+        Text(value, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+    }
+}
+
+@Composable
+fun StatusInfoItem(icon: ImageVector, value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun OnlineStatusBadge(isOnline: Boolean) {
+    Surface(
+        color = if (isOnline) Color.Green.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.2f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(8.dp).background(if (isOnline) Color.Green else Color.Gray, shape = CircleShape))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(if (isOnline) "ONLINE" else "OFFLINE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (isOnline) Color.Green else Color.Gray)
+        }
     }
 }

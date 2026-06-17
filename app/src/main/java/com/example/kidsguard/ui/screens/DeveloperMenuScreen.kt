@@ -54,7 +54,16 @@ fun DeveloperMenuScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer Tools") },
+                title = { 
+                    Column {
+                        Text("Developer Tools", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "v1.0.0 (Debug) - ${android.os.Build.MODEL}", 
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -71,6 +80,39 @@ fun DeveloperMenuScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text("Real Device Test Mode", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { 
+                    prefHelper.isLocked = true
+                    onScreenChange(Screen.Locked)
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Force Lock", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    prefHelper.isLocked = false
+                    onScreenChange(Screen.Home)
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Force Unlock", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { 
+                    val now = System.currentTimeMillis()
+                    locationRepository.addLocationPoint(com.example.kidsguard.models.LocationPoint(
+                        51.5074, -0.1278, 10f, 0f, 0f, now
+                    ))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Test GPS", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    trackingManager.startTracking()
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Test Background", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             Text("Remote Sync Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             val lastSync by syncProvider.lastSyncTimestamp.collectAsState()
             
@@ -86,9 +128,7 @@ fun DeveloperMenuScreen(
                         Button(onClick = { 
                             android.util.Log.d("DeveloperMenu", "LOCK button clicked")
                             val cmd = SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW)
-                            // Call handler directly for immediate local feedback in dev menu
                             commandHandler.handleCommand(cmd)
-                            // Also simulate via provider to test the sync infrastructure
                             mockProvider?.simulateRemoteCommand(cmd)
                         }, modifier = Modifier.weight(1f)) {
                             Text("LOCK", style = MaterialTheme.typography.labelSmall)
@@ -225,6 +265,18 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("Dashboard Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Total GPS Points: ${lastLocation.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total Activities: ${lastEvent.size}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total Notifications: ${lastEvent.count { it.type.contains("ALERT") || it.type.contains("ENTER") || it.type.contains("EXIT") }}", style = MaterialTheme.typography.bodySmall)
+                    Text("Total Safe Zones: ${safeZones.size}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             Text("Firebase Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             val isFirebaseConfigured = FirebaseConfig.isFirebaseConfigured(context)
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -252,27 +304,6 @@ fun DeveloperMenuScreen(
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            
-            DeveloperActionItem(
-                title = "Force KidGuard Lock",
-                description = "Immediately activate the lock screen.",
-                color = MaterialTheme.colorScheme.error,
-                onClick = {
-                    prefHelper.isLocked = true
-                    onScreenChange(Screen.Locked)
-                }
-            )
-            DeveloperActionItem(
-                title = "Force Unlock",
-                description = "Immediately deactivate the lock screen.",
-                color = Color.Green,
-                onClick = {
-                    prefHelper.isLocked = false
-                    onScreenChange(Screen.Home)
-                }
-            )
-            
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             Button(

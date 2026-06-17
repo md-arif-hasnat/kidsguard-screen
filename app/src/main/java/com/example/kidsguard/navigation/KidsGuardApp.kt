@@ -82,8 +82,20 @@ fun KidsGuardApp(
                 },
                 onOpenSettings = { onScreenChange(Screen.Settings) },
                 onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) },
+                onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
+                onOpenTrackingStatus = { onScreenChange(Screen.TrackingStatus) },
+                onOpenPermissionChecklist = { onScreenChange(Screen.PermissionChecklist) },
                 prefHelper = prefHelper,
                 repository = repository
+            )
+            Screen.TrackingStatus -> TrackingStatusScreen(
+                onBack = { onScreenChange(Screen.Home) },
+                trackingRepository = trackingRepository,
+                trackingManager = trackingManager,
+                locationRepository = locationRepository
+            )
+            Screen.PermissionChecklist -> PermissionChecklistScreen(
+                onBack = { onScreenChange(Screen.Home) }
             )
             Screen.ParentDashboard -> ParentDashboardScreen(
                 prefHelper = prefHelper,
@@ -98,7 +110,8 @@ fun KidsGuardApp(
                 locationProvider = locationProvider,
                 trackingRepository = trackingRepository,
                 trackingManager = trackingManager,
-                syncProvider = syncProvider
+                syncProvider = syncProvider,
+                commandHandler = commandHandler
             )
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
