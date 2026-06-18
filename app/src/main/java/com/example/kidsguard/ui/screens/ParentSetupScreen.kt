@@ -14,10 +14,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.repository.AuthRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit, onBack: () -> Unit) {
+fun ParentSetupScreen(
+    prefHelper: PreferenceHelper, 
+    authRepository: AuthRepository,
+    onSetupComplete: () -> Unit, 
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
     var isConnecting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
@@ -79,18 +87,25 @@ fun ParentSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit,
 
             Button(
                 onClick = {
-                    if (code.startsWith("KDG-") && code.length == 10) {
+                    if (code.length >= 6) {
                         isConnecting = true
-                        // Mock connection delay
-                        prefHelper.pairedChildId = "MOCK_CHILD_ID"
-                        prefHelper.childName = "Alex" // Mock name
-                        onSetupComplete()
+                        scope.launch {
+                            val success = authRepository.validateAndPair(code)
+                            if (success) {
+                                prefHelper.pairedChildId = code // For now use code as ID if no other ID returned
+                                prefHelper.childName = "Connected Child" 
+                                onSetupComplete()
+                            } else {
+                                error = "Invalid or expired pairing code."
+                                isConnecting = false
+                            }
+                        }
                     } else {
-                        error = "Invalid code format. Use KDG-123456"
+                        error = "Code must be at least 6 characters."
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = code.isNotBlank()
+                enabled = code.isNotBlank() && !isConnecting
             ) {
                 if (isConnecting) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))

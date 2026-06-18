@@ -18,12 +18,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.repository.AuthRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit, onBack: () -> Unit) {
+fun ChildSetupScreen(
+    prefHelper: PreferenceHelper, 
+    authRepository: AuthRepository,
+    onSetupComplete: () -> Unit, 
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(prefHelper.childName) }
-    var code by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf(prefHelper.pairingCode) }
+    var isGenerating by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -79,19 +88,35 @@ fun ChildSetupScreen(prefHelper: PreferenceHelper, onSetupComplete: () -> Unit, 
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (code.isEmpty()) {
+            if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
                 Button(
                     onClick = {
                         if (name.isNotBlank()) {
                             prefHelper.childName = name
-                            code = "KDG-${(100000..999999).random()}"
-                            prefHelper.pairingCode = code
+                            scope.launch {
+                                isGenerating = true
+                                val newCode = authRepository.generatePairingCode()
+                                if (newCode != null) {
+                                    code = newCode
+                                    prefHelper.pairingCode = newCode
+                                } else {
+                                    // Fallback to mock if Firebase fails
+                                    val mockCode = "MOCK-${(100000..999999).random()}"
+                                    code = mockCode
+                                    prefHelper.pairingCode = mockCode
+                                }
+                                isGenerating = false
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    enabled = name.isNotBlank()
+                    enabled = name.isNotBlank() && !isGenerating
                 ) {
-                    Text("Generate Pairing Code")
+                    if (isGenerating) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    } else {
+                        Text("Generate Pairing Code")
+                    }
                 }
             } else {
                 Text("Your Pairing Code", style = MaterialTheme.typography.labelLarge)

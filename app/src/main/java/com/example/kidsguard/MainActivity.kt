@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.navigation.KidsGuardApp
 import com.example.kidsguard.navigation.Screen
+import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
@@ -49,6 +51,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var trackingManager: BackgroundTrackingManager
     private lateinit var syncProvider: RemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
+    private lateinit var authRepository: AuthRepository
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -67,6 +70,7 @@ class MainActivity : ComponentActivity() {
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
+        authRepository = AuthRepository(this)
         
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
             FirebaseRemoteSyncProvider()
@@ -96,6 +100,16 @@ class MainActivity : ComponentActivity() {
         
         trackingManager.initialize()
         syncProvider.connect()
+        
+        // Initialize Firebase Auth and Register Device
+        if (FirebaseConfig.isFirebaseConfigured(this)) {
+            lifecycleScope.launchWhenStarted {
+                val success = authRepository.signInAnonymously()
+                if (success) {
+                    authRepository.registerDevice()
+                }
+            }
+        }
         
         // Setup command listener - ensuring it's always active regardless of pairing code for local simulation
         syncProvider.listenForRemoteCommands("") { command ->
@@ -146,7 +160,8 @@ class MainActivity : ComponentActivity() {
                         trackingManager = trackingManager,
                         syncProvider = syncProvider,
                         commandHandler = commandHandler,
-                        updateRepository = updateRepository
+                        updateRepository = updateRepository,
+                        authRepository = authRepository
                     )
                 }
             }

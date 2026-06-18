@@ -20,6 +20,7 @@ import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.sync.CommandType
 import com.example.kidsguard.sync.FirebaseConfig
@@ -50,7 +51,8 @@ fun DeveloperMenuScreen(
     dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
     knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
     reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder,
-    errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
+    errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository,
+    authRepository: AuthRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -710,8 +712,19 @@ fun DeveloperMenuScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Firebase Configured: ${if (isFirebaseConfigured) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
-                    Text("Current Provider: ${FirebaseConfig.currentProviderName(context)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Provider: ${FirebaseConfig.currentProviderName(context)}", style = MaterialTheme.typography.bodySmall)
                     
+                    HorizontalDivider()
+                    
+                    Text("Firebase UID: ${prefHelper.firebaseUid ?: "None"}", style = MaterialTheme.typography.labelSmall)
+                    Text("Device ID: ${prefHelper.deviceId}", style = MaterialTheme.typography.labelSmall)
+                    Text("Family ID: ${prefHelper.familyId ?: "None"}", style = MaterialTheme.typography.labelSmall)
+                    Text("Pairing Code: ${prefHelper.pairingCode}", style = MaterialTheme.typography.labelSmall)
+                    
+                    val sdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()) }
+                    val lastWrite = if (prefHelper.lastFirestoreWrite > 0) sdf.format(java.util.Date(prefHelper.lastFirestoreWrite)) else "Never"
+                    Text("Last Firestore Write: $lastWrite", style = MaterialTheme.typography.labelSmall)
+
                     if (!isFirebaseConfigured) {
                         Text(
                             "WARNING: google-services.json missing in app/ folder.",
@@ -722,12 +735,19 @@ fun DeveloperMenuScreen(
                     
                     Button(
                         onClick = { 
-                            val configured = FirebaseConfig.isFirebaseConfigured(context)
-                            android.widget.Toast.makeText(context, "Selection logic check: Use ${if (configured) "Firebase" else "Mock"}", android.widget.Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                val success = authRepository.registerDevice()
+                                if (success) {
+                                    android.widget.Toast.makeText(context, "Manual device registration successful", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "Manual device registration failed", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = isFirebaseConfigured
                     ) {
-                        Text("Test Provider Selection", style = MaterialTheme.typography.labelSmall)
+                        Text("Force Device Registration", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

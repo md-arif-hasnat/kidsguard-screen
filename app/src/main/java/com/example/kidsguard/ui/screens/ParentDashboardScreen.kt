@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
+import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.CommandType
@@ -46,6 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ParentDashboardScreen(
     prefHelper: PreferenceHelper, 
+    authRepository: AuthRepository,
     onOpenSettings: () -> Unit,
     onOpenSafeZones: () -> Unit,
     onOpenActivityFeed: () -> Unit,
@@ -130,6 +132,7 @@ fun ParentDashboardScreen(
                     DashboardContent(
                         data = state.data,
                         summary = summary,
+                        prefHelper = prefHelper,
                         onViewSummary = { onOpenDailySummary() },
                         activeDeviations = activeDeviations,
                         onOpenKnownRoutes = onOpenKnownRoutes,
@@ -323,6 +326,7 @@ fun AiSummaryCard(
 fun DashboardContent(
     data: DashboardUiModel,
     summary: com.example.kidsguard.ai.DailySummary?,
+    prefHelper: PreferenceHelper,
     onViewSummary: () -> Unit,
     activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
     onOpenKnownRoutes: () -> Unit,
@@ -382,6 +386,8 @@ fun DashboardContent(
 
         ActivitySummaryCard(data, onOpenActivityFeed)
         TrackingSummaryCard(data)
+        
+        FirebaseInfoCard(prefHelper)
         
         Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         
@@ -572,6 +578,40 @@ fun TrackingSummaryCard(data: DashboardUiModel) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("Last GPS Signal: ${data.lastGpsPointTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+fun FirebaseInfoCard(prefHelper: PreferenceHelper) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Firebase Foundation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            DebugInfoRow("User ID", prefHelper.firebaseUid ?: "Not Signed In")
+            DebugInfoRow("Device ID", prefHelper.deviceId)
+            DebugInfoRow("Family ID", prefHelper.familyId ?: "Not Paired")
+            DebugInfoRow("Role", prefHelper.userRole)
+            
+            val status = if (prefHelper.familyId != null) "Paired" else "Pending Pairing"
+            Text(
+                text = "Status: $status", 
+                style = MaterialTheme.typography.bodySmall, 
+                fontWeight = FontWeight.Bold,
+                color = if (prefHelper.familyId != null) Color.Green else MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+fun DebugInfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value.take(20) + if (value.length > 20) "..." else "", 
+            style = MaterialTheme.typography.labelSmall, 
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

@@ -43,6 +43,7 @@ object FirebaseConfig {
     }
 
     // Firestore Collection Names
+    const val COL_DEVICES = "devices"
     const val COL_PARENTS = "parents"
     const val COL_CHILDREN = "children"
     const val COL_FAMILIES = "families"

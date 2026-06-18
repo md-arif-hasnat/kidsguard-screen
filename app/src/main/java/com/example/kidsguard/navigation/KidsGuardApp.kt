@@ -8,6 +8,7 @@ import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
@@ -31,7 +32,8 @@ fun KidsGuardApp(
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
     commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
-    updateRepository: com.example.kidsguard.update.UpdateRepository
+    updateRepository: com.example.kidsguard.update.UpdateRepository,
+    authRepository: AuthRepository
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -71,6 +73,7 @@ fun KidsGuardApp(
             )
             Screen.ChildSetup -> ChildSetupScreen(
                 prefHelper = prefHelper,
+                authRepository = authRepository,
                 onSetupComplete = { onScreenChange(Screen.Home) },
                 onBack = { 
                     prefHelper.userRole = "NONE"
@@ -79,6 +82,7 @@ fun KidsGuardApp(
             )
             Screen.ParentSetup -> ParentSetupScreen(
                 prefHelper = prefHelper,
+                authRepository = authRepository,
                 onSetupComplete = { onScreenChange(Screen.ParentDashboard) },
                 onBack = { 
                     prefHelper.userRole = "NONE"
@@ -111,6 +115,7 @@ fun KidsGuardApp(
             )
             Screen.ParentDashboard -> ParentDashboardScreen(
                 prefHelper = prefHelper,
+                authRepository = authRepository,
                 onOpenSettings = { onScreenChange(Screen.Settings) },
                 onOpenSafeZones = { onScreenChange(Screen.SafeZoneList) },
                 onOpenActivityFeed = { onScreenChange(Screen.ActivityFeed) },
@@ -226,7 +231,8 @@ fun KidsGuardApp(
                 dailySummaryRepository = dailySummaryRepository,
                 knownRouteRepository = knownRouteRepository,
                 reverseGeocoder = reverseGeocoder,
-                errorLogRepository = errorLogRepository
+                errorLogRepository = errorLogRepository,
+                authRepository = authRepository
             )
             Screen.Diagnostics -> DiagnosticsScreen(
                 onBack = { onScreenChange(Screen.DeveloperMenu) }

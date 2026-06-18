@@ -31,6 +31,29 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getBoolean("volume_unlock_enabled", true)
         set(value) = prefs.edit().putBoolean("volume_unlock_enabled", value).apply()
 
+    var deviceId: String
+        get() {
+            var id = prefs.getString("device_id", null)
+            if (id == null) {
+                id = java.util.UUID.randomUUID().toString()
+                prefs.edit().putString("device_id", id).apply()
+            }
+            return id
+        }
+        set(value) = prefs.edit().putString("device_id", value).apply()
+
+    var firebaseUid: String?
+        get() = prefs.getString("firebase_uid", null)
+        set(value) = prefs.edit().putString("firebase_uid", value).apply()
+
+    var familyId: String?
+        get() = prefs.getString("family_id", null)
+        set(value) = prefs.edit().putString("family_id", value).apply()
+
+    var lastFirestoreWrite: Long
+        get() = prefs.getLong("last_firestore_write", 0L)
+        set(value) = prefs.edit().putLong("last_firestore_write", value).apply()
+
     var userRole: String
         get() = prefs.getString("user_role", "NONE") ?: "NONE"
         set(value) = prefs.edit().putString("user_role", value).apply()
