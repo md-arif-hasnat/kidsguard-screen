@@ -11,6 +11,7 @@ interface RemoteSyncProvider {
     fun syncActivity(event: SyncActivityEvent)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
     fun updateCommandStatus(commandId: String, status: CommandStatus)
+    fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
     
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -53,6 +54,26 @@ class LocalMockSyncProvider : RemoteSyncProvider {
 
     override fun updateCommandStatus(commandId: String, status: CommandStatus) {
         // Mock: Update local state
+    }
+
+    override fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?> {
+        return kotlinx.coroutines.flow.flowOf(
+            SyncChildStatus(
+                childId = childId,
+                childName = "Mock Child",
+                batteryPercent = 85,
+                charging = false,
+                trackingEnabled = true,
+                kidGuardActive = false,
+                currentZone = "Home",
+                lastSeen = System.currentTimeMillis(),
+                online = true,
+                deviceId = "mock-device-id",
+                deviceName = "Mock Phone",
+                appVersion = "1.0.0",
+                androidVersion = "13"
+            )
+        )
     }
 
     // Testing helper to simulate a remote command

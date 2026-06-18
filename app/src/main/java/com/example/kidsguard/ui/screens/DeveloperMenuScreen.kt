@@ -27,6 +27,7 @@ import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.LocalMockSyncProvider
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncRemoteCommand
+import com.example.kidsguard.sync.SyncChildStatus
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import kotlinx.coroutines.launch
@@ -68,6 +69,8 @@ fun DeveloperMenuScreen(
 
     val mockProvider = syncProvider as? LocalMockSyncProvider
     val isSyncConnected by syncProvider.isConnected.collectAsState()
+    
+    val remoteStatus by (prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(null)
     
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val lastGps = locationHistory.firstOrNull()
@@ -748,6 +751,118 @@ fun DeveloperMenuScreen(
                         enabled = isFirebaseConfigured
                     ) {
                         Text("Force Device Registration", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Firebase Child Status Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val statusSdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+                    
+                    Text("Child Name: ${remoteStatus?.childName ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Battery: ${remoteStatus?.batteryPercent ?: "N/A"}% (${if (remoteStatus?.charging == true) "Charging" else "On Battery"})", style = MaterialTheme.typography.bodySmall)
+                    Text("Online: ${if (remoteStatus?.online == true) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
+                    Text("KidGuard: ${if (remoteStatus?.kidGuardActive == true) "LOCKED" else "UNLOCKED"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Tracking: ${if (remoteStatus?.trackingEnabled == true) "ACTIVE" else "DISABLED"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Seen: ${remoteStatus?.lastSeen?.let { statusSdf.format(java.util.Date(it)) } ?: "Never"}", style = MaterialTheme.typography.bodySmall)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD") {
+                                val status = SyncChildStatus(
+                                    childId = prefHelper.pairingCode,
+                                    childName = prefHelper.childName,
+                                    deviceId = prefHelper.deviceId,
+                                    deviceName = prefHelper.deviceName,
+                                    batteryPercent = (1..100).random(),
+                                    charging = listOf(true, false).random(),
+                                    online = true,
+                                    trackingEnabled = trackingManager.trackingEnabled(),
+                                    kidGuardActive = prefHelper.isLocked,
+                                    lastSeen = System.currentTimeMillis(),
+                                    appVersion = "1.0.0",
+                                    androidVersion = android.os.Build.VERSION.RELEASE
+                                )
+                                syncProvider.syncChildStatus(status)
+                                android.widget.Toast.makeText(context, "Status synced", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "Only Child mode can sync status", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Sync Now", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD") {
+                                val status = SyncChildStatus(
+                                    childId = prefHelper.pairingCode,
+                                    childName = prefHelper.childName,
+                                    deviceId = prefHelper.deviceId,
+                                    deviceName = prefHelper.deviceName,
+                                    batteryPercent = 15,
+                                    charging = false,
+                                    online = true,
+                                    trackingEnabled = trackingManager.trackingEnabled(),
+                                    kidGuardActive = prefHelper.isLocked,
+                                    lastSeen = System.currentTimeMillis(),
+                                    appVersion = "1.0.0",
+                                    androidVersion = android.os.Build.VERSION.RELEASE
+                                )
+                                syncProvider.syncChildStatus(status)
+                                android.widget.Toast.makeText(context, "Battery 15% synced", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Batt 15%", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD") {
+                                val status = SyncChildStatus(
+                                    childId = prefHelper.pairingCode,
+                                    childName = prefHelper.childName,
+                                    deviceId = prefHelper.deviceId,
+                                    deviceName = prefHelper.deviceName,
+                                    batteryPercent = 50,
+                                    charging = false,
+                                    online = false,
+                                    trackingEnabled = trackingManager.trackingEnabled(),
+                                    kidGuardActive = prefHelper.isLocked,
+                                    lastSeen = System.currentTimeMillis(),
+                                    appVersion = "1.0.0",
+                                    androidVersion = android.os.Build.VERSION.RELEASE
+                                )
+                                syncProvider.syncChildStatus(status)
+                                android.widget.Toast.makeText(context, "Offline status synced", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Sim Offline", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD") {
+                                val status = SyncChildStatus(
+                                    childId = prefHelper.pairingCode,
+                                    childName = prefHelper.childName,
+                                    deviceId = prefHelper.deviceId,
+                                    deviceName = prefHelper.deviceName,
+                                    batteryPercent = 50,
+                                    charging = false,
+                                    online = true,
+                                    trackingEnabled = trackingManager.trackingEnabled(),
+                                    kidGuardActive = prefHelper.isLocked,
+                                    lastSeen = System.currentTimeMillis(),
+                                    appVersion = "1.0.0",
+                                    androidVersion = android.os.Build.VERSION.RELEASE
+                                )
+                                syncProvider.syncChildStatus(status)
+                                android.widget.Toast.makeText(context, "Online status synced", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Sim Online", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }

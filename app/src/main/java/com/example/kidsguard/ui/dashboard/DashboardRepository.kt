@@ -1,23 +1,23 @@
 package com.example.kidsguard.ui.dashboard
 
 import android.content.Context
-import com.example.kidsguard.ai.DailySummary
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
-import com.example.kidsguard.models.RouteSession
 import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncChildStatus
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.example.kidsguard.tracking.TrackingConfig
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.tracking.TrackingState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,6 +34,7 @@ class DashboardRepository(
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private val checker = LocalSafeZoneChecker(safeZoneRepository, com.example.kidsguard.notifications.LocalNotificationEngine(context), prefHelper)
 
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
     val dashboardState: Flow<DashboardState> = combine(
         locationRepository.locationHistory,
         safeZoneRepository.safeZones,
@@ -42,8 +43,9 @@ class DashboardRepository(
         trackingRepository.currentConfig,
         syncProvider.isConnected,
         syncProvider.lastSyncTimestamp,
-        commandHandler.lastCommandReceived
-    ) { args: Array<Any> ->
+        commandHandler.lastCommandReceived,
+        prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: flowOf(null)
+    ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val locationHistory = args[0] as List<LocationPoint>
         @Suppress("UNCHECKED_CAST")
@@ -55,6 +57,7 @@ class DashboardRepository(
         val isConnected = args[5] as Boolean
         val lastSync = args[6] as Long
         val lastCommand = args[7] as String
+        val remoteStatus = args[8] as SyncChildStatus?
         
         val lastLocation = locationHistory.firstOrNull()
         val nearest = lastLocation?.let { point ->
@@ -79,16 +82,19 @@ class DashboardRepository(
         val lastEnter = events.firstOrNull { it.type == "SAFE_ZONE_ENTER" }
         val lastExit = events.firstOrNull { it.type == "SAFE_ZONE_EXIT" }
 
+        // Determine if we should use remote data or local mock data
+        val useRemote = remoteStatus != null && isConnected
+        
         DashboardState.Success(
             DashboardUiModel(
-                childName = prefHelper.childName,
-                deviceName = prefHelper.deviceName,
-                isOnline = isConnected,
-                lastSeen = if (lastSync > 0) sdf.format(Date(lastSync)) else "Never",
-                batteryPercent = 85, 
-                isCharging = false,
-                trackingState = trackingState.name,
-                kidGuardStatus = if (prefHelper.isLocked) "LOCKED" else "UNLOCKED",
+                childName = if (useRemote) remoteStatus?.childName ?: prefHelper.childName else prefHelper.childName,
+                deviceName = if (useRemote) remoteStatus?.deviceName ?: prefHelper.deviceName else prefHelper.deviceName,
+                isOnline = if (useRemote) remoteStatus?.online ?: isConnected else isConnected,
+                lastSeen = if (useRemote) remoteStatus?.let { sdf.format(Date(it.lastSeen)) } ?: "Unknown" else if (lastSync > 0) sdf.format(Date(lastSync)) else "Never",
+                batteryPercent = if (useRemote) remoteStatus?.batteryPercent ?: 0 else 85, 
+                isCharging = if (useRemote) remoteStatus?.charging ?: false else false,
+                trackingState = if (useRemote) (if (remoteStatus?.trackingEnabled == true) "RUNNING" else "STOPPED") else trackingState.name,
+                kidGuardStatus = if (useRemote) (if (remoteStatus?.kidGuardActive == true) "LOCKED" else "UNLOCKED") else if (prefHelper.isLocked) "LOCKED" else "UNLOCKED",
                 
                 currentLat = lastLocation?.latitude,
                 currentLng = lastLocation?.longitude,
@@ -99,7 +105,7 @@ class DashboardRepository(
                 currentCity = lastLocation?.city,
                 currentCountry = lastLocation?.country,
                 
-                currentZone = if (isInside) nearest?.name ?: "None" else "Outside Zones",
+                currentZone = if (useRemote && remoteStatus?.currentZone != null) remoteStatus.currentZone!! else if (isInside) nearest?.name ?: "None" else "Outside Zones",
                 nearestZone = nearest?.name ?: "None",
                 distanceToNearest = distance?.let { "${it.toInt()}m" } ?: "Unknown",
                 lastEnterEvent = lastEnter?.let { sdf.format(Date(it.timestamp)) } ?: "None",

@@ -34,13 +34,18 @@ data class SyncFamily(
 data class SyncChildStatus(
     val childId: String,
     val childName: String,
+    val deviceId: String = "",
+    val deviceName: String = "",
     val batteryPercent: Int,
     val charging: Boolean,
+    val online: Boolean = true,
     val trackingEnabled: Boolean,
     val kidGuardActive: Boolean,
     val currentZone: String? = null,
     val lastLocation: SyncLocationUpdate? = null,
-    val lastSeen: Long = System.currentTimeMillis()
+    val lastSeen: Long = System.currentTimeMillis(),
+    val appVersion: String = "",
+    val androidVersion: String = ""
 )
 
 data class SyncLocationUpdate(

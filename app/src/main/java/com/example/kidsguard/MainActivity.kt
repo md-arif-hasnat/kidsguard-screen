@@ -24,6 +24,7 @@ import com.example.kidsguard.repository.SosRepository
 import com.example.kidsguard.routeintelligence.KnownRouteRepository
 import com.example.kidsguard.ai.DailySummaryRepository
 import com.example.kidsguard.ai.LocalRuleBasedSummaryProvider
+import com.example.kidsguard.sync.ChildStatusManager
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
 import com.example.kidsguard.sync.LocalMockSyncProvider
@@ -34,6 +35,7 @@ import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var syncProvider: RemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
     private lateinit var authRepository: AuthRepository
+    private lateinit var childStatusManager: ChildStatusManager
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -73,10 +76,12 @@ class MainActivity : ComponentActivity() {
         authRepository = AuthRepository(this)
         
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
-            FirebaseRemoteSyncProvider()
+            FirebaseRemoteSyncProvider(this)
         } else {
             LocalMockSyncProvider()
         }
+
+        childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
 
         commandHandler = RemoteCommandHandler(
             context = this,
@@ -101,6 +106,15 @@ class MainActivity : ComponentActivity() {
         trackingManager.initialize()
         syncProvider.connect()
         
+        if (prefHelper.userRole == "CHILD") {
+            childStatusManager.startPeriodicSync()
+            lifecycleScope.launch {
+                trackingManager.isTrackingEnabled.collect {
+                    childStatusManager.updateStatus()
+                }
+            }
+        }
+
         // Initialize Firebase Auth and Register Device
         if (FirebaseConfig.isFirebaseConfigured(this)) {
             lifecycleScope.launchWhenStarted {
@@ -141,6 +155,10 @@ class MainActivity : ComponentActivity() {
                             currentScreenState.value = screen
                             prefHelper.isLocked = (screen == Screen.Locked)
                             
+                            if (prefHelper.userRole == "CHILD") {
+                                childStatusManager.updateStatus()
+                            }
+
                             // Force portrait in Locked screen for real device realism
                             requestedOrientation = if (screen == Screen.Locked) {
                                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
