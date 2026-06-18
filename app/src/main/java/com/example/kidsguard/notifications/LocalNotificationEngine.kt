@@ -7,7 +7,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.kidsguard.tracking.NotificationEngine
 
-class LocalNotificationEngine(private val context: Context) : NotificationEngine {
+class LocalNotificationEngine(
+    private val context: Context,
+    private val errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository? = null
+) : NotificationEngine {
 
     companion object {
         const val CHANNEL_ID = "kidsguard_safety_alerts"
@@ -30,16 +33,20 @@ class LocalNotificationEngine(private val context: Context) : NotificationEngine
     }
 
     override fun sendSafetyAlert(title: String, body: String) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
+        try {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+            notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        } catch (e: Exception) {
+            errorLogRepository?.addError("NotificationEngine", "Failed to send alert: $title", e)
+        }
     }
 }

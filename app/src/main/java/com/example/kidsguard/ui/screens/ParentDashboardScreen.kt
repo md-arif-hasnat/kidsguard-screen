@@ -457,7 +457,7 @@ fun LocationSummaryCard(data: DashboardUiModel, onOpenMap: () -> Unit) {
             
             if (data.currentLat != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text("LAT: ${"%.5f".format(data.currentLat)}", style = MaterialTheme.typography.bodyMedium)
                         Text("LNG: ${"%.5f".format(data.currentLng)}", style = MaterialTheme.typography.bodyMedium)
                     }
@@ -467,6 +467,27 @@ fun LocationSummaryCard(data: DashboardUiModel, onOpenMap: () -> Unit) {
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
+                
+                // Show last known address from DashboardUiModel
+                if (data.currentAddress != null) {
+                    Text(
+                        text = data.currentAddress,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "${data.currentCity ?: ""} ${data.currentCountry ?: ""}".trim(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    Text("Address unavailable", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                // (Wait, I need to check if DashboardUiModel has address)
                 Text("Updated: ${data.lastLocationUpdate}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Text("No location data available", style = MaterialTheme.typography.bodyMedium, color = Color.Red)

@@ -16,6 +16,7 @@ import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.models.LocationPoint
+import com.example.kidsguard.geocoding.ReverseGeocoder
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
@@ -30,6 +31,7 @@ class BackgroundTrackingService : Service() {
     private lateinit var locationCallback: LocationCallback
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var prefHelper: PreferenceHelper
+    private lateinit var reverseGeocoder: ReverseGeocoder
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -48,6 +50,7 @@ class BackgroundTrackingService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         notificationEngine = LocalNotificationEngine(appContext)
         prefHelper = PreferenceHelper(appContext)
+        reverseGeocoder = ReverseGeocoder(appContext)
 
         createNotificationChannel()
         setupLocationCallback()
@@ -77,13 +80,19 @@ class BackgroundTrackingService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
+                    // Get address from reverse geocoder
+                    val addressInfo = reverseGeocoder.getAddress(location.latitude, location.longitude)
+                    
                     val point = LocationPoint(
                         latitude = location.latitude,
                         longitude = location.longitude,
                         accuracy = location.accuracy,
                         speed = location.speed,
                         bearing = location.bearing,
-                        timestamp = location.time
+                        timestamp = location.time,
+                        address = addressInfo?.fullAddress,
+                        city = addressInfo?.city,
+                        country = addressInfo?.country
                     )
                     Log.d(TAG, "Captured location: $point")
                     locationRepository.addLocationPoint(point)

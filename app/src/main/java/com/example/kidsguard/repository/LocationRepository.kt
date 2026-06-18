@@ -17,19 +17,21 @@ import org.json.JSONObject
 class LocationRepository(
     private val context: Context,
     private val safeZoneRepository: SafeZoneRepository? = null,
-    private val knownRouteRepository: KnownRouteRepository? = null
+    private val knownRouteRepository: KnownRouteRepository? = null,
+    private val geocoder: com.example.kidsguard.geocoding.ReverseGeocoder? = null,
+    private val errorLogRepository: ErrorLogRepository? = null
 ) {
     private val prefs = context.getSharedPreferences("location_history_prefs", Context.MODE_PRIVATE)
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
     val locationHistory: StateFlow<List<LocationPoint>> = _locationHistory
 
     private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { 
-        LocalSafeZoneChecker(it, LocalNotificationEngine(context), PreferenceHelper(context)) 
+        LocalSafeZoneChecker(it, LocalNotificationEngine(context, errorLogRepository), PreferenceHelper(context)) 
     }
 
     private val deviationChecker: RouteDeviationChecker? = knownRouteRepository?.let {
         safeZoneRepository?.let { safeRepo ->
-            RouteDeviationChecker(it, safeRepo, LocalNotificationEngine(context))
+            RouteDeviationChecker(it, safeRepo, LocalNotificationEngine(context, errorLogRepository))
         }
     }
 
@@ -62,18 +64,46 @@ class LocationRepository(
     }
 
     fun addLocationPoint(point: LocationPoint) {
-        val currentList = _locationHistory.value.toMutableList()
-        currentList.add(0, point)
-        _locationHistory.value = currentList
-        saveHistory(currentList)
+        try {
+            val pointWithAddress = if (point.address == null && geocoder != null) {
+                try {
+                    val info = geocoder.getAddress(point.latitude, point.longitude)
+                    point.copy(
+                        address = info?.fullAddress,
+                        city = info?.city,
+                        country = info?.country
+                    )
+                } catch (e: Exception) {
+                    errorLogRepository?.addError("LocationRepository", "Geocoding failed", e)
+                    point
+                }
+            } else {
+                point
+            }
 
-        // Trigger Safe Zone Check
-        safeZoneRepository?.let { repo ->
-            safeZoneChecker?.checkLocation(point, repo.safeZones.value)
+            val currentList = _locationHistory.value.toMutableList()
+            currentList.add(0, pointWithAddress)
+            _locationHistory.value = currentList
+            saveHistory(currentList)
+
+            // Trigger Safe Zone Check
+            try {
+                safeZoneRepository?.let { repo ->
+                    safeZoneChecker?.checkLocation(pointWithAddress, repo.safeZones.value)
+                }
+            } catch (e: Exception) {
+                errorLogRepository?.addError("LocationRepository", "Safe zone check failed", e)
+            }
+
+            // Trigger Route Deviation Check
+            try {
+                deviationChecker?.checkDeviation(pointWithAddress, PreferenceHelper(context).pairedChildId ?: "unknown_child")
+            } catch (e: Exception) {
+                errorLogRepository?.addError("LocationRepository", "Route deviation check failed", e)
+            }
+        } catch (e: Exception) {
+            errorLogRepository?.addError("LocationRepository", "addLocationPoint failed", e)
         }
-
-        // Trigger Route Deviation Check
-        deviationChecker?.checkDeviation(point, PreferenceHelper(context).pairedChildId ?: "unknown_child")
     }
 
     fun clearLocationHistory() {
@@ -91,6 +121,9 @@ class LocationRepository(
                 put("speed", point.speed.toDouble())
                 put("bearing", point.bearing.toDouble())
                 put("timestamp", point.timestamp)
+                put("address", point.address ?: "")
+                put("city", point.city ?: "")
+                put("country", point.country ?: "")
             }
             jsonArray.put(jsonObject)
         }
@@ -111,7 +144,10 @@ class LocationRepository(
                         accuracy = obj.getDouble("accuracy").toFloat(),
                         speed = obj.getDouble("speed").toFloat(),
                         bearing = obj.getDouble("bearing").toFloat(),
-                        timestamp = obj.getLong("timestamp")
+                        timestamp = obj.getLong("timestamp"),
+                        address = obj.optString("address").takeIf { it.isNotEmpty() },
+                        city = obj.optString("city").takeIf { it.isNotEmpty() },
+                        country = obj.optString("country").takeIf { it.isNotEmpty() }
                     )
                 )
             }

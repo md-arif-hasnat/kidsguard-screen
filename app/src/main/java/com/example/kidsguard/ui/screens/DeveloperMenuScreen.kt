@@ -29,6 +29,7 @@ import com.example.kidsguard.sync.SyncRemoteCommand
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,11 +48,13 @@ fun DeveloperMenuScreen(
     locationProvider: com.example.kidsguard.location.LocationProvider,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
     dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
-    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository
+    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
+    reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder,
+    errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    val notificationEngine = remember { LocalNotificationEngine(context) }
+    val notificationEngine = remember { com.example.kidsguard.notifications.LocalNotificationEngine(context, errorLogRepository) }
     var showConfirmDialog by remember { mutableStateOf<String?>(null) }
     
     val activeSos by sosRepository.activeSos.collectAsState()
@@ -559,6 +562,98 @@ fun DeveloperMenuScreen(
                         Text("Clear Route Intel Data", style = MaterialTheme.typography.labelSmall)
                     }
                 }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Geocoding Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val lastPoint = locationHistory.firstOrNull()
+                    
+                    Text("Target GPS: ${lastPoint?.let { "%.4f, %.4f".format(it.latitude, it.longitude) } ?: "No GPS available"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Result Count: ${reverseGeocoder.lastResultCount}", style = MaterialTheme.typography.bodySmall)
+                    
+                    val info = reverseGeocoder.lastAddressInfo
+                    if (info != null) {
+                        Text("First Line: ${info.fullAddress.split(",").firstOrNull() ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                        Text("City: ${info.city ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                        Text("Country: ${info.country ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                        Text("Full: ${info.fullAddress}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    if (reverseGeocoder.lastException != null) {
+                        Text(
+                            "Exception: ${reverseGeocoder.lastException}", 
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        LaunchedEffect(reverseGeocoder.lastException) {
+                            errorLogRepository.addError("ReverseGeocoder", reverseGeocoder.lastException!!)
+                        }
+                    } else if (reverseGeocoder.lastResultCount == 0) {
+                        Text("No results found for these coordinates.", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+
+                    Button(
+                        onClick = { 
+                            scope.launch(Dispatchers.IO) {
+                                if (lastPoint != null) {
+                                    reverseGeocoder.getAddress(lastPoint.latitude, lastPoint.longitude)
+                                }
+                            }
+                        }, 
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = lastPoint != null
+                    ) {
+                        Text("Test Reverse Geocode (Last Point)", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(onClick = { 
+                        reverseGeocoder.clearCache()
+                        android.widget.Toast.makeText(context, "Cache cleared", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Clear Address Cache", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("Release Hardening", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onScreenChange(Screen.Diagnostics) }, modifier = Modifier.weight(1f)) {
+                    Text("Diagnostics", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { onScreenChange(Screen.ReleaseChecklist) }, modifier = Modifier.weight(1f)) {
+                    Text("Checklist", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onScreenChange(Screen.ErrorLogs) }, modifier = Modifier.weight(1f)) {
+                    Text("Error Logs", style = MaterialTheme.typography.labelSmall)
+                }
+                Button(onClick = { 
+                    errorLogRepository.addError("DevMenu", "Manual test error triggered at ${System.currentTimeMillis()}")
+                    android.widget.Toast.makeText(context, "Test error added", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)) {
+                    Text("Add Test Error", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Button(
+                onClick = { 
+                    val debugInfo = """
+                        Model: ${android.os.Build.MODEL}
+                        OS: ${android.os.Build.VERSION.RELEASE}
+                        Points: ${locationHistory.size}
+                        Events: ${allEvents.size}
+                        Errors: ${errorLogRepository.errors.value.size}
+                    """.trimIndent()
+                    android.util.Log.i("DIAGNOSTICS_EXPORT", debugInfo)
+                    android.widget.Toast.makeText(context, "Debug info printed to Logcat (DIAGNOSTICS_EXPORT)", android.widget.Toast.LENGTH_LONG).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Export Debug Info", style = MaterialTheme.typography.labelSmall)
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

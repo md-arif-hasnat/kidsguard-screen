@@ -215,7 +215,30 @@ fun PositionInfoCard(
             }
             
             Spacer(modifier = Modifier.height(12.dp))
-            
+
+            if (location.address != null) {
+                Text(
+                    text = location.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2
+                )
+                Text(
+                    text = "${location.city ?: ""} ${location.country ?: ""}".trim(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Text(
+                    text = "Address unavailable",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 InfoItem(label = "LATITUDE", value = "%.6f".format(location.latitude))
                 InfoItem(label = "LONGITUDE", value = "%.6f".format(location.longitude))

@@ -95,6 +95,9 @@ class DashboardRepository(
                 accuracy = lastLocation?.accuracy,
                 speed = lastLocation?.speed,
                 lastLocationUpdate = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
+                currentAddress = lastLocation?.address,
+                currentCity = lastLocation?.city,
+                currentCountry = lastLocation?.country,
                 
                 currentZone = if (isInside) nearest?.name ?: "None" else "Outside Zones",
                 nearestZone = nearest?.name ?: "None",

@@ -15,6 +15,9 @@ data class DashboardUiModel(
     val accuracy: Float? = null,
     val speed: Float? = null,
     val lastLocationUpdate: String = "Never",
+    val currentAddress: String? = null,
+    val currentCity: String? = null,
+    val currentCountry: String? = null,
     
     val currentZone: String = "None",
     val nearestZone: String = "None",

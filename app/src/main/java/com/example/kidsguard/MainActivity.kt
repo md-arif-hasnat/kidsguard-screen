@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var routeRepository: RouteRepository
     private lateinit var dailySummaryRepository: DailySummaryRepository
     private lateinit var knownRouteRepository: KnownRouteRepository
+    private lateinit var reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder
+    private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
     private lateinit var trackingRepository: TrackingRepository
     private lateinit var updateRepository: UpdateRepository
     private lateinit var trackingManager: BackgroundTrackingManager
@@ -56,10 +58,12 @@ class MainActivity : ComponentActivity() {
         prefHelper = PreferenceHelper(this)
         repository = SafeZoneRepository()
         knownRouteRepository = KnownRouteRepository(this)
-        locationRepository = LocationRepository(this, repository, knownRouteRepository)
+        errorLogRepository = com.example.kidsguard.repository.ErrorLogRepository(this)
+        reverseGeocoder = com.example.kidsguard.geocoding.ReverseGeocoder(this, errorLogRepository)
+        locationRepository = LocationRepository(this, repository, knownRouteRepository, reverseGeocoder, errorLogRepository)
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
-        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider())
+        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
@@ -136,6 +140,8 @@ class MainActivity : ComponentActivity() {
                         routeRepository = routeRepository,
                         knownRouteRepository = knownRouteRepository,
                         dailySummaryRepository = dailySummaryRepository,
+                        reverseGeocoder = reverseGeocoder,
+                        errorLogRepository = errorLogRepository,
                         trackingRepository = trackingRepository,
                         trackingManager = trackingManager,
                         syncProvider = syncProvider,

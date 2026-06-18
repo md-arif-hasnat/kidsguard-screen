@@ -21,7 +21,8 @@ class DailySummaryRepository(
     private val safeZoneRepository: SafeZoneRepository,
     private val routeRepository: RouteRepository,
     private val sosRepository: SosRepository,
-    private val aiProvider: AiSummaryProvider
+    private val aiProvider: AiSummaryProvider,
+    private val errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository? = null
 ) {
     private val prefs = context.getSharedPreferences("ai_summary_prefs", Context.MODE_PRIVATE)
     private val _summaryHistory = MutableStateFlow<List<DailySummary>>(loadHistory())
@@ -31,53 +32,86 @@ class DailySummaryRepository(
     val latestSummary: StateFlow<DailySummary?> = _latestSummary
 
     suspend fun generateDailySummary(date: Long): DailySummary {
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = date
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+        return try {
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = date
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val startTime = calendar.timeInMillis
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            val endTime = calendar.timeInMillis
+
+            val dayEvents = safeZoneRepository.activityEvents.value.filter { it.timestamp in startTime until endTime }
+            val dayLocations = locationRepository.locationHistory.value.filter { it.timestamp in startTime until endTime }
+            val dayRoutes = routeRepository.routeSessions.value.filter { it.startTime in startTime until endTime }
+            val daySos = sosRepository.sosHistory.value.filter { it.timestamp in startTime until endTime }
+
+            val input = DailySummaryInput(
+                childId = "current_child",
+                events = dayEvents,
+                locations = dayLocations,
+                routes = dayRoutes,
+                sosEvents = daySos
+            )
+
+            val summaryText = try {
+                aiProvider.generateSummary(input)
+            } catch (e: Exception) {
+                errorLogRepository?.addError("DailySummary", "AI text generation failed", e)
+                "Summary unavailable due to AI processing error."
+            }
+            
+            val safetyScore = try {
+                aiProvider.calculateSafetyScore(input)
+            } catch (e: Exception) {
+                errorLogRepository?.addError("DailySummary", "Safety score calculation failed", e)
+                80 // Default safe score
+            }
+
+            val summary = DailySummary(
+                date = startTime,
+                childId = "current_child",
+                totalDistanceMeters = dayRoutes.sumOf { it.totalDistanceMeters },
+                totalTimeAtHomeMinutes = dayEvents.count { it.title.contains("Home") } * 30, // Rough estimate
+                totalTimeAtSchoolMinutes = dayEvents.count { it.title.contains("School") } * 30,
+                totalTimeAtPlaygroundMinutes = dayEvents.count { it.title.contains("Playground") } * 30,
+                totalTrackingMinutes = dayLocations.size * 5, // Assuming 5 min updates
+                totalLockMinutes = dayEvents.count { it.type == "KID_MODE_ENABLED" } * 60,
+                totalUnlockAttempts = dayEvents.count { it.type.contains("PIN") },
+                totalSafeZoneEvents = dayEvents.count { it.type.startsWith("SAFE_ZONE") },
+                totalSosEvents = daySos.size,
+                lowestBatteryPercent = daySos.mapNotNull { it.batteryPercent }.minOrNull() ?: 100,
+                highestSpeed = dayLocations.map { it.speed }.maxOrNull() ?: 0f,
+                summaryText = summaryText,
+                safetyScore = safetyScore
+            )
+
+            saveSummary(summary)
+            summary
+        } catch (e: Exception) {
+            errorLogRepository?.addError("DailySummary", "Full summary generation failed", e)
+            val fallback = DailySummary(
+                date = date,
+                childId = "current_child",
+                totalDistanceMeters = 0.0,
+                totalTimeAtHomeMinutes = 0,
+                totalTimeAtSchoolMinutes = 0,
+                totalTimeAtPlaygroundMinutes = 0,
+                totalTrackingMinutes = 0,
+                totalLockMinutes = 0,
+                totalUnlockAttempts = 0,
+                totalSafeZoneEvents = 0,
+                totalSosEvents = 0,
+                lowestBatteryPercent = 0,
+                highestSpeed = 0f,
+                summaryText = "Error generating daily summary. Please check logs.",
+                safetyScore = 0
+            )
+            fallback
         }
-        val startTime = calendar.timeInMillis
-        calendar.add(Calendar.DAY_OF_YEAR, 1)
-        val endTime = calendar.timeInMillis
-
-        val dayEvents = safeZoneRepository.activityEvents.value.filter { it.timestamp in startTime until endTime }
-        val dayLocations = locationRepository.locationHistory.value.filter { it.timestamp in startTime until endTime }
-        val dayRoutes = routeRepository.routeSessions.value.filter { it.startTime in startTime until endTime }
-        val daySos = sosRepository.sosHistory.value.filter { it.timestamp in startTime until endTime }
-
-        val input = DailySummaryInput(
-            childId = "current_child",
-            events = dayEvents,
-            locations = dayLocations,
-            routes = dayRoutes,
-            sosEvents = daySos
-        )
-
-        val summaryText = aiProvider.generateSummary(input)
-        val safetyScore = aiProvider.calculateSafetyScore(input)
-
-        val summary = DailySummary(
-            date = startTime,
-            childId = "current_child",
-            totalDistanceMeters = dayRoutes.sumOf { it.totalDistanceMeters },
-            totalTimeAtHomeMinutes = dayEvents.count { it.title.contains("Home") } * 30, // Rough estimate
-            totalTimeAtSchoolMinutes = dayEvents.count { it.title.contains("School") } * 30,
-            totalTimeAtPlaygroundMinutes = dayEvents.count { it.title.contains("Playground") } * 30,
-            totalTrackingMinutes = dayLocations.size * 5, // Assuming 5 min updates
-            totalLockMinutes = dayEvents.count { it.type == "KID_MODE_ENABLED" } * 60,
-            totalUnlockAttempts = dayEvents.count { it.type.contains("PIN") },
-            totalSafeZoneEvents = dayEvents.count { it.type.startsWith("SAFE_ZONE") },
-            totalSosEvents = daySos.size,
-            lowestBatteryPercent = daySos.mapNotNull { it.batteryPercent }.minOrNull() ?: 100,
-            highestSpeed = dayLocations.map { it.speed }.maxOrNull() ?: 0f,
-            summaryText = summaryText,
-            safetyScore = safetyScore
-        )
-
-        saveSummary(summary)
-        return summary
     }
 
     private fun saveSummary(summary: DailySummary) {

@@ -55,7 +55,10 @@ data class LocationPoint(
     val accuracy: Float,
     val speed: Float,
     val bearing: Float,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val address: String? = null,
+    val city: String? = null,
+    val country: String? = null
 )
 
 data class PairingCode(

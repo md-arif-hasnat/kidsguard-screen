@@ -13,6 +13,7 @@ import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
 import com.example.kidsguard.routeintelligence.KnownRouteRepository
+import com.example.kidsguard.repository.ErrorLogRepository
 
 @Composable
 fun KidsGuardApp(
@@ -24,6 +25,8 @@ fun KidsGuardApp(
     routeRepository: com.example.kidsguard.repository.RouteRepository,
     dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
     knownRouteRepository: KnownRouteRepository,
+    reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder,
+    errorLogRepository: ErrorLogRepository,
     trackingRepository: TrackingRepository,
     trackingManager: BackgroundTrackingManager,
     syncProvider: RemoteSyncProvider,
@@ -221,7 +224,19 @@ fun KidsGuardApp(
                 locationProvider = locationProvider,
                 updateRepository = updateRepository,
                 dailySummaryRepository = dailySummaryRepository,
-                knownRouteRepository = knownRouteRepository
+                knownRouteRepository = knownRouteRepository,
+                reverseGeocoder = reverseGeocoder,
+                errorLogRepository = errorLogRepository
+            )
+            Screen.Diagnostics -> DiagnosticsScreen(
+                onBack = { onScreenChange(Screen.DeveloperMenu) }
+            )
+            Screen.ReleaseChecklist -> ReleaseChecklistScreen(
+                onBack = { onScreenChange(Screen.DeveloperMenu) }
+            )
+            Screen.ErrorLogs -> ErrorLogScreen(
+                repository = errorLogRepository,
+                onBack = { onScreenChange(Screen.DeveloperMenu) }
             )
         }
     }

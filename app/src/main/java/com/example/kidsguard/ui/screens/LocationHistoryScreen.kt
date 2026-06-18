@@ -201,6 +201,24 @@ fun LocationHistoryScreen(
                                         )
                                     }
                                 }
+                                
+                                if (point.address != null) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = point.address,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (point.city != null || point.country != null) {
+                                        Text(
+                                            text = "${point.city ?: ""} ${point.country ?: ""}".trim(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     Column(modifier = Modifier.weight(1f)) {
