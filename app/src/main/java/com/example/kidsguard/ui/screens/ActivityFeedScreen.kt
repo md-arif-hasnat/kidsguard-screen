@@ -19,28 +19,69 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
-    val events by repository.activityEvents.collectAsState()
+fun ActivityFeedScreen(
+    repository: SafeZoneRepository, 
+    onBack: () -> Unit,
+    prefHelper: com.example.kidsguard.data.PreferenceHelper,
+    syncProvider: com.example.kidsguard.sync.RemoteSyncProvider
+) {
+    val isParent = prefHelper.userRole == "PARENT"
+    val selectedChildId = prefHelper.selectedChildId
+    
+    val localEvents by repository.activityEvents.collectAsState()
+    val remoteEvents by (if (isParent && selectedChildId != null) {
+        syncProvider.getActivityHistory(selectedChildId)
+    } else {
+        kotlinx.coroutines.flow.flowOf(emptyList())
+    }).collectAsState(initial = emptyList())
+    
+    val displayEvents = if (isParent && selectedChildId != null) {
+        remoteEvents.map { 
+            com.example.kidsguard.models.ActivityEvent(
+                id = it.id,
+                timestamp = it.timestamp,
+                type = it.type,
+                title = it.title,
+                description = it.description
+            )
+        }
+    } else {
+        localEvents
+    }
+
     var showClearDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Activity Feed") },
+                title = { 
+                    Column {
+                        Text("Activity Feed")
+                        if (isParent && selectedChildId != null) {
+                            Text(
+                                "Child ID: $selectedChildId", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                    if (!isParent) {
+                        IconButton(onClick = { showClearDialog = true }) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                        }
                     }
                 }
             )
         }
     ) { innerPadding ->
-        if (events.isEmpty()) {
+        if (displayEvents.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -50,7 +91,7 @@ fun ActivityFeedScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(events) { event ->
+                items(displayEvents) { event ->
                     val sdf = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
                     val timeString = sdf.format(Date(event.timestamp))
                     

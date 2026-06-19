@@ -13,6 +13,9 @@ interface RemoteSyncProvider {
     fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus)
     fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
     fun getLatestActivity(childId: String): kotlinx.coroutines.flow.Flow<SyncActivityEvent?>
+    fun getActivityHistory(childId: String): kotlinx.coroutines.flow.Flow<List<SyncActivityEvent>>
+    fun getLocationHistory(childId: String): kotlinx.coroutines.flow.Flow<List<SyncLocationUpdate>>
+    fun getDailySummary(childId: String, date: Long): kotlinx.coroutines.flow.Flow<com.example.kidsguard.ai.DailySummary?>
     fun sendCommand(command: SyncRemoteCommand)
     fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>>
 
@@ -87,6 +90,46 @@ class LocalMockSyncProvider : RemoteSyncProvider {
                 type = "MOCK",
                 title = "Mock Activity",
                 description = "This is a mock activity event"
+            )
+        )
+    }
+
+    override fun getActivityHistory(childId: String): kotlinx.coroutines.flow.Flow<List<SyncActivityEvent>> {
+        return kotlinx.coroutines.flow.flowOf(
+            listOf(
+                SyncActivityEvent(childId = childId, type = "SAFE_ZONE_ENTER", title = "Entered Home", description = "Mock Child arrived home"),
+                SyncActivityEvent(childId = childId, type = "SAFE_ZONE_EXIT", title = "Left School", description = "Mock Child left school")
+            )
+        )
+    }
+
+    override fun getLocationHistory(childId: String): kotlinx.coroutines.flow.Flow<List<SyncLocationUpdate>> {
+        return kotlinx.coroutines.flow.flowOf(
+            listOf(
+                SyncLocationUpdate(childId, 51.5074, -0.1278, 10f, 0f, 0f, System.currentTimeMillis()),
+                SyncLocationUpdate(childId, 51.5080, -0.1285, 10f, 0f, 0f, System.currentTimeMillis() - 300000)
+            )
+        )
+    }
+
+    override fun getDailySummary(childId: String, date: Long): kotlinx.coroutines.flow.Flow<com.example.kidsguard.ai.DailySummary?> {
+        return kotlinx.coroutines.flow.flowOf(
+            com.example.kidsguard.ai.DailySummary(
+                date = date,
+                childId = childId,
+                totalDistanceMeters = 5400.0,
+                totalTimeAtHomeMinutes = 720,
+                totalTimeAtSchoolMinutes = 360,
+                totalTimeAtPlaygroundMinutes = 60,
+                totalTrackingMinutes = 1440,
+                totalLockMinutes = 120,
+                totalUnlockAttempts = 3,
+                totalSafeZoneEvents = 2,
+                totalSosEvents = 0,
+                lowestBatteryPercent = 42,
+                highestSpeed = 5.2f,
+                summaryText = "Mock summary for $childId. Everything looks safe.",
+                safetyScore = 95
             )
         )
     }

@@ -255,6 +255,99 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             
         awaitClose { registration.remove() }
     }
+
+    override fun getActivityHistory(childId: String): Flow<List<SyncActivityEvent>> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("activity")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(50)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for activity history", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    val events = snapshots.documents.mapNotNull { it.toObject(SyncActivityEvent::class.java) }
+                    trySend(events)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun getLocationHistory(childId: String): Flow<List<SyncLocationUpdate>> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("locations")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for location history", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    val locations = snapshots.documents.mapNotNull { it.toObject(SyncLocationUpdate::class.java) }
+                    trySend(locations)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun getDailySummary(childId: String, date: Long): Flow<com.example.kidsguard.ai.DailySummary?> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(null)
+            return@callbackFlow
+        }
+
+        // Round date to start of day for lookup
+        val calendar = java.util.Calendar.getInstance().apply {
+            timeInMillis = date
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startTime = calendar.timeInMillis
+
+        val registration = db.collection("dailySummaries") // Assuming collection name
+            .whereEqualTo("childId", childId)
+            .whereEqualTo("date", startTime)
+            .limit(1)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for daily summary", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null && !snapshots.isEmpty) {
+                    val summary = snapshots.documents.first().toObject(com.example.kidsguard.ai.DailySummary::class.java)
+                    trySend(summary)
+                } else {
+                    trySend(null)
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
     
     // Future placeholders for Messaging
     fun registerFcmToken(token: String) {

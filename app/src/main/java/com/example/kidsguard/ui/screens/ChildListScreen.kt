@@ -85,6 +85,16 @@ fun ChildListScreen(
                                     )
                                 }
                             }
+                            
+                            IconButton(onClick = { 
+                                // Mock unpair for now (would need repo update)
+                                if (prefHelper.selectedChildId == childId) {
+                                    prefHelper.selectedChildId = null
+                                }
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Unpair", tint = MaterialTheme.colorScheme.error)
+                            }
+
                             if (childId == prefHelper.selectedChildId) {
                                 Badge(containerColor = MaterialTheme.colorScheme.primary) {
                                     Text("Selected", color = Color.White)

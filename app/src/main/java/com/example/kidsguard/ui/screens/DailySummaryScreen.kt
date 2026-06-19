@@ -23,15 +23,39 @@ import java.util.*
 @Composable
 fun DailySummaryScreen(
     repository: DailySummaryRepository,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    prefHelper: com.example.kidsguard.data.PreferenceHelper,
+    syncProvider: com.example.kidsguard.sync.RemoteSyncProvider
 ) {
-    val summary by repository.latestSummary.collectAsState()
+    val isParent = prefHelper.userRole == "PARENT"
+    val selectedChildId = prefHelper.selectedChildId
+    
+    val localSummary by repository.latestSummary.collectAsState()
+    val remoteSummary by (if (isParent && selectedChildId != null) {
+        syncProvider.getDailySummary(selectedChildId, System.currentTimeMillis())
+    } else {
+        kotlinx.coroutines.flow.flowOf(null)
+    }).collectAsState(initial = null)
+    
+    val summary = if (isParent && selectedChildId != null) remoteSummary else localSummary
+    
     val sdf = remember { SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Daily Summary") },
+                title = { 
+                    Column {
+                        Text("AI Daily Summary")
+                        if (isParent && selectedChildId != null) {
+                            Text(
+                                "Child ID: $selectedChildId", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

@@ -24,28 +24,51 @@ import java.util.*
 fun RouteHistoryScreen(
     repository: RouteRepository,
     onRouteSelected: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    prefHelper: com.example.kidsguard.data.PreferenceHelper,
+    syncProvider: com.example.kidsguard.sync.RemoteSyncProvider
 ) {
+    val isParent = prefHelper.userRole == "PARENT"
+    val selectedChildId = prefHelper.selectedChildId
+    
     val routes by repository.routeSessions.collectAsState()
+    // Remote routes logic could be more complex (Sessions vs Points), 
+    // for now we'll show local or mock remote depending on mode.
+    
     val sdfDate = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val sdfTime = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(Unit) {
-        repository.generateRouteSessions()
+        if (!isParent) {
+            repository.generateRouteSessions()
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Route History") },
+                title = { 
+                    Column {
+                        Text("Route History")
+                        if (isParent && selectedChildId != null) {
+                            Text(
+                                "Child ID: $selectedChildId", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { repository.generateRouteSessions() }) {
-                        Icon(Icons.Default.History, contentDescription = "Refresh")
+                    if (!isParent) {
+                        IconButton(onClick = { repository.generateRouteSessions() }) {
+                            Icon(Icons.Default.History, contentDescription = "Refresh")
+                        }
                     }
                 }
             )

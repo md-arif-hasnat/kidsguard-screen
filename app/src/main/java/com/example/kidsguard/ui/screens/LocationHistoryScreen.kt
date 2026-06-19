@@ -32,9 +32,36 @@ fun LocationHistoryScreen(
     repository: LocationRepository, 
     onBack: () -> Unit,
     locationProvider: LocalLocationProvider,
-    safeZoneRepository: SafeZoneRepository
+    safeZoneRepository: SafeZoneRepository,
+    prefHelper: com.example.kidsguard.data.PreferenceHelper,
+    syncProvider: com.example.kidsguard.sync.RemoteSyncProvider
 ) {
-    val history by repository.locationHistory.collectAsState()
+    val isParent = prefHelper.userRole == "PARENT"
+    val selectedChildId = prefHelper.selectedChildId
+    
+    val localHistory by repository.locationHistory.collectAsState()
+    val remoteHistory by (if (isParent && selectedChildId != null) {
+        syncProvider.getLocationHistory(selectedChildId)
+    } else {
+        kotlinx.coroutines.flow.flowOf(emptyList())
+    }).collectAsState(initial = emptyList())
+    
+    val history = if (isParent && selectedChildId != null) {
+        remoteHistory.map { 
+            com.example.kidsguard.models.LocationPoint(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                accuracy = it.accuracy,
+                speed = it.speed,
+                bearing = it.bearing,
+                timestamp = it.timestamp,
+                address = "Remote"
+            )
+        }
+    } else {
+        localHistory
+    }
+
     var showClearDialog by remember { mutableStateOf(false) }
     var showPermissionExplanation by remember { mutableStateOf(false) }
     var permissionDeniedMessage by remember { mutableStateOf(false) }
@@ -66,8 +93,10 @@ fun LocationHistoryScreen(
     }
 
     fun handleLocationRequest() {
+        if (isParent) return // Parent doesn't capture their own location here
+        
         when {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> {
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
                 isFetchingLocation = true
                 locationProvider.requestSingleUpdate { point ->
                     isFetchingLocation = false
@@ -90,25 +119,38 @@ fun LocationHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Location History") },
+                title = { 
+                    Column {
+                        Text("Location History")
+                        if (isParent && selectedChildId != null) {
+                            Text(
+                                "Child ID: $selectedChildId", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { handleLocationRequest() },
-                        enabled = !isFetchingLocation
-                    ) {
-                        if (isFetchingLocation) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    if (!isParent) {
+                        IconButton(
+                            onClick = { handleLocationRequest() },
+                            enabled = !isFetchingLocation
+                        ) {
+                            if (isFetchingLocation) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                            }
                         }
-                    }
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                        IconButton(onClick = { showClearDialog = true }) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                        }
                     }
                 }
             )

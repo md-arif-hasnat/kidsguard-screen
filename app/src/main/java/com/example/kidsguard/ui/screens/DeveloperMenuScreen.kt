@@ -433,6 +433,17 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("Web Dashboard Future", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Phase Q Architecture Ready", fontWeight = FontWeight.Bold)
+                    Text("The future web dashboard will use Next.js and Firebase to allow monitoring from any browser.", style = MaterialTheme.typography.bodySmall)
+                    Text("Security rules are planned to ensure parent-child isolation.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             DeveloperActionItem(
                 title = "Reset Role Selection",
                 description = "Resets user role to NONE and clears pairing data.",

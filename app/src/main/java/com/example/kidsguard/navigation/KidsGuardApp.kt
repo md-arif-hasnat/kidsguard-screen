@@ -153,7 +153,9 @@ fun KidsGuardApp(
             )
             Screen.DailySummary -> DailySummaryScreen(
                 repository = dailySummaryRepository,
-                onBack = { onScreenChange(Screen.ParentDashboard) }
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                prefHelper = prefHelper,
+                syncProvider = syncProvider
             )
             Screen.KnownRoutes -> KnownRoutesScreen(
                 repository = knownRouteRepository,
@@ -169,7 +171,9 @@ fun KidsGuardApp(
                     selectedRouteId = id
                     onScreenChange(Screen.RouteReplay)
                 },
-                onBack = { onScreenChange(Screen.ParentDashboard) }
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                prefHelper = prefHelper,
+                syncProvider = syncProvider
             )
             Screen.RouteReplay -> {
                 val route = selectedRouteId?.let { routeRepository.getRouteDetails(it) }
@@ -188,13 +192,17 @@ fun KidsGuardApp(
             )
             Screen.ActivityFeed -> ActivityFeedScreen(
                 repository = repository,
-                onBack = { onScreenChange(Screen.ParentDashboard) }
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                prefHelper = prefHelper,
+                syncProvider = syncProvider
             )
             Screen.LocationHistory -> LocationHistoryScreen(
                 repository = locationRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
                 locationProvider = locationProvider,
-                safeZoneRepository = repository
+                safeZoneRepository = repository,
+                prefHelper = prefHelper,
+                syncProvider = syncProvider
             )
             Screen.LiveMap -> MapScreen(
                 locationRepository = locationRepository,
