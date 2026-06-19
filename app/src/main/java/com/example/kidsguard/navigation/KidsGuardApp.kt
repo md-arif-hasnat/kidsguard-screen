@@ -15,6 +15,7 @@ import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.screens.*
 import com.example.kidsguard.routeintelligence.KnownRouteRepository
 import com.example.kidsguard.repository.ErrorLogRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
 fun KidsGuardApp(
@@ -40,6 +41,12 @@ fun KidsGuardApp(
     val locationProvider = remember { LocalLocationProvider(context) }
     
     var selectedRouteId by remember { mutableStateOf<String?>(null) }
+    val selectedChildIdFlow = remember { MutableStateFlow<String?>(prefHelper.selectedChildId) }
+    val selectedChildId by selectedChildIdFlow.collectAsState()
+    
+    LaunchedEffect(selectedChildId) {
+        prefHelper.selectedChildId = selectedChildId
+    }
     
     // Initial redirection based on role and pairing status
     val userRole = prefHelper.userRole
@@ -128,6 +135,7 @@ fun KidsGuardApp(
                 onOpenDailySummary = { onScreenChange(Screen.DailySummary) },
                 onOpenKnownRoutes = { onScreenChange(Screen.KnownRoutes) },
                 onOpenRouteDeviations = { onScreenChange(Screen.RouteDeviations) },
+                onOpenChildList = { onScreenChange(Screen.ChildList) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -140,7 +148,8 @@ fun KidsGuardApp(
                 routeRepository = routeRepository,
                 updateRepository = updateRepository,
                 dailySummaryRepository = dailySummaryRepository,
-                knownRouteRepository = knownRouteRepository
+                knownRouteRepository = knownRouteRepository,
+                selectedChildIdFlow = selectedChildIdFlow
             )
             Screen.DailySummary -> DailySummaryScreen(
                 repository = dailySummaryRepository,
@@ -246,6 +255,16 @@ fun KidsGuardApp(
             Screen.ErrorLogs -> ErrorLogScreen(
                 repository = errorLogRepository,
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
+            )
+            Screen.ChildList -> ChildListScreen(
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                onAddChild = { onScreenChange(Screen.ParentSetup) },
+                prefHelper = prefHelper,
+                syncProvider = syncProvider,
+                onSelectChild = { id ->
+                    selectedChildIdFlow.value = id
+                    onScreenChange(Screen.ParentDashboard)
+                }
             )
         }
     }

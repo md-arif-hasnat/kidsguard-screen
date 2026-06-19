@@ -816,6 +816,37 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("Multi-Child Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Selected: ${prefHelper.selectedChildId ?: "None"}", style = MaterialTheme.typography.bodySmall)
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            prefHelper.selectedChildId = "mock_child_001"
+                            android.widget.Toast.makeText(context, "Switched to Mock Child 1", android.widget.Toast.LENGTH_SHORT).show()
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Mock C1", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            prefHelper.selectedChildId = "mock_child_002"
+                            android.widget.Toast.makeText(context, "Switched to Mock Child 2", android.widget.Toast.LENGTH_SHORT).show()
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Mock C2", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    
+                    Button(onClick = { 
+                        prefHelper.familyId = "mock_family_999"
+                        android.widget.Toast.makeText(context, "Family ID set to mock_family_999", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Setup Mock Family", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             Text("Firebase Child Status Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

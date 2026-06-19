@@ -49,7 +49,7 @@ fun MapScreen(
     val trackingState by trackingRepository.currentState.collectAsState()
     
     val isSyncConnected by syncProvider.isConnected.collectAsState()
-    val remoteStatus by (prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(null)
+    val remoteStatus by (prefHelper.selectedChildId?.let { syncProvider.getChildStatus(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(null)
 
     val notificationEngine = remember { LocalNotificationEngine(context) }
     val checker = remember { LocalSafeZoneChecker(safeZoneRepository, notificationEngine, prefHelper) }

@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.models.ActivityEvent
+import com.example.kidsguard.notifications.LocalNotificationEngine
+import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +19,8 @@ class RemoteCommandHandler(
     private val prefHelper: PreferenceHelper,
     private val trackingManager: BackgroundTrackingManager,
     private val syncProvider: RemoteSyncProvider,
+    private val safeZoneRepository: SafeZoneRepository,
+    private val notificationEngine: LocalNotificationEngine,
     private val onLockRequested: () -> Unit,
     private val onUnlockRequested: () -> Unit,
     private val onRefreshLocationRequested: () -> Unit
@@ -37,35 +42,61 @@ class RemoteCommandHandler(
                 CommandType.LOCK_NOW -> {
                     prefHelper.isLocked = true
                     onLockRequested()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_LOCK",
+                        title = "Remote Lock Executed",
+                        description = "Command from parent executed successfully"
+                    ))
                     showToast("Remote LOCK executed")
                 }
                 CommandType.UNLOCK_NOW -> {
                     prefHelper.isLocked = false
                     onUnlockRequested()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_UNLOCK",
+                        title = "Remote Unlock Executed",
+                        description = "Command from parent executed successfully"
+                    ))
                     showToast("Remote UNLOCK executed")
                 }
                 CommandType.START_TRACKING -> {
                     trackingManager.startTracking()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_TRACKING_START",
+                        title = "Remote Tracking Started",
+                        description = "Command from parent executed successfully"
+                    ))
                     showToast("Remote START_TRACKING executed")
                 }
                 CommandType.STOP_TRACKING -> {
                     trackingManager.stopTracking()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_TRACKING_STOP",
+                        title = "Remote Tracking Stopped",
+                        description = "Command from parent executed successfully"
+                    ))
                     showToast("Remote STOP_TRACKING executed")
                 }
                 CommandType.REFRESH_LOCATION -> {
                     onRefreshLocationRequested()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_REFRESH",
+                        title = "Remote Location Refresh Requested",
+                        description = "Command from parent executed successfully"
+                    ))
                     showToast("Remote REFRESH executed")
                 }
                 CommandType.RING_PHONE -> {
+                    notificationEngine.sendSafetyAlert("Find My Phone", "Parent is ringing your phone!")
                     showToast("Remote RING executed")
                 }
             }
             _lastExecutionResult.value = "SUCCESS: ${command.commandType}"
-            syncProvider.updateCommandStatus(command.commandId, CommandStatus.EXECUTED)
+            syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.EXECUTED)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to execute command", e)
             _lastExecutionResult.value = "FAILED: ${e.message}"
-            syncProvider.updateCommandStatus(command.commandId, CommandStatus.FAILED)
+            syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.FAILED)
         }
     }
 

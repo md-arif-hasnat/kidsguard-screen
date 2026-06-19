@@ -72,6 +72,10 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getString("paired_child_id", null)
         set(value) = prefs.edit().putString("paired_child_id", value).apply()
 
+    var selectedChildId: String?
+        get() = prefs.getString("selected_child_id", pairedChildId)
+        set(value) = prefs.edit().putString("selected_child_id", value).apply()
+
     var childName: String
         get() = prefs.getString("child_name", "") ?: ""
         set(value) = prefs.edit().putString("child_name", value).apply()

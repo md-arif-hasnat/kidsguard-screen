@@ -41,6 +41,7 @@ import com.example.kidsguard.ui.dashboard.DashboardRepository
 import com.example.kidsguard.ui.dashboard.DashboardState
 import com.example.kidsguard.ui.dashboard.DashboardUiModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +59,7 @@ fun ParentDashboardScreen(
     onOpenDailySummary: () -> Unit,
     onOpenKnownRoutes: () -> Unit,
     onOpenRouteDeviations: () -> Unit,
+    onOpenChildList: () -> Unit,
     onBack: () -> Unit,
     locationRepository: LocationRepository,
     safeZoneRepository: SafeZoneRepository,
@@ -70,7 +72,8 @@ fun ParentDashboardScreen(
     routeRepository: com.example.kidsguard.repository.RouteRepository,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
     dailySummaryRepository: com.example.kidsguard.ai.DailySummaryRepository,
-    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository
+    knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
+    selectedChildIdFlow: MutableStateFlow<String?>
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -80,9 +83,14 @@ fun ParentDashboardScreen(
     val activeDeviations = deviations.filter { !it.resolved }
 
     val activeSos by sosRepository.activeSos.collectAsState()
+    val selectedChildId by selectedChildIdFlow.collectAsState()
     
     val dashboardRepository = remember {
-        DashboardRepository(context, prefHelper, safeZoneRepository, locationRepository, trackingRepository, syncProvider, commandHandler, routeRepository)
+        DashboardRepository(
+            context, prefHelper, safeZoneRepository, locationRepository, 
+            trackingRepository, syncProvider, commandHandler, routeRepository,
+            selectedChildIdFlow
+        )
     }
     
     val dashboardState by dashboardRepository.dashboardState.collectAsState(DashboardState.Loading)
@@ -109,6 +117,9 @@ fun ParentDashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenChildList) {
+                        Icon(Icons.Default.Group, contentDescription = "Children")
+                    }
                     IconButton(onClick = { refreshDashboard() }) {
                         if (isRefreshing) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
@@ -146,18 +157,32 @@ fun ParentDashboardScreen(
                         onOpenLocationHistory = onOpenLocationHistory,
                         onOpenRouteHistory = onOpenRouteHistory,
                         onLock = {
-                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.LOCK_NOW))
+                            selectedChildId?.let { id ->
+                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.LOCK_NOW))
+                            }
                         },
                         onUnlock = {
-                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.UNLOCK_NOW))
+                            selectedChildId?.let { id ->
+                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.UNLOCK_NOW))
+                            }
                         },
                         onRefreshLocation = {
-                            commandHandler.handleCommand(SyncRemoteCommand(childId = prefHelper.pairingCode, commandType = CommandType.REFRESH_LOCATION))
-                        }
+                            selectedChildId?.let { id ->
+                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.REFRESH_LOCATION))
+                            }
+                        },
+                        onOpenChildList = onOpenChildList,
+                        syncProvider = syncProvider,
+                        selectedChildId = selectedChildId
                     )
                 }
                 is DashboardState.Error -> {
-                    Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+                    Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(state.message, color = Color.Red)
+                        Button(onClick = onOpenChildList, modifier = Modifier.padding(top = 16.dp)) {
+                            Text("Select Child")
+                        }
+                    }
                 }
             }
         }
@@ -182,6 +207,141 @@ fun ParentDashboardScreen(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+fun DashboardContent(
+    data: DashboardUiModel,
+    summary: com.example.kidsguard.ai.DailySummary?,
+    prefHelper: PreferenceHelper,
+    onViewSummary: () -> Unit,
+    activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
+    onOpenKnownRoutes: () -> Unit,
+    onOpenRouteDeviations: () -> Unit,
+    activeSos: com.example.kidsguard.models.SosEvent?,
+    onResolveSos: (String) -> Unit,
+    onViewSosHistory: () -> Unit,
+    onOpenLiveMap: () -> Unit,
+    onOpenActivityFeed: () -> Unit,
+    onOpenSafeZones: () -> Unit,
+    onOpenLocationHistory: () -> Unit,
+    onOpenRouteHistory: () -> Unit,
+    onLock: () -> Unit,
+    onUnlock: () -> Unit,
+    onRefreshLocation: () -> Unit,
+    onOpenChildList: () -> Unit,
+    syncProvider: RemoteSyncProvider,
+    selectedChildId: String?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ChildSelectorCard(onOpenChildList, syncProvider, prefHelper, selectedChildId)
+
+        if (activeSos != null) {
+            SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
+        }
+
+        AiSummaryCard(summary, onViewSummary)
+
+        ChildStatusCard(data)
+        LocationSummaryCard(data, onOpenLiveMap)
+        
+        RouteIntelligenceCard(
+            activeDeviations = activeDeviations,
+            onManageRoutes = onOpenKnownRoutes,
+            onViewDeviations = onOpenRouteDeviations
+        )
+
+        SafeZoneSummaryCard(data)
+        
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Movement History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Points: ${data.totalPointsSaved}", style = MaterialTheme.typography.bodySmall)
+                    Text("Distance Today: ${data.totalDistanceToday}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = onOpenRouteHistory, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Route, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View Route History")
+                }
+            }
+        }
+
+        ActivitySummaryCard(data, onOpenActivityFeed)
+        TrackingSummaryCard(data)
+        
+        FirebaseInfoCard(prefHelper)
+        
+        Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        
+        QuickActionsGrid(
+            onLock = onLock,
+            onUnlock = onUnlock,
+            onRefreshLocation = onRefreshLocation,
+            onOpenMap = onOpenLiveMap,
+            onOpenActivity = onOpenActivityFeed,
+            onOpenSafeZones = onOpenSafeZones
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "v1.0.0 (Debug)", 
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun ChildSelectorCard(
+    onOpenChildList: () -> Unit,
+    syncProvider: RemoteSyncProvider,
+    prefHelper: PreferenceHelper,
+    selectedChildId: String?
+) {
+    val status by (selectedChildId?.let { syncProvider.getChildStatus(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenChildList() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.ChildCare, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = status?.childName ?: "Select a Child",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (selectedChildId != null) {
+                    Text(
+                        text = if (status?.online == true) "Online" else "Offline",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (status?.online == true) Color.Green else Color.Gray
+                    )
+                }
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
     }
 }
@@ -319,96 +479,6 @@ fun AiSummaryCard(
                 Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
         }
-    }
-}
-
-@Composable
-fun DashboardContent(
-    data: DashboardUiModel,
-    summary: com.example.kidsguard.ai.DailySummary?,
-    prefHelper: PreferenceHelper,
-    onViewSummary: () -> Unit,
-    activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
-    onOpenKnownRoutes: () -> Unit,
-    onOpenRouteDeviations: () -> Unit,
-    activeSos: com.example.kidsguard.models.SosEvent?,
-    onResolveSos: (String) -> Unit,
-    onViewSosHistory: () -> Unit,
-    onOpenLiveMap: () -> Unit,
-    onOpenActivityFeed: () -> Unit,
-    onOpenSafeZones: () -> Unit,
-    onOpenLocationHistory: () -> Unit,
-    onOpenRouteHistory: () -> Unit,
-    onLock: () -> Unit,
-    onUnlock: () -> Unit,
-    onRefreshLocation: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        if (activeSos != null) {
-            SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
-        }
-
-        AiSummaryCard(summary, onViewSummary)
-
-        ChildStatusCard(data)
-        LocationSummaryCard(data, onOpenLiveMap)
-        
-        RouteIntelligenceCard(
-            activeDeviations = activeDeviations,
-            onManageRoutes = onOpenKnownRoutes,
-            onViewDeviations = onOpenRouteDeviations
-        )
-
-        SafeZoneSummaryCard(data)
-        
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Movement History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Total Points: ${data.totalPointsSaved}", style = MaterialTheme.typography.bodySmall)
-                    Text("Distance Today: ${data.totalDistanceToday}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(onClick = onOpenRouteHistory, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Route, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("View Route History")
-                }
-            }
-        }
-
-        ActivitySummaryCard(data, onOpenActivityFeed)
-        TrackingSummaryCard(data)
-        
-        FirebaseInfoCard(prefHelper)
-        
-        Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        
-        QuickActionsGrid(
-            onLock = onLock,
-            onUnlock = onUnlock,
-            onRefreshLocation = onRefreshLocation,
-            onOpenMap = onOpenLiveMap,
-            onOpenActivity = onOpenActivityFeed,
-            onOpenSafeZones = onOpenSafeZones
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "v1.0.0 (Debug)", 
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 

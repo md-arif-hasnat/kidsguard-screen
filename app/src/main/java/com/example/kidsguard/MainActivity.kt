@@ -35,6 +35,8 @@ import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
+import com.example.kidsguard.location.LocalLocationProvider
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +57,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var commandHandler: RemoteCommandHandler
     private lateinit var authRepository: AuthRepository
     private lateinit var childStatusManager: ChildStatusManager
+    private lateinit var notificationEngine: LocalNotificationEngine
+    private lateinit var locationProvider: LocalLocationProvider
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
@@ -65,7 +69,10 @@ class MainActivity : ComponentActivity() {
         repository = SafeZoneRepository()
         knownRouteRepository = KnownRouteRepository(this)
         errorLogRepository = com.example.kidsguard.repository.ErrorLogRepository(this)
+        notificationEngine = LocalNotificationEngine(this, errorLogRepository)
+        locationProvider = LocalLocationProvider(this)
         reverseGeocoder = com.example.kidsguard.geocoding.ReverseGeocoder(this, errorLogRepository)
+        
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
@@ -93,6 +100,8 @@ class MainActivity : ComponentActivity() {
             prefHelper = prefHelper,
             trackingManager = trackingManager,
             syncProvider = syncProvider,
+            safeZoneRepository = repository,
+            notificationEngine = notificationEngine,
             onLockRequested = {
                 currentScreenState.value = Screen.Locked
             },
@@ -100,11 +109,11 @@ class MainActivity : ComponentActivity() {
                 currentScreenState.value = Screen.Home
             },
             onRefreshLocationRequested = {
-                repository.addEvent(ActivityEvent(
-                    type = "REMOTE_REFRESH",
-                    title = "Remote Refresh Requested",
-                    description = "Parent requested location update"
-                ))
+                locationProvider.requestSingleUpdate { point ->
+                    if (point != null) {
+                        locationRepository.addLocationPoint(point)
+                    }
+                }
             }
         )
         
@@ -130,10 +139,13 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Setup command listener - ensuring it's always active regardless of pairing code for local simulation
-        syncProvider.listenForRemoteCommands("") { command ->
-            Log.d("MainActivity", "Remote command received: ${command.commandType}")
-            commandHandler.handleCommand(command)
+        // Setup command listener
+        val listenId = if (prefHelper.userRole == "CHILD") prefHelper.pairingCode else ""
+        if (listenId.isNotEmpty()) {
+            syncProvider.listenForRemoteCommands(listenId) { command ->
+                Log.d("MainActivity", "Remote command received: ${command.commandType}")
+                commandHandler.handleCommand(command)
+            }
         }
         
         // Determine initial screen based on role and pairing status
