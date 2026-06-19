@@ -20,22 +20,28 @@ This checklist guides the initial configuration and verification of the KidsGuar
 ## 4. Firebase Cloud Messaging (FCM)
 - [ ] Note the **Sender ID** and **Server Key** (if using legacy API) or configure **HTTP v1 API**.
 
-## 5. Android Integration
+## 5. Cloud Functions
+- [ ] Install Node.js and Firebase CLI.
+- [ ] Run `firebase init functions` in root.
+- [ ] Deploy functions using `firebase deploy --only functions`.
+- [ ] Verify logs in Firebase Console.
+
+## 6. Android Integration
 - [ ] Add Android App to Firebase project.
 - [ ] **Package Name:** `com.example.kidsguard`.
 - [ ] **SHA-1 Fingerprint:** Add from Android Studio Gradle `signingReport`.
 - [ ] Download `google-services.json`.
 - [ ] Place `google-services.json` in `app/` directory of the project.
 
-## 6. Functional Verification
+## 7. Functional Verification
 - [ ] Build app and verify **Anonymous Login** success in Developer Menu.
 - [ ] Test **Child Device Registration** (Verify document in `devices` collection).
-- [ ] Test **Pairing Flow** (Generate code on child, enter on parent).
+- [ ] Test **Pairing Flow** (Verify server-side code validation).
 - [ ] Verify **Family Document** creation in Firestore.
 - [ ] Verify **Child Status Sync** (Battery, Online status updates).
-- [ ] Verify **Remote Commands** (Send Lock from parent, verify execution on child).
+- [ ] Verify **Remote Commands** (Verify parent auth validation).
 - [ ] Verify **Location Sync** (Points appearing in `locations` sub-collection).
 
-## 7. Security & Hardening
+## 8. Security & Hardening
 - [ ] Verify no collections have `allow read, write: if true;`.
 - [ ] Test restricted access (Ensure User A cannot read User B's locations).
