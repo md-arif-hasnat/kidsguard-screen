@@ -10,9 +10,11 @@ interface RemoteSyncProvider {
     fun syncLocation(update: SyncLocationUpdate)
     fun syncActivity(event: SyncActivityEvent)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
-    fun updateCommandStatus(commandId: String, status: CommandStatus)
+    fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus)
     fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
     fun getLatestActivity(childId: String): kotlinx.coroutines.flow.Flow<SyncActivityEvent?>
+    fun sendCommand(command: SyncRemoteCommand)
+    fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>>
 
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -53,7 +55,7 @@ class LocalMockSyncProvider : RemoteSyncProvider {
         this.commandListener = onCommand
     }
 
-    override fun updateCommandStatus(commandId: String, status: CommandStatus) {
+    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus) {
         // Mock: Update local state
     }
 
@@ -87,6 +89,14 @@ class LocalMockSyncProvider : RemoteSyncProvider {
                 description = "This is a mock activity event"
             )
         )
+    }
+
+    override fun sendCommand(command: SyncRemoteCommand) {
+        simulateRemoteCommand(command)
+    }
+
+    override fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>> {
+        return kotlinx.coroutines.flow.flowOf(listOf("mock_child_001", "mock_child_002"))
     }
 
     // Testing helper to simulate a remote command

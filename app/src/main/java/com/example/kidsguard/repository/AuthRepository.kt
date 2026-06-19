@@ -110,8 +110,8 @@ class AuthRepository(private val context: Context) {
             if (doc.exists()) {
                 val pairingData = doc.toObject(PairingCodeDoc::class.java)
                 if (pairingData != null && pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true) {
-                    // Create family
-                    createFamily(pairingData.childDeviceId)
+                    // Create or update family
+                    createOrUpdateFamily(pairingData.childDeviceId)
                     // Delete code after use
                     db.collection(FirebaseConfig.COL_PAIRING_CODES).document(code).delete()
                     true
@@ -127,24 +127,39 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    private suspend fun createFamily(childDeviceId: String) {
-        val familyId = java.util.UUID.randomUUID().toString()
-        val familyDoc = FamilyDoc(
-            familyId = familyId,
-            parentDeviceId = prefs.deviceId,
-            childDeviceId = childDeviceId,
-            createdAt = Timestamp.now()
-        )
-
+    private suspend fun createOrUpdateFamily(childDeviceId: String) {
+        val existingFamilyId = prefs.familyId
+        val familyId = existingFamilyId ?: java.util.UUID.randomUUID().toString()
+        
         try {
-            db.collection(FirebaseConfig.COL_FAMILIES)
-                .document(familyId)
-                .set(familyDoc)
-                .await()
+            val familyRef = db.collection(FirebaseConfig.COL_FAMILIES).document(familyId)
+            val doc = familyRef.get().await()
+            
+            if (doc.exists()) {
+                val family = doc.toObject(FamilyDoc::class.java)
+                val updatedChildren = family?.childDeviceIds?.toMutableList() ?: mutableListOf()
+                if (!updatedChildren.contains(childDeviceId)) {
+                    updatedChildren.add(childDeviceId)
+                    familyRef.update("childDeviceIds", updatedChildren).await()
+                }
+            } else {
+                val familyDoc = FamilyDoc(
+                    familyId = familyId,
+                    parentDeviceId = prefs.deviceId,
+                    childDeviceIds = listOf(childDeviceId),
+                    createdAt = Timestamp.now()
+                )
+                familyRef.set(familyDoc).await()
+            }
+            
             prefs.familyId = familyId
+            // Also set as current child if none selected
+            if (prefs.pairedChildId == null) {
+                prefs.pairedChildId = childDeviceId
+            }
             prefs.lastFirestoreWrite = System.currentTimeMillis()
         } catch (e: Exception) {
-            errorLogger.addError(TAG, "Failed to create family", e)
+            errorLogger.addError(TAG, "Failed to create/update family", e)
         }
     }
 }

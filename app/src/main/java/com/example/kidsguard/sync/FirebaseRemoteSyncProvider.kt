@@ -120,8 +120,9 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         if (childId.isEmpty()) return
         
         commandListener?.remove()
-        commandListener = db.collection(FirebaseConfig.COL_REMOTE_COMMANDS)
-            .whereEqualTo("childId", childId)
+        commandListener = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection(FirebaseConfig.COL_REMOTE_COMMANDS)
             .whereEqualTo("status", "PENDING")
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
@@ -130,19 +131,72 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                     return@addSnapshotListener
                 }
 
-                for (doc in snapshots!!.documents) {
-                    val command = doc.toObject(SyncRemoteCommand::class.java)
-                    if (command != null) {
-                        onCommand(command)
+                if (snapshots != null) {
+                    for (doc in snapshots.documents) {
+                        val command = doc.toObject(SyncRemoteCommand::class.java)
+                        if (command != null) {
+                            onCommand(command)
+                        }
                     }
                 }
             }
     }
 
-    override fun updateCommandStatus(commandId: String, status: CommandStatus) {
-        db.collection(FirebaseConfig.COL_REMOTE_COMMANDS)
+    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus) {
+        if (childId.isEmpty() || commandId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection(FirebaseConfig.COL_REMOTE_COMMANDS)
             .document(commandId)
             .update("status", status, "executedAt", System.currentTimeMillis())
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to update command status", e)
+                errorLogger.addError(TAG, "Failed to update command status", e)
+            }
+    }
+
+    override fun sendCommand(command: SyncRemoteCommand) {
+        if (command.childId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(command.childId)
+            .collection(FirebaseConfig.COL_REMOTE_COMMANDS)
+            .document(command.commandId)
+            .set(command)
+            .addOnSuccessListener {
+                _lastSyncTimestamp.value = System.currentTimeMillis()
+                Log.d(TAG, "Command sent successfully: ${command.commandType}")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to send command", e)
+                errorLogger.addError(TAG, "Failed to send command", e)
+            }
+    }
+
+    override fun getFamilyMembers(familyId: String): Flow<List<String>> = callbackFlow {
+        if (familyId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_FAMILIES)
+            .document(familyId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for family members", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null && snapshot.exists()) {
+                    val family = snapshot.toObject(com.example.kidsguard.models.FamilyDoc::class.java)
+                    trySend(family?.childDeviceIds ?: emptyList())
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
     }
 
     override fun getChildStatus(childId: String): Flow<SyncChildStatus?> = callbackFlow {

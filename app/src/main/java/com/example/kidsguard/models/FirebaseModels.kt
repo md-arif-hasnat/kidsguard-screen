@@ -27,6 +27,6 @@ data class PairingCodeDoc(
 data class FamilyDoc(
     val familyId: String = "",
     val parentDeviceId: String = "",
-    val childDeviceId: String = "",
+    val childDeviceIds: List<String> = emptyList(),
     val createdAt: Timestamp? = null
 )
