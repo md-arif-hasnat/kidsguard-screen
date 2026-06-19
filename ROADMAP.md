@@ -174,4 +174,9 @@ Phase 23
 * iPhone Child Limited Support
 
 Future:
-Continue modular expansion.
+* Phase S - Firebase Emulator Suite Test Plan & Validation (Completed)
+* Phase T - Cloud Functions & Server-side Validation
+* Phase U - App Check & Backend Hardening
+* Phase V - Parent Web Dashboard Implementation
+* Phase W - Private Beta Release
+* Phase X - Play Store Internal Testing
