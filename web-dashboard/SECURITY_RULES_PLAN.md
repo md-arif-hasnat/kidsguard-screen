@@ -14,23 +14,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isParentOf(childId) {
-      // Logic to check if the authenticated user is the parent of the childId
-      // Requires child document to have a 'familyId' field or similar linkage
-      return isSignedIn() && exists(/databases/$(database)/documents/families/$(request.auth.uid + "_" + childId)); 
-      // Note: Actual logic depends on how familyId is constructed
-    }
-
-    function isFamilyMember(familyId) {
-      let family = get(/databases/$(database)/documents/families/$(familyId)).data;
-      return isSignedIn() && (family.parentDeviceId == request.auth.uid || request.auth.uid in family.childDeviceIds);
-    }
-
-    // families collection
-    match /families/{familyId} {
-      allow read: if isFamilyMember(familyId);
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource.data.parentDeviceId == request.auth.uid;
+    // A user is a parent if their UID matches a parentDeviceId in any family doc
+    // (Note: In production, we'd use a more optimized way or custom claims)
+    function isParentOfChild(childId) {
+      // Find a family where this user is parent and target is child
+      // This is a placeholder for the logic implemented in firestore.rules.draft
+      return isSignedIn(); 
     }
 
     // parents collection
@@ -40,39 +29,43 @@ service cloud.firestore {
 
     // children collection (Status, Activity, Locations)
     match /children/{childId}/{document=**} {
-      // Parent can read if they are linked to the child
-      // allow read: if isParentOf(childId);
+      // PARENT ACCESS: Read-only access to child monitoring data
+      allow read: if isParentOfChild(childId);
       
-      // For development/Phase Q, we keep it simple:
-      allow read: if isSignedIn(); 
+      // CHILD ACCESS: Write-only access to its own telemetry
+      allow write: if request.auth != null && request.auth.uid == childId;
       
-      // Child can update their own status/location/activity
-      allow write: if isSignedIn() && request.auth.uid == childId;
+      // Prevent child from reading other children or its own command history (if restricted)
     }
 
     // remoteCommands
     match /children/{childId}/remoteCommands/{commandId} {
-      // Parent can create commands for their child
-      allow create: if isSignedIn(); 
-      // Child can read and update their own commands (mark as executed)
-      allow read, update: if isSignedIn() && request.auth.uid == childId;
+      // Parent can CREATE commands for their child
+      allow create: if isParentOfChild(childId); 
+      // Child can READ its commands and UPDATE status (mark as executed)
+      allow read, update: if request.auth != null && request.auth.uid == childId;
     }
     
-    // safeZones
-    match /safeZones/{familyId}/{zoneId} {
-        allow read, write: if isFamilyMember(familyId);
-    }
-    
-    // sosEvents
-    match /sosEvents/{childId}/{eventId} {
+    // pairingCodes
+    match /pairingCodes/{code} {
+        // Child creates the code
+        allow create: if request.auth != null; 
+        // Parent reads it to pair
         allow read: if isSignedIn();
-        allow write: if isSignedIn() && (request.auth.uid == childId || isParentOf(childId));
+        // Clean up after use
+        allow delete: if isSignedIn();
     }
   }
 }
 ```
 
-## Considerations
-1. **Linkage:** Every child document and sub-collection should ideally contain a `familyId` to simplify rules without needing many `get()` calls (which cost more and have limits).
-2. **UID Mapping:** The `request.auth.uid` must be reliably mapped to either a `parentDeviceId` or `childDeviceId`.
-3. **Validation:** Use rules to enforce data types (e.g., `request.resource.data.batteryPercent is int`).
+## Cloud Functions Integration (Future)
+To increase security, we will migrate the following logic to Cloud Functions:
+1. **Pairing Process:** Instead of the parent app writing to the `families` collection directly, it will call a `pairChild(code)` function. This function will validate the code, check expiration, and create the family link atomically on the server.
+2. **Command Validation:** Validate that command payloads are safe before they are written to Firestore.
+3. **Data Cleanup:** Automatically delete expired pairing codes and old location history points (e.g., points older than 30 days).
+
+## Security Layers
+1. **Firestore Rules:** Enforce fundamental data isolation.
+2. **App Check:** Prevent unauthorized web scrapers or scripts from calling the Firebase backend.
+3. **Audit Trails:** Log all parent dashboard logins and command executions for user safety.
