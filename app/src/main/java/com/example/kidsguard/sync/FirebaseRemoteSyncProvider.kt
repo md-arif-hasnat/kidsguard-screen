@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.kidsguard.repository.ErrorLogRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,13 +62,58 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncLocation(update: SyncLocationUpdate) {
-        // TODO: Implement in later phase
-        _lastSyncTimestamp.value = System.currentTimeMillis()
+        if (update.childId.isEmpty()) return
+
+        val batch = db.batch()
+        
+        // 1. Save to locations history
+        val historyRef = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(update.childId)
+            .collection("locations")
+            .document()
+        batch.set(historyRef, update)
+
+        // 2. Update latest location
+        val latestRef = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(update.childId)
+            .collection("locations")
+            .document("latest")
+        batch.set(latestRef, update)
+
+        // 3. Update current status lastLocation
+        val statusRef = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(update.childId)
+            .collection("status")
+            .document("current")
+        batch.update(statusRef, "lastLocation", update)
+
+        batch.commit()
+            .addOnSuccessListener {
+                _lastSyncTimestamp.value = System.currentTimeMillis()
+                Log.d(TAG, "Location synced successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync location", e)
+                errorLogger.addError(TAG, "Failed to sync location", e)
+            }
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
-        // TODO: Implement in later phase
-        _lastSyncTimestamp.value = System.currentTimeMillis()
+        if (event.childId.isEmpty()) return
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(event.childId)
+            .collection("activity")
+            .document(event.id)
+            .set(event)
+            .addOnSuccessListener {
+                _lastSyncTimestamp.value = System.currentTimeMillis()
+                Log.d(TAG, "Activity event synced successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync activity event", e)
+                errorLogger.addError(TAG, "Failed to sync activity event", e)
+            }
     }
 
     override fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit) {
@@ -119,6 +165,35 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 if (snapshot != null && snapshot.exists()) {
                     val status = snapshot.toObject(SyncChildStatus::class.java)
                     trySend(status)
+                } else {
+                    trySend(null)
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun getLatestActivity(childId: String): Flow<SyncActivityEvent?> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(null)
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("activity")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(1)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for latest activity", e)
+                    errorLogger.addError(TAG, "Latest activity listen failed", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null && !snapshots.isEmpty) {
+                    val event = snapshots.documents.first().toObject(SyncActivityEvent::class.java)
+                    trySend(event)
                 } else {
                     trySend(null)
                 }

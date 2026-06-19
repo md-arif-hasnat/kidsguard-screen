@@ -74,6 +74,8 @@ fun KidsGuardApp(
             Screen.ChildSetup -> ChildSetupScreen(
                 prefHelper = prefHelper,
                 authRepository = authRepository,
+                repository = repository,
+                syncProvider = syncProvider,
                 onSetupComplete = { onScreenChange(Screen.Home) },
                 onBack = { 
                     prefHelper.userRole = "NONE"
@@ -190,6 +192,7 @@ fun KidsGuardApp(
                 safeZoneRepository = repository,
                 trackingRepository = trackingRepository,
                 knownRouteRepository = knownRouteRepository,
+                syncProvider = syncProvider,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
             Screen.SosHistory -> SosHistoryScreen(

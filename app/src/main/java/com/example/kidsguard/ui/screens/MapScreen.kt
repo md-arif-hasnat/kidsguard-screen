@@ -18,6 +18,9 @@ import com.example.kidsguard.models.LocationPoint
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncChildStatus
+import com.example.kidsguard.sync.SyncLocationUpdate
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.google.android.gms.maps.model.CameraPosition
@@ -33,20 +36,44 @@ fun MapScreen(
     safeZoneRepository: SafeZoneRepository,
     trackingRepository: TrackingRepository,
     knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
+    syncProvider: RemoteSyncProvider,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefHelper = remember { PreferenceHelper(context) }
+    
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val safeZones by safeZoneRepository.safeZones.collectAsState()
     val knownRoutes by knownRouteRepository.knownRoutes.collectAsState()
     val deviations by knownRouteRepository.deviationEvents.collectAsState()
     val trackingState by trackingRepository.currentState.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val prefHelper = remember { PreferenceHelper(context) }
+    
+    val isSyncConnected by syncProvider.isConnected.collectAsState()
+    val remoteStatus by (prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(null)
+
     val notificationEngine = remember { LocalNotificationEngine(context) }
     val checker = remember { LocalSafeZoneChecker(safeZoneRepository, notificationEngine, prefHelper) }
     
-    val currentLocation = locationHistory.firstOrNull()
-    val currentLatLng = currentLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(0.0, 0.0)
+    // Determine the source of truth for location
+    val isParent = prefHelper.userRole == "PARENT"
+    val useRemote = isParent && isSyncConnected && remoteStatus?.lastLocation != null
+    
+    val effectiveLocation: LocationPoint? = if (useRemote) {
+        val lastLoc = remoteStatus!!.lastLocation!!
+        LocationPoint(
+            latitude = lastLoc.latitude,
+            longitude = lastLoc.longitude,
+            accuracy = lastLoc.accuracy,
+            speed = lastLoc.speed,
+            bearing = lastLoc.bearing,
+            timestamp = lastLoc.timestamp,
+            address = "Remote Location"
+        )
+    } else {
+        locationHistory.firstOrNull()
+    }
+    
+    val currentLatLng = effectiveLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(0.0, 0.0)
     
     var isFollowMode by remember { mutableStateOf(true) }
     val cameraPositionState = rememberCameraPositionState {
@@ -54,11 +81,11 @@ fun MapScreen(
     }
 
     // Auto-follow logic
-    LaunchedEffect(currentLocation) {
-        if (isFollowMode && currentLocation != null) {
+    LaunchedEffect(effectiveLocation) {
+        if (isFollowMode && effectiveLocation != null) {
             cameraPositionState.animate(
                 com.google.android.gms.maps.CameraUpdateFactory.newLatLng(
-                    LatLng(currentLocation.latitude, currentLocation.longitude)
+                    LatLng(effectiveLocation.latitude, effectiveLocation.longitude)
                 )
             )
         }
@@ -67,7 +94,18 @@ fun MapScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Live Map") },
+                title = { 
+                    Column {
+                        Text("Live Map")
+                        if (useRemote) {
+                            Text(
+                                "Live: ${remoteStatus?.childName ?: "Child"}", 
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -77,7 +115,7 @@ fun MapScreen(
                     FilterChip(
                         selected = isFollowMode,
                         onClick = { isFollowMode = !isFollowMode },
-                        label = { Text("Follow Me") },
+                        label = { Text("Follow") },
                         leadingIcon = if (isFollowMode) {
                             { Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         } else null,
@@ -92,7 +130,7 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
                 properties = MapProperties(
-                    isMyLocationEnabled = true,
+                    isMyLocationEnabled = !isParent, // Only show my location if not in parent mode watching child
                     mapType = MapType.NORMAL
                 ),
                 uiSettings = MapUiSettings(
@@ -100,19 +138,24 @@ fun MapScreen(
                     zoomControlsEnabled = false
                 )
             ) {
-                // Current Location Marker
-                currentLocation?.let {
+                // Main Marker
+                effectiveLocation?.let {
                     Marker(
                         state = MarkerState(position = LatLng(it.latitude, it.longitude)),
-                        title = "Current Position",
-                        snippet = "Accuracy: ${it.accuracy.toInt()}m"
+                        title = if (useRemote) (remoteStatus?.childName ?: "Child") else "My Position",
+                        snippet = "Accuracy: ${it.accuracy.toInt()}m",
+                        icon = if (useRemote) {
+                            com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
+                                com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_VIOLET
+                            )
+                        } else null
                     )
                 }
 
                 // Safe Zones
                 safeZones.forEach { zone ->
                     val zoneLatLng = LatLng(zone.latitude, zone.longitude)
-                    val distance = currentLocation?.let { 
+                    val distance = effectiveLocation?.let { 
                         checker.calculateDistance(it.latitude, it.longitude, zone.latitude, zone.longitude) 
                     }
                     val isInside = distance != null && distance <= zone.radiusMeters
@@ -123,15 +166,6 @@ fun MapScreen(
                         fillColor = if (isInside) Color.Green.copy(alpha = 0.1f) else Color.Blue.copy(alpha = 0.1f),
                         strokeColor = if (isInside) Color.Green.copy(alpha = 0.5f) else Color.Blue.copy(alpha = 0.5f),
                         strokeWidth = 2f
-                    )
-                    Marker(
-                        state = MarkerState(position = zoneLatLng),
-                        title = zone.name,
-                        snippet = distance?.let { "Dist: ${it.toInt()}m ${if (isInside) "(Inside)" else ""}" },
-                        icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
-                            if (isInside) com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN 
-                            else com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE
-                        )
                     )
                 }
 
@@ -159,11 +193,11 @@ fun MapScreen(
             }
 
             // Bottom Info Card
-            if (currentLocation != null) {
+            effectiveLocation?.let {
                 PositionInfoCard(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
-                    location = currentLocation,
-                    trackingStateName = trackingState.name
+                    location = it,
+                    trackingStateName = if (useRemote) (if (remoteStatus?.trackingEnabled == true) "REMOTE_RUNNING" else "REMOTE_STOPPED") else trackingState.name
                 )
             }
         }
@@ -190,13 +224,13 @@ fun PositionInfoCard(
             ) {
                 Column {
                     Text(
-                        text = "Current Telemetry",
+                        text = "Device Telemetry",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     val sdf = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
                     Text(
-                        text = "Last update: ${sdf.format(Date(location.timestamp))}",
+                        text = "Updated: ${sdf.format(Date(location.timestamp))}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -224,18 +258,13 @@ fun PositionInfoCard(
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 2
                 )
-                Text(
-                    text = "${location.city ?: ""} ${location.country ?: ""}".trim(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            } else {
-                Text(
-                    text = "Address unavailable",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                if (location.city != null || location.country != null) {
+                    Text(
+                        text = "${location.city ?: ""} ${location.country ?: ""}".trim(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 

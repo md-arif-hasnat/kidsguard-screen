@@ -10,7 +10,9 @@ import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncActivityEvent
 import com.example.kidsguard.sync.SyncChildStatus
+import com.example.kidsguard.sync.SyncLocationUpdate
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.example.kidsguard.tracking.TrackingConfig
 import com.example.kidsguard.tracking.TrackingRepository
@@ -44,7 +46,8 @@ class DashboardRepository(
         syncProvider.isConnected,
         syncProvider.lastSyncTimestamp,
         commandHandler.lastCommandReceived,
-        prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: flowOf(null)
+        prefHelper.pairedChildId?.let { syncProvider.getChildStatus(it) } ?: flowOf(null),
+        prefHelper.pairedChildId?.let { syncProvider.getLatestActivity(it) } ?: flowOf(null)
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val locationHistory = args[0] as List<LocationPoint>
@@ -58,13 +61,34 @@ class DashboardRepository(
         val lastSync = args[6] as Long
         val lastCommand = args[7] as String
         val remoteStatus = args[8] as SyncChildStatus?
+        val remoteActivity = args[9] as SyncActivityEvent?
         
-        val lastLocation = locationHistory.firstOrNull()
-        val nearest = lastLocation?.let { point ->
+        val lastLocationLocal = locationHistory.firstOrNull()
+        
+        // Determine if we should use remote data or local mock data
+        val useRemote = remoteStatus != null && isConnected
+        
+        val effectiveLastLocation: SyncLocationUpdate? = if (useRemote) {
+            remoteStatus?.lastLocation
+        } else {
+            lastLocationLocal?.let {
+                SyncLocationUpdate(
+                    childId = "local",
+                    latitude = it.latitude,
+                    longitude = it.longitude,
+                    accuracy = it.accuracy,
+                    speed = it.speed,
+                    bearing = it.bearing,
+                    timestamp = it.timestamp
+                )
+            }
+        }
+
+        val nearest = effectiveLastLocation?.let { point ->
             safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
         }
         val distance = nearest?.let { zone ->
-            lastLocation?.let { point ->
+            effectiveLastLocation?.let { point ->
                 checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
             }
         }
@@ -81,9 +105,6 @@ class DashboardRepository(
         val eventsToday = events.count { it.timestamp >= today }
         val lastEnter = events.firstOrNull { it.type == "SAFE_ZONE_ENTER" }
         val lastExit = events.firstOrNull { it.type == "SAFE_ZONE_EXIT" }
-
-        // Determine if we should use remote data or local mock data
-        val useRemote = remoteStatus != null && isConnected
         
         DashboardState.Success(
             DashboardUiModel(
@@ -96,14 +117,14 @@ class DashboardRepository(
                 trackingState = if (useRemote) (if (remoteStatus?.trackingEnabled == true) "RUNNING" else "STOPPED") else trackingState.name,
                 kidGuardStatus = if (useRemote) (if (remoteStatus?.kidGuardActive == true) "LOCKED" else "UNLOCKED") else if (prefHelper.isLocked) "LOCKED" else "UNLOCKED",
                 
-                currentLat = lastLocation?.latitude,
-                currentLng = lastLocation?.longitude,
-                accuracy = lastLocation?.accuracy,
-                speed = lastLocation?.speed,
-                lastLocationUpdate = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
-                currentAddress = lastLocation?.address,
-                currentCity = lastLocation?.city,
-                currentCountry = lastLocation?.country,
+                currentLat = effectiveLastLocation?.latitude,
+                currentLng = effectiveLastLocation?.longitude,
+                accuracy = effectiveLastLocation?.accuracy,
+                speed = effectiveLastLocation?.speed,
+                lastLocationUpdate = effectiveLastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
+                currentAddress = if (useRemote) "Remote Location" else lastLocationLocal?.address,
+                currentCity = if (useRemote) null else lastLocationLocal?.city,
+                currentCountry = if (useRemote) null else lastLocationLocal?.country,
                 
                 currentZone = if (useRemote && remoteStatus?.currentZone != null) remoteStatus.currentZone!! else if (isInside) nearest?.name ?: "None" else "Outside Zones",
                 nearestZone = nearest?.name ?: "None",
@@ -112,13 +133,13 @@ class DashboardRepository(
                 lastExitEvent = lastExit?.let { sdf.format(Date(it.timestamp)) } ?: "None",
                 
                 totalEventsToday = eventsToday,
-                lastActivityTitle = events.firstOrNull()?.title ?: "None",
+                lastActivityTitle = if (useRemote) remoteActivity?.title ?: "No Activity" else events.firstOrNull()?.title ?: "None",
                 lastNotificationTitle = "Safety Alert: ${lastEnter?.title ?: "None"}",
                 lastCommandTitle = lastCommand,
                 
                 trackingConfigSummary = "${trackingConfig.updateIntervalSeconds}s updates",
                 totalPointsSaved = locationHistory.size,
-                lastGpsPointTime = lastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
+                lastGpsPointTime = effectiveLastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
                 totalDistanceToday = "${"%.1f".format(routeRepository.getTotalDistanceToday() / 1000)} km",
                 isMockChild = prefHelper.pairedChildId == "mock_child_001"
             )

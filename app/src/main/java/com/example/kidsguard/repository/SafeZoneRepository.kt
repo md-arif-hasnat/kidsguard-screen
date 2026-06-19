@@ -2,6 +2,8 @@ package com.example.kidsguard.repository
 
 import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.models.ActivityEvent
+import com.example.kidsguard.sync.RemoteSyncProvider
+import com.example.kidsguard.sync.SyncActivityEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -11,6 +13,9 @@ class SafeZoneRepository {
 
     private val _activityEvents = MutableStateFlow<List<ActivityEvent>>(emptyList())
     val activityEvents: StateFlow<List<ActivityEvent>> = _activityEvents
+
+    private var syncProvider: RemoteSyncProvider? = null
+    private var childId: String? = null
 
     init {
         // Mock data for Safe Zones
@@ -29,6 +34,11 @@ class SafeZoneRepository {
         )
     }
 
+    fun setSyncProvider(provider: RemoteSyncProvider, id: String) {
+        this.syncProvider = provider
+        this.childId = id
+    }
+
     fun addSafeZone(zone: SafeZone) {
         _safeZones.value = _safeZones.value + zone
     }
@@ -45,6 +55,21 @@ class SafeZoneRepository {
 
     fun addEvent(event: ActivityEvent) {
         _activityEvents.value = listOf(event) + _activityEvents.value
+        
+        // Sync to Firebase if provider available
+        val currentChildId = childId
+        if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
+            syncProvider?.syncActivity(
+                SyncActivityEvent(
+                    id = event.id,
+                    childId = currentChildId,
+                    type = event.type,
+                    title = event.title,
+                    description = event.description,
+                    timestamp = event.timestamp
+                )
+            )
+        }
     }
 
     fun clearEvents() {

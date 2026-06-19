@@ -19,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.repository.AuthRepository
+import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.RemoteSyncProvider
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,6 +28,8 @@ import kotlinx.coroutines.launch
 fun ChildSetupScreen(
     prefHelper: PreferenceHelper, 
     authRepository: AuthRepository,
+    repository: SafeZoneRepository,
+    syncProvider: RemoteSyncProvider,
     onSetupComplete: () -> Unit, 
     onBack: () -> Unit
 ) {
@@ -99,6 +103,8 @@ fun ChildSetupScreen(
                                 if (newCode != null) {
                                     code = newCode
                                     prefHelper.pairingCode = newCode
+                                    // Enable sync immediately
+                                    repository.setSyncProvider(syncProvider, newCode)
                                 } else {
                                     // Fallback to mock if Firebase fails
                                     val mockCode = "MOCK-${(100000..999999).random()}"

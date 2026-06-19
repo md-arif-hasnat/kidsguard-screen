@@ -66,22 +66,27 @@ class MainActivity : ComponentActivity() {
         knownRouteRepository = KnownRouteRepository(this)
         errorLogRepository = com.example.kidsguard.repository.ErrorLogRepository(this)
         reverseGeocoder = com.example.kidsguard.geocoding.ReverseGeocoder(this, errorLogRepository)
-        locationRepository = LocationRepository(this, repository, knownRouteRepository, reverseGeocoder, errorLogRepository)
-        sosRepository = SosRepository(this)
-        routeRepository = RouteRepository(locationRepository)
-        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         authRepository = AuthRepository(this)
-        
+
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
             FirebaseRemoteSyncProvider(this)
         } else {
             LocalMockSyncProvider()
         }
 
+        locationRepository = LocationRepository(this, repository, knownRouteRepository, reverseGeocoder, errorLogRepository, syncProvider)
+        sosRepository = SosRepository(this)
+        routeRepository = RouteRepository(locationRepository)
+        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
+
         childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
+
+        if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+            repository.setSyncProvider(syncProvider, prefHelper.pairingCode)
+        }
 
         commandHandler = RemoteCommandHandler(
             context = this,

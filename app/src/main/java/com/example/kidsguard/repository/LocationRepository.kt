@@ -19,14 +19,16 @@ class LocationRepository(
     private val safeZoneRepository: SafeZoneRepository? = null,
     private val knownRouteRepository: KnownRouteRepository? = null,
     private val geocoder: com.example.kidsguard.geocoding.ReverseGeocoder? = null,
-    private val errorLogRepository: ErrorLogRepository? = null
+    private val errorLogRepository: ErrorLogRepository? = null,
+    private val syncProvider: com.example.kidsguard.sync.RemoteSyncProvider? = null
 ) {
     private val prefs = context.getSharedPreferences("location_history_prefs", Context.MODE_PRIVATE)
+    private val prefHelper = PreferenceHelper(context)
     private val _locationHistory = MutableStateFlow<List<LocationPoint>>(loadHistory())
     val locationHistory: StateFlow<List<LocationPoint>> = _locationHistory
 
     private val safeZoneChecker: SafeZoneChecker? = safeZoneRepository?.let { 
-        LocalSafeZoneChecker(it, LocalNotificationEngine(context, errorLogRepository), PreferenceHelper(context)) 
+        LocalSafeZoneChecker(it, LocalNotificationEngine(context, errorLogRepository), prefHelper)
     }
 
     private val deviationChecker: RouteDeviationChecker? = knownRouteRepository?.let {
@@ -85,6 +87,21 @@ class LocationRepository(
             currentList.add(0, pointWithAddress)
             _locationHistory.value = currentList
             saveHistory(currentList)
+
+            // Sync to Firebase if Child role and Firebase active
+            if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+                syncProvider?.syncLocation(
+                    com.example.kidsguard.sync.SyncLocationUpdate(
+                        childId = prefHelper.pairingCode,
+                        latitude = pointWithAddress.latitude,
+                        longitude = pointWithAddress.longitude,
+                        accuracy = pointWithAddress.accuracy,
+                        speed = pointWithAddress.speed,
+                        bearing = pointWithAddress.bearing,
+                        timestamp = pointWithAddress.timestamp
+                    )
+                )
+            }
 
             // Trigger Safe Zone Check
             try {

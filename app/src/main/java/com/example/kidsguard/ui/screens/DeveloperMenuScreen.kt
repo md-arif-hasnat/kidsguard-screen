@@ -374,6 +374,65 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("Firebase Location/Activity Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val statusSdf = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+                    
+                    val latestRemoteActivity by (prefHelper.pairedChildId?.let { syncProvider.getLatestActivity(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(null)
+
+                    Text("Firebase Latest Lat: ${remoteStatus?.lastLocation?.latitude ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Firebase Latest Lng: ${remoteStatus?.lastLocation?.longitude ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Firebase Latest Activity: ${latestRemoteActivity?.title ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Last Sync Status: ${if (lastSync > 0) "Success at ${statusSdf.format(java.util.Date(lastSync))}" else "None"}", style = MaterialTheme.typography.bodySmall)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+                                lastGps?.let { point ->
+                                    syncProvider.syncLocation(
+                                        com.example.kidsguard.sync.SyncLocationUpdate(
+                                            childId = prefHelper.pairingCode,
+                                            latitude = point.latitude,
+                                            longitude = point.longitude,
+                                            accuracy = point.accuracy,
+                                            speed = point.speed,
+                                            bearing = point.bearing,
+                                            timestamp = point.timestamp
+                                        )
+                                    )
+                                    android.widget.Toast.makeText(context, "Location synced manually", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Sync Last GPS", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { 
+                            if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+                                val allEvents = repository.activityEvents.value
+                                allEvents.firstOrNull()?.let { event ->
+                                    syncProvider.syncActivity(
+                                        com.example.kidsguard.sync.SyncActivityEvent(
+                                            id = event.id,
+                                            childId = prefHelper.pairingCode,
+                                            type = event.type,
+                                            title = event.title,
+                                            description = event.description,
+                                            timestamp = event.timestamp
+                                        )
+                                    )
+                                    android.widget.Toast.makeText(context, "Activity synced manually", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Sync Last Act", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             DeveloperActionItem(
                 title = "Reset Role Selection",
                 description = "Resets user role to NONE and clears pairing data.",

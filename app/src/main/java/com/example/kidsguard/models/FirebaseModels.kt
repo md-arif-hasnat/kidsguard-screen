@@ -10,7 +10,10 @@ data class DeviceDoc(
     val deviceName: String = "",
     val appVersion: String = "",
     val createdAt: Timestamp? = null,
-    val lastSeen: Timestamp? = null
+    val lastSeen: Timestamp? = null,
+    val fcmToken: String? = null,
+    val fcmTokenUpdatedAt: Timestamp? = null,
+    val pushEnabled: Boolean = true
 )
 
 data class PairingCodeDoc(

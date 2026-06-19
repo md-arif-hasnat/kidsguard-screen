@@ -12,7 +12,8 @@ interface RemoteSyncProvider {
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
     fun updateCommandStatus(commandId: String, status: CommandStatus)
     fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
-    
+    fun getLatestActivity(childId: String): kotlinx.coroutines.flow.Flow<SyncActivityEvent?>
+
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
 }
@@ -71,7 +72,19 @@ class LocalMockSyncProvider : RemoteSyncProvider {
                 deviceId = "mock-device-id",
                 deviceName = "Mock Phone",
                 appVersion = "1.0.0",
-                androidVersion = "13"
+                androidVersion = "13",
+                lastLocation = SyncLocationUpdate(childId, 51.5074, -0.1278, 10f, 0f, 0f, System.currentTimeMillis())
+            )
+        )
+    }
+
+    override fun getLatestActivity(childId: String): kotlinx.coroutines.flow.Flow<SyncActivityEvent?> {
+        return kotlinx.coroutines.flow.flowOf(
+            SyncActivityEvent(
+                childId = childId,
+                type = "MOCK",
+                title = "Mock Activity",
+                description = "This is a mock activity event"
             )
         )
     }
