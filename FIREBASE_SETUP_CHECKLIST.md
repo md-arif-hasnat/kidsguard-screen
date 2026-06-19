@@ -26,7 +26,14 @@ This checklist guides the initial configuration and verification of the KidsGuar
 - [ ] Deploy functions using `firebase deploy --only functions`.
 - [ ] Verify logs in Firebase Console.
 
-## 6. Android Integration
+## 6. App Check
+- [ ] Enable App Check in the Firebase Console.
+- [ ] Register Android app for **Play Integrity**.
+- [ ] (Optional) Register Web app for **reCAPTCHA Enterprise**.
+- [ ] Generate **Debug Token** for local development.
+- [ ] Monitor metrics before enabling enforcement.
+
+## 7. Android Integration
 - [ ] Add Android App to Firebase project.
 - [ ] **Package Name:** `com.example.kidsguard`.
 - [ ] **SHA-1 Fingerprint:** Add from Android Studio Gradle `signingReport`.

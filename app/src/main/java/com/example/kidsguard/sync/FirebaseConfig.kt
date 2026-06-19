@@ -2,16 +2,37 @@ package com.example.kidsguard.sync
 
 import android.content.Context
 import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 object FirebaseConfig {
     
     /**
-     * SETUP INSTRUCTION:
-     * 1. Create a project on Firebase Console.
-     * 2. Download google-services.json.
-     * 3. Place google-services.json in the 'app/' folder of this project.
-     * 4. Build the app. The Google Services plugin will automatically detect it.
+     * Initializes Firebase App Check with the appropriate provider.
+     * This is called on startup to protect backend resources.
      */
+    fun initializeAppCheck(context: Context) {
+        if (!isFirebaseConfigured(context)) return
+
+        try {
+            val firebaseAppCheck = FirebaseAppCheck.getInstance()
+            
+            // Use Debug provider for development (Debug builds)
+            // Use Play Integrity provider for production (Release builds)
+            if (com.example.kidsguard.BuildConfig.DEBUG) {
+                firebaseAppCheck.installAppCheckProviderFactory(
+                    DebugAppCheckProviderFactory.getInstance()
+                )
+            } else {
+                firebaseAppCheck.installAppCheckProviderFactory(
+                    PlayIntegrityAppCheckProviderFactory.getInstance()
+                )
+            }
+        } catch (e: Exception) {
+            // Log to internal logger if available later
+        }
+    }
 
     /**
      * Checks if Firebase is properly configured in the app.

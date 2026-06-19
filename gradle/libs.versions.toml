@@ -38,6 +38,8 @@ firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebase-appcheck-playintegrity = { group = "com.google.firebase", name = "firebase-appcheck-playintegrity" }
+firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

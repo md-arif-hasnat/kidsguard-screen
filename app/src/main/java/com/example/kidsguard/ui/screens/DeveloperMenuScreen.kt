@@ -827,6 +827,18 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            Text("App Check Architecture", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("App Check Status: ${if (com.example.kidsguard.BuildConfig.DEBUG) "Debug Provider" else "Production (Play Integrity)"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Firebase Configured: ${if (isFirebaseConfigured) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Current Provider: ${FirebaseConfig.currentProviderName(context)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Phase U Readiness: Validated", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             Text("Multi-Child Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -75,6 +75,8 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    implementation(libs.firebase.appcheck.playintegrity)
+    implementation(libs.firebase.appcheck.debug)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

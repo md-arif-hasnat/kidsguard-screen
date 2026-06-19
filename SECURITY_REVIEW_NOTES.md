@@ -15,7 +15,12 @@
 - **Data Sanitization:** Use rules or Cloud Functions to enforce strict schema validation (e.g., coordinates must be numbers, battery must be 0-100).
 - **Audit Logs:** Log all administrative or high-risk actions (Unpairing, Remote Wipes) to a dedicated audit collection.
 
-## 4. Pending Tasks
+## 4. App Check Considerations
+- **Abuse Reduction:** App Check significantly reduces the risk of automated script attacks but it **does not replace** Firestore Security Rules.
+- **No User Auth:** App Check verifies the *app*, not the *user*. Family membership must still be validated server-side.
+- **Rollout:** Enforcement should be enabled gradually after a period of monitoring to avoid blocking legitimate users on devices with compromised integrity.
+
+## 5. Pending Tasks
 - [ ] Live testing of `firestore.rules.draft` using the Firebase Emulator Suite.
 - [ ] Verification of performance for `isFamilyMember()` helper in high-volume traffic.
 - [ ] Design of Cloud Functions for "Pairing" to move the logic away from the client.
