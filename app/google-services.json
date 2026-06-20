@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1079785670167",
+    "project_id": "kidsguard-0626",
+    "storage_bucket": "kidsguard-0626.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079785670167:android:e60aa8dbbc025b65a43e52",
+        "android_client_info": {
+          "package_name": "com.example.kidsguard_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCm3iHEZZmsUaKUOv8lTZtZzWq-hVsuxA8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

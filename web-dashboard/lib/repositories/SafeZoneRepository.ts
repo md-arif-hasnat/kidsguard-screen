@@ -14,7 +14,7 @@ export class SafeZoneRepository {
   static listenToSafeZones(familyId: string, onUpdate: (zones: SafeZone[]) => void) {
     if (!db || !familyId) return () => {};
 
-    const zonesRef = collection(db, "safeZones", familyId);
+    const zonesRef = collection(db, "families", familyId, "safeZones");
     return onSnapshot(zonesRef, (snapshot) => {
       const zones = snapshot.docs.map(doc => ({
         id: doc.id,

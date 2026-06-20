@@ -21,7 +21,7 @@ export class SosRepository {
     // But the prompt says children/{childId}/activity/{activityId} for general events.
     // Let's assume a similar structure or use the one from ARCHITECTURE.md
 
-    const sosRef = collection(db, "children", childId, "sos");
+    const sosRef = collection(db, "children", childId, "sosEvents");
     const q = query(sosRef, orderBy("timestamp", "desc"), limit(10));
 
     return onSnapshot(q, (snapshot) => {

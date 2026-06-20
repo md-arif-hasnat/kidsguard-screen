@@ -20,6 +20,43 @@ const options = {
   zoomControl: true,
 };
 
+/**
+ * Normalizes various coordinate formats into { lat, lng }
+ */
+export const normalizeMapPoint = (point: any): { lat: number; lng: number } | null => {
+  if (!point) return null;
+
+  let lat: any, lng: any;
+
+  if (typeof point.lat === 'number' && typeof point.lng === 'number') {
+    lat = point.lat;
+    lng = point.lng;
+  } else if (typeof point.latitude === 'number' && typeof point.longitude === 'number') {
+    lat = point.latitude;
+    lng = point.longitude;
+  } else if (typeof point._lat === 'number' && typeof point._long === 'number') {
+    // Firestore GeoPoint-like
+    lat = point._lat;
+    lng = point._long;
+  }
+
+  if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+    return { lat, lng };
+  }
+
+  return null;
+};
+
+/**
+ * Normalizes an array of points for use with Polyline
+ */
+export const normalizeMapPath = (points: any[]): { lat: number; lng: number }[] => {
+  if (!Array.isArray(points)) return [];
+  return points
+    .map(normalizeMapPoint)
+    .filter((p): p is { lat: number; lng: number } => p !== null);
+};
+
 interface LiveMapProps {
   childLocation: { lat: number; lng: number; accuracy: number; timestamp?: number } | null;
   safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number }>;
@@ -53,11 +90,14 @@ const LiveMap: React.FC<LiveMapProps> = ({
     setMap(null);
   }, []);
 
+  const normalizedRoute = normalizeMapPath(routeHistory);
+  const normalizedChildLoc = normalizeMapPoint(childLocation);
+
   useEffect(() => {
-    if (map && followChild && childLocation) {
-      map.panTo({ lat: childLocation.lat, lng: childLocation.lng });
+    if (map && followChild && normalizedChildLoc) {
+      map.panTo(normalizedChildLoc);
     }
-  }, [map, followChild, childLocation]);
+  }, [map, followChild, normalizedChildLoc]);
 
   if (!apiKey) {
     return (
@@ -80,16 +120,16 @@ const LiveMap: React.FC<LiveMapProps> = ({
   return isLoaded ? (
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
-      center={childLocation ? { lat: childLocation.lat, lng: childLocation.lng } : defaultCenter}
+      center={normalizedChildLoc || defaultCenter}
       zoom={15}
       onLoad={onLoad}
       onUnmount={onUnmount}
       options={options}
     >
       {/* Route History Polyline */}
-      {routeHistory.length > 0 && (
+      {normalizedRoute.length >= 2 ? (
         <Polyline
-          path={routeHistory}
+          path={normalizedRoute}
           options={{
             strokeColor: "#0ea5e9",
             strokeOpacity: 0.5,
@@ -101,54 +141,75 @@ const LiveMap: React.FC<LiveMapProps> = ({
             }]
           }}
         />
+      ) : (
+        normalizedRoute.length === 1 && (
+            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm text-xs font-bold text-slate-500 z-10">
+                Not enough points for route line
+            </div>
+        )
+      )}
+
+      {normalizedRoute.length === 0 && routeHistory.length > 0 && (
+         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm text-xs font-bold text-slate-500 z-10">
+            No valid route points available
+         </div>
       )}
 
       {/* Safe Zones */}
-      {safeZones.map(zone => (
-        <React.Fragment key={zone.id}>
-          <Circle
-            center={{ lat: zone.lat, lng: zone.lng }}
-            radius={zone.radius}
-            onClick={() => setSelectedZone(zone)}
-            options={{
-              fillColor: "#22c55e",
-              fillOpacity: 0.1,
-              strokeColor: "#22c55e",
-              strokeOpacity: 0.8,
-              strokeWeight: 2,
-            }}
-          />
-          {selectedZone?.id === zone.id && (
-            <InfoWindow
-                position={{ lat: zone.lat, lng: zone.lng }}
-                onCloseClick={() => setSelectedZone(null)}
-            >
-                <div className="p-1">
-                    <p className="font-bold text-slate-900">{zone.name}</p>
-                    <p className="text-xs text-slate-500">Radius: {zone.radius}m</p>
-                </div>
-            </InfoWindow>
-          )}
-        </React.Fragment>
-      ))}
+      {safeZones.map(zone => {
+        const center = normalizeMapPoint(zone);
+        if (!center) return null;
+
+        return (
+          <React.Fragment key={zone.id}>
+            <Circle
+              center={center}
+              radius={zone.radius || 100}
+              onClick={() => setSelectedZone(zone)}
+              options={{
+                fillColor: "#22c55e",
+                fillOpacity: 0.1,
+                strokeColor: "#22c55e",
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+              }}
+            />
+            {selectedZone?.id === zone.id && (
+              <InfoWindow
+                  position={center}
+                  onCloseClick={() => setSelectedZone(null)}
+              >
+                  <div className="p-1">
+                      <p className="font-bold text-slate-900">{zone.name}</p>
+                      <p className="text-xs text-slate-500">Radius: {zone.radius}m</p>
+                  </div>
+              </InfoWindow>
+            )}
+          </React.Fragment>
+        );
+      })}
 
       {/* Deviations */}
-      {deviations.map(dev => (
-        <Marker
-            key={dev.id}
-            position={{ lat: dev.lat, lng: dev.lng }}
-            icon={{
-                url: "https://maps.google.com/mapfiles/ms/icons/orange-dot.png"
-            }}
-            title={`Deviation: ${dev.message}`}
-        />
-      ))}
+      {deviations.map(dev => {
+        const pos = normalizeMapPoint(dev);
+        if (!pos) return null;
+        return (
+          <Marker
+              key={dev.id}
+              position={pos}
+              icon={{
+                  url: "https://maps.google.com/mapfiles/ms/icons/orange-dot.png"
+              }}
+              title={`Deviation: ${dev.message}`}
+          />
+        );
+      })}
 
       {/* Child Current Location Marker */}
-      {childLocation && (
+      {normalizedChildLoc && (
         <>
             <Marker
-                position={{ lat: childLocation.lat, lng: childLocation.lng }}
+                position={normalizedChildLoc}
                 title="Current Location"
                 icon={{
                     path: google.maps.SymbolPath.CIRCLE,
@@ -160,8 +221,8 @@ const LiveMap: React.FC<LiveMapProps> = ({
                 }}
             />
             <Circle
-                center={{ lat: childLocation.lat, lng: childLocation.lng }}
-                radius={childLocation.accuracy}
+                center={normalizedChildLoc}
+                radius={childLocation?.accuracy || 20}
                 options={{
                     fillColor: "#0ea5e9",
                     fillOpacity: 0.1,
