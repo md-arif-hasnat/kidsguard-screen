@@ -40,3 +40,21 @@ export const MOCK_SUMMARY = {
   score: 92,
   text: "Alex had a safe day. No deviations from known routes were detected. Spent 6 hours at School and 1 hour at the Playground."
 };
+
+export const MOCK_SAFE_ZONES = [
+  { id: "zone_1", name: "Home", lat: 51.5074, lng: -0.1278, radius: 200 },
+  { id: "zone_2", name: "School", lat: 51.5150, lng: -0.1300, radius: 150 },
+  { id: "zone_3", name: "Grandma", lat: 51.5100, lng: -0.1200, radius: 100 }
+];
+
+export const MOCK_ROUTE_HISTORY = [
+  { lat: 51.5074, lng: -0.1278 },
+  { lat: 51.5085, lng: -0.1285 },
+  { lat: 51.5100, lng: -0.1290 },
+  { lat: 51.5120, lng: -0.1295 },
+  { lat: 51.5150, lng: -0.1300 }
+];
+
+export const MOCK_DEVIATIONS = [
+  { id: "dev_1", lat: 51.5110, lng: -0.1350, message: "Off track by 300m", time: "10:15 AM", severity: "medium" }
+];

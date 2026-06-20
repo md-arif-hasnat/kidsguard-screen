@@ -1,17 +1,67 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
 import { MOCK_CHILDREN, MOCK_SOS } from '@/lib/mockData';
-import { AlertTriangle, Plus } from 'lucide-react';
+import { AlertTriangle, Plus, CloudOff } from 'lucide-react';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { signIn, observeAuth } from '@/lib/auth';
+import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
+import { User } from 'firebase/auth';
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [family, setFamily] = useState<FamilyData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribeAuth = observeAuth((user) => {
+      setUser(user);
+      if (!user) {
+        signIn();
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
+
+      const unsubscribeFamily = FamilyRepository.listenToFamily(familyId, (data) => {
+        setFamily(data);
+        setLoading(false);
+      });
+
+      return () => unsubscribeFamily();
+    }
+  }, [user]);
+
   const activeSos = MOCK_SOS.filter(s => !s.resolved);
 
   return (
     <DashboardLayout>
+      {!isFirebaseConfigured && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
+          <CloudOff className="text-yellow-600" />
+          <p className="text-yellow-700 font-medium text-sm">
+            Firebase not configured. Using local mock data for preview.
+          </p>
+        </div>
+      )}
+
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Family Overview</h1>
-        <p className="text-slate-500 mt-1">Monitoring {MOCK_CHILDREN.length} devices</p>
+        <p className="text-slate-500 mt-1">
+          {family ? `Monitoring ${family.childDeviceIds.length} devices` : `Monitoring ${MOCK_CHILDREN.length} devices (Mock)`}
+        </p>
       </header>
 
       {activeSos.length > 0 && (
@@ -32,9 +82,15 @@ export default function Home() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {MOCK_CHILDREN.map((child) => (
-          <ChildStatusCard key={child.id} child={child} />
-        ))}
+        {family ? (
+          family.childDeviceIds.map((childId) => (
+            <ChildStatusCard key={childId} childId={childId} />
+          ))
+        ) : (
+          MOCK_CHILDREN.map((child) => (
+            <ChildStatusCard key={child.id} child={child} />
+          ))
+        )}
 
         <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[200px]">
           <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">
