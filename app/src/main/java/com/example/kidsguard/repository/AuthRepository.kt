@@ -25,34 +25,47 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun signInAnonymously(): Boolean {
+        Log.d(TAG, "Starting anonymous sign-in...")
         return try {
             val result = auth.signInAnonymously().await()
             val uid = result.user?.uid
             if (uid != null) {
+                Log.i(TAG, "Firebase Anonymous Sign-in Success. UID: $uid")
                 prefs.firebaseUid = uid
                 true
             } else {
+                Log.e(TAG, "Firebase Anonymous Sign-in failed: UID is null")
                 false
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Firebase Anonymous Sign-in Exception", e)
             errorLogger.addError(TAG, "Firebase Auth failed", e)
             false
         }
     }
 
     suspend fun registerDevice(): Boolean {
-        if (!FirebaseConfig.isFirebaseConfigured(context)) return false
+        if (!FirebaseConfig.isFirebaseConfigured(context)) {
+            Log.w(TAG, "Device registration skipped: Firebase not configured")
+            return false
+        }
         
-        val uid = auth.currentUser?.uid ?: return false
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            Log.e(TAG, "Device registration failed: No current user UID")
+            return false
+        }
+        
         val deviceId = prefs.deviceId
+        Log.d(TAG, "Registering device $deviceId for UID $uid")
         
         val deviceDoc = DeviceDoc(
             deviceId = deviceId,
             firebaseUid = uid,
             role = prefs.userRole,
             deviceName = prefs.deviceName,
-            appVersion = "0.3.0-dev", // Current version
-            createdAt = Timestamp.now(), // Firestore will use server time if we use @ServerTimestamp but for simplicity we use this
+            appVersion = "0.3.0-dev", 
+            createdAt = Timestamp.now(), 
             lastSeen = Timestamp.now()
         )
 
@@ -61,9 +74,11 @@ class AuthRepository(private val context: Context) {
                 .document(deviceId)
                 .set(deviceDoc)
                 .await()
+            Log.i(TAG, "Device registration successful in Firestore")
             prefs.lastFirestoreWrite = System.currentTimeMillis()
             true
         } catch (e: Exception) {
+            Log.e(TAG, "Firestore device registration failed", e)
             errorLogger.addError(TAG, "Device registration failed", e)
             false
         }

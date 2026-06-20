@@ -31,6 +31,12 @@ class DailySummaryRepository(
     private val _latestSummary = MutableStateFlow<DailySummary?>(_summaryHistory.value.firstOrNull())
     val latestSummary: StateFlow<DailySummary?> = _latestSummary
 
+    private var syncProvider: com.example.kidsguard.sync.RemoteSyncProvider? = null
+
+    fun setSyncProvider(provider: com.example.kidsguard.sync.RemoteSyncProvider) {
+        this.syncProvider = provider
+    }
+
     suspend fun generateDailySummary(date: Long): DailySummary {
         return try {
             val calendar = Calendar.getInstance().apply {
@@ -49,8 +55,10 @@ class DailySummaryRepository(
             val dayRoutes = routeRepository.routeSessions.value.filter { it.startTime in startTime until endTime }
             val daySos = sosRepository.sosHistory.value.filter { it.timestamp in startTime until endTime }
 
+            val currentChildId = com.example.kidsguard.data.PreferenceHelper(context).pairedChildId ?: "current_child"
+
             val input = DailySummaryInput(
-                childId = "current_child",
+                childId = currentChildId,
                 events = dayEvents,
                 locations = dayLocations,
                 routes = dayRoutes,
@@ -73,7 +81,7 @@ class DailySummaryRepository(
 
             val summary = DailySummary(
                 date = startTime,
-                childId = "current_child",
+                childId = currentChildId,
                 totalDistanceMeters = dayRoutes.sumOf { it.totalDistanceMeters },
                 totalTimeAtHomeMinutes = dayEvents.count { it.title.contains("Home") } * 30, // Rough estimate
                 totalTimeAtSchoolMinutes = dayEvents.count { it.title.contains("School") } * 30,
@@ -90,6 +98,11 @@ class DailySummaryRepository(
             )
 
             saveSummary(summary)
+            
+            // Sync to Firebase
+            android.util.Log.d("DailySummaryRepo", "Syncing daily summary to Firebase")
+            syncProvider?.syncDailySummary(summary)
+
             summary
         } catch (e: Exception) {
             errorLogRepository?.addError("DailySummary", "Full summary generation failed", e)

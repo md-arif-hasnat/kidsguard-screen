@@ -13,9 +13,13 @@ object FirebaseConfig {
      * This is called on startup to protect backend resources.
      */
     fun initializeAppCheck(context: Context) {
-        if (!isFirebaseConfigured(context)) return
+        if (!isFirebaseConfigured(context)) {
+            android.util.Log.w("FirebaseConfig", "Skipping App Check: Firebase not configured")
+            return
+        }
 
         try {
+            android.util.Log.d("FirebaseConfig", "Initializing App Check...")
             val firebaseAppCheck = FirebaseAppCheck.getInstance()
             
             // Use Debug provider for development (Debug builds)
@@ -41,14 +45,17 @@ object FirebaseConfig {
     fun isFirebaseConfigured(context: Context): Boolean {
         return try {
             FirebaseApp.getInstance()
-            // If getInstance doesn't throw, it's configured
             true
         } catch (e: Exception) {
-            // Check if it can be initialized (it might not be if google-services.json is missing)
+            android.util.Log.w("FirebaseConfig", "FirebaseApp.getInstance() failed: ${e.message}")
             try {
-                // This will fail if google-services.json is missing
-                FirebaseApp.getApps(context).isNotEmpty()
+                val hasApps = FirebaseApp.getApps(context).isNotEmpty()
+                if (!hasApps) {
+                    android.util.Log.w("FirebaseConfig", "No Firebase Apps found in context")
+                }
+                hasApps
             } catch (ex: Exception) {
+                android.util.Log.e("FirebaseConfig", "Error checking for Firebase Apps", ex)
                 false
             }
         }

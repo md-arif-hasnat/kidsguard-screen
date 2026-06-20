@@ -9,6 +9,9 @@ interface RemoteSyncProvider {
     fun syncChildStatus(status: SyncChildStatus)
     fun syncLocation(update: SyncLocationUpdate)
     fun syncActivity(event: SyncActivityEvent)
+    fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone)
+    fun syncSosEvent(event: com.example.kidsguard.models.SosEvent)
+    fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
     fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus)
     fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
@@ -51,6 +54,18 @@ class LocalMockSyncProvider : RemoteSyncProvider {
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 

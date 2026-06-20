@@ -10,11 +10,17 @@ import org.json.JSONObject
 
 class SosRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("sos_prefs", Context.MODE_PRIVATE)
+    private var syncProvider: com.example.kidsguard.sync.RemoteSyncProvider? = null
+
     private val _sosHistory = MutableStateFlow<List<SosEvent>>(loadHistory())
     val sosHistory: StateFlow<List<SosEvent>> = _sosHistory
 
     private val _activeSos = MutableStateFlow<SosEvent?>(determineActiveSos())
     val activeSos: StateFlow<SosEvent?> = _activeSos
+
+    fun setSyncProvider(provider: com.example.kidsguard.sync.RemoteSyncProvider) {
+        this.syncProvider = provider
+    }
 
     fun triggerSos(event: SosEvent) {
         val updatedEvent = event.copy(status = SosStatus.ACTIVE)
@@ -23,6 +29,10 @@ class SosRepository(private val context: Context) {
         _sosHistory.value = currentList
         _activeSos.value = updatedEvent
         saveHistory(currentList)
+        
+        // Sync to Firebase
+        android.util.Log.d("SosRepository", "Syncing SOS event to Firebase")
+        syncProvider?.syncSosEvent(updatedEvent)
     }
 
     fun resolveSos(id: String) {
@@ -30,10 +40,17 @@ class SosRepository(private val context: Context) {
             if (it.id == id) it.copy(status = SosStatus.RESOLVED) else it
         }
         _sosHistory.value = currentList
+        val resolvedEvent = currentList.find { it.id == id }
         if (_activeSos.value?.id == id) {
             _activeSos.value = null
         }
         saveHistory(currentList)
+        
+        // Sync update to Firebase
+        if (resolvedEvent != null) {
+            android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
+            syncProvider?.syncSosEvent(resolvedEvent)
+        }
     }
 
     fun clearSosHistory() {

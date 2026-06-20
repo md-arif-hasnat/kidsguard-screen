@@ -116,6 +116,55 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
+    override fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone) {
+        if (familyId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_FAMILIES)
+            .document(familyId)
+            .collection(FirebaseConfig.COL_SAFE_ZONES)
+            .document(zone.id)
+            .set(zone)
+            .addOnSuccessListener {
+                Log.d(TAG, "Safe zone synced successfully: ${zone.name}")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync safe zone", e)
+                errorLogger.addError(TAG, "Failed to sync safe zone", e)
+            }
+    }
+
+    override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent) {
+        if (event.childId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(event.childId)
+            .collection("sosEvents")
+            .document(event.id)
+            .set(event)
+            .addOnSuccessListener {
+                Log.d(TAG, "SOS event synced successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync SOS event", e)
+                errorLogger.addError(TAG, "Failed to sync SOS event", e)
+            }
+    }
+
+    override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {
+        if (summary.childId.isEmpty()) return
+        
+        db.collection("dailySummaries")
+            .document(summary.id)
+            .set(summary)
+            .addOnSuccessListener {
+                Log.d(TAG, "Daily summary synced successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync daily summary", e)
+                errorLogger.addError(TAG, "Failed to sync daily summary", e)
+            }
+    }
+
     override fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit) {
         if (childId.isEmpty()) return
         

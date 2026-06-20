@@ -90,11 +90,15 @@ class MainActivity : ComponentActivity() {
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
 
-        childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
-
-        if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
-            repository.setSyncProvider(syncProvider, prefHelper.pairingCode)
+        // Initialize synchronization for repositories
+        val syncId = if (prefHelper.userRole == "CHILD") prefHelper.pairingCode else (prefHelper.pairedChildId ?: "")
+        if (syncId.isNotEmpty()) {
+            repository.setSyncProvider(syncProvider, syncId, prefHelper.familyId)
+            sosRepository.setSyncProvider(syncProvider)
+            dailySummaryRepository.setSyncProvider(syncProvider)
         }
+
+        childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
 
         commandHandler = RemoteCommandHandler(
             context = this,
@@ -131,10 +135,19 @@ class MainActivity : ComponentActivity() {
         }
 
         // Initialize Firebase Auth and Register Device
-        if (FirebaseConfig.isFirebaseConfigured(this)) {
-            lifecycleScope.launchWhenStarted {
-                val success = authRepository.signInAnonymously()
-                if (success) {
+        val isConfigured = FirebaseConfig.isFirebaseConfigured(this)
+        Log.d("MainActivity", "Firebase configuration status: $isConfigured")
+        
+        if (isConfigured) {
+            lifecycleScope.launch {
+                val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                if (currentUser == null) {
+                    val success = authRepository.signInAnonymously()
+                    if (success) {
+                        authRepository.registerDevice()
+                    }
+                } else {
+                    Log.i("MainActivity", "User already signed in: ${currentUser.uid}")
                     authRepository.registerDevice()
                 }
             }

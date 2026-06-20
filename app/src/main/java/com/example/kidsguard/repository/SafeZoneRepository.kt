@@ -16,6 +16,7 @@ class SafeZoneRepository {
 
     private var syncProvider: RemoteSyncProvider? = null
     private var childId: String? = null
+    private var familyId: String? = null
 
     init {
         // Mock data for Safe Zones
@@ -34,18 +35,31 @@ class SafeZoneRepository {
         )
     }
 
-    fun setSyncProvider(provider: RemoteSyncProvider, id: String) {
+    fun setSyncProvider(provider: RemoteSyncProvider, id: String, familyId: String? = null) {
         this.syncProvider = provider
         this.childId = id
+        this.familyId = familyId
     }
 
     fun addSafeZone(zone: SafeZone) {
         _safeZones.value = _safeZones.value + zone
+        
+        val currentFamilyId = familyId
+        if (syncProvider != null && currentFamilyId != null && currentFamilyId.isNotEmpty()) {
+            android.util.Log.d("SafeZoneRepo", "Syncing new safe zone: ${zone.name}")
+            syncProvider?.syncSafeZone(currentFamilyId, zone)
+        }
     }
 
     fun updateSafeZone(updatedZone: SafeZone) {
         _safeZones.value = _safeZones.value.map {
             if (it.id == updatedZone.id) updatedZone else it
+        }
+        
+        val currentFamilyId = familyId
+        if (syncProvider != null && currentFamilyId != null && currentFamilyId.isNotEmpty()) {
+            android.util.Log.d("SafeZoneRepo", "Syncing updated safe zone: ${updatedZone.name}")
+            syncProvider?.syncSafeZone(currentFamilyId, updatedZone)
         }
     }
 
