@@ -27,6 +27,7 @@ import { DailySummaryRepository, DailySummary } from '@/lib/repositories/DailySu
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
+import { CloudOff, CheckCircle2, Info } from 'lucide-react';
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -122,7 +123,14 @@ export default function ChildDashboard() {
 
   return (
     <DashboardLayout>
-      {!isFirebaseConfigured && (
+      {isFirebaseConfigured ? (
+        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-8 flex items-center gap-3">
+          <CheckCircle2 className="text-emerald-600" />
+          <p className="text-emerald-700 font-medium text-sm">
+            Firebase Live Mode: Viewing real-time telemetry for {childId}.
+          </p>
+        </div>
+      ) : (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
           <CloudOff className="text-yellow-600" />
           <p className="text-yellow-700 font-medium text-sm">

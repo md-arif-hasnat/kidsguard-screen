@@ -92,8 +92,8 @@ fun ParentSetupScreen(
                         scope.launch {
                             val success = authRepository.validateAndPair(code)
                             if (success) {
-                                prefHelper.pairedChildId = code // For now use code as ID if no other ID returned
-                                prefHelper.childName = "Connected Child" 
+                                // The authRepository.validateAndPair already updates pairedChildId in createOrUpdateFamily
+                                // We don't need to manually set it here, especially not to the pairing code.
                                 onSetupComplete()
                             } else {
                                 error = "Invalid or expired pairing code."

@@ -151,17 +151,35 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {
-        if (summary.childId.isEmpty()) return
+        if (summary.childId.isEmpty()) {
+            Log.w(TAG, "DailySummary sync skipped: childId is empty")
+            return
+        }
         
-        db.collection("dailySummaries")
-            .document(summary.id)
-            .set(summary)
+        Log.d(TAG, "Syncing DailySummary to Firebase for child ${summary.childId}")
+        
+        val summaryId = summary.id
+        val summaryRef = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(summary.childId)
+            .collection("dailySummaries")
+            .document(summaryId)
+            
+        val latestRef = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(summary.childId)
+            .collection("dailySummaries")
+            .document("latest")
+
+        val batch = db.batch()
+        batch.set(summaryRef, summary)
+        batch.set(latestRef, summary)
+
+        batch.commit()
             .addOnSuccessListener {
-                Log.d(TAG, "Daily summary synced successfully")
+                Log.i(TAG, "DailySummary Firebase sync success. Summary ID: $summaryId")
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to sync daily summary", e)
-                errorLogger.addError(TAG, "Failed to sync daily summary", e)
+                Log.e(TAG, "DailySummary Firebase sync failed: ${e.message}", e)
+                errorLogger.addError(TAG, "DailySummary sync failed", e)
             }
     }
 
@@ -377,8 +395,9 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         }
         val startTime = calendar.timeInMillis
 
-        val registration = db.collection("dailySummaries") // Assuming collection name
-            .whereEqualTo("childId", childId)
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("dailySummaries")
             .whereEqualTo("date", startTime)
             .limit(1)
             .addSnapshotListener { snapshots, e ->

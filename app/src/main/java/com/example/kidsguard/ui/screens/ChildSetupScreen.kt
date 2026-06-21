@@ -103,8 +103,8 @@ fun ChildSetupScreen(
                                 if (newCode != null) {
                                     code = newCode
                                     prefHelper.pairingCode = newCode
-                                    // Enable sync immediately
-                                    repository.setSyncProvider(syncProvider, newCode)
+                                    // Enable sync immediately using the stable childId, NOT the pairing code
+                                    repository.setSyncProvider(syncProvider, prefHelper.childId)
                                 } else {
                                     // Fallback to mock if Firebase fails
                                     val mockCode = "MOCK-${(100000..999999).random()}"

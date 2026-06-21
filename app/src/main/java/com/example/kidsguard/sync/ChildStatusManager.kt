@@ -48,7 +48,7 @@ class ChildStatusManager(
 
     fun updateStatus() {
         if (prefHelper.userRole != "CHILD") return
-        val childId = prefHelper.pairingCode
+        val childId = prefHelper.childId
         if (childId.isEmpty()) return
 
         scope.launch {

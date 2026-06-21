@@ -37,10 +37,35 @@ class PreferenceHelper(context: Context) {
             if (id == null) {
                 id = java.util.UUID.randomUUID().toString()
                 prefs.edit().putString("device_id", id).apply()
+                android.util.Log.d("PreferenceHelper", "New stable deviceId generated: $id")
             }
             return id
         }
-        set(value) = prefs.edit().putString("device_id", value).apply()
+        private set(value) = prefs.edit().putString("device_id", value).apply()
+
+    var childId: String
+        get() {
+            // Priority: 1. pairedChildId, 2. existing saved child_id, 3. deviceId
+            val paired = pairedChildId
+            if (!paired.isNullOrEmpty()) return paired
+            
+            val saved = prefs.getString("child_id", null)
+            if (!saved.isNullOrEmpty()) return saved
+            
+            val fallback = deviceId
+            prefs.edit().putString("child_id", fallback).apply()
+            return fallback
+        }
+        set(value) = prefs.edit().putString("child_id", value).apply()
+
+    fun resetIdentity() {
+        val newId = java.util.UUID.randomUUID().toString()
+        prefs.edit()
+            .putString("device_id", newId)
+            .putString("child_id", newId)
+            .apply()
+        android.util.Log.i("PreferenceHelper", "Device identity reset. New ID: $newId")
+    }
 
     var firebaseUid: String?
         get() = prefs.getString("firebase_uid", null)

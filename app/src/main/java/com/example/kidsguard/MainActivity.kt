@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity() {
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
 
         // Initialize synchronization for repositories
-        val syncId = if (prefHelper.userRole == "CHILD") prefHelper.pairingCode else (prefHelper.pairedChildId ?: "")
+        val syncId = prefHelper.childId
         if (syncId.isNotEmpty()) {
             repository.setSyncProvider(syncProvider, syncId, prefHelper.familyId)
             sosRepository.setSyncProvider(syncProvider)
@@ -154,8 +154,8 @@ class MainActivity : ComponentActivity() {
         }
         
         // Setup command listener
-        val listenId = if (prefHelper.userRole == "CHILD") prefHelper.pairingCode else ""
-        if (listenId.isNotEmpty()) {
+        val listenId = prefHelper.childId
+        if (listenId.isNotEmpty() && prefHelper.userRole == "CHILD") {
             syncProvider.listenForRemoteCommands(listenId) { command ->
                 Log.d("MainActivity", "Remote command received: ${command.commandType}")
                 commandHandler.handleCommand(command)

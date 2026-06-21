@@ -55,7 +55,16 @@ class DailySummaryRepository(
             val dayRoutes = routeRepository.routeSessions.value.filter { it.startTime in startTime until endTime }
             val daySos = sosRepository.sosHistory.value.filter { it.timestamp in startTime until endTime }
 
-            val currentChildId = com.example.kidsguard.data.PreferenceHelper(context).pairedChildId ?: "current_child"
+            val prefHelper = com.example.kidsguard.data.PreferenceHelper(context)
+            val currentChildId = when {
+                prefHelper.userRole == "PARENT" -> prefHelper.selectedChildId
+                prefHelper.userRole == "CHILD" -> prefHelper.pairedChildId ?: prefHelper.deviceId
+                else -> prefHelper.deviceId
+            } ?: "unknown_child"
+
+            if (currentChildId == "unknown_child") {
+                android.util.Log.e("DailySummaryRepo", "Cannot generate valid summary: childId is missing or unknown")
+            }
 
             val input = DailySummaryInput(
                 childId = currentChildId,
@@ -100,8 +109,13 @@ class DailySummaryRepository(
             saveSummary(summary)
             
             // Sync to Firebase
-            android.util.Log.d("DailySummaryRepo", "Syncing daily summary to Firebase")
-            syncProvider?.syncDailySummary(summary)
+            android.util.Log.d("DailySummaryRepo", "DailySummary generated locally")
+            if (syncProvider != null) {
+                android.util.Log.d("DailySummaryRepo", "Syncing DailySummary to Firebase")
+                syncProvider?.syncDailySummary(summary)
+            } else {
+                android.util.Log.w("DailySummaryRepo", "Syncing skipped: No sync provider connected")
+            }
 
             summary
         } catch (e: Exception) {

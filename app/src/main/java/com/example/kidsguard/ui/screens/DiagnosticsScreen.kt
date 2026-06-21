@@ -49,6 +49,9 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                 DiagnosticRow("Version", "0.3.0-dev")
                 DiagnosticRow("Build Type", if (com.example.kidsguard.BuildConfig.DEBUG) "Debug" else "Release")
                 DiagnosticRow("Package", context.packageName)
+                val prefHelper = remember { com.example.kidsguard.data.PreferenceHelper(context) }
+                DiagnosticRow("Device ID", prefHelper.deviceId)
+                DiagnosticRow("Child ID", prefHelper.childId)
             }
 
             DiagnosticSection("Device Information") {
@@ -59,6 +62,10 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
 
             DiagnosticSection("Configuration Status") {
                 DiagnosticRow("Firebase Configured", if (FirebaseConfig.isFirebaseConfigured(context)) "Yes" else "No")
+                val prefHelper = remember { com.example.kidsguard.data.PreferenceHelper(context) }
+                DiagnosticRow("Firebase UID", prefHelper.firebaseUid ?: "Not Signed In")
+                DiagnosticRow("Family ID", prefHelper.familyId ?: "Not Paired")
+                
                 // Maps Key check - we check if the placeholder was replaced
                 val mapsKey = context.packageManager.getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA).metaData.getString("com.google.android.geo.API_KEY")
                 val isMapsKeySet = mapsKey != null && mapsKey.isNotEmpty() && !mapsKey.contains("MAPS_API_KEY")

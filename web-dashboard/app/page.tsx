@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
 import { MOCK_CHILDREN, MOCK_SOS } from '@/lib/mockData';
-import { AlertTriangle, Plus, CloudOff } from 'lucide-react';
+import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { signIn, observeAuth } from '@/lib/auth';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
@@ -14,6 +14,8 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -24,7 +26,10 @@ export default function Home() {
     const unsubscribeAuth = observeAuth((user) => {
       setUser(user);
       if (!user) {
-        signIn();
+        signIn().catch(err => {
+            console.error("Sign in failed:", err);
+            setError("Authentication failed");
+        });
       }
     });
 
@@ -45,26 +50,104 @@ export default function Home() {
   }, [user]);
 
   const activeSos = MOCK_SOS.filter(s => !s.resolved);
+  const useMockData = !isFirebaseConfigured || (loading && !family);
+  const isLive = isFirebaseConfigured && !!user && !!family;
+  const noFamilyFound = isFirebaseConfigured && !loading && !family;
 
   return (
     <DashboardLayout>
-      {!isFirebaseConfigured && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
-          <CloudOff className="text-yellow-600" />
-          <p className="text-yellow-700 font-medium text-sm">
-            Firebase not configured. Using local mock data for preview.
-          </p>
+      {isLive ? (
+        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="text-emerald-600" />
+            <p className="text-emerald-700 font-medium text-sm">
+              Firebase Live Mode: Connected to real-time data.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className="text-xs font-bold text-emerald-700 hover:underline"
+          >
+            {showDebug ? "Hide Debug" : "Show Debug"}
+          </button>
+        </div>
+      ) : isFirebaseConfigured ? (
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Info className="text-blue-600" />
+            <p className="text-blue-700 font-medium text-sm">
+              Firebase initialized. Waiting for family data...
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className="text-xs font-bold text-blue-700 hover:underline"
+          >
+            {showDebug ? "Hide Debug" : "Show Debug"}
+          </button>
+        </div>
+      ) : (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CloudOff className="text-yellow-600" />
+            <p className="text-yellow-700 font-medium text-sm">
+              Firebase not configured. Using local mock data for preview.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className="text-xs font-bold text-yellow-700 hover:underline"
+          >
+            {showDebug ? "Hide Debug" : "Show Debug"}
+          </button>
+        </div>
+      )}
+
+      {showDebug && (
+        <div className="bg-slate-900 text-slate-300 p-6 rounded-xl mb-8 font-mono text-xs overflow-auto border border-slate-700 shadow-2xl">
+            <h3 className="text-primary-400 font-bold mb-4 flex items-center gap-2">
+                <Info size={14} /> SYSTEM DIAGNOSTICS
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
+                <DebugRow label="Firebase Configured" value={isFirebaseConfigured ? "YES" : "NO"} color={isFirebaseConfigured ? "text-emerald-400" : "text-yellow-400"} />
+                <DebugRow label="Auth User UID" value={user?.uid || "Not Signed In"} />
+                <DebugRow label="Family ID (Storage)" value={localStorage.getItem("kidsguard_family_id") || "None"} />
+                <DebugRow label="Family Data Loaded" value={family ? "YES" : "NO"} color={family ? "text-emerald-400" : "text-rose-400"} />
+                <DebugRow label="Child Device Count" value={family?.childDeviceIds.length.toString() || "0"} />
+                <DebugRow label="Mock Mode Active" value={useMockData ? "YES" : "NO"} />
+                <DebugRow label="Last Error" value={error || "None"} color={error ? "text-rose-400" : "text-slate-500"} />
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-800">
+                <p className="text-slate-500 italic">Tip: If UID exists but Family is NO, ensure your Android app has paired successfully.</p>
+            </div>
         </div>
       )}
 
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Family Overview</h1>
         <p className="text-slate-500 mt-1">
-          {family ? `Monitoring ${family.childDeviceIds.length} devices` : `Monitoring ${MOCK_CHILDREN.length} devices (Mock)`}
+          {family ? `Monitoring ${family.childDeviceIds.length} devices` : useMockData ? `Monitoring ${MOCK_CHILDREN.length} devices (Mock)` : 'Searching for devices...'}
         </p>
       </header>
 
-      {activeSos.length > 0 && (
+      {noFamilyFound && (
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-12 text-center mb-8">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600">
+                <AlertCircle size={32} />
+            </div>
+            <h2 className="text-xl font-bold text-blue-900 mb-2">No Family Paired Yet</h2>
+            <p className="text-blue-700 max-w-md mx-auto mb-8">
+                Firebase is connected, but we couldn&apos;t find a family record for your ID.
+                Please ensure your Android app is signed in and paired with a child device.
+            </p>
+            <div className="flex justify-center gap-4">
+                <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">Open Pairing Guide</button>
+                <button onClick={() => window.location.reload()} className="bg-white border border-blue-200 text-blue-700 px-6 py-2 rounded-lg font-bold">Retry Sync</button>
+            </div>
+        </div>
+      )}
+
+      {activeSos.length > 0 && !noFamilyFound && (
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 animate-pulse">
@@ -86,11 +169,11 @@ export default function Home() {
           family.childDeviceIds.map((childId) => (
             <ChildStatusCard key={childId} childId={childId} />
           ))
-        ) : (
+        ) : useMockData ? (
           MOCK_CHILDREN.map((child) => (
             <ChildStatusCard key={child.id} child={child} />
           ))
-        )}
+        ) : null}
 
         <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[200px]">
           <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">
@@ -132,4 +215,13 @@ export default function Home() {
       </section>
     </DashboardLayout>
   );
+}
+
+function DebugRow({ label, value, color = "text-slate-300" }: { label: string, value: string, color?: string }) {
+    return (
+        <div className="flex justify-between border-b border-slate-800 pb-1">
+            <span className="text-slate-500">{label}:</span>
+            <span className={`font-bold ${color} truncate ml-2`}>{value}</span>
+        </div>
+    );
 }

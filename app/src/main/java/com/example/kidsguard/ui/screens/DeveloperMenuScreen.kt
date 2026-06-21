@@ -233,8 +233,13 @@ fun DeveloperMenuScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { 
                         scope.launch {
-                            dailySummaryRepository.generateDailySummary(System.currentTimeMillis())
-                            android.widget.Toast.makeText(context, "Summary generated", android.widget.Toast.LENGTH_SHORT).show()
+                            val summary = dailySummaryRepository.generateDailySummary(System.currentTimeMillis())
+                            val syncStatus = if (syncProvider.isConnected.value) {
+                                "Synced to Firebase"
+                            } else {
+                                "Firebase sync failed (Disconnected)"
+                            }
+                            android.widget.Toast.makeText(context, "Generated locally\n$syncStatus", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }, modifier = Modifier.fillMaxWidth()) {
                         Text("Generate Today Summary", style = MaterialTheme.typography.labelSmall)
@@ -468,6 +473,12 @@ fun DeveloperMenuScreen(
                 title = "Clear Safe Zones",
                 description = "Removes all defined safe zones.",
                 onClick = { showConfirmDialog = "CLEAR_SAFEZONES" }
+            )
+            DeveloperActionItem(
+                title = "Reset Firebase Device Identity",
+                description = "Generates a brand new stable deviceId and childId. Use this to simulate a new device.",
+                color = Color.Red,
+                onClick = { showConfirmDialog = "RESET_IDENTITY" }
             )
             DeveloperActionItem(
                 title = "Create Mock Child Pairing",
@@ -1024,6 +1035,12 @@ fun DeveloperMenuScreen(
                                 "CLEAR_ACTIVITY" -> repository.clearEvents()
                                 "CLEAR_LOCATION" -> locationRepository.clearLocationHistory()
                                 "CLEAR_SAFEZONES" -> repository.clearAllSafeZones()
+                                "RESET_IDENTITY" -> {
+                                    prefHelper.resetIdentity()
+                                    scope.launch {
+                                        authRepository.registerDevice()
+                                    }
+                                }
                                 "RESET_ALL" -> {
                                     prefHelper.userRole = "NONE"
                                     prefHelper.pairedChildId = null
