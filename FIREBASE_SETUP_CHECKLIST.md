@@ -35,7 +35,7 @@ This checklist guides the initial configuration and verification of the KidsGuar
 
 ## 7. Android Integration
 - [ ] Add Android App to Firebase project.
-- [ ] **Package Name:** `com.example.kidsguard`.
+- [ ] **Package Name:** `secure.kidsguard.app`.
 - [ ] **SHA-1 Fingerprint:** Add from Android Studio Gradle `signingReport`.
 - [ ] Download `google-services.json`.
 - [ ] Place `google-services.json` in `app/` directory of the project.

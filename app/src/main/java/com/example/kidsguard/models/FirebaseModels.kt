@@ -17,11 +17,15 @@ data class DeviceDoc(
 )
 
 data class PairingCodeDoc(
-    val pairingCode: String = "",
-    val childDeviceId: String = "",
+    val code: String = "",
+    val childId: String = "",
+    val deviceId: String = "",
     val childName: String = "",
+    val deviceName: String = "",
+    val firebaseUid: String = "",
     val createdAt: Timestamp? = null,
-    val expiresAt: Timestamp? = null
+    val expiresAt: Timestamp? = null,
+    val used: Boolean = false
 )
 
 data class FamilyDoc(

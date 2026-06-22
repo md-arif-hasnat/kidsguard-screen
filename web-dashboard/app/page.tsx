@@ -77,8 +77,8 @@ export default function Home() {
     }
   };
 
-  const activeSos = MOCK_SOS.filter(s => !s.resolved);
   const useMockData = !isFirebaseConfigured;
+  const activeSos = useMockData ? MOCK_SOS.filter(s => !s.resolved) : []; // Future: Implement real multi-child SOS listener
   const isLive = isFirebaseConfigured && !!user && !!family;
   const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
 
@@ -253,18 +253,26 @@ export default function Home() {
                 </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium">Sam</td>
-                    <td className="px-6 py-4">Battery Low (15%)</td>
-                    <td className="px-6 py-4">School</td>
-                    <td className="px-6 py-4 text-slate-500">10:30 AM</td>
-                </tr>
-                <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium">Alex</td>
-                    <td className="px-6 py-4">Entered Home</td>
-                    <td className="px-6 py-4">Home</td>
-                    <td className="px-6 py-4 text-slate-500">09:12 AM</td>
-                </tr>
+                {useMockData ? (
+                  <>
+                    <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-medium">Sam</td>
+                        <td className="px-6 py-4">Battery Low (15%)</td>
+                        <td className="px-6 py-4">School</td>
+                        <td className="px-6 py-4 text-slate-500">10:30 AM</td>
+                    </tr>
+                    <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-medium">Alex</td>
+                        <td className="px-6 py-4">Entered Home</td>
+                        <td className="px-6 py-4">Home</td>
+                        <td className="px-6 py-4 text-slate-500">09:12 AM</td>
+                    </tr>
+                  </>
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No recent alerts recorded.</td>
+                  </tr>
+                )}
                 </tbody>
             </table>
             </div>

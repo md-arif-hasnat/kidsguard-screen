@@ -84,13 +84,7 @@ class PreferenceHelper(context: Context) {
         set(value) = prefs.edit().putString("user_role", value).apply()
 
     var pairingCode: String
-        get() {
-            val code = prefs.getString("pairing_code", null)
-            if (code != null) return code
-            val newCode = (100000..999999).random().toString()
-            prefs.edit().putString("pairing_code", newCode).apply()
-            return newCode
-        }
+        get() = prefs.getString("pairing_code", "") ?: ""
         set(value) = prefs.edit().putString("pairing_code", value).apply()
 
     var pairedChildId: String?

@@ -77,30 +77,42 @@ export class FamilyRepository {
     const expiresAt = pairingData.expiresAt?.toMillis() || 0;
     if (Date.now() > expiresAt) {
       console.warn(`WEB: Pair code ${pairingCode} has expired.`);
-      // Optional: mark as used or delete
       return false;
     }
 
-    const deviceId = pairingData.deviceId || pairingData.childDeviceId; // Support both for transition
-    if (!deviceId) {
-        console.error(`WEB: No deviceId found in pairing document.`);
+    const deviceId = pairingData.deviceId || pairingData.childDeviceId;
+    const childId = pairingData.childId || deviceId;
+
+    if (!deviceId || !childId) {
+        console.error(`WEB: Missing ID in pairing document.`);
         return false;
     }
 
-    console.log(`WEB: Linking device ${deviceId} to family ${familyId}`);
+    console.log(`WEB: Linking child ${childId} (device: ${deviceId}) to family ${familyId}`);
 
-    // 2. Add deviceId to family
+    // 2. Add childId to family
     const familyRef = doc(db, "families", familyId);
     await updateDoc(familyRef, {
-      childDeviceIds: arrayUnion(deviceId)
+      childDeviceIds: arrayUnion(childId)
     });
 
-    // 3. Mark code as used
+    // 3. Create/Update child record
+    const childRef = doc(db, "children", childId);
+    await setDoc(childRef, {
+        childId,
+        deviceId,
+        name: pairingData.childName || "Unnamed Child",
+        familyId: familyId,
+        pairedAt: serverTimestamp(),
+        lastSeen: serverTimestamp()
+    }, { merge: true });
+
+    // 4. Mark code as used
     await updateDoc(codeRef, {
         used: true
     });
 
-    console.log(`WEB: Pairing successful for device ${deviceId}`);
+    console.log(`WEB: Pairing successful for child ${childId}`);
     return true;
   }
 }

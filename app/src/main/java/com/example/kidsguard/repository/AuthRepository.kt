@@ -85,7 +85,10 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun generatePairingCode(): String? {
-        if (!FirebaseConfig.isFirebaseConfigured(context)) return null
+        if (!FirebaseConfig.isFirebaseConfigured(context)) {
+            Log.e(TAG, "ANDROID: Firebase NOT configured while generating code")
+            return null
+        }
         
         val code = (100000..999999).random().toString()
         val expiry = Calendar.getInstance().apply {
@@ -93,22 +96,33 @@ class AuthRepository(private val context: Context) {
         }.time
 
         val pairingDoc = PairingCodeDoc(
-            pairingCode = code,
-            childDeviceId = prefs.deviceId,
+            code = code,
+            childId = prefs.childId,
+            deviceId = prefs.deviceId,
             childName = prefs.childName,
+            deviceName = prefs.deviceName,
+            firebaseUid = auth.currentUser?.uid ?: "",
             createdAt = Timestamp.now(),
-            expiresAt = Timestamp(expiry)
+            expiresAt = Timestamp(expiry),
+            used = false
         )
+
+        val path = "${FirebaseConfig.COL_PAIRING_CODES}/$code"
+        Log.d(TAG, "ANDROID: Generating pair code: $code")
+        Log.d(TAG, "ANDROID: Target Firestore path: $path")
 
         return try {
             db.collection(FirebaseConfig.COL_PAIRING_CODES)
                 .document(code)
                 .set(pairingDoc)
                 .await()
+            
+            Log.i(TAG, "ANDROID: Pair code successfully uploaded to $path")
             prefs.lastFirestoreWrite = System.currentTimeMillis()
             code
         } catch (e: Exception) {
-            errorLogger.addError(TAG, "Failed to generate pairing code", e)
+            Log.e(TAG, "ANDROID: FAILED to upload pair code to $path", e)
+            errorLogger.addError(TAG, "Failed to generate pairing code at $path", e)
             null
         }
     }
@@ -116,27 +130,33 @@ class AuthRepository(private val context: Context) {
     suspend fun validateAndPair(code: String): Boolean {
         if (!FirebaseConfig.isFirebaseConfigured(context)) return false
         
+        Log.d(TAG, "ANDROID: Validating pair code: $code")
         return try {
-            val doc = db.collection(FirebaseConfig.COL_PAIRING_CODES)
-                .document(code)
-                .get()
-                .await()
+            val docRef = db.collection(FirebaseConfig.COL_PAIRING_CODES).document(code)
+            val doc = docRef.get().await()
             
             if (doc.exists()) {
                 val pairingData = doc.toObject(PairingCodeDoc::class.java)
-                if (pairingData != null && pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true) {
+                if (pairingData != null && 
+                    !pairingData.used &&
+                    pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true) {
+                    
+                    Log.i(TAG, "ANDROID: Valid pair code found for child: ${pairingData.childId}")
                     // Create or update family
-                    createOrUpdateFamily(pairingData.childDeviceId)
-                    // Delete code after use
-                    db.collection(FirebaseConfig.COL_PAIRING_CODES).document(code).delete()
+                    createOrUpdateFamily(pairingData.deviceId)
+                    // Mark as used
+                    docRef.update("used", true).await()
                     true
                 } else {
+                    Log.w(TAG, "ANDROID: Pair code $code is invalid, used, or expired")
                     false
                 }
             } else {
+                Log.w(TAG, "ANDROID: Pair code $code NOT FOUND in Firestore at ${FirebaseConfig.COL_PAIRING_CODES}/$code")
                 false
             }
         } catch (e: Exception) {
+            Log.e(TAG, "ANDROID: Error during pair code validation", e)
             errorLogger.addError(TAG, "Pairing validation failed", e)
             false
         }
