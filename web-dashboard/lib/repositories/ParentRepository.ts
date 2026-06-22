@@ -1,0 +1,52 @@
+import { db } from "../firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+
+export interface ParentProfile {
+  uid: string;
+  email: string | null;
+  phoneNumber: string | null;
+  displayName: string | null;
+  provider: string;
+  familyId: string | null;
+  createdAt: any;
+  lastLoginAt: any;
+}
+
+export class ParentRepository {
+  static async getProfile(uid: string): Promise<ParentProfile | null> {
+    if (!db) return null;
+    const ref = doc(db, "parents", uid);
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data() as ParentProfile : null;
+  }
+
+  static async createOrUpdateProfile(user: any, provider: string): Promise<ParentProfile> {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const existing = await this.getProfile(user.uid);
+
+    const profile: Partial<ParentProfile> = {
+      uid: user.uid,
+      email: user.email || (existing?.email || null),
+      phoneNumber: user.phoneNumber || (existing?.phoneNumber || null),
+      displayName: user.displayName || (existing?.displayName || "Parent"),
+      provider: provider,
+      lastLoginAt: serverTimestamp(),
+    };
+
+    if (!existing) {
+      profile.createdAt = serverTimestamp();
+      profile.familyId = null;
+    }
+
+    await setDoc(doc(db, "parents", user.uid), profile, { merge: true });
+
+    const updated = await this.getProfile(user.uid);
+    return updated!;
+  }
+
+  static async updateFamilyId(uid: string, familyId: string): Promise<void> {
+    if (!db) return;
+    await setDoc(doc(db, "parents", uid), { familyId }, { merge: true });
+  }
+}

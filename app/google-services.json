@@ -9,10 +9,23 @@
       "client_info": {
         "mobilesdk_app_id": "1:1079785670167:android:e60aa8dbbc025b65a43e52",
         "android_client_info": {
-          "package_name": "com.example.kidsguard"
+          "package_name": "com.example.kidsguard_flutter"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1079785670167-l8g8520n9kek0equ1t23r25b8bs4k4du.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.kidsguard_flutter",
+            "certificate_hash": "22537ca9b2855d35d86946f22c79b7c6930e4e3c"
+          }
+        },
+        {
+          "client_id": "1079785670167-0mm33corc1kg83p82qkteukcgnntnreg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCm3iHEZZmsUaKUOv8lTZtZzWq-hVsuxA8"
@@ -20,7 +33,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1079785670167-0mm33corc1kg83p82qkteukcgnntnreg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079785670167:android:f0014e5765e42286a43e52",
+        "android_client_info": {
+          "package_name": "secure.kidsguard.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1079785670167-0mm33corc1kg83p82qkteukcgnntnreg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCm3iHEZZmsUaKUOv8lTZtZzWq-hVsuxA8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1079785670167-0mm33corc1kg83p82qkteukcgnntnreg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -17,7 +17,9 @@ import {
   Zap,
   Play,
   RotateCcw,
-  CloudOff
+  CloudOff,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -27,7 +29,6 @@ import { DailySummaryRepository, DailySummary } from '@/lib/repositories/DailySu
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
-import { CloudOff, CheckCircle2, Info } from 'lucide-react';
 
 export default function ChildDashboard() {
   const params = useParams();
