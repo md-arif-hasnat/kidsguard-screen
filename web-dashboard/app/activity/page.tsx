@@ -23,11 +23,16 @@ export default function ActivityPage() {
     return () => unsubscribe();
   }, [childId]);
 
-  const displayEvents = isFirebaseConfigured && events.length > 0 ? events : MOCK_ACTIVITY;
+  const displayEvents = isFirebaseConfigured ? events : MOCK_ACTIVITY;
 
   return (
     <DashboardLayout>
-      <h1 className="text-3xl font-bold mb-8">Activity Feed</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Activity Feed</h1>
+        {isFirebaseConfigured && (
+            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase">Realtime Sync Active</span>
+        )}
+      </div>
 
       {!isFirebaseConfigured && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
@@ -44,7 +49,7 @@ export default function ActivityPage() {
           <h2 className="font-bold">Recent Safety Events</h2>
         </div>
         <div className="divide-y divide-slate-100">
-          {displayEvents.map((item: any) => (
+          {displayEvents.length > 0 ? displayEvents.map((item: any) => (
             <div key={item.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-4">
                 <div className="w-2 h-2 rounded-full bg-primary-500" />
@@ -60,7 +65,11 @@ export default function ActivityPage() {
                 {item.type?.replace('_', ' ') || "INFO"}
               </span>
             </div>
-          ))}
+          )) : (
+            <div className="p-12 text-center text-slate-400 italic font-medium">
+                No activity recorded yet for this device.
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

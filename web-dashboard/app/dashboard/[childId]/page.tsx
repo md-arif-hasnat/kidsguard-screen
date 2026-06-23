@@ -29,6 +29,12 @@ import { DailySummaryRepository, DailySummary } from '@/lib/repositories/DailySu
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -167,7 +173,7 @@ export default function ChildDashboard() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Battery Status</div>
           <div className="flex items-center gap-3">
-            <Battery className="text-primary-500" size={24} />
+            <Battery className={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} size={24} />
             <span className="text-2xl font-bold">{displayData.battery}%</span>
             {displayData.isCharging && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Charging</span>}
           </div>
@@ -175,7 +181,7 @@ export default function ChildDashboard() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Last Seen</div>
           <div className="flex items-center gap-3">
-            <Zap className="text-yellow-500" size={24} />
+            <Zap className={status?.online ? "text-yellow-500" : "text-slate-400"} size={24} />
             <span className="text-2xl font-bold text-slate-700">{displayData.lastSeen}</span>
           </div>
         </div>
@@ -183,7 +189,7 @@ export default function ChildDashboard() {
           <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Current Zone</div>
           <div className="flex items-center gap-3">
             <MapPin className="text-green-500" size={24} />
-            <span className="text-2xl font-bold text-slate-700">{displayData.currentZone}</span>
+            <span className="text-2xl font-bold text-slate-700 truncate">{displayData.currentZone}</span>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -205,10 +211,26 @@ export default function ChildDashboard() {
                 deviations={displayDeviations}
                 followChild={true}
             />
-            <div className="absolute top-4 right-4 bg-white p-3 rounded-lg shadow-md border border-slate-100 z-10">
-               <p className="text-xs font-bold text-slate-400 uppercase">Status</p>
-               <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
+            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
+               <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
+               <div className="flex items-center gap-2">
+                  <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
+                  <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
+               </div>
             </div>
+          </section>
+
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+             <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <ShieldCheck className="text-primary-600" />
+                Live Telemetry Panel
+             </h2>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
+                <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
+                <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
+                <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
+             </div>
           </section>
 
           <section className="bg-primary-600 rounded-2xl p-8 text-white shadow-xl shadow-primary-100">
@@ -285,5 +307,20 @@ function ControlBtn({ icon: Icon, label, onClick, color }: any) {
             <Icon size={18} className={color} />
             <span className="text-sm font-bold text-slate-700">{label}</span>
         </button>
+    )
+}
+
+function TelemetryItem({ label, value, status }: { label: string, value: string, status: 'healthy' | 'warning' | 'offline' }) {
+    return (
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</p>
+            <div className="flex items-center gap-2">
+                <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    status === 'healthy' ? "bg-green-500" : status === 'warning' ? "bg-orange-500" : "bg-red-500"
+                )} />
+                <span className="text-sm font-black text-slate-700">{value}</span>
+            </div>
+        </div>
     )
 }

@@ -10,10 +10,14 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { User } from 'firebase/auth';
+import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
+import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
+  const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
+  const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -55,6 +59,28 @@ export default function Home() {
     }
   }, [user]);
 
+  // Listen to status and SOS for all children in family
+  useEffect(() => {
+    if (!family || !isFirebaseConfigured) return;
+
+    const unsubStatus = family.childDeviceIds.map(id =>
+      ChildRepository.listenToChildStatus(id, (status) => {
+        if (status) setChildrenStatus(prev => ({ ...prev, [id]: status }));
+      })
+    );
+
+    const unsubSos = family.childDeviceIds.map(id =>
+      SosRepository.listenToSosEvents(id, (events) => {
+        setChildrenSos(prev => ({ ...prev, [id]: events }));
+      })
+    );
+
+    return () => {
+      unsubStatus.forEach(unsub => unsub());
+      unsubSos.forEach(unsub => unsub());
+    };
+  }, [family]);
+
   const handlePairChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!family || !pairingCode) return;
@@ -77,8 +103,20 @@ export default function Home() {
     }
   };
 
-  const useMockData = !isFirebaseConfigured;
-  const activeSos = useMockData ? MOCK_SOS.filter(s => !s.resolved) : []; // Future: Implement real multi-child SOS listener
+  const useMockData = !isFirebaseConfigured || !user;
+
+  const activeSosEvents = useMockData
+    ? MOCK_SOS.filter(s => !s.resolved).map(s => ({
+        ...s,
+        name: s.childName,
+        childId: MOCK_CHILDREN[0].id // Link mock SOS to first mock child
+      }))
+    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE").map(e => ({
+        ...e,
+        name: childrenStatus[e.childId]?.childName || "Unknown Child",
+        location: e.latitude ? `${e.latitude.toFixed(4)}, ${e.longitude?.toFixed(4)}` : "Unknown Location"
+      }));
+
   const isLive = isFirebaseConfigured && !!user && !!family;
   const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
 
@@ -197,7 +235,7 @@ export default function Home() {
         </div>
       )}
 
-      {activeSos.length > 0 && !noChildrenPaired && (
+      {activeSosEvents.length > 0 && !noChildrenPaired && (
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 animate-pulse">
@@ -205,10 +243,15 @@ export default function Home() {
             </div>
             <div>
               <h2 className="text-red-900 font-bold text-lg">ACTIVE SOS ALERT</h2>
-              <p className="text-red-700 font-medium">{activeSos[0].childName} triggered an SOS at {activeSos[0].location}</p>
+              <p className="text-red-700 font-medium">
+                {activeSosEvents[0].name} triggered an SOS at {activeSosEvents[0].location}
+              </p>
             </div>
           </div>
-          <button className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors">
+          <button
+            onClick={() => router.push(`/dashboard/${activeSosEvents[0].childId}`)}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors"
+          >
             View Details
           </button>
         </div>

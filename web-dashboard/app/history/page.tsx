@@ -28,7 +28,7 @@ export default function HistoryPage() {
     return () => unsubHistory();
   }, [selectedChildId, date]);
 
-  const displayRoute = isFirebaseConfigured && routeHistory.length > 0 ? routeHistory.map(p => ({
+  const displayRoute = isFirebaseConfigured ? routeHistory.map(p => ({
     lat: p.latitude,
     lng: p.longitude
   })) : MOCK_ROUTE_HISTORY;
@@ -43,6 +43,9 @@ export default function HistoryPage() {
               <CloudOff size={16} className="text-yellow-600" />
               <span className="text-yellow-700 text-xs font-bold uppercase">Mock Mode</span>
             </div>
+          )}
+          {isFirebaseConfigured && (
+            <span className="text-xs font-bold text-slate-400 bg-slate-100 flex items-center px-3 rounded-lg uppercase">Cloud Archival Active</span>
           )}
           <div className="relative">
             <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
@@ -64,7 +67,7 @@ export default function HistoryPage() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
             <LiveMap
                 childLocation={null}
-                safeZones={MOCK_SAFE_ZONES}
+                safeZones={isFirebaseConfigured ? [] : MOCK_SAFE_ZONES}
                 routeHistory={displayRoute}
                 deviations={[]}
                 followChild={false}
@@ -75,6 +78,11 @@ export default function HistoryPage() {
                     <span className="text-sm font-bold text-slate-700">Replaying {displayRoute.length} points</span>
                 </div>
             )}
+            {displayRoute.length === 0 && isFirebaseConfigured && (
+                <div className="absolute inset-0 bg-slate-50 flex items-center justify-center text-slate-400 font-medium italic">
+                    No route history found for this date.
+                </div>
+            )}
         </div>
 
         <div className="space-y-6 overflow-y-auto">
@@ -83,15 +91,15 @@ export default function HistoryPage() {
                 <div className="space-y-4">
                     <div className="flex justify-between text-sm">
                         <span className="text-slate-500">Total Distance</span>
-                        <span className="font-bold">3.2 km</span>
+                        <span className="font-bold">{isFirebaseConfigured ? "--" : "3.2 km"}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-slate-500">Active Duration</span>
-                        <span className="font-bold">42 mins</span>
+                        <span className="font-bold">{isFirebaseConfigured ? "--" : "42 mins"}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-slate-500">Avg. Speed</span>
-                        <span className="font-bold">4.5 km/h</span>
+                        <span className="font-bold">{isFirebaseConfigured ? "--" : "4.5 km/h"}</span>
                     </div>
                 </div>
             </div>
@@ -99,12 +107,16 @@ export default function HistoryPage() {
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                 <h3 className="font-bold text-slate-900 mb-4">Known Routes</h3>
                 <div className="space-y-2">
-                    {["Home → School", "School → Playground"].map((route) => (
-                        <div key={route} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-colors cursor-pointer">
-                            <span className="text-xs font-bold text-slate-700">{route}</span>
-                            <Play size={12} className="text-slate-400 group-hover:text-primary-500" />
-                        </div>
-                    ))}
+                    {isFirebaseConfigured ? (
+                        <p className="text-xs text-slate-400 italic">Analysis pending...</p>
+                    ) : (
+                        ["Home → School", "School → Playground"].map((route) => (
+                            <div key={route} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-colors cursor-pointer">
+                                <span className="text-xs font-bold text-slate-700">{route}</span>
+                                <Play size={12} className="text-slate-400 group-hover:text-primary-500" />
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

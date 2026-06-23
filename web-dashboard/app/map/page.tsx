@@ -92,8 +92,9 @@ export default function MapPage() {
     lat: currentChildLocation.latitude,
     lng: currentChildLocation.longitude,
     accuracy: currentChildLocation.accuracy,
+    speed: currentChildLocation.speed,
     timestamp: currentChildLocation.timestamp
-  } : (mockActiveChild ? { lat: mockActiveChild.lat, lng: mockActiveChild.lng, accuracy: 20 } : null);
+  } : (mockActiveChild ? { lat: mockActiveChild.lat, lng: mockActiveChild.lng, accuracy: 20, speed: 0 } : null);
 
   const displayZones = isFirebaseConfigured ? safeZones.map(z => ({
     id: z.id,
@@ -189,7 +190,10 @@ export default function MapPage() {
                                 <p className="text-xs font-medium text-primary-700">
                                     Lat: {displayLocation.lat.toFixed(5)}, Lng: {displayLocation.lng.toFixed(5)}
                                 </p>
-                                <p className="text-[10px] text-primary-500 mt-0.5">Accuracy: ±{displayLocation.accuracy.toFixed(1)}m</p>
+                                <div className="flex gap-4 mt-0.5">
+                                    <p className="text-[10px] text-primary-500">Accuracy: ±{displayLocation.accuracy.toFixed(1)}m</p>
+                                    <p className="text-[10px] text-primary-500">Speed: {((displayLocation as any).speed || 0).toFixed(1)} m/s</p>
+                                </div>
                             </div>
                         </div>
                     )}
