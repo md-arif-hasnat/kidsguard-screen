@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
-import { MOCK_CHILDREN, MOCK_SOS } from '@/lib/mockData';
+import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
 import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
@@ -12,12 +12,14 @@ import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepositor
 import { User } from 'firebase/auth';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
+  const [childrenActivities, setChildrenActivities] = useState<Record<string, ActivityEvent[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -77,9 +79,16 @@ export default function Home() {
       })
     );
 
+    const unsubActivity = family.childDeviceIds.map(id =>
+      ActivityRepository.listenToActivity(id, (events) => {
+        setChildrenActivities(prev => ({ ...prev, [id]: events }));
+      })
+    );
+
     return () => {
       unsubStatus.forEach(unsub => unsub());
       unsubSos.forEach(unsub => unsub());
+      unsubActivity.forEach(unsub => unsub());
     };
   }, [family]);
 
@@ -122,6 +131,10 @@ export default function Home() {
 
   const isLive = isFirebaseConfigured && !!user && !!family;
   const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
+
+  const allActivities = useMockData
+    ? MOCK_ACTIVITY
+    : Object.values(childrenActivities).flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
 
   if (loading && isFirebaseConfigured) {
     return (
@@ -311,22 +324,16 @@ export default function Home() {
                 </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                {useMockData ? (
-                  <>
-                    <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-medium">Sam</td>
-                        <td className="px-6 py-4">Battery Low (15%)</td>
-                        <td className="px-6 py-4">School</td>
-                        <td className="px-6 py-4 text-slate-500">10:30 AM</td>
-                    </tr>
-                    <tr className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-medium">Alex</td>
-                        <td className="px-6 py-4">Entered Home</td>
-                        <td className="px-6 py-4">Home</td>
-                        <td className="px-6 py-4 text-slate-500">09:12 AM</td>
-                    </tr>
-                  </>
-                ) : (
+                {allActivities.length > 0 ? allActivities.map((item: any) => (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 font-medium">{childrenStatus[item.childId]?.childName || "Child"}</td>
+                      <td className="px-6 py-4">{item.title}</td>
+                      <td className="px-6 py-4">{item.description || "System Alert"}</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                      </td>
+                  </tr>
+                )) : (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No recent alerts recorded.</td>
                   </tr>

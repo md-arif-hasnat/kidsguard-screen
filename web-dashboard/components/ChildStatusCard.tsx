@@ -6,6 +6,7 @@ import { Battery, BatteryCharging, Signal, MapPin, Lock, Unlock } from 'lucide-r
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -22,21 +23,31 @@ interface ChildStatusCardProps {
     lastSeen: string;
     currentZone: string;
     status: string;
+    sos?: boolean;
   };
   childId?: string;
 }
 
 const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, childId }) => {
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
 
   useEffect(() => {
     if (childId) {
-      const unsubscribe = ChildRepository.listenToChildStatus(childId, (data) => {
+      const unsubStatus = ChildRepository.listenToChildStatus(childId, (data) => {
         setStatus(data);
       });
-      return () => unsubscribe();
+      const unsubSos = SosRepository.listenToSosEvents(childId, (events) => {
+        setSosEvents(events);
+      });
+      return () => {
+        unsubStatus();
+        unsubSos();
+      };
     }
   }, [childId]);
+
+  const isSosActive = sosEvents.some(e => e.status === "ACTIVE");
 
   const displayChild = childId ? {
     id: childId,
@@ -47,7 +58,8 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
     online: status?.online || false,
     lastSeen: status?.lastSeen ? new Date(status.lastSeen).toLocaleTimeString() : "Updating...",
     currentZone: status?.currentZone || "Unknown",
-    status: status?.kidGuardActive ? "LOCKED" : "UNLOCKED"
+    status: status?.kidGuardActive ? "LOCKED" : "UNLOCKED",
+    sos: isSosActive
   } : mockChild;
 
   if (!displayChild) return null;
@@ -79,6 +91,12 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
                   {displayChild.online ? 'Online' : 'Offline'}
                 </span>
               </div>
+              {displayChild.sos && (
+                <div className="flex items-center gap-1 mt-1">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[10px] text-red-600 font-black uppercase">Active SOS</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="text-right text-xs text-slate-400 font-medium">

@@ -87,8 +87,8 @@ export default function ChildDashboard() {
     lat: location?.latitude || 0,
     lng: location?.longitude || 0,
     accuracy: location?.accuracy || 20,
-    activities: activities.length > 0 ? activities : MOCK_ACTIVITY,
-    summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : MOCK_SUMMARY,
+    activities: activities,
+    summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : null,
     avatarId: status?.avatarId,
     isLoading: status === null
   } : {
@@ -289,20 +289,26 @@ export default function ChildDashboard() {
               <ShieldCheck size={24} />
               <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
             </div>
-            <div className="flex items-start gap-6">
-              <div className="text-4xl font-black bg-white/20 w-24 h-24 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                {displayData.summary.score}
+            {displayData.summary ? (
+              <div className="flex items-start gap-6">
+                <div className="text-4xl font-black bg-white/20 w-24 h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
+                  {displayData.summary.score}
+                </div>
+                <div>
+                  <p className="text-primary-100 font-medium leading-relaxed italic">
+                    &quot;{displayData.summary.text}&quot;
+                  </p>
+                  <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
+                    View Full Report
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
-              <div>
-                <p className="text-primary-100 font-medium leading-relaxed italic">
-                  &quot;{displayData.summary.text}&quot;
-                </p>
-                <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
-                  View Full Report
-                  <ChevronRight size={16} />
-                </button>
+            ) : (
+              <div className="py-4 text-center">
+                  <p className="text-primary-100 italic">No safety summary generated for today yet. Data is analyzed every evening.</p>
               </div>
-            </div>
+            )}
           </section>
         </div>
 
@@ -316,7 +322,7 @@ export default function ChildDashboard() {
               <button className="text-xs font-bold text-primary-600">View All</button>
             </div>
             <div className="space-y-6">
-              {displayData.activities.map((item: any) => (
+              {displayData.activities.length > 0 ? displayData.activities.map((item: any) => (
                 <div key={item.id} className="flex gap-4 items-start">
                   <div className="w-1 bg-slate-100 self-stretch rounded-full mt-2 ml-2" />
                   <div className="flex-1">
@@ -327,7 +333,9 @@ export default function ChildDashboard() {
                     {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="text-center py-8 text-slate-400 italic text-sm">No activity recorded today.</p>
+              )}
             </div>
           </section>
 
