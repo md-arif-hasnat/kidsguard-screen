@@ -38,6 +38,16 @@ fun ChildSetupScreen(
     var code by remember { mutableStateOf(prefHelper.pairingCode) }
     var isGenerating by remember { mutableStateOf(false) }
 
+    val trimmedName = name.trim()
+    val isNameValid = trimmedName.length in 2..30
+    val nameErrorMessage = when {
+        name.isEmpty() -> null
+        trimmedName.isEmpty() -> "Child name is required."
+        trimmedName.length < 2 -> "Name is too short (min 2 characters)."
+        trimmedName.length > 30 -> "Name is too long (max 30 characters)."
+        else -> null
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,13 +85,19 @@ fun ChildSetupScreen(
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = { if (it.length <= 35) name = it },
                 label = { Text("Child's Name") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                isError = nameErrorMessage != null,
+                supportingText = {
+                    if (nameErrorMessage != null) {
+                        Text(text = nameErrorMessage, color = MaterialTheme.colorScheme.error)
+                    }
+                }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -95,8 +111,8 @@ fun ChildSetupScreen(
             if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
                 Button(
                     onClick = {
-                        if (name.isNotBlank()) {
-                            prefHelper.childName = name
+                        if (isNameValid) {
+                            prefHelper.childName = trimmedName
                             scope.launch {
                                 isGenerating = true
                                 val newCode = authRepository.generatePairingCode()
@@ -116,7 +132,7 @@ fun ChildSetupScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    enabled = name.isNotBlank() && !isGenerating
+                    enabled = isNameValid && !isGenerating
                 ) {
                     if (isGenerating) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
@@ -133,17 +149,23 @@ fun ChildSetupScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = {
-                    scope.launch {
-                        isGenerating = true
-                        val newCode = authRepository.generatePairingCode()
-                        if (newCode != null) {
-                            code = newCode
-                            prefHelper.pairingCode = newCode
+                TextButton(
+                    onClick = {
+                        if (isNameValid) {
+                            prefHelper.childName = trimmedName
+                            scope.launch {
+                                isGenerating = true
+                                val newCode = authRepository.generatePairingCode()
+                                if (newCode != null) {
+                                    code = newCode
+                                    prefHelper.pairingCode = newCode
+                                }
+                                isGenerating = false
+                            }
                         }
-                        isGenerating = false
-                    }
-                }) {
+                    },
+                    enabled = isNameValid && !isGenerating
+                ) {
                     Text("Regenerate Code")
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -173,7 +195,10 @@ fun ChildSetupScreen(
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
-                TextButton(onClick = onSetupComplete) {
+                TextButton(
+                    onClick = onSetupComplete,
+                    enabled = isNameValid
+                ) {
                     Text("Skip to Dashboard (Mock Connect)")
                 }
             }
