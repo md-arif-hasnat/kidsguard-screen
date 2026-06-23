@@ -8,7 +8,8 @@ enum class UserRole { PARENT, CHILD, NONE }
 data class SafeZone(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val type: String = "Custom", // Home, School, Playground, Mosque, Grandma, Custom
+    val type: String = "Custom", // Home, School, Playground, Relative House, Custom
+    val address: String = "",
     val latitude: Double,
     val longitude: Double,
     val radiusMeters: Double,

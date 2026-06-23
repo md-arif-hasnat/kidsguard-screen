@@ -101,7 +101,8 @@ export default function MapPage() {
     name: z.name,
     lat: z.latitude,
     lng: z.longitude,
-    radius: z.radiusMeters
+    radius: z.radiusMeters,
+    type: z.type
   })) : MOCK_SAFE_ZONES;
 
   const displayRoute = isFirebaseConfigured ? routeHistory.map(p => ({

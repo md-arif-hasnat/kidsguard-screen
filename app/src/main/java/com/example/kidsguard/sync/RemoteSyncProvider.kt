@@ -21,6 +21,7 @@ interface RemoteSyncProvider {
     fun getDailySummary(childId: String, date: Long): kotlinx.coroutines.flow.Flow<com.example.kidsguard.ai.DailySummary?>
     fun sendCommand(command: SyncRemoteCommand)
     fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>>
+    fun getSafeZones(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>>
 
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -155,6 +156,15 @@ class LocalMockSyncProvider : RemoteSyncProvider {
 
     override fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>> {
         return kotlinx.coroutines.flow.flowOf(listOf("mock_child_001", "mock_child_002"))
+    }
+
+    override fun getSafeZones(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>> {
+        return kotlinx.coroutines.flow.flowOf(
+            listOf(
+                com.example.kidsguard.models.SafeZone(id = "zone_1", name = "Home", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 500.0),
+                com.example.kidsguard.models.SafeZone(id = "zone_2", name = "School", type = "School", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0)
+            )
+        )
     }
 
     // Testing helper to simulate a remote command

@@ -12,7 +12,8 @@ import {
   History,
   Settings,
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  MapPin
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -29,6 +30,7 @@ const Sidebar = () => {
   const navItems = [
     { name: 'Family Overview', href: '/', icon: Users },
     { name: 'Live Map', href: '/map', icon: MapIcon },
+    { name: 'Safe Zones', href: '/settings/safe-zones', icon: MapPin },
     { name: 'Activity Feed', href: '/activity', icon: Activity },
     { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
     { name: 'History', href: '/history', icon: History },

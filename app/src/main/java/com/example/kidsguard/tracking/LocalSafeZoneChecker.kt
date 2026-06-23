@@ -30,11 +30,16 @@ class LocalSafeZoneChecker(
             if (currentlyInside && !previouslyInside) {
                 // Entered Zone
                 if (zone.notifyOnEnter) {
+                    val title = if (zone.type == "Home" || zone.type == "School") {
+                        "Arrived at ${zone.type}"
+                    } else {
+                        "Entered ${zone.name}"
+                    }
                     val body = "${prefHelper.childName.ifEmpty { "Child" }} arrived at ${zone.name}"
                     
                     safeZoneRepository.addEvent(ActivityEvent(
                         type = "SAFE_ZONE_ENTER",
-                        title = "Entered ${zone.name}",
+                        title = title,
                         description = "Smart Safe Zone detected entry",
                         latitude = point.latitude,
                         longitude = point.longitude
@@ -47,11 +52,16 @@ class LocalSafeZoneChecker(
             } else if (!currentlyInside && previouslyInside) {
                 // Left Zone
                 if (zone.notifyOnExit) {
+                    val title = if (zone.type == "Home" || zone.type == "School") {
+                        "Left ${zone.type}"
+                    } else {
+                        "Left ${zone.name}"
+                    }
                     val body = "${prefHelper.childName.ifEmpty { "Child" }} left ${zone.name}"
 
                     safeZoneRepository.addEvent(ActivityEvent(
                         type = "SAFE_ZONE_EXIT",
-                        title = "Left ${zone.name}",
+                        title = title,
                         description = "Smart Safe Zone detected exit",
                         latitude = point.latitude,
                         longitude = point.longitude

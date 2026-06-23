@@ -4,6 +4,7 @@ import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncActivityEvent
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -17,21 +18,13 @@ class SafeZoneRepository {
     private var syncProvider: RemoteSyncProvider? = null
     private var childId: String? = null
     private var familyId: String? = null
+    private var syncJob: kotlinx.coroutines.Job? = null
 
     init {
-        // Mock data for Safe Zones
+        // Mock initial data
         _safeZones.value = listOf(
-            SafeZone(name = "Home", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 500.0),
-            SafeZone(name = "School", type = "School", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0),
-            SafeZone(name = "Playground", type = "Playground", latitude = 37.7649, longitude = -122.4094, radiusMeters = 1000.0)
-        )
-        
-        // Mock data for Activity Feed
-        _activityEvents.value = listOf(
-            ActivityEvent(type = "KID_MODE_DISABLED", title = "Kid Mode Disabled", description = "Manual unlock", timestamp = System.currentTimeMillis() - 1000 * 60 * 10),
-            ActivityEvent(type = "SAFE_ZONE_ENTER", title = "Entered Home", description = "Smart Safe Zone", timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 2),
-            ActivityEvent(type = "SAFE_ZONE_EXIT", title = "Left School", description = "Smart Safe Zone", timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 4),
-            ActivityEvent(type = "KID_MODE_ENABLED", title = "Kid Mode Enabled", description = "Scheduled lock", timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 8)
+            SafeZone(name = "Home", type = "Home", address = "Musterstraße 10, 41236 Mönchengladbach", latitude = 37.7749, longitude = -122.4194, radiusMeters = 300.0),
+            SafeZone(name = "School", type = "School", address = "Example School, Mönchengladbach", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0)
         )
     }
 
@@ -39,6 +32,20 @@ class SafeZoneRepository {
         this.syncProvider = provider
         this.childId = id
         this.familyId = familyId
+        
+        if (familyId != null && familyId.isNotEmpty()) {
+            startSync(familyId)
+        }
+    }
+
+    private fun startSync(familyId: String) {
+        syncJob?.cancel()
+        syncJob = kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            syncProvider?.getSafeZones(familyId)?.collect { zones ->
+                _safeZones.value = zones
+                android.util.Log.d("SafeZoneRepo", "Received ${zones.size} zones from Firebase")
+            }
+        }
     }
 
     fun addSafeZone(zone: SafeZone) {

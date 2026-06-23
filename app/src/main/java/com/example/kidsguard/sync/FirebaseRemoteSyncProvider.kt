@@ -416,6 +416,32 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             
         awaitClose { registration.remove() }
     }
+
+    override fun getSafeZones(familyId: String): Flow<List<com.example.kidsguard.models.SafeZone>> = callbackFlow {
+        if (familyId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_FAMILIES)
+            .document(familyId)
+            .collection(FirebaseConfig.COL_SAFE_ZONES)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for safe zones", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    val zones = snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
+                    trySend(zones)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
     
     // Future placeholders for Messaging
     fun registerFcmToken(token: String) {

@@ -60,7 +60,7 @@ export const normalizeMapPath = (points: any[]): { lat: number; lng: number }[] 
 interface LiveMapProps {
   childLocation: { lat: number; lng: number; accuracy: number; timestamp?: number } | null;
   avatarId?: string | null;
-  safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number }>;
+  safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number, type?: string }>;
   routeHistory: Array<{ lat: number; lng: number }>;
   deviations: Array<{ id: string; lat: number; lng: number; message: string; time: string; severity: string }>;
   followChild: boolean;
@@ -183,16 +183,31 @@ const LiveMap: React.FC<LiveMapProps> = ({
         const center = normalizeMapPoint(zone);
         if (!center) return null;
 
+        const iconUrl = zone.type === 'Home'
+            ? "https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+            : zone.type === 'School'
+            ? "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+            : "https://maps.google.com/mapfiles/ms/icons/green-dot.png";
+
         return (
           <React.Fragment key={zone.id}>
+            <Marker
+              position={center}
+              icon={{
+                url: iconUrl,
+                scaledSize: new google.maps.Size(32, 32)
+              }}
+              title={zone.name}
+              onClick={() => setSelectedZone(zone)}
+            />
             <Circle
               center={center}
               radius={zone.radius || 100}
               onClick={() => setSelectedZone(zone)}
               options={{
-                fillColor: "#22c55e",
+                fillColor: zone.type === 'Home' ? "#3b82f6" : zone.type === 'School' ? "#f59e0b" : "#22c55e",
                 fillOpacity: 0.1,
-                strokeColor: "#22c55e",
+                strokeColor: zone.type === 'Home' ? "#3b82f6" : zone.type === 'School' ? "#f59e0b" : "#22c55e",
                 strokeOpacity: 0.8,
                 strokeWeight: 2,
               }}
@@ -204,7 +219,8 @@ const LiveMap: React.FC<LiveMapProps> = ({
               >
                   <div className="p-1">
                       <p className="font-bold text-slate-900">{zone.name}</p>
-                      <p className="text-xs text-slate-500">Radius: {zone.radius}m</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">{zone.type}</p>
+                      <p className="text-xs text-slate-500 mt-1">Radius: {zone.radius}m</p>
                   </div>
               </InfoWindow>
             )}
