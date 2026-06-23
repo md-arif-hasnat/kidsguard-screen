@@ -22,6 +22,7 @@ data class PairingCodeDoc(
     val deviceId: String = "",
     val childName: String = "",
     val deviceName: String = "",
+    val avatarId: String = "avatar_1",
     val firebaseUid: String = "",
     val createdAt: Timestamp? = null,
     val expiresAt: Timestamp? = null,

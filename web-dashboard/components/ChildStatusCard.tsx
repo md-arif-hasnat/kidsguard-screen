@@ -15,6 +15,7 @@ interface ChildStatusCardProps {
   child?: {
     id: string;
     name: string;
+    avatarId?: string;
     battery: number;
     isCharging: boolean;
     online: boolean;
@@ -40,6 +41,7 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
   const displayChild = childId ? {
     id: childId,
     name: status?.childName || "Loading...",
+    avatarId: status?.avatarId || "avatar_1",
     battery: status?.batteryPercent || 0,
     isCharging: status?.charging || false,
     online: status?.online || false,
@@ -55,8 +57,16 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow cursor-pointer">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg">
-              {displayChild.name[0]}
+            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg overflow-hidden border-2 border-primary-200">
+              {displayChild.avatarId ? (
+                <img
+                  src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayChild.avatarId}`}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                displayChild.name[0]
+              )}
             </div>
             <div>
               <h3 className="font-bold text-lg">{displayChild.name}</h3>

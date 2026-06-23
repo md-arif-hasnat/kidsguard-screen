@@ -99,6 +99,10 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getString("child_name", "") ?: ""
         set(value) = prefs.edit().putString("child_name", value).apply()
 
+    var avatarId: String
+        get() = prefs.getString("avatar_id", "avatar_1") ?: "avatar_1"
+        set(value) = prefs.edit().putString("avatar_id", value).apply()
+
     var deviceName: String
         get() = prefs.getString("device_name", android.os.Build.MODEL) ?: android.os.Build.MODEL
         set(value) = prefs.edit().putString("device_name", value).apply()

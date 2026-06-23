@@ -4,6 +4,7 @@ import { doc, onSnapshot, collection } from "firebase/firestore";
 export interface ChildStatus {
   childId: string;
   childName: string;
+  avatarId?: string;
   batteryPercent: number;
   charging: boolean;
   online: boolean;

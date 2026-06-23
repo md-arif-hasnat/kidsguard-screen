@@ -102,14 +102,16 @@ export class FamilyRepository {
         childId,
         deviceId,
         name: pairingData.childName || "Unnamed Child",
+        avatarId: pairingData.avatarId || "avatar_1",
         familyId: familyId,
         pairedAt: serverTimestamp(),
         lastSeen: serverTimestamp()
     }, { merge: true });
 
-    // 4. Mark code as used
+    // 4. Mark code as used and store familyId for the child to pick up
     await updateDoc(codeRef, {
-        used: true
+        used: true,
+        familyId: familyId
     });
 
     console.log(`WEB: Pairing successful for child ${childId}`);

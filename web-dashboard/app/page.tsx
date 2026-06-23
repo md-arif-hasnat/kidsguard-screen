@@ -25,6 +25,8 @@ export default function Home() {
   const [isPairing, setIsPairing] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
 
+  const [showPairingForm, setShowPairingForm] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export default function Home() {
       const success = await FamilyRepository.pairChild(family.familyId, pairingCode);
       if (success) {
         setPairingCode('');
+        setShowPairingForm(false);
         // Family listener will update UI
       } else {
         setPairingError("Invalid or expired pairing code. Please generate a new code on the child's device.");
@@ -203,14 +206,26 @@ export default function Home() {
         </p>
       </header>
 
-      {noChildrenPaired && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center mb-8 shadow-sm">
+      {(noChildrenPaired || showPairingForm) && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center mb-8 shadow-sm relative">
+            {showPairingForm && !noChildrenPaired && (
+              <button
+                onClick={() => setShowPairingForm(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold"
+              >
+                Close
+              </button>
+            )}
             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
                 <Smartphone size={40} />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">No Child Connected Yet</h2>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">
+              {noChildrenPaired ? "No Child Connected Yet" : "Pair Another Child"}
+            </h2>
             <p className="text-slate-500 max-w-md mx-auto mb-8">
-                Your family vault is ready, but you haven&apos;t linked any devices.
+                {noChildrenPaired
+                  ? "Your family vault is ready, but you haven't linked any devices."
+                  : "Link another device to your family vault."}
                 Open the KidsGuard app on your child&apos;s phone to get a pairing code.
             </p>
 
@@ -270,7 +285,7 @@ export default function Home() {
             ) : null}
 
             <div
-                onClick={() => setPairingCode('')} // In a real app this might open a modal
+                onClick={() => setShowPairingForm(true)}
                 className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[200px]"
             >
             <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">

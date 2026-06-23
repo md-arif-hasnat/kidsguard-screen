@@ -85,12 +85,16 @@ export default function ChildDashboard() {
     lng: location?.longitude || 0,
     accuracy: location?.accuracy || 20,
     activities: activities.length > 0 ? activities : MOCK_ACTIVITY,
-    summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : MOCK_SUMMARY
+    summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : MOCK_SUMMARY,
+    avatarId: status?.avatarId || "avatar_1",
+    isLoading: status === null
   } : {
     ...mockChild,
     accuracy: 20,
     activities: MOCK_ACTIVITY,
-    summary: MOCK_SUMMARY
+    summary: MOCK_SUMMARY,
+    avatarId: (mockChild as any).avatarId || "avatar_1",
+    isLoading: false
   };
 
   const handleCommand = async (type: CommandType) => {
@@ -147,9 +151,18 @@ export default function ChildDashboard() {
       )}
 
       <header className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">{displayData.name}&apos;s Dashboard</h1>
-          <p className="text-slate-500 font-medium">Child Device: {childId}</p>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl overflow-hidden border-2 border-primary-200">
+             <img
+               src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayData.avatarId}`}
+               alt="avatar"
+               className="w-full h-full object-cover"
+             />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">{displayData.name}&apos;s Dashboard</h1>
+            <p className="text-slate-500 font-medium">Child Device: {childId}</p>
+          </div>
         </div>
         <div className="flex gap-3">
           <button
@@ -204,20 +217,28 @@ export default function ChildDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[450px] relative">
-            <LiveMap
-                childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
-                safeZones={displayZones}
-                routeHistory={displayRoute}
-                deviations={displayDeviations}
-                followChild={true}
-            />
-            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
-               <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
-               <div className="flex items-center gap-2">
-                  <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
-                  <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
-               </div>
-            </div>
+            {displayData.isLoading ? (
+                <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
+                    <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
+                </div>
+            ) : (
+                <>
+                <LiveMap
+                    childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
+                    safeZones={displayZones}
+                    routeHistory={displayRoute}
+                    deviations={displayDeviations}
+                    followChild={true}
+                />
+                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
+                    <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
+                </div>
+                </div>
+                </>
+            )}
           </section>
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

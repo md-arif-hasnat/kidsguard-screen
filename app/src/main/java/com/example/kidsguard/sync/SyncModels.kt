@@ -34,6 +34,7 @@ data class SyncFamily(
 data class SyncChildStatus(
     val childId: String,
     val childName: String,
+    val avatarId: String = "avatar_1",
     val deviceId: String = "",
     val deviceName: String = "",
     val batteryPercent: Int,

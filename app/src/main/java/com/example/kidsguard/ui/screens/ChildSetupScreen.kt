@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
@@ -23,6 +24,15 @@ import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.filled.*
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChildSetupScreen(
@@ -36,7 +46,33 @@ fun ChildSetupScreen(
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(prefHelper.childName) }
     var code by remember { mutableStateOf(prefHelper.pairingCode) }
+    var avatarId by remember { mutableStateOf(prefHelper.avatarId) }
     var isGenerating by remember { mutableStateOf(false) }
+    var isPaired by remember { mutableStateOf(false) }
+
+    val avatars = listOf("avatar_1", "avatar_2", "avatar_3", "avatar_4", "avatar_5", "avatar_6")
+
+    // Listen for pairing completion
+    DisposableEffect(code) {
+        var listener: ListenerRegistration? = null
+        if (code.isNotEmpty() && !code.startsWith("MOCK-")) {
+            val db = FirebaseFirestore.getInstance()
+            listener = db.collection("pairingCodes").document(code)
+                .addSnapshotListener { snapshot, e ->
+                    if (snapshot != null && snapshot.exists()) {
+                        val used = snapshot.getBoolean("used") ?: false
+                        if (used) {
+                            isPaired = true
+                            prefHelper.familyId = snapshot.getString("familyId")
+                            prefHelper.pairedChildId = snapshot.getString("childId")
+                        }
+                    }
+                }
+        }
+        onDispose {
+            listener?.remove()
+        }
+    }
 
     val trimmedName = name.trim()
     val isNameValid = trimmedName.length in 2..30
@@ -81,7 +117,40 @@ fun ChildSetupScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text("Select Avatar", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                avatars.forEach { id ->
+                    val isSelected = avatarId == id
+                    Surface(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clickable { 
+                                avatarId = id
+                                prefHelper.avatarId = id
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = id.replace("avatar_", ""),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
                 value = name,
@@ -108,7 +177,35 @@ fun ChildSetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
+            if (isPaired) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(100.dp),
+                    tint = Color.Green
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Connected Successfully!",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Green
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Your device is now linked to your parent's dashboard.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 32.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = onSetupComplete,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Go to Dashboard")
+                }
+            } else if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
                 Button(
                     onClick = {
                         if (isNameValid) {

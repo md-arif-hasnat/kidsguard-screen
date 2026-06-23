@@ -40,7 +40,7 @@ export const normalizeMapPoint = (point: any): { lat: number; lng: number } | nu
     lng = point._long;
   }
 
-  if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+  if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
     return { lat, lng };
   }
 
@@ -73,6 +73,10 @@ const LiveMap: React.FC<LiveMapProps> = ({
   followChild
 }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  useEffect(() => {
+    console.log("LiveMap props:", { childLocation, hasSafeZones: safeZones.length, routePoints: routeHistory.length, followChild });
+  }, [childLocation, safeZones, routeHistory, followChild]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -111,10 +115,27 @@ const LiveMap: React.FC<LiveMapProps> = ({
 
   if (loadError) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-red-50 rounded-2xl text-red-600 border border-red-200">
-        Error loading Google Maps
+      <div className="w-full h-full flex items-center justify-center bg-red-50 rounded-2xl text-red-600 border border-red-200 p-6 text-center">
+        <div className="flex flex-col items-center gap-2">
+            <AlertTriangle size={32} />
+            <p className="font-bold">Error loading Google Maps</p>
+            <p className="text-xs">{loadError.message}</p>
+        </div>
       </div>
     );
+  }
+
+  const hasLocation = normalizedChildLoc && !isNaN(normalizedChildLoc.lat) && !isNaN(normalizedChildLoc.lng);
+  const hasHistory = normalizedRoute.length > 0;
+
+  if (isLoaded && !hasLocation && !hasHistory && childLocation !== null) {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-2xl text-slate-400 p-8 text-center">
+              <MapPin size={48} className="mb-4 opacity-20" />
+              <h3 className="text-lg font-bold text-slate-600">No Location Available Yet</h3>
+              <p className="text-sm max-w-xs mx-auto mt-2">We haven&apos;t received any GPS data from this device. Ensure tracking is enabled on the child&apos;s phone.</p>
+          </div>
+      )
   }
 
   return isLoaded ? (

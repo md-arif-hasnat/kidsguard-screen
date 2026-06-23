@@ -101,6 +101,7 @@ class AuthRepository(private val context: Context) {
             deviceId = prefs.deviceId,
             childName = prefs.childName,
             deviceName = prefs.deviceName,
+            avatarId = prefs.avatarId,
             firebaseUid = auth.currentUser?.uid ?: "",
             createdAt = Timestamp.now(),
             expiresAt = Timestamp(expiry),
@@ -136,6 +137,7 @@ class AuthRepository(private val context: Context) {
         val status = com.example.kidsguard.sync.SyncChildStatus(
             childId = childId,
             childName = prefs.childName,
+            avatarId = prefs.avatarId,
             deviceId = prefs.deviceId,
             deviceName = prefs.deviceName,
             batteryPercent = 100,
