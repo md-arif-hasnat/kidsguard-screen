@@ -92,7 +92,7 @@ class AuthRepository(private val context: Context) {
         
         val code = (100000..999999).random().toString()
         val expiry = Calendar.getInstance().apply {
-            add(Calendar.HOUR, 1)
+            add(Calendar.MINUTE, 15)
         }.time
 
         val pairingDoc = PairingCodeDoc(
@@ -107,9 +107,14 @@ class AuthRepository(private val context: Context) {
             used = false
         )
 
+        Log.i(TAG, "Pairing code generated: $code")
+
+        // 1. Sync Initial Status to children/{childId}/status/current
+        syncInitialStatus(prefs.childId)
+        Log.i(TAG, "children status synced for ${prefs.childId}")
+
         val path = "${FirebaseConfig.COL_PAIRING_CODES}/$code"
-        Log.d(TAG, "ANDROID: Generating pair code: $code")
-        Log.d(TAG, "ANDROID: Target Firestore path: $path")
+        Log.d(TAG, "Uploading pairing code to pairingCodes/$code")
 
         return try {
             db.collection(FirebaseConfig.COL_PAIRING_CODES)
@@ -117,13 +122,41 @@ class AuthRepository(private val context: Context) {
                 .set(pairingDoc)
                 .await()
             
-            Log.i(TAG, "ANDROID: Pair code successfully uploaded to $path")
+            Log.i(TAG, "Pairing code upload success to $path")
             prefs.lastFirestoreWrite = System.currentTimeMillis()
             code
         } catch (e: Exception) {
-            Log.e(TAG, "ANDROID: FAILED to upload pair code to $path", e)
+            Log.e(TAG, "Pairing code upload failed with error to $path", e)
             errorLogger.addError(TAG, "Failed to generate pairing code at $path", e)
             null
+        }
+    }
+
+    private suspend fun syncInitialStatus(childId: String) {
+        val status = com.example.kidsguard.sync.SyncChildStatus(
+            childId = childId,
+            childName = prefs.childName,
+            deviceId = prefs.deviceId,
+            deviceName = prefs.deviceName,
+            batteryPercent = 100,
+            charging = false,
+            online = true,
+            trackingEnabled = false,
+            kidGuardActive = prefs.isLocked,
+            lastSeen = System.currentTimeMillis(),
+            appVersion = "1.0.0",
+            androidVersion = android.os.Build.VERSION.RELEASE
+        )
+        
+        try {
+            db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("status")
+                .document("current")
+                .set(status)
+                .await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to sync initial status for $childId", e)
         }
     }
 

@@ -833,6 +833,26 @@ fun DeveloperMenuScreen(
                     ) {
                         Text("Force Device Registration", style = MaterialTheme.typography.labelSmall)
                     }
+
+                    Button(
+                        onClick = { 
+                            scope.launch {
+                                android.util.Log.d("DeveloperMenu", "Test Upload Pairing Code clicked")
+                                val code = authRepository.generatePairingCode()
+                                if (code != null) {
+                                    prefHelper.pairingCode = code
+                                    android.widget.Toast.makeText(context, "Pairing code generated and uploaded: $code", android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "Failed to upload pairing code. Check Logcat.", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = isFirebaseConfigured,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Test Upload Pairing Code", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
 

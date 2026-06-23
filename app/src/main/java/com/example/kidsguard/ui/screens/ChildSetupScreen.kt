@@ -132,7 +132,21 @@ fun ChildSetupScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = {
+                    scope.launch {
+                        isGenerating = true
+                        val newCode = authRepository.generatePairingCode()
+                        if (newCode != null) {
+                            code = newCode
+                            prefHelper.pairingCode = newCode
+                        }
+                        isGenerating = false
+                    }
+                }) {
+                    Text("Regenerate Code")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 // QR Placeholder
                 Box(
