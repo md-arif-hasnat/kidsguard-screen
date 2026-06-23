@@ -756,31 +756,32 @@ fun DeveloperMenuScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            Text("App Update", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
-            val updateInfo by updateRepository.updateInfo.collectAsState()
+            Text("App Update Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            val updateState by updateRepository.updateState.collectAsState()
             
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Current Version: ${updateRepository.getCurrentVersion()} (${updateRepository.getVersionCode()})", style = MaterialTheme.typography.bodySmall)
-                    Text("Latest Version: ${updateInfo?.latestVersion ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
-                    Text("Update Available: ${if (updateInfo != null) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
+                    Text("Current Version: ${updateState.currentVersionName} (${updateState.currentVersionCode})", style = MaterialTheme.typography.bodySmall)
+                    Text("Update Available: ${if (updateState.isUpdateAvailable) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
                     
-                    if (updateInfo != null) {
-                        Text("Release Notes:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text(updateInfo!!.releaseNotes, style = MaterialTheme.typography.bodySmall)
+                    if (updateState.updateInfo != null) {
+                        Text("Latest Version: ${updateState.updateInfo!!.latestVersionName} (${updateState.updateInfo!!.latestVersionCode})", style = MaterialTheme.typography.bodySmall)
+                        Text("Force Update: ${if (updateState.updateInfo!!.forceUpdate) "YES" else "NO"}", style = MaterialTheme.typography.bodySmall)
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { updateRepository.checkForUpdates() }, modifier = Modifier.weight(1f)) {
-                            Text("Check", style = MaterialTheme.typography.labelSmall)
+                        Button(onClick = { 
+                            scope.launch { updateRepository.checkForUpdates() }
+                        }, modifier = Modifier.weight(1f)) {
+                            Text("Check Now", style = MaterialTheme.typography.labelSmall)
                         }
-                        Button(onClick = { updateInfo?.apkUrl?.let { updateRepository.openUpdateUrl(it) } }, modifier = Modifier.weight(1f), enabled = updateInfo != null) {
-                            Text("Download", style = MaterialTheme.typography.labelSmall)
+                        Button(onClick = { updateRepository.simulateUpdate(force = false) }, modifier = Modifier.weight(1f)) {
+                            Text("Simulate Soft", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { updateRepository.simulateNewVersionAvailable() }, modifier = Modifier.weight(1f)) {
-                            Text("Simulate New", style = MaterialTheme.typography.labelSmall)
+                        Button(onClick = { updateRepository.simulateUpdate(force = true) }, modifier = Modifier.weight(1f)) {
+                            Text("Simulate Force", style = MaterialTheme.typography.labelSmall)
                         }
                         Button(onClick = { updateRepository.clearUpdateState() }, modifier = Modifier.weight(1f)) {
                             Text("Clear State", style = MaterialTheme.typography.labelSmall)

@@ -31,6 +31,7 @@ import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneReposit
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import AvatarPicker from '@/components/AvatarPicker';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -47,6 +48,7 @@ export default function ChildDashboard() {
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [routeHistory, setRouteHistory] = useState<LocationPoint[]>([]);
   const [deviations, setDeviations] = useState<RouteDeviation[]>([]);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;

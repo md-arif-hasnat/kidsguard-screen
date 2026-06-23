@@ -124,6 +124,11 @@ class MainActivity : ComponentActivity() {
         
         trackingManager.initialize()
         syncProvider.connect()
+
+        // Check for updates on startup
+        lifecycleScope.launch {
+            updateRepository.checkForUpdates()
+        }
         
         if (prefHelper.userRole == "CHILD") {
             childStatusManager.startPeriodicSync()

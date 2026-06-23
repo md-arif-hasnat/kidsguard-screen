@@ -81,4 +81,5 @@ object FirebaseConfig {
     const val COL_REMOTE_COMMANDS = "remoteCommands"
     const val COL_NOTIFICATIONS = "notifications"
     const val COL_PAIRING_CODES = "pairingCodes"
+    const val COL_APP_CONFIG = "appConfig"
 }

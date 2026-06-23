@@ -6,6 +6,7 @@ export interface ParentProfile {
   email: string | null;
   phoneNumber: string | null;
   displayName: string | null;
+  avatarId?: string;
   provider: string;
   familyId: string | null;
   createdAt: any;
@@ -30,6 +31,7 @@ export class ParentRepository {
       email: user.email || (existing?.email || null),
       phoneNumber: user.phoneNumber || (existing?.phoneNumber || null),
       displayName: user.displayName || (existing?.displayName || "Parent"),
+      avatarId: existing?.avatarId || "parent_1",
       provider: provider,
       lastLoginAt: serverTimestamp(),
     };

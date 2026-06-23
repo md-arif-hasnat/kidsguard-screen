@@ -51,6 +51,32 @@ fun KidsGuardApp(
     // Initial redirection based on role and pairing status
     val userRole = prefHelper.userRole
     val pairedId = prefHelper.pairedChildId
+
+    // Update Dialog State
+    val updateState by updateRepository.updateState.collectAsState()
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(updateState.isUpdateAvailable) {
+        if (updateState.isUpdateAvailable) {
+            showUpdateDialog = true
+        }
+    }
+
+    if (showUpdateDialog && updateState.updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateState.updateInfo!!,
+            onUpdate = {
+                updateRepository.openUpdateUrl(updateState.updateInfo!!.apkDownloadUrl)
+                if (!updateState.updateInfo!!.forceUpdate) {
+                    showUpdateDialog = false
+                }
+            },
+            onDismiss = {
+                showUpdateDialog = false
+            }
+        )
+    }
+
     val startScreen = remember(currentScreen, userRole, pairedId) {
         if (currentScreen == Screen.Home) {
             when (userRole) {

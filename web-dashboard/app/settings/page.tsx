@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home } from 'lucide-react';
+import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { User } from 'firebase/auth';
+import AvatarPicker from '@/components/AvatarPicker';
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,6 +14,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   // Form State
   const [displayName, setDisplayName] = useState('');
@@ -62,6 +64,18 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAvatarSelect = async (avatarId: string) => {
+    if (!user) return;
+    try {
+      await ParentRepository.updateProfile(user.uid, { avatarId });
+      setProfile(prev => prev ? { ...prev, avatarId } : null);
+      setShowAvatarPicker(false);
+      setStatus({ type: 'success', message: 'Avatar updated successfully!' });
+    } catch (err: any) {
+      setStatus({ type: 'error', message: 'Failed to update avatar' });
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -78,6 +92,15 @@ export default function SettingsPage() {
         <h1 className="text-3xl font-bold text-slate-900">Account Settings</h1>
       </div>
 
+      {showAvatarPicker && (
+        <AvatarPicker
+          type="parent"
+          currentAvatarId={profile?.avatarId || "parent_1"}
+          onSelect={handleAvatarSelect}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
+
       {status && (
         <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 border ${
           status.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
@@ -92,12 +115,22 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-8 border-b border-slate-100 bg-slate-50/50">
              <div className="flex flex-col md:flex-row items-center gap-6">
-                <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md">
-                   {user?.photoURL ? (
-                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
-                   ) : (
-                      <UserIcon size={40} />
-                   )}
+                <div className="relative group">
+                  <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
+                    {profile?.avatarId ? (
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.avatarId}`} alt="Profile" className="w-full h-full object-cover" />
+                    ) : user?.photoURL ? (
+                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                        <UserIcon size={40} />
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowAvatarPicker(true)}
+                    className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-2 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
+                  >
+                    <Camera size={16} />
+                  </button>
                 </div>
                 <div className="text-center md:text-left">
                    <h2 className="text-2xl font-bold text-slate-900">{profile?.displayName || "Parent Account"}</h2>

@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, onSnapshot, collection } from "firebase/firestore";
+import { doc, onSnapshot, collection, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export interface ChildStatus {
   childId: string;
@@ -32,5 +32,15 @@ export class ChildRepository {
       console.error("Error listening to child status:", error);
       onUpdate(null);
     });
+  }
+
+  static async updateAvatar(childId: string, avatarId: string): Promise<void> {
+    if (!db) return;
+    const childRef = doc(db, "children", childId);
+    const statusRef = doc(db, "children", childId, "status", "current");
+
+    // Update both document and status
+    await updateDoc(childRef, { avatarId, updatedAt: serverTimestamp() });
+    await updateDoc(statusRef, { avatarId });
   }
 }

@@ -12,6 +12,43 @@ import androidx.compose.ui.unit.dp
 import com.example.kidsguard.tracking.TrackingConfig
 import com.example.kidsguard.tracking.TrackingState
 
+import com.example.kidsguard.update.AppUpdateInfo
+
+@Composable
+fun UpdateDialog(
+    updateInfo: AppUpdateInfo,
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!updateInfo.forceUpdate) onDismiss() },
+        title = { Text("Update Available") },
+        text = {
+            Column {
+                Text(updateInfo.updateMessage)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Version: ${updateInfo.latestVersionName}", style = MaterialTheme.typography.labelSmall)
+                if (updateInfo.forceUpdate) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onUpdate) {
+                Text("Update Now")
+            }
+        },
+        dismissButton = {
+            if (!updateInfo.forceUpdate) {
+                TextButton(onClick = onDismiss) {
+                    Text("Later")
+                }
+            }
+        }
+    )
+}
+
 @Composable
 fun TrackingStatusCard(
     state: TrackingState, 

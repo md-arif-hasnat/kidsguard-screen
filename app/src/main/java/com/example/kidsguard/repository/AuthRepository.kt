@@ -59,6 +59,14 @@ class AuthRepository(private val context: Context) {
         val deviceId = prefs.deviceId
         Log.d(TAG, "Registering device $deviceId for UID $uid")
         
+        // Fetch FCM token
+        var fcmToken: String? = null
+        try {
+            fcmToken = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get FCM token", e)
+        }
+
         val deviceDoc = DeviceDoc(
             deviceId = deviceId,
             firebaseUid = uid,
@@ -66,7 +74,9 @@ class AuthRepository(private val context: Context) {
             deviceName = prefs.deviceName,
             appVersion = "0.3.0-dev", 
             createdAt = Timestamp.now(), 
-            lastSeen = Timestamp.now()
+            lastSeen = Timestamp.now(),
+            fcmToken = fcmToken,
+            fcmTokenUpdatedAt = if (fcmToken != null) Timestamp.now() else null
         )
 
         return try {
