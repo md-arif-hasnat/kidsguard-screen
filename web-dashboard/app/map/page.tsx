@@ -135,6 +135,7 @@ export default function MapPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative h-[calc(100vh-280px)]">
             <LiveMap
                 childLocation={displayLocation}
+                avatarId={activeChildStatus?.avatarId || mockActiveChild?.avatarId}
                 safeZones={displayZones}
                 routeHistory={displayRoute}
                 deviations={displayDeviations}
@@ -146,8 +147,16 @@ export default function MapPage() {
                 <div className="absolute bottom-6 left-6 right-6 md:right-auto md:w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 p-5 space-y-4">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold">
-                                {activeChildStatus?.childName?.[0] || mockActiveChild?.name?.[0] || "?"}
+                            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden border-2 border-primary-200">
+                                {activeChildStatus?.avatarId || mockActiveChild?.avatarId ? (
+                                    <img
+                                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${activeChildStatus?.avatarId || mockActiveChild?.avatarId}`}
+                                        alt="avatar"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    activeChildStatus?.childName?.[0] || mockActiveChild?.name?.[0] || "?"
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-900">{activeChildStatus?.childName || mockActiveChild?.name || "Loading..."}</h3>
@@ -229,10 +238,18 @@ export default function MapPage() {
                   >
                     <div className="flex items-center gap-3">
                         <div className={clsx(
-                            "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
-                            isSelected ? "bg-primary-500 text-white" : "bg-slate-200 text-slate-500"
+                            "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden border-2",
+                            isSelected ? "bg-primary-500 text-white border-primary-200" : "bg-slate-200 text-slate-500 border-transparent"
                         )}>
-                            {name[0]}
+                            {status?.avatarId || mock?.avatarId ? (
+                                <img
+                                    src={`https://api.dicebear.com/7.x/bottts/svg?seed=${status?.avatarId || mock?.avatarId}`}
+                                    alt="avatar"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                name[0]
+                            )}
                         </div>
                         <div>
                             <p className="font-bold text-slate-900 text-sm">{name}</p>

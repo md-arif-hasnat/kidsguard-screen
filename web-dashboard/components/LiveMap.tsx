@@ -59,6 +59,7 @@ export const normalizeMapPath = (points: any[]): { lat: number; lng: number }[] 
 
 interface LiveMapProps {
   childLocation: { lat: number; lng: number; accuracy: number; timestamp?: number } | null;
+  avatarId?: string | null;
   safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number }>;
   routeHistory: Array<{ lat: number; lng: number }>;
   deviations: Array<{ id: string; lat: number; lng: number; message: string; time: string; severity: string }>;
@@ -67,6 +68,7 @@ interface LiveMapProps {
 
 const LiveMap: React.FC<LiveMapProps> = ({
   childLocation,
+  avatarId,
   safeZones,
   routeHistory,
   deviations,
@@ -232,7 +234,11 @@ const LiveMap: React.FC<LiveMapProps> = ({
             <Marker
                 position={normalizedChildLoc}
                 title="Current Location"
-                icon={{
+                icon={avatarId ? {
+                    url: `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarId}`,
+                    scaledSize: new google.maps.Size(40, 40),
+                    anchor: new google.maps.Point(20, 20)
+                } : {
                     path: google.maps.SymbolPath.CIRCLE,
                     fillColor: "#0ea5e9",
                     fillOpacity: 1,

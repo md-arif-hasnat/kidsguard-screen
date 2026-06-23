@@ -7,10 +7,12 @@ import { History as HistoryIcon, Calendar, Search, Play, CloudOff } from 'lucide
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_ROUTE_HISTORY, MOCK_SAFE_ZONES } from '@/lib/mockData';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
+import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { clsx } from 'clsx';
 
 export default function HistoryPage() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const [childStatus, setChildStatus] = useState<ChildStatus | null>(null);
   const [routeHistory, setRouteHistory] = useState<LocationPoint[]>([]);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -22,10 +24,14 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!isFirebaseConfigured || !selectedChildId) return;
 
+    const unsubStatus = ChildRepository.listenToChildStatus(selectedChildId, setChildStatus);
     // In a full implementation, we would filter history by date.
     // For now, we listen to the generic history.
     const unsubHistory = LocationRepository.listenToLocationHistory(selectedChildId, setRouteHistory);
-    return () => unsubHistory();
+    return () => {
+      unsubStatus();
+      unsubHistory();
+    };
   }, [selectedChildId, date]);
 
   const displayRoute = isFirebaseConfigured ? routeHistory.map(p => ({
@@ -67,6 +73,7 @@ export default function HistoryPage() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
             <LiveMap
                 childLocation={null}
+                avatarId={childStatus?.avatarId}
                 safeZones={isFirebaseConfigured ? [] : MOCK_SAFE_ZONES}
                 routeHistory={displayRoute}
                 deviations={[]}

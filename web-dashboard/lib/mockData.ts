@@ -2,6 +2,7 @@ export const MOCK_CHILDREN = [
   {
     id: "child_001",
     name: "Alex",
+    avatarId: "child_1",
     battery: 85,
     isCharging: false,
     online: true,
@@ -14,6 +15,7 @@ export const MOCK_CHILDREN = [
   {
     id: "child_002",
     name: "Sam",
+    avatarId: "child_2",
     battery: 15,
     isCharging: true,
     online: true,

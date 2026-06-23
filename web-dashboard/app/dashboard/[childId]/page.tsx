@@ -254,6 +254,7 @@ export default function ChildDashboard() {
                 <>
                 <LiveMap
                     childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
+                    avatarId={displayData.avatarId}
                     safeZones={displayZones}
                     routeHistory={displayRoute}
                     deviations={displayDeviations}
