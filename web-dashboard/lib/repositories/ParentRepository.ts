@@ -49,4 +49,9 @@ export class ParentRepository {
     if (!db) return;
     await setDoc(doc(db, "parents", uid), { familyId }, { merge: true });
   }
+
+  static async updateProfile(uid: string, updates: Partial<ParentProfile>): Promise<void> {
+    if (!db) return;
+    await setDoc(doc(db, "parents", uid), updates, { merge: true });
+  }
 }
