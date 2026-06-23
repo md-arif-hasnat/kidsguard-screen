@@ -19,7 +19,8 @@ import {
   RotateCcw,
   CloudOff,
   CheckCircle2,
-  Info
+  Info,
+  Camera
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -88,14 +89,14 @@ export default function ChildDashboard() {
     accuracy: location?.accuracy || 20,
     activities: activities.length > 0 ? activities : MOCK_ACTIVITY,
     summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : MOCK_SUMMARY,
-    avatarId: status?.avatarId || "avatar_1",
+    avatarId: status?.avatarId,
     isLoading: status === null
   } : {
     ...mockChild,
     accuracy: 20,
     activities: MOCK_ACTIVITY,
     summary: MOCK_SUMMARY,
-    avatarId: (mockChild as any).avatarId || "avatar_1",
+    avatarId: (mockChild as any).avatarId,
     isLoading: false
   };
 
@@ -109,6 +110,16 @@ export default function ChildDashboard() {
         alert(`Command ${type} sent!`);
     } catch (e) {
         alert("Failed to send command.");
+    }
+  };
+
+  const handleAvatarSelect = async (newAvatarId: string) => {
+    try {
+      await ChildRepository.updateAvatar(childId, newAvatarId);
+      setStatus(prev => prev ? { ...prev, avatarId: newAvatarId } : null);
+      setShowAvatarPicker(false);
+    } catch (err: any) {
+      alert("Failed to update child avatar.");
     }
   };
 
@@ -136,6 +147,14 @@ export default function ChildDashboard() {
 
   return (
     <DashboardLayout>
+      {showAvatarPicker && (
+        <AvatarPicker
+          type="child"
+          currentAvatarId={displayData.avatarId || "child_1"}
+          onSelect={handleAvatarSelect}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
       {isFirebaseConfigured ? (
         <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-8 flex items-center gap-3">
           <CheckCircle2 className="text-emerald-600" />
@@ -154,12 +173,20 @@ export default function ChildDashboard() {
 
       <header className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl overflow-hidden border-2 border-primary-200">
-             <img
-               src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayData.avatarId}`}
-               alt="avatar"
-               className="w-full h-full object-cover"
-             />
+          <div className="relative group">
+            <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl overflow-hidden border-2 border-primary-200 transition-transform group-hover:scale-105">
+              <img
+                src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayData.avatarId}`}
+                alt="avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <button
+              onClick={() => setShowAvatarPicker(true)}
+              className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
+            >
+              <Camera size={14} />
+            </button>
           </div>
           <div>
             <h1 className="text-3xl font-bold text-slate-900">{displayData.name}&apos;s Dashboard</h1>

@@ -41,7 +41,7 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
   const displayChild = childId ? {
     id: childId,
     name: status?.childName || "Loading...",
-    avatarId: status?.avatarId || "avatar_1",
+    avatarId: status?.avatarId,
     battery: status?.batteryPercent || 0,
     isCharging: status?.charging || false,
     online: status?.online || false,
