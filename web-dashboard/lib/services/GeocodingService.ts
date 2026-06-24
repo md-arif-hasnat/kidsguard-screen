@@ -18,10 +18,13 @@ export class GeocodingService {
     }
 
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${this.apiKey}`
-      );
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${this.apiKey}`;
+      console.log("Geocoding Request URL:", url.replace(this.apiKey || "", "AIza...REDACTED"));
+
+      const response = await fetch(url);
       const data = await response.json();
+
+      console.log("Geocoding Full Google Response:", JSON.stringify(data, null, 2));
 
       if (data.status === "OK" && data.results.length > 0) {
         const result = data.results[0];
@@ -31,7 +34,27 @@ export class GeocodingService {
           formattedAddress: result.formatted_address
         };
       } else {
-        console.error("Geocoding failed:", data.status);
+        const errorMsg = data.error_message || "No error message provided by Google.";
+        console.error(`Geocoding failed with status: ${data.status}`);
+        console.error(`Reason: ${errorMsg}`);
+
+        switch (data.status) {
+          case "ZERO_RESULTS":
+            console.warn("No results found for the provided address.");
+            break;
+          case "OVER_QUERY_LIMIT":
+            console.error("Geocoding quota exceeded.");
+            break;
+          case "REQUEST_DENIED":
+            console.error("API Key denied. Check if Geocoding API is enabled and restrictions are correct.");
+            break;
+          case "INVALID_REQUEST":
+            console.error("Missing address or other parameter.");
+            break;
+          default:
+            console.error("Unknown geocoding error.");
+        }
+
         return null;
       }
     } catch (error) {
