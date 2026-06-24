@@ -161,24 +161,42 @@ fun DeveloperMenuScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { 
-                    repository.addEvent(ActivityEvent(
-                        type = "SAFE_ZONE_ENTER",
-                        title = "Entered School",
-                        description = "Mock child entered safe zone"
-                    ))
-                    android.widget.Toast.makeText(context, "Mock: Entered School", android.widget.Toast.LENGTH_SHORT).show()
+                    val zones = repository.safeZones.value
+                    val home = zones.find { it.type == "Home" } ?: zones.firstOrNull()
+                    if (home != null) {
+                        repository.addEvent(
+                            com.example.kidsguard.models.ActivityEvent(
+                                type = "ENTER_ZONE",
+                                title = "Arrived at ${home.type}",
+                                description = "${prefHelper.childName.ifEmpty { "Child" }} arrived at ${home.name}"
+                            )
+                        )
+                        repository.updateSyncStatus(home.name, home.id, "INSIDE")
+                        android.widget.Toast.makeText(context, "Simulated: Arrived at ${home.name}", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "No zones configured to simulate", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }, modifier = Modifier.weight(1f)) {
-                    Text("Enter Zone", style = MaterialTheme.typography.labelSmall)
+                    Text("Sim Enter", style = MaterialTheme.typography.labelSmall)
                 }
                 Button(onClick = { 
-                    repository.addEvent(ActivityEvent(
-                        type = "SAFE_ZONE_EXIT",
-                        title = "Left School",
-                        description = "Mock child left safe zone"
-                    ))
-                    android.widget.Toast.makeText(context, "Mock: Left School", android.widget.Toast.LENGTH_SHORT).show()
+                    val zones = repository.safeZones.value
+                    val home = zones.find { it.type == "Home" } ?: zones.firstOrNull()
+                    if (home != null) {
+                        repository.addEvent(
+                            com.example.kidsguard.models.ActivityEvent(
+                                type = "EXIT_ZONE",
+                                title = "Left ${home.type}",
+                                description = "${prefHelper.childName.ifEmpty { "Child" }} left ${home.name}"
+                            )
+                        )
+                        repository.updateSyncStatus(home.name, home.id, "OUTSIDE")
+                        android.widget.Toast.makeText(context, "Simulated: Left ${home.name}", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "No zones configured to simulate", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }, modifier = Modifier.weight(1f)) {
-                    Text("Exit Zone", style = MaterialTheme.typography.labelSmall)
+                    Text("Sim Exit", style = MaterialTheme.typography.labelSmall)
                 }
             }
 

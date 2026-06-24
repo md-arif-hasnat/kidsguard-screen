@@ -271,6 +271,8 @@ export default function ChildDashboard() {
                     childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
                     defaultRegion={profile?.region}
                     avatarId={displayData.avatarId}
+                    currentZoneName={displayData.currentZone}
+                    safeZoneStatus={status?.safeZoneStatus}
                     safeZones={displayZones}
                     routeHistory={displayRoute}
                     deviations={displayDeviations}

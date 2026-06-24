@@ -103,12 +103,12 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(event.childId)
-            .collection("activity")
+            .collection(FirebaseConfig.COL_ACTIVITY)
             .document(event.id)
             .set(event)
             .addOnSuccessListener {
                 _lastSyncTimestamp.value = System.currentTimeMillis()
-                Log.d(TAG, "Activity event synced successfully")
+                Log.d(TAG, "Activity event synced successfully to ${FirebaseConfig.COL_ACTIVITY}")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to sync activity event", e)
@@ -302,7 +302,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
         val registration = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
-            .collection("activity")
+            .collection(FirebaseConfig.COL_ACTIVITY)
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .limit(1)
             .addSnapshotListener { snapshots, e ->
@@ -331,7 +331,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
         val registration = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
-            .collection("activity")
+            .collection(FirebaseConfig.COL_ACTIVITY)
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snapshots, e ->

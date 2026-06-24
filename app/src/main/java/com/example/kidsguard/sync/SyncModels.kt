@@ -43,8 +43,12 @@ data class SyncChildStatus(
     val trackingEnabled: Boolean,
     val kidGuardActive: Boolean,
     val currentZone: String? = null,
+    val currentZoneId: String? = null,
+    val safeZoneStatus: String = "OUTSIDE", // INSIDE / OUTSIDE
+    val lastZoneEvent: String? = null, // ENTER_ZONE / EXIT_ZONE
     val lastLocation: SyncLocationUpdate? = null,
     val lastSeen: Long = System.currentTimeMillis(),
+    val lastUpdated: Long = System.currentTimeMillis(),
     val appVersion: String = "",
     val androidVersion: String = ""
 )
@@ -62,10 +66,18 @@ data class SyncLocationUpdate(
 data class SyncActivityEvent(
     val id: String = UUID.randomUUID().toString(),
     val childId: String,
-    val type: String,
+    val type: String, // ENTER_ZONE, EXIT_ZONE, etc.
     val title: String,
     val description: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val zoneId: String? = null,
+    val zoneName: String? = null,
+    val zoneType: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val distanceMeters: Double? = null,
+    val radiusMeters: Double? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+    val severity: String = "info" // info, warning
 )
 
 data class SyncRemoteCommand(

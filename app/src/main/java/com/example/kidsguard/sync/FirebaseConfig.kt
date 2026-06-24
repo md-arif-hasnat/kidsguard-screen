@@ -76,7 +76,7 @@ object FirebaseConfig {
     const val COL_CHILDREN = "children"
     const val COL_FAMILIES = "families"
     const val COL_LOCATIONS = "locations"
-    const val COL_ACTIVITY = "activity"
+    const val COL_ACTIVITY = "activities"
     const val COL_SAFE_ZONES = "safeZones"
     const val COL_REMOTE_COMMANDS = "remoteCommands"
     const val COL_NOTIFICATIONS = "notifications"

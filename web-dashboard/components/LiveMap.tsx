@@ -57,6 +57,8 @@ interface LiveMapProps {
   childLocation: { lat: number; lng: number; accuracy: number; timestamp?: number } | null;
   defaultRegion?: string | null;
   avatarId?: string | null;
+  currentZoneName?: string | null;
+  safeZoneStatus?: 'INSIDE' | 'OUTSIDE';
   safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number, type?: string }>;
   routeHistory: Array<{ lat: number; lng: number }>;
   deviations: Array<{ id: string; lat: number; lng: number; message: string; time: string; severity: string }>;
@@ -67,6 +69,8 @@ const LiveMap: React.FC<LiveMapProps> = ({
   childLocation,
   defaultRegion,
   avatarId,
+  currentZoneName,
+  safeZoneStatus,
   safeZones,
   routeHistory,
   deviations,
@@ -264,6 +268,13 @@ const LiveMap: React.FC<LiveMapProps> = ({
                     scale: 10
                 }}
             />
+            {safeZoneStatus === 'INSIDE' && currentZoneName && (
+                <InfoWindow position={normalizedChildLoc}>
+                    <div className="bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                        <p className="text-[10px] font-black text-emerald-700 uppercase leading-none">Safe: {currentZoneName}</p>
+                    </div>
+                </InfoWindow>
+            )}
             <Circle
                 center={normalizedChildLoc}
                 radius={childLocation?.accuracy || 20}

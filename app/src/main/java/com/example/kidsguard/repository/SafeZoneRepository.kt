@@ -90,22 +90,43 @@ class SafeZoneRepository {
         _safeZones.value = _safeZones.value.filter { it.id != id }
     }
 
-    fun addEvent(event: ActivityEvent) {
+    fun addEvent(event: ActivityEvent, detailed: SyncActivityEvent? = null) {
         _activityEvents.value = listOf(event) + _activityEvents.value
         
         // Sync to Firebase if provider available
         val currentChildId = childId
         if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
-            syncProvider?.syncActivity(
-                SyncActivityEvent(
-                    id = event.id,
-                    childId = currentChildId,
-                    type = event.type,
-                    title = event.title,
-                    description = event.description,
-                    timestamp = event.timestamp
-                )
+            val syncEvent = detailed ?: SyncActivityEvent(
+                id = event.id,
+                childId = currentChildId,
+                type = event.type,
+                title = event.title,
+                description = event.description,
+                timestamp = event.timestamp
             )
+            syncProvider?.syncActivity(syncEvent)
+        }
+    }
+
+    fun updateSyncStatus(zoneName: String, zoneId: String?, status: String) {
+        val currentChildId = childId
+        if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
+            GlobalScope.launch(Dispatchers.IO) {
+                // Get current status from flow and update it
+                syncProvider?.getChildStatus(currentChildId)?.collect { current ->
+                    if (current != null) {
+                        val updated = current.copy(
+                            currentZone = if (status == "INSIDE") zoneName else "Outside Zones",
+                            currentZoneId = if (status == "INSIDE") zoneId else null,
+                            safeZoneStatus = status,
+                            lastZoneEvent = if (status == "INSIDE") "ENTER_ZONE" else "EXIT_ZONE",
+                            lastUpdated = System.currentTimeMillis()
+                        )
+                        syncProvider?.syncChildStatus(updated)
+                    }
+                    this.cancel() // Only update once
+                }
+            }
         }
     }
 

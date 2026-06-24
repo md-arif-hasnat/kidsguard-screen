@@ -13,6 +13,7 @@ import { User } from 'firebase/auth';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
+import { clsx } from 'clsx';
 
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 
@@ -327,10 +328,27 @@ export default function Home() {
                 <tbody className="divide-y divide-slate-100">
                 {allActivities.length > 0 ? allActivities.map((item: any) => (
                   <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-medium">{childrenStatus[item.childId]?.childName || "Child"}</td>
-                      <td className="px-6 py-4">{item.title}</td>
-                      <td className="px-6 py-4">{item.description || "System Alert"}</td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-6 py-4 font-medium">
+                        <div className="flex items-center gap-2">
+                           <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
+                              {childrenStatus[item.childId]?.childName?.[0] || "C"}
+                           </div>
+                           {childrenStatus[item.childId]?.childName || "Child"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                           <div className={clsx(
+                             "w-2 h-2 rounded-full",
+                             item.type === 'EXIT_ZONE' ? "bg-red-500" : "bg-emerald-500"
+                           )} />
+                           <span className="font-bold">{item.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-600 font-medium">{item.zoneName || item.description || "System Alert"}</span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 font-mono text-xs">
                         {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
                       </td>
                   </tr>

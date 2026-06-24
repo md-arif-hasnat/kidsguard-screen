@@ -153,6 +153,8 @@ export default function MapPage() {
                 childLocation={displayLocation}
                 defaultRegion={profile?.region}
                 avatarId={activeChildStatus?.avatarId || mockActiveChild?.avatarId}
+                currentZoneName={activeChildStatus?.currentZone}
+                safeZoneStatus={activeChildStatus?.safeZoneStatus}
                 safeZones={displayZones}
                 routeHistory={displayRoute}
                 deviations={displayDeviations}

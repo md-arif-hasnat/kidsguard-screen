@@ -12,6 +12,9 @@ export interface ChildStatus {
   kidGuardActive: boolean;
   trackingEnabled: boolean;
   currentZone: string | null;
+  currentZoneId?: string | null;
+  safeZoneStatus?: 'INSIDE' | 'OUTSIDE';
+  lastZoneEvent?: string;
   deviceName?: string;
   appVersion?: string;
   androidVersion?: string;

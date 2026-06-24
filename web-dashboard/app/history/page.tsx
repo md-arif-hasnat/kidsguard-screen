@@ -89,6 +89,8 @@ export default function HistoryPage() {
                 childLocation={null}
                 defaultRegion={profile?.region}
                 avatarId={childStatus?.avatarId}
+                currentZoneName={childStatus?.currentZone}
+                safeZoneStatus={childStatus?.safeZoneStatus}
                 safeZones={isFirebaseConfigured ? [] : MOCK_SAFE_ZONES}
                 routeHistory={displayRoute}
                 deviations={[]}
