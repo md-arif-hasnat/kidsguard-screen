@@ -11,9 +11,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
 
+import com.example.kidsguard.data.PreferenceHelper
+
 class UpdateRepository(private val context: Context) {
 
     private val db = FirebaseFirestore.getInstance()
+    private val prefs = PreferenceHelper(context)
     private val _updateState = MutableStateFlow(
         AppUpdateState(
             currentVersionName = getCurrentVersionName(),
@@ -23,9 +26,11 @@ class UpdateRepository(private val context: Context) {
     )
     val updateState: StateFlow<AppUpdateState> = _updateState
 
-    // Keep legacy updateInfo for backward compatibility with UI if needed
     private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
     val updateInfo: StateFlow<AppUpdateInfo?> = _updateInfo
+
+    private val _showWhatsNew = MutableStateFlow<AppUpdateInfo?>(null)
+    val showWhatsNew: StateFlow<AppUpdateInfo?> = _showWhatsNew
 
     companion object {
         private const val TAG = "UpdateRepository"
@@ -62,14 +67,20 @@ class UpdateRepository(private val context: Context) {
             if (doc.exists()) {
                 val info = doc.toObject(AppUpdateInfo::class.java)
                 if (info != null) {
-                    val isAvailable = info.latestVersionCode > getCurrentVersionCode()
-                    Log.i(TAG, "Update check result: Available=$isAvailable, Latest=${info.latestVersionCode}, Current=${getCurrentVersionCode()}")
+                    val currentCode = getCurrentVersionCode()
+                    val isAvailable = info.latestVersionCode > currentCode
+                    Log.i(TAG, "Update check result: Available=$isAvailable, Latest=${info.latestVersionCode}, Current=$currentCode")
                     
                     _updateState.value = _updateState.value.copy(
                         updateInfo = info,
                         isUpdateAvailable = isAvailable
                     )
-                    _updateInfo.value = info
+
+                    // Part 4: What's New logic
+                    if (info.latestVersionCode.toInt() == currentCode && prefs.lastSeenVersionCode < currentCode) {
+                        Log.d(TAG, "New version detected! Showing What's New for v$currentCode")
+                        _showWhatsNew.value = info
+                    }
                 }
             } else {
                 Log.w(TAG, "Update config document not found at $CONFIG_PATH")
@@ -79,13 +90,20 @@ class UpdateRepository(private val context: Context) {
         }
     }
 
+    fun dismissWhatsNew() {
+        prefs.lastSeenVersionCode = getCurrentVersionCode()
+        _showWhatsNew.value = null
+    }
+
     fun simulateUpdate(force: Boolean = false) {
         val mockInfo = AppUpdateInfo(
             latestVersionCode = (getCurrentVersionCode() + 1).toLong(),
             latestVersionName = "2.0.0-DEBUG",
             apkDownloadUrl = "https://example.com/mock.apk",
             updateMessage = if (force) "Critical security update required immediately." else "New features are available. Please update.",
-            forceUpdate = force
+            forceUpdate = force,
+            mandatoryUpdate = force,
+            releaseChannel = "beta"
         )
         _updateState.value = _updateState.value.copy(
             updateInfo = mockInfo,

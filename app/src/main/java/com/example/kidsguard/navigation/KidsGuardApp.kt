@@ -67,12 +67,22 @@ fun KidsGuardApp(
             updateInfo = updateState.updateInfo!!,
             onUpdate = {
                 updateRepository.openUpdateUrl(updateState.updateInfo!!.apkDownloadUrl)
-                if (!updateState.updateInfo!!.forceUpdate) {
+                if (!(updateState.updateInfo!!.mandatoryUpdate || updateState.updateInfo!!.forceUpdate)) {
                     showUpdateDialog = false
                 }
             },
             onDismiss = {
                 showUpdateDialog = false
+            }
+        )
+    }
+
+    val showWhatsNew by updateRepository.showWhatsNew.collectAsState()
+    if (showWhatsNew != null) {
+        WhatsNewDialog(
+            updateInfo = showWhatsNew!!,
+            onDismiss = {
+                updateRepository.dismissWhatsNew()
             }
         )
     }

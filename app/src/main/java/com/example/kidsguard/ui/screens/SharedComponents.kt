@@ -20,30 +20,68 @@ fun UpdateDialog(
     onUpdate: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isMandatory = updateInfo.mandatoryUpdate || updateInfo.forceUpdate
     AlertDialog(
-        onDismissRequest = { if (!updateInfo.forceUpdate) onDismiss() },
-        title = { Text("Update Available") },
+        onDismissRequest = { if (!isMandatory) onDismiss() },
+        title = { Text(if (isMandatory) "Update Required" else "Update Available") },
         text = {
             Column {
                 Text(updateInfo.updateMessage)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Version: ${updateInfo.latestVersionName}", style = MaterialTheme.typography.labelSmall)
-                if (updateInfo.forceUpdate) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Version: ${updateInfo.latestVersionName}", style = MaterialTheme.typography.labelSmall)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            updateInfo.releaseChannel.uppercase(),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                if (isMandatory) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 }
             }
         },
         confirmButton = {
             Button(onClick = onUpdate) {
-                Text("Update Now")
+                Text(if (isMandatory) "Update Now" else "Update Now")
             }
         },
         dismissButton = {
-            if (!updateInfo.forceUpdate) {
+            if (!isMandatory) {
                 TextButton(onClick = onDismiss) {
                     Text("Later")
                 }
+            }
+        }
+    )
+}
+
+@Composable
+fun WhatsNewDialog(
+    updateInfo: AppUpdateInfo,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Welcome to KidsGuard ${updateInfo.latestVersionName}") },
+        text = {
+            Column {
+                Text("New Features", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(updateInfo.releaseNotes)
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Awesome!")
             }
         }
     )

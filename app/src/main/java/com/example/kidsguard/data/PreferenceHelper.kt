@@ -134,6 +134,10 @@ class PreferenceHelper(context: Context) {
     var isSosNotificationsEnabled: Boolean
         get() = prefs.getBoolean("sos_notifications", true)
         set(value) = prefs.edit().putBoolean("sos_notifications", value).apply()
+
+    var lastSeenVersionCode: Int
+        get() = prefs.getInt("last_seen_version_code", 0)
+        set(value) = prefs.edit().putInt("last_seen_version_code", value).apply()
 }
 
 object RemoteStatusService {

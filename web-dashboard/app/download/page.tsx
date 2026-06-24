@@ -15,30 +15,36 @@ import {
   FileText
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
-import { ConfigRepository, UpdateConfig } from '@/lib/repositories/ConfigRepository';
+import { ConfigRepository, UpdateConfig, AppRelease } from '@/lib/repositories/ConfigRepository';
 import { clsx } from 'clsx';
 
 export default function DownloadPage() {
   const [config, setConfig] = useState<UpdateConfig | null>(null);
+  const [history, setHistory] = useState<AppRelease[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const downloadUrl = "https://kidsguard-screen.vercel.app/download";
 
   useEffect(() => {
-    async function fetchConfig() {
+    async function fetchData() {
       if (!isFirebaseConfigured) {
         setLoading(false);
         return;
       }
 
       try {
-        const data = await ConfigRepository.getUpdateConfig();
-        if (data) {
-          setConfig(data);
+        const [updateData, releases] = await Promise.all([
+            ConfigRepository.getUpdateConfig(),
+            ConfigRepository.getRecentReleases(3)
+        ]);
+
+        if (updateData) {
+          setConfig(updateData);
         } else {
           setError("Configuration not found.");
         }
+        setHistory(releases);
       } catch (err) {
         setError("Failed to load download information.");
       } finally {
@@ -46,7 +52,7 @@ export default function DownloadPage() {
       }
     }
 
-    fetchConfig();
+    fetchData();
   }, []);
 
   const handleDownload = () => {
@@ -101,9 +107,19 @@ export default function DownloadPage() {
       <main className="max-w-6xl mx-auto px-6 py-12 md:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         <div className="space-y-8 animate-in slide-in-from-left duration-700">
           <div>
-            <span className="bg-primary-50 text-primary-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-primary-100">
-                Official Release
-            </span>
+            <div className="flex items-center gap-3">
+                <span className="bg-primary-50 text-primary-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-primary-100">
+                    Official Release
+                </span>
+                {config.releaseChannel !== 'stable' && (
+                    <span className={clsx(
+                        "text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border",
+                        config.releaseChannel === 'beta' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-rose-50 text-rose-600 border-rose-100"
+                    )}>
+                        {config.releaseChannel}
+                    </span>
+                )}
+            </div>
             <h1 className="text-5xl md:text-6xl font-black text-slate-900 mt-4 leading-[1.1]">
               Download <span className="text-primary-600">KidsGuard</span>
             </h1>
@@ -169,6 +185,29 @@ export default function DownloadPage() {
                     </p>
                 </div>
             </div>
+
+            {/* Recent History */}
+            {history.length > 0 && (
+                <div className="space-y-4">
+                    <h3 className="font-bold text-slate-400 uppercase tracking-widest text-[10px] ml-1">Recent Releases</h3>
+                    <div className="space-y-3">
+                        {history.map(rel => (
+                            <div key={rel.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-primary-100 transition-all cursor-pointer" onClick={() => window.open(rel.apkDownloadUrl, '_blank')}>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-900">v{rel.latestVersionName}</p>
+                                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">{rel.releaseChannel} • {rel.releasedAt ? new Date(rel.releasedAt.seconds * 1000).toLocaleDateString() : 'Previous'}</p>
+                                    </div>
+                                </div>
+                                <Download size={16} className="text-slate-300 group-hover:text-primary-600 transition-colors" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
       </main>
 

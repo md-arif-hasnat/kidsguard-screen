@@ -8,6 +8,8 @@ data class AppUpdateInfo(
     val apkDownloadUrl: String = "",
     val updateMessage: String = "",
     val forceUpdate: Boolean = false,
+    val mandatoryUpdate: Boolean = false,
+    val releaseChannel: String = "stable",
     val releasedAt: Timestamp? = null,
     val fileSize: String = "",
     val minimumAndroidVersion: String = "",
