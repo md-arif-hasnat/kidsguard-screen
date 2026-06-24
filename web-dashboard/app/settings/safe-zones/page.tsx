@@ -92,18 +92,22 @@ export default function SafeZonesPage() {
 
   // Listen to safe zones for selected child
   useEffect(() => {
-    if (selectedChildId && family?.familyId) {
-      setLoading(true);
-      const unsubZones = SafeZoneRepository.listenToChildSafeZones(
-        selectedChildId,
-        family.familyId,
-        (zones) => {
-          setSafeZones(zones);
-          setLoading(false);
-        }
-      );
-      return () => unsubZones();
+    if (!selectedChildId || !family?.familyId) {
+      setSafeZones([]);
+      setLoading(false);
+      return;
     }
+
+    setLoading(true);
+    const unsubZones = SafeZoneRepository.listenToChildSafeZones(
+      selectedChildId,
+      family.familyId,
+      (zones) => {
+        setSafeZones(zones);
+        setLoading(false);
+      }
+    );
+    return () => unsubZones();
   }, [selectedChildId, family]);
 
   const handleAddOrUpdate = async (e: React.FormEvent) => {
@@ -385,7 +389,15 @@ export default function SafeZonesPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {safeZones.map((zone) => (
+            {!selectedChildId ? (
+              <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
+                      <Users size={40} className="text-primary-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-800">Please select your child first.</h2>
+                  <p className="text-slate-500 max-w-sm mx-auto mt-2">Use the dropdown at the top right to choose which child&apos;s safe zones you want to manage.</p>
+              </div>
+            ) : safeZones.map((zone) => (
             <div key={zone.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-all group">
                 <div>
                 <div className="flex justify-between items-start mb-4">
@@ -430,12 +442,12 @@ export default function SafeZonesPage() {
             </div>
             ))}
 
-            {safeZones.length === 0 && !showAddForm && (
+            {selectedChildId && safeZones.length === 0 && !showAddForm && (
             <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
                 <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
                 <MapPin size={40} className="text-slate-300" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-800">No Safe Zones for {selectedChildName}</h2>
+                <h2 className="text-xl font-bold text-slate-800">No safe zones configured yet.</h2>
                 <p className="text-slate-500 max-w-sm mx-auto mt-2">Create safety zones around Home, School, or other frequent locations to receive automatic alerts.</p>
                 <button
                 onClick={() => setShowAddForm(true)}
