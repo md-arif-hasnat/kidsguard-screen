@@ -8,7 +8,10 @@ data class AppUpdateInfo(
     val apkDownloadUrl: String = "",
     val updateMessage: String = "",
     val forceUpdate: Boolean = false,
-    val releasedAt: Timestamp? = null
+    val releasedAt: Timestamp? = null,
+    val fileSize: String = "",
+    val minimumAndroidVersion: String = "",
+    val releaseNotes: String = ""
 )
 
 data class AppUpdateState(
