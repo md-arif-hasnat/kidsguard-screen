@@ -19,16 +19,18 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
-import { ParentRepository } from '@/lib/repositories/ParentRepository';
+import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/SafeZoneRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { GeocodingService } from '@/lib/services/GeocodingService';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
+import MapLocationPicker from '@/components/MapLocationPicker';
 
 export default function SafeZonesPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ParentProfile | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
@@ -39,6 +41,7 @@ export default function SafeZonesPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [editingZone, setEditingZone] = useState<SafeZone | null>(null);
 
   // Form State
@@ -46,6 +49,7 @@ export default function SafeZonesPage() {
   const [type, setType] = useState<SafeZoneType>('Home');
   const [address, setAddress] = useState('');
   const [radius, setRadius] = useState(200);
+  const [manualCoords, setManualCoords] = useState<{ lat: number, lng: number } | null>(null);
 
   useEffect(() => {
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
@@ -54,17 +58,20 @@ export default function SafeZonesPage() {
     const unsub = observeAuth(async (authUser) => {
       setUser(authUser);
       if (authUser) {
-        const profile = await ParentRepository.getProfile(authUser.uid);
-        if (profile?.familyId) {
-          const unsubFamily = FamilyRepository.listenToFamily(profile.familyId, (data) => {
-            if (data) {
-              setFamily(data);
-              if (!selectedChildId && data.childDeviceIds.length > 0) {
-                setSelectedChildId(data.childDeviceIds[0]);
-              }
-            }
-          });
-          return () => unsubFamily();
+        const p = await ParentRepository.getProfile(authUser.uid);
+        if (p) {
+          setProfile(p);
+          if (p.familyId) {
+            const unsubFamily = FamilyRepository.listenToFamily(p.familyId, (data) => {
+                if (data) {
+                setFamily(data);
+                if (!selectedChildId && data.childDeviceIds.length > 0) {
+                    setSelectedChildId(data.childDeviceIds[0]);
+                }
+                }
+            });
+            return () => unsubFamily();
+          }
         }
       }
       setLoading(false);
@@ -107,17 +114,30 @@ export default function SafeZonesPage() {
     setStatus(null);
 
     try {
-      const geoResult = await GeocodingService.geocode(address);
-      if (!geoResult) {
-        throw new Error("Could not find coordinates for this address.");
+      let lat = manualCoords?.lat;
+      let lng = manualCoords?.lng;
+      let finalAddress = address.trim();
+
+      if (!lat || !lng) {
+        if (!finalAddress) {
+            throw new Error("Please provide an address or pick a location on the map.");
+        }
+
+        const geoResult = await GeocodingService.geocode(finalAddress);
+        if (!geoResult) {
+            throw new Error("Address lookup requires Google billing. Please pick location on map instead.");
+        }
+        lat = geoResult.latitude;
+        lng = geoResult.longitude;
+        finalAddress = geoResult.formattedAddress;
       }
 
       const zoneData = {
         name: name.trim() || type,
         type,
-        address: geoResult.formattedAddress,
-        latitude: geoResult.latitude,
-        longitude: geoResult.longitude,
+        address: finalAddress || "Manual Location",
+        latitude: lat,
+        longitude: lng,
         radiusMeters: radius,
         enabled: true,
         notifyOnEnter: true,
@@ -145,7 +165,9 @@ export default function SafeZonesPage() {
     setType('Home');
     setAddress('');
     setRadius(200);
+    setManualCoords(null);
     setShowAddForm(false);
+    setShowMapPicker(false);
     setEditingZone(null);
   };
 
@@ -153,8 +175,9 @@ export default function SafeZonesPage() {
     setEditingZone(zone);
     setName(zone.name);
     setType(zone.type);
-    setAddress(zone.address);
+    setAddress(zone.address || '');
     setRadius(zone.radiusMeters);
+    setManualCoords({ lat: zone.latitude, lng: zone.longitude });
     setShowAddForm(true);
   };
 
@@ -282,17 +305,38 @@ export default function SafeZonesPage() {
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                     <label className="text-sm font-bold text-slate-700 ml-1">Address or Landmark</label>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input
-                        type="text"
-                        required
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="e.g. 123 Main St, New York"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
-                        />
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+                            <input
+                            type="text"
+                            value={address}
+                            onChange={(e) => {
+                                setAddress(e.target.value);
+                                setManualCoords(null); // Clear manual if address is being typed
+                            }}
+                            placeholder="e.g. 123 Main St, New York"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowMapPicker(true)}
+                            className={clsx(
+                                "px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 border-2",
+                                manualCoords ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                            )}
+                        >
+                            <MapPin size={18} className={manualCoords ? "text-emerald-500" : "text-primary-500"} />
+                            {manualCoords ? "Location Set" : "Pick on Map"}
+                        </button>
                     </div>
+                    {manualCoords && (
+                        <p className="text-[10px] text-emerald-600 font-bold ml-1 flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            Coordinates locked: {manualCoords.lat.toFixed(4)}, {manualCoords.lng.toFixed(4)}
+                        </p>
+                    )}
                     </div>
                     <div className="space-y-3 md:col-span-2">
                     <label className="text-sm font-bold text-slate-700 ml-1">Radius (meters)</label>
@@ -403,6 +447,16 @@ export default function SafeZonesPage() {
             )}
         </div>
         </>
+      )}
+
+      {showMapPicker && (
+          <MapLocationPicker
+            initialLocation={manualCoords}
+            defaultRegion={profile?.region}
+            radius={radius}
+            onSelect={(lat, lng) => setManualCoords({ lat, lng })}
+            onClose={() => setShowMapPicker(false)}
+          />
       )}
     </DashboardLayout>
   );

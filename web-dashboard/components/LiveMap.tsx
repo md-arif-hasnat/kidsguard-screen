@@ -3,16 +3,12 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polyline, InfoWindow } from '@react-google-maps/api';
 import { MapPin, AlertTriangle, Info } from 'lucide-react';
+import { getRegionCenter, getRegionZoom } from '@/lib/utils/RegionPresets';
 
 const mapContainerStyle = {
   width: '100%',
   height: '100%',
   borderRadius: '1rem'
-};
-
-const defaultCenter = {
-  lat: 51.5074,
-  lng: -0.1278
 };
 
 const options = {
@@ -59,6 +55,7 @@ export const normalizeMapPath = (points: any[]): { lat: number; lng: number }[] 
 
 interface LiveMapProps {
   childLocation: { lat: number; lng: number; accuracy: number; timestamp?: number } | null;
+  defaultRegion?: string | null;
   avatarId?: string | null;
   safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number, type?: string }>;
   routeHistory: Array<{ lat: number; lng: number }>;
@@ -68,6 +65,7 @@ interface LiveMapProps {
 
 const LiveMap: React.FC<LiveMapProps> = ({
   childLocation,
+  defaultRegion,
   avatarId,
   safeZones,
   routeHistory,
@@ -98,6 +96,9 @@ const LiveMap: React.FC<LiveMapProps> = ({
 
   const normalizedRoute = normalizeMapPath(routeHistory);
   const normalizedChildLoc = normalizeMapPoint(childLocation);
+
+  const center = normalizedChildLoc || getRegionCenter(defaultRegion);
+  const zoom = normalizedChildLoc ? 15 : getRegionZoom(defaultRegion);
 
   useEffect(() => {
     if (map && followChild && normalizedChildLoc) {
@@ -143,8 +144,8 @@ const LiveMap: React.FC<LiveMapProps> = ({
   return isLoaded ? (
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
-      center={normalizedChildLoc || defaultCenter}
-      zoom={15}
+      center={center}
+      zoom={zoom}
       onLoad={onLoad}
       onUnmount={onUnmount}
       options={options}

@@ -34,6 +34,10 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import AvatarPicker from '@/components/AvatarPicker';
 
+import { User as UserAuth } from 'firebase/auth';
+import { observeAuth } from '@/lib/auth';
+import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -42,6 +46,8 @@ export default function ChildDashboard() {
   const params = useParams();
   const childId = params.childId as string;
 
+  const [user, setUser] = useState<UserAuth | null>(null);
+  const [profile, setProfile] = useState<ParentProfile | null>(null);
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
@@ -53,6 +59,14 @@ export default function ChildDashboard() {
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
+
+    const unsubAuth = observeAuth(async (authUser) => {
+        setUser(authUser);
+        if (authUser) {
+            const p = await ParentRepository.getProfile(authUser.uid);
+            if (p) setProfile(p);
+        }
+    });
 
     const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
     const unsubLocation = LocationRepository.listenToLatestLocation(childId, setLocation);
@@ -255,6 +269,7 @@ export default function ChildDashboard() {
                 <>
                 <LiveMap
                     childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
+                    defaultRegion={profile?.region}
                     avatarId={displayData.avatarId}
                     safeZones={displayZones}
                     routeHistory={displayRoute}

@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera } from 'lucide-react';
+import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera, Globe } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { User } from 'firebase/auth';
 import AvatarPicker from '@/components/AvatarPicker';
+import { clsx } from 'clsx';
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   // Form State
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [region, setRegion] = useState<'DE' | 'BD' | 'US' | 'Global'>('DE');
 
   useEffect(() => {
     const unsub = observeAuth(async (authUser) => {
@@ -30,6 +32,7 @@ export default function SettingsPage() {
             setProfile(p);
             setDisplayName(p.displayName || authUser.displayName || '');
             setPhoneNumber(p.phoneNumber || authUser.phoneNumber || '');
+            setRegion(p.region || 'DE');
           }
         } catch (err) {
           console.error("Error loading profile:", err);
@@ -50,7 +53,8 @@ export default function SettingsPage() {
     try {
       await ParentRepository.updateProfile(user.uid, {
         displayName: displayName.trim(),
-        phoneNumber: phoneNumber.trim()
+        phoneNumber: phoneNumber.trim(),
+        region
       });
       setStatus({ type: 'success', message: 'Profile updated successfully!' });
 
@@ -195,6 +199,24 @@ export default function SettingsPage() {
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none font-medium cursor-not-allowed"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700 ml-1">Default Region (Map Center)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <select
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none"
+                  >
+                    <option value="DE">Germany (Mönchengladbach)</option>
+                    <option value="BD">Bangladesh (Dhaka)</option>
+                    <option value="US">United States (New York)</option>
+                    <option value="Global">Global View</option>
+                  </select>
+                </div>
+                <p className="text-[10px] text-slate-400 ml-1 italic">Used for centering maps when child location is unavailable.</p>
               </div>
             </div>
 

@@ -8,9 +8,13 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_ROUTE_HISTORY, MOCK_SAFE_ZONES } from '@/lib/mockData';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { observeAuth } from '@/lib/auth';
 import { clsx } from 'clsx';
 
 export default function HistoryPage() {
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<ParentProfile | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childStatus, setChildStatus] = useState<ChildStatus | null>(null);
   const [routeHistory, setRouteHistory] = useState<LocationPoint[]>([]);
@@ -19,6 +23,16 @@ export default function HistoryPage() {
   useEffect(() => {
     const savedChildId = localStorage.getItem("kidsguard_selected_child") || (MOCK_CHILDREN.length > 0 ? MOCK_CHILDREN[0].id : null);
     setSelectedChildId(savedChildId);
+
+    const unsubAuth = observeAuth(async (authUser) => {
+        setUser(authUser);
+        if (authUser) {
+            const p = await ParentRepository.getProfile(authUser.uid);
+            if (p) setProfile(p);
+        }
+    });
+
+    return () => unsubAuth();
   }, []);
 
   useEffect(() => {
@@ -73,6 +87,7 @@ export default function HistoryPage() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
             <LiveMap
                 childLocation={null}
+                defaultRegion={profile?.region}
                 avatarId={childStatus?.avatarId}
                 safeZones={isFirebaseConfigured ? [] : MOCK_SAFE_ZONES}
                 routeHistory={displayRoute}

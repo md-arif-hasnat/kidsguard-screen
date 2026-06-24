@@ -9,6 +9,7 @@ export interface ParentProfile {
   avatarId?: string;
   provider: string;
   familyId: string | null;
+  region?: 'DE' | 'BD' | 'US' | 'Global';
   createdAt: any;
   lastLoginAt: any;
 }
@@ -39,6 +40,7 @@ export class ParentRepository {
     if (!existing) {
       profile.createdAt = serverTimestamp();
       profile.familyId = null;
+      profile.region = 'DE'; // Default region for new users
     }
 
     await setDoc(doc(db, "parents", user.uid), profile, { merge: true });
