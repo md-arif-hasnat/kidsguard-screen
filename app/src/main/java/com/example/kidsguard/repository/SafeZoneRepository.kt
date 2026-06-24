@@ -33,17 +33,33 @@ class SafeZoneRepository {
         this.childId = id
         this.familyId = familyId
         
-        if (familyId != null && familyId.isNotEmpty()) {
-            startSync(familyId)
+        if (id.isNotEmpty() && familyId != null && familyId.isNotEmpty()) {
+            startSync(id, familyId)
         }
     }
 
-    private fun startSync(familyId: String) {
+    private fun startSync(childId: String, familyId: String) {
         syncJob?.cancel()
-        syncJob = kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            syncProvider?.getSafeZones(familyId)?.collect { zones ->
+        syncJob = GlobalScope.launch(Dispatchers.IO) {
+            // Combine both family-level and child-level zones
+            val familyFlow = syncProvider?.getSafeZones(familyId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+            val childFlow = syncProvider?.getSafeZonesForChild(childId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+            
+            kotlinx.coroutines.flow.combine(familyFlow, childFlow) { familyZones, childZones ->
+                // Merge lists, childZones take priority
+                val merged = familyZones.toMutableList()
+                childZones.forEach { cz ->
+                    val index = merged.indexOfFirst { it.id == cz.id }
+                    if (index != -1) {
+                        merged[index] = cz
+                    } else {
+                        merged.add(cz)
+                    }
+                }
+                merged
+            }.collect { zones ->
                 _safeZones.value = zones
-                android.util.Log.d("SafeZoneRepo", "Received ${zones.size} zones from Firebase")
+                android.util.Log.d("SafeZoneRepo", "Received ${zones.size} combined zones from Firebase")
             }
         }
     }
@@ -51,10 +67,10 @@ class SafeZoneRepository {
     fun addSafeZone(zone: SafeZone) {
         _safeZones.value = _safeZones.value + zone
         
-        val currentFamilyId = familyId
-        if (syncProvider != null && currentFamilyId != null && currentFamilyId.isNotEmpty()) {
-            android.util.Log.d("SafeZoneRepo", "Syncing new safe zone: ${zone.name}")
-            syncProvider?.syncSafeZone(currentFamilyId, zone)
+        val currentChildId = childId
+        if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
+            android.util.Log.d("SafeZoneRepo", "Syncing new safe zone for child: ${zone.name}")
+            syncProvider?.syncSafeZone(currentChildId, zone)
         }
     }
 
@@ -63,10 +79,10 @@ class SafeZoneRepository {
             if (it.id == updatedZone.id) updatedZone else it
         }
         
-        val currentFamilyId = familyId
-        if (syncProvider != null && currentFamilyId != null && currentFamilyId.isNotEmpty()) {
-            android.util.Log.d("SafeZoneRepo", "Syncing updated safe zone: ${updatedZone.name}")
-            syncProvider?.syncSafeZone(currentFamilyId, updatedZone)
+        val currentChildId = childId
+        if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
+            android.util.Log.d("SafeZoneRepo", "Syncing updated safe zone for child: ${updatedZone.name}")
+            syncProvider?.syncSafeZone(currentChildId, updatedZone)
         }
     }
 

@@ -116,19 +116,19 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone) {
-        if (familyId.isEmpty()) return
+    override fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone) {
+        if (childId.isEmpty()) return
         
-        db.collection(FirebaseConfig.COL_FAMILIES)
-            .document(familyId)
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
             .collection(FirebaseConfig.COL_SAFE_ZONES)
             .document(zone.id)
             .set(zone)
             .addOnSuccessListener {
-                Log.d(TAG, "Safe zone synced successfully: ${zone.name}")
+                Log.d(TAG, "Safe zone synced successfully to child $childId: ${zone.name}")
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to sync safe zone", e)
+                Log.e(TAG, "Failed to sync safe zone to child $childId", e)
                 errorLogger.addError(TAG, "Failed to sync safe zone", e)
             }
     }
@@ -428,7 +428,33 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .collection(FirebaseConfig.COL_SAFE_ZONES)
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
-                    Log.e(TAG, "Error listening for safe zones", e)
+                    Log.e(TAG, "Error listening for family safe zones", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    val zones = snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
+                    trySend(zones)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun getSafeZonesForChild(childId: String): Flow<List<com.example.kidsguard.models.SafeZone>> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection(FirebaseConfig.COL_SAFE_ZONES)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for child safe zones", e)
                     return@addSnapshotListener
                 }
                 

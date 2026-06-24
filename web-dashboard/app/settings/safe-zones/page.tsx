@@ -15,18 +15,24 @@ import {
   Search,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/SafeZoneRepository';
+import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { GeocodingService } from '@/lib/services/GeocodingService';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
 
 export default function SafeZonesPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [family, setFamily] = useState<FamilyData | null>(null);
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
+
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,15 +48,23 @@ export default function SafeZonesPage() {
   const [radius, setRadius] = useState(200);
 
   useEffect(() => {
+    const savedChildId = localStorage.getItem("kidsguard_selected_child");
+    if (savedChildId) setSelectedChildId(savedChildId);
+
     const unsub = observeAuth(async (authUser) => {
       setUser(authUser);
       if (authUser) {
-        const p = await ParentRepository.getProfile(authUser.uid);
-        if (p?.familyId) {
-          setFamilyId(p.familyId);
-          const unsubZones = SafeZoneRepository.listenToSafeZones(p.familyId, setSafeZones);
-          setLoading(false);
-          return () => unsubZones();
+        const profile = await ParentRepository.getProfile(authUser.uid);
+        if (profile?.familyId) {
+          const unsubFamily = FamilyRepository.listenToFamily(profile.familyId, (data) => {
+            if (data) {
+              setFamily(data);
+              if (!selectedChildId && data.childDeviceIds.length > 0) {
+                setSelectedChildId(data.childDeviceIds[0]);
+              }
+            }
+          });
+          return () => unsubFamily();
         }
       }
       setLoading(false);
@@ -58,9 +72,36 @@ export default function SafeZonesPage() {
     return () => unsub();
   }, []);
 
+  // Listen to status of all children in family to get names
+  useEffect(() => {
+    if (!family) return;
+    const unsubscribes = family.childDeviceIds.map(id =>
+      ChildRepository.listenToChildStatus(id, (s) => {
+        if (s) setChildrenStatus(prev => ({ ...prev, [id]: s }));
+      })
+    );
+    return () => unsubscribes.forEach(u => u());
+  }, [family]);
+
+  // Listen to safe zones for selected child
+  useEffect(() => {
+    if (selectedChildId && family?.familyId) {
+      setLoading(true);
+      const unsubZones = SafeZoneRepository.listenToChildSafeZones(
+        selectedChildId,
+        family.familyId,
+        (zones) => {
+          setSafeZones(zones);
+          setLoading(false);
+        }
+      );
+      return () => unsubZones();
+    }
+  }, [selectedChildId, family]);
+
   const handleAddOrUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!familyId) return;
+    if (!selectedChildId) return;
 
     setSaving(true);
     setStatus(null);
@@ -84,10 +125,10 @@ export default function SafeZonesPage() {
       };
 
       if (editingZone) {
-        await SafeZoneRepository.updateSafeZone(familyId, editingZone.id, zoneData);
+        await SafeZoneRepository.updateSafeZone(selectedChildId, editingZone.id, zoneData);
         setStatus({ type: 'success', message: 'Safe zone updated!' });
       } else {
-        await SafeZoneRepository.addSafeZone(familyId, zoneData);
+        await SafeZoneRepository.addSafeZone(selectedChildId, zoneData);
         setStatus({ type: 'success', message: 'Safe zone added!' });
       }
 
@@ -118,9 +159,9 @@ export default function SafeZonesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!familyId || !confirm("Delete this safe zone?")) return;
+    if (!selectedChildId || !confirm("Delete this safe zone?")) return;
     try {
-      await SafeZoneRepository.deleteSafeZone(familyId, id);
+      await SafeZoneRepository.deleteSafeZone(selectedChildId, id);
       setStatus({ type: 'success', message: 'Safe zone deleted.' });
     } catch (err) {
       setStatus({ type: 'error', message: 'Failed to delete.' });
@@ -137,187 +178,232 @@ export default function SafeZonesPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-[60vh]">
-          <Loader2 className="animate-spin text-primary-600" size={48} />
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const selectedChildName = selectedChildId ? (childrenStatus[selectedChildId]?.childName || "Child") : "Select a child";
 
   return (
     <DashboardLayout>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Safe Zones</h1>
-          <p className="text-slate-500 mt-1">Manage important locations for your family.</p>
+          <p className="text-slate-500 mt-1">Manage safety perimeters for your children.</p>
         </div>
-        {!showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2"
-          >
-            <Plus size={20} />
-            Add New Zone
-          </button>
-        )}
-      </div>
 
-      {status && (
-        <div className={clsx(
-          "mb-6 p-4 rounded-xl flex items-center gap-3 border animate-in slide-in-from-top-2 duration-300",
-          status.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
-        )}>
-          {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
-          <p className="font-medium">{status.message}</p>
-        </div>
-      )}
-
-      {showAddForm && (
-        <div className="bg-white rounded-2xl border-2 border-primary-100 shadow-xl overflow-hidden mb-8 animate-in zoom-in-95 duration-200">
-           <div className="p-6 border-b border-slate-100 bg-primary-50/30 flex items-center justify-between">
-              <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                 <Settings size={18} className="text-primary-600" />
-                 {editingZone ? 'Edit Safe Zone' : 'Configure New Safe Zone'}
-              </h2>
-              <button onClick={resetForm} className="text-slate-400 hover:text-slate-600">Cancel</button>
-           </div>
-           <form onSubmit={handleAddOrUpdate} className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Zone Type</label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value as SafeZoneType)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
-                  >
-                    <option value="Home">Home</option>
-                    <option value="School">School</option>
-                    <option value="Playground">Playground</option>
-                    <option value="Relative House">Relative House</option>
-                    <option value="Custom">Custom Location</option>
-                  </select>
+        <div className="flex items-center gap-3">
+            {/* Child Selector */}
+            <div className="relative group">
+                <button className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600">
+                        {selectedChildName[0]}
+                    </div>
+                    <span>{selectedChildName}</span>
+                    <ChevronDown size={16} className="text-slate-400" />
+                </button>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                    {family?.childDeviceIds.map(id => (
+                        <button
+                            key={id}
+                            onClick={() => {
+                                setSelectedChildId(id);
+                                localStorage.setItem("kidsguard_selected_child", id);
+                            }}
+                            className={clsx(
+                                "w-full text-left px-4 py-3 text-sm font-bold transition-colors",
+                                selectedChildId === id ? "bg-primary-50 text-primary-600" : "text-slate-600 hover:bg-slate-50"
+                            )}
+                        >
+                            {childrenStatus[id]?.childName || "Child"}
+                        </button>
+                    ))}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Custom Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={type}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Address or Landmark</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-                    <input
-                      type="text"
-                      required
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="e.g. 123 Main St, New York"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Radius (meters): {radius}m</label>
-                  <input
-                    type="range"
-                    min="100"
-                    max="2000"
-                    step="50"
-                    value={radius}
-                    onChange={(e) => setRadius(parseInt(e.target.value))}
-                    className="w-full accent-primary-600"
-                  />
-                  <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
-                    <span>100m</span>
-                    <span>1km</span>
-                    <span>2km</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end pt-4">
-                 <button
-                   type="submit"
-                   disabled={saving}
-                   className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-10 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2 disabled:opacity-50"
-                 >
-                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}
-                   {editingZone ? 'Save Changes' : 'Create Safe Zone'}
-                 </button>
-              </div>
-           </form>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {safeZones.map((zone) => (
-          <div key={zone.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-all group">
-            <div>
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
-                  {getIcon(zone.type)}
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleEdit(zone)}
-                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary-600 transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(zone.id)}
-                    className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-bold text-slate-900 text-lg">{zone.name}</h3>
-              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-1">{zone.type}</p>
-              <div className="mt-4 flex items-start gap-2 text-sm text-slate-600">
-                <MapPin size={16} className="shrink-0 mt-0.5 text-slate-400" />
-                <span className="line-clamp-2 leading-relaxed">{zone.address}</span>
-              </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-slate-50 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-bold text-slate-400 uppercase">Radius: {zone.radiusMeters}m</span>
-              </div>
-              <div className={clsx(
-                "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                zone.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
-              )}>
-                {zone.enabled ? "Active" : "Disabled"}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {safeZones.length === 0 && !showAddForm && (
-          <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
-              <MapPin size={40} className="text-slate-300" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-800">No Safe Zones Configured</h2>
-            <p className="text-slate-500 max-w-sm mx-auto mt-2">Create safety zones around Home, School, or other frequent locations to receive automatic alerts.</p>
+            {!showAddForm && selectedChildId && (
             <button
-              onClick={() => setShowAddForm(true)}
-              className="mt-8 text-primary-600 font-bold hover:underline"
+                onClick={() => setShowAddForm(true)}
+                className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2"
             >
-              Add your first zone now
+                <Plus size={20} />
+                Add Zone
             </button>
-          </div>
-        )}
+            )}
+        </div>
       </div>
+
+      {loading ? (
+          <div className="flex items-center justify-center py-20">
+              <Loader2 className="animate-spin text-primary-600" size={48} />
+          </div>
+      ) : (
+        <>
+        {status && (
+            <div className={clsx(
+            "mb-6 p-4 rounded-xl flex items-center gap-3 border animate-in slide-in-from-top-2 duration-300",
+            status.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
+            )}>
+            {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            <p className="font-medium">{status.message}</p>
+            </div>
+        )}
+
+        {showAddForm && (
+            <div className="bg-white rounded-2xl border-2 border-primary-100 shadow-xl overflow-hidden mb-8 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 bg-primary-50/30 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                    <Settings size={18} className="text-primary-600" />
+                    {editingZone ? `Edit Zone for ${selectedChildName}` : `New Zone for ${selectedChildName}`}
+                </h2>
+                <button onClick={resetForm} className="text-slate-400 hover:text-slate-600">Cancel</button>
+            </div>
+            <form onSubmit={handleAddOrUpdate} className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700 ml-1">Zone Type</label>
+                    <select
+                        value={type}
+                        onChange={(e) => setType(e.target.value as SafeZoneType)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                    >
+                        <option value="Home">Home</option>
+                        <option value="School">School</option>
+                        <option value="Playground">Playground</option>
+                        <option value="Relative House">Relative House</option>
+                        <option value="Custom">Custom Location</option>
+                    </select>
+                    </div>
+                    <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700 ml-1">Custom Name (Optional)</label>
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={type}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                    />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-sm font-bold text-slate-700 ml-1">Address or Landmark</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+                        <input
+                        type="text"
+                        required
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="e.g. 123 Main St, New York"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                        />
+                    </div>
+                    </div>
+                    <div className="space-y-3 md:col-span-2">
+                    <label className="text-sm font-bold text-slate-700 ml-1">Radius (meters)</label>
+                    <div className="flex flex-wrap gap-2">
+                        {[100, 200, 300, 500, 750, 1000].map((r) => (
+                        <button
+                            key={r}
+                            type="button"
+                            onClick={() => setRadius(r)}
+                            className={clsx(
+                            "px-4 py-2 rounded-lg text-sm font-bold border-2 transition-all",
+                            radius === r ? "border-primary-500 bg-primary-50 text-primary-600" : "border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200"
+                            )}
+                        >
+                            {r}m
+                        </button>
+                        ))}
+                        <div className={clsx(
+                            "flex items-center gap-2 px-4 py-1.5 rounded-lg border-2 transition-all",
+                            ![100, 200, 300, 500, 750, 1000].includes(radius) ? "border-primary-500 bg-primary-50" : "border-slate-100 bg-slate-50"
+                        )}>
+                            <span className="text-xs font-bold text-slate-400 uppercase">Custom:</span>
+                            <input
+                                type="number"
+                                value={radius}
+                                onChange={(e) => setRadius(parseInt(e.target.value) || 100)}
+                                className="w-16 bg-transparent outline-none font-bold text-sm text-slate-700"
+                            />
+                            <span className="text-xs font-bold text-slate-400 uppercase">m</span>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                <div className="flex justify-end pt-4">
+                    <button
+                    type="submit"
+                    disabled={saving}
+                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-10 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}
+                    {editingZone ? 'Save Changes' : 'Create Safe Zone'}
+                    </button>
+                </div>
+            </form>
+            </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {safeZones.map((zone) => (
+            <div key={zone.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-all group">
+                <div>
+                <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
+                    {getIcon(zone.type)}
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                        onClick={() => handleEdit(zone)}
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary-600 transition-colors"
+                    >
+                        <Edit2 size={16} />
+                    </button>
+                    <button
+                        onClick={() => handleDelete(zone.id)}
+                        className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                    </div>
+                </div>
+                <h3 className="font-bold text-slate-900 text-lg">{zone.name}</h3>
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-1">{zone.type}</p>
+                <div className="mt-4 flex items-start gap-2 text-sm text-slate-600">
+                    <MapPin size={16} className="shrink-0 mt-0.5 text-slate-400" />
+                    <span className="line-clamp-2 leading-relaxed">{zone.address}</span>
+                </div>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-slate-50 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs font-bold text-slate-400 uppercase">Radius: {zone.radiusMeters}m</span>
+                </div>
+                <div className={clsx(
+                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                    zone.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                )}>
+                    {zone.enabled ? "Active" : "Disabled"}
+                </div>
+                </div>
+            </div>
+            ))}
+
+            {safeZones.length === 0 && !showAddForm && (
+            <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
+                <MapPin size={40} className="text-slate-300" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">No Safe Zones for {selectedChildName}</h2>
+                <p className="text-slate-500 max-w-sm mx-auto mt-2">Create safety zones around Home, School, or other frequent locations to receive automatic alerts.</p>
+                <button
+                onClick={() => setShowAddForm(true)}
+                className="mt-8 text-primary-600 font-bold hover:underline"
+                >
+                Add first zone for {selectedChildName}
+                </button>
+            </div>
+            )}
+        </div>
+        </>
+      )}
     </DashboardLayout>
   );
 }

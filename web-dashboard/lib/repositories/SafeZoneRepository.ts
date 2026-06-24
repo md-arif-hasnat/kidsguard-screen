@@ -6,6 +6,7 @@ export type SafeZoneType = 'Home' | 'School' | 'Playground' | 'Relative House' |
 
 export interface SafeZone {
   id: string;
+  childId?: string;
   name: string;
   type: SafeZoneType;
   address: string;
@@ -16,49 +17,92 @@ export interface SafeZone {
   notifyOnEnter: boolean;
   notifyOnExit: boolean;
   createdAt?: any;
+  updatedAt?: any;
 }
 
 export class SafeZoneRepository {
-  static listenToSafeZones(familyId: string, onUpdate: (zones: SafeZone[]) => void) {
-    if (!db || !familyId) return () => {};
+  /**
+   * Listens to safe zones for a specific child.
+   * Merges legacy family-level zones and new child-specific zones.
+   */
+  static listenToChildSafeZones(childId: string, familyId: string, onUpdate: (zones: SafeZone[]) => void) {
+    if (!db) return () => {};
 
-    const zonesRef = collection(db, "families", familyId, "safeZones");
-    return onSnapshot(zonesRef, (snapshot) => {
-      const zones = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as SafeZone));
-      onUpdate(zones);
+    const familyZonesRef = collection(db, "families", familyId, "safeZones");
+    const childZonesRef = collection(db, "children", childId, "safeZones");
+
+    let familyZones: SafeZone[] = [];
+    let childZones: SafeZone[] = [];
+
+    const triggerUpdate = () => {
+      // Merge zones, child-specific zones take priority if IDs collide
+      const merged = [...familyZones];
+      childZones.forEach(cz => {
+        const index = merged.findIndex(fz => fz.id === cz.id);
+        if (index > -1) {
+          merged[index] = cz;
+        } else {
+          merged.push(cz);
+        }
+      });
+      onUpdate(merged);
+    };
+
+    const unsubFamily = onSnapshot(familyZonesRef, (snapshot) => {
+      familyZones = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SafeZone));
+      triggerUpdate();
     }, (error) => {
-      console.error("Error listening to safe zones:", error);
-      onUpdate([]);
+      console.error("Error listening to family zones:", error);
     });
+
+    const unsubChild = onSnapshot(childZonesRef, (snapshot) => {
+      childZones = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SafeZone));
+      triggerUpdate();
+    }, (error) => {
+      console.error("Error listening to child zones:", error);
+    });
+
+    return () => {
+      unsubFamily();
+      unsubChild();
+    };
   }
 
-  static async addSafeZone(familyId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>): Promise<string> {
+  static async addSafeZone(childId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>): Promise<string> {
     if (!db) throw new Error("Firestore not initialized");
     const id = uuidv4();
-    const zoneRef = doc(db, "families", familyId, "safeZones", id);
+    const zoneRef = doc(db, "children", childId, "safeZones", id);
     await setDoc(zoneRef, {
       ...zone,
       id,
-      createdAt: serverTimestamp()
+      childId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
     return id;
   }
 
-  static async updateSafeZone(familyId: string, zoneId: string, updates: Partial<SafeZone>): Promise<void> {
+  static async updateSafeZone(childId: string, zoneId: string, updates: Partial<SafeZone>): Promise<void> {
     if (!db) return;
-    const zoneRef = doc(db, "families", familyId, "safeZones", zoneId);
+    const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await updateDoc(zoneRef, {
       ...updates,
       updatedAt: serverTimestamp()
     });
   }
 
-  static async deleteSafeZone(familyId: string, zoneId: string): Promise<void> {
+  static async deleteSafeZone(childId: string, zoneId: string): Promise<void> {
     if (!db) return;
-    const zoneRef = doc(db, "families", familyId, "safeZones", zoneId);
+    const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await deleteDoc(zoneRef);
+  }
+
+  // Keep legacy for backward compatibility if needed temporarily
+  static listenToSafeZones(familyId: string, onUpdate: (zones: SafeZone[]) => void) {
+    if (!db || !familyId) return () => {};
+    const zonesRef = collection(db, "families", familyId, "safeZones");
+    return onSnapshot(zonesRef, (snapshot) => {
+      onUpdate(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SafeZone)));
+    });
   }
 }

@@ -9,7 +9,7 @@ interface RemoteSyncProvider {
     fun syncChildStatus(status: SyncChildStatus)
     fun syncLocation(update: SyncLocationUpdate)
     fun syncActivity(event: SyncActivityEvent)
-    fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone)
+    fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone)
     fun syncSosEvent(event: com.example.kidsguard.models.SosEvent)
     fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
@@ -22,6 +22,7 @@ interface RemoteSyncProvider {
     fun sendCommand(command: SyncRemoteCommand)
     fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>>
     fun getSafeZones(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>>
+    fun getSafeZonesForChild(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>>
 
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -58,7 +59,7 @@ class LocalMockSyncProvider : RemoteSyncProvider {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
-    override fun syncSafeZone(familyId: String, zone: com.example.kidsguard.models.SafeZone) {
+    override fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone) {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
@@ -163,6 +164,14 @@ class LocalMockSyncProvider : RemoteSyncProvider {
             listOf(
                 com.example.kidsguard.models.SafeZone(id = "zone_1", name = "Home", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 500.0),
                 com.example.kidsguard.models.SafeZone(id = "zone_2", name = "School", type = "School", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0)
+            )
+        )
+    }
+
+    override fun getSafeZonesForChild(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>> {
+        return kotlinx.coroutines.flow.flowOf(
+            listOf(
+                com.example.kidsguard.models.SafeZone(id = "zone_child_1", name = "Home (Child)", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 300.0)
             )
         )
     }
