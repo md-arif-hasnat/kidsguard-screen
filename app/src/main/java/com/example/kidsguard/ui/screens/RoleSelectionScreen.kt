@@ -34,16 +34,18 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastLogoTapTime > 2000) {
-                        logoTapCount = 1
-                    } else {
-                        logoTapCount++
-                    }
-                    lastLogoTapTime = now
-                    if (logoTapCount >= 7) {
-                        logoTapCount = 0
-                        onOpenDeveloperMenu()
+                    if (com.example.kidsguard.BuildConfig.DEBUG) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastLogoTapTime > 2000) {
+                            logoTapCount = 1
+                        } else {
+                            logoTapCount++
+                        }
+                        lastLogoTapTime = now
+                        if (logoTapCount >= 7) {
+                            logoTapCount = 0
+                            onOpenDeveloperMenu()
+                        }
                     }
                 },
             tint = MaterialTheme.colorScheme.primary

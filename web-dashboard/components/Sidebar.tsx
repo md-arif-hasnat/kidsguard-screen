@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -13,11 +13,13 @@ import {
   Settings,
   LogOut,
   LayoutDashboard,
-  MapPin
+  MapPin,
+  Bell
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { signOut } from '@/lib/auth';
+import { signOut, observeAuth } from '@/lib/auth';
+import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -26,9 +28,23 @@ function cn(...inputs: any[]) {
 const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubAuth = observeAuth((authUser) => {
+      setUser(authUser);
+      if (authUser) {
+        const unsubCount = NotificationRepository.listenToUnreadCount(authUser.uid, setUnreadCount);
+        return () => unsubCount();
+      }
+    });
+    return () => unsubAuth();
+  }, []);
 
   const navItems = [
     { name: 'Family Overview', href: '/', icon: Users },
+    { name: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
     { name: 'Live Map', href: '/map', icon: MapIcon },
     { name: 'Safe Zones', href: '/settings/safe-zones', icon: MapPin },
     { name: 'Activity Feed', href: '/activity', icon: Activity },
@@ -58,14 +74,21 @@ const Sidebar = () => {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                "flex items-center justify-between px-4 py-3 rounded-lg transition-colors",
                 isActive
                   ? "bg-primary-600 text-white"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
               )}
             >
-              <item.icon size={20} />
-              <span className="font-medium">{item.name}</span>
+              <div className="flex items-center gap-3">
+                <item.icon size={20} />
+                <span className="font-medium">{item.name}</span>
+              </div>
+              {item.badge && item.badge > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                    {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -1,43 +1,263 @@
-/**
- * KidsGuard Cloud Functions Placeholder
- * Implementation for Phase T Architecture
- */
-
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 admin.initializeApp();
 
-// Placeholder for createFamily
-export const createFamily = functions.https.onCall(async (data, context) => {
-    // Logic to create a family document and assign parent
-});
+const db = admin.firestore();
 
-// Placeholder for createPairingCode
-export const createPairingCode = functions.https.onCall(async (data, context) => {
-    // Logic to generate a unique short-lived pairing code
-});
+// --- Notification Triggers ---
 
-// Placeholder for acceptPairingCode
-export const acceptPairingCode = functions.https.onCall(async (data, context) => {
-    // Logic to validate code and link child device to family
-});
-
-// Placeholder for sendRemoteCommand
-export const sendRemoteCommand = functions.https.onCall(async (data, context) => {
-    // Logic for parent to send command to child
-});
-
-// Placeholder for SOS Alert
-export const createSosAlert = functions.firestore
-    .document('sosEvents/{childId}/{eventId}')
+/**
+ * Triggered when a new activity event is created for a child.
+ * Handles Safe Zone Entry/Exit.
+ */
+export const onActivityCreated = functions.firestore
+    .document('children/{childId}/activities/{activityId}')
     .onCreate(async (snapshot, context) => {
-        // Logic to notify parent via FCM
+        const activity = snapshot.data();
+        const { childId } = context.params;
+
+        if (activity.type === 'ENTER_ZONE' || activity.type === 'EXIT_ZONE') {
+            await broadcastToParents(childId, {
+                title: activity.title,
+                body: activity.description,
+                type: 'SAFE_ZONE',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        }
     });
 
-// Placeholder for Cleanup jobs
-export const cleanupExpiredPairingCodes = functions.pubsub
-    .schedule('every 24 hours')
-    .onRun(async (context) => {
-        // Logic to delete expired codes
+/**
+ * Triggered when an SOS event is created or updated.
+ */
+export const onSosChanged = functions.firestore
+    .document('children/{childId}/sosEvents/{eventId}')
+    .onWrite(async (change, context) => {
+        const { childId } = context.params;
+        const data = change.after.data();
+
+        if (!data) return;
+
+        // Only notify on active SOS
+        if (data.status === 'ACTIVE') {
+            await broadcastToParents(childId, {
+                title: '🆘 SOS ACTIVATED',
+                body: data.message || 'Emergency signal received!',
+                type: 'SOS',
+                childId: childId,
+                clickAction: `/map` // Center on map
+            });
+        } else if (data.status === 'RESOLVED') {
+            await broadcastToParents(childId, {
+                title: '✅ SOS Resolved',
+                body: 'Emergency situation has been marked as resolved.',
+                type: 'SOS',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        }
     });
+
+/**
+ * Triggered when child status (battery, online) changes.
+ */
+export const onStatusChanged = functions.firestore
+    .document('children/{childId}/status/current')
+    .onUpdate(async (change, context) => {
+        const before = change.before.data();
+        const after = change.after.data();
+        const { childId } = context.params;
+
+        if (!before || !after) return;
+
+        const childName = after.childName || 'Child';
+
+        // 1. Battery Alerts
+        if (after.batteryPercent <= 10 && before.batteryPercent > 10) {
+            await broadcastToParents(childId, {
+                title: `🪫 Critical Battery: ${childName}`,
+                body: `${childName}'s device is at ${after.batteryPercent}%. Charge immediately.`,
+                type: 'BATTERY',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        } else if (after.batteryPercent <= 20 && before.batteryPercent > 20) {
+            await broadcastToParents(childId, {
+                title: `🔋 Low Battery: ${childName}`,
+                body: `${childName}'s device is at ${after.batteryPercent}%.`,
+                type: 'BATTERY',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        }
+
+        // 2. Online/Offline Alerts
+        if (after.online === false && before.online === true) {
+            await broadcastToParents(childId, {
+                title: `☁️ ${childName} is Offline`,
+                body: 'Connection to the child device was lost.',
+                type: 'DEVICE',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        } else if (after.online === true && before.online === false) {
+            await broadcastToParents(childId, {
+                title: `🌐 ${childName} is Online`,
+                body: 'Device has reconnected to the network.',
+                type: 'DEVICE',
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        }
+    });
+
+/**
+ * Triggered when a new child is paired to a family.
+ */
+export const onFamilyUpdated = functions.firestore
+    .document('families/{familyId}')
+    .onUpdate(async (change, context) => {
+        const before = change.before.data();
+        const after = change.after.data();
+
+        if (!before || !after) return;
+
+        const newChildren = after.childDeviceIds.filter((id: string) => !before.childDeviceIds.includes(id));
+
+        for (const childId of newChildren) {
+            // Find child name
+            const childSnap = await db.collection('children').doc(childId).get();
+            const childName = childSnap.data()?.name || 'New Device';
+
+            const parentIds = after.parentIds as string[];
+            for (const uid of parentIds) {
+                await notifyParent(uid, {
+                    title: '📱 New Child Paired',
+                    body: `${childName} has been successfully linked to your family vault.`,
+                    type: 'PAIRING',
+                    childId: childId,
+                    clickAction: '/'
+                });
+            }
+        }
+    });
+
+
+// --- Helper Functions ---
+
+interface NotificationPayload {
+    title: string;
+    body: string;
+    type: 'SAFE_ZONE' | 'SOS' | 'BATTERY' | 'DEVICE' | 'PAIRING';
+    childId: string;
+    clickAction: string;
+}
+
+/**
+ * Sends a notification to all parents linked to a child.
+ */
+async function broadcastToParents(childId: string, payload: NotificationPayload) {
+    // 1. Find family
+    const familyQuery = await db.collection('families')
+        .where('childDeviceIds', 'array-contains', childId)
+        .limit(1)
+        .get();
+
+    if (familyQuery.empty) {
+        console.warn(`No family found for child ${childId}`);
+        return;
+    }
+
+    const family = familyQuery.docs[0].data();
+    const parentIds = family.parentIds as string[];
+
+    // 2. Notify each parent
+    const promises = parentIds.map(uid => notifyParent(uid, payload));
+    await Promise.all(promises);
+}
+
+/**
+ * Sends a notification to a specific parent if their settings allow it.
+ */
+async function notifyParent(uid: string, payload: NotificationPayload) {
+    // 1. Check settings
+    const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
+    const settings = settingsSnap.data();
+
+    const typeMap: Record<string, string> = {
+        'SAFE_ZONE': 'safeZone',
+        'SOS': 'sos',
+        'BATTERY': 'battery',
+        'DEVICE': 'deviceStatus',
+        'PAIRING': 'pairing'
+    };
+
+    const settingKey = typeMap[payload.type];
+    if (settings && settings[settingKey] === false) {
+        console.log(`Parent ${uid} has disabled ${payload.type} notifications.`);
+        return;
+    }
+
+    // 2. Record notification in history
+    const notificationId = db.collection('parents').doc(uid).collection('notifications').doc().id;
+    await db.collection('parents').doc(uid).collection('notifications').doc(notificationId).set({
+        id: notificationId,
+        ...payload,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false
+    });
+
+    // 3. Send FCM to all registered devices
+    const devicesSnap = await db.collection('parents').doc(uid).collection('devices').get();
+    if (devicesSnap.empty) return;
+
+    const tokens = devicesSnap.docs.map(doc => doc.data().token).filter(t => !!t);
+    if (tokens.length === 0) return;
+
+    const messagingPayload: admin.messaging.MulticastMessage = {
+        tokens,
+        notification: {
+            title: payload.title,
+            body: payload.body,
+        },
+        data: {
+            type: payload.type,
+            childId: payload.childId,
+            clickAction: payload.clickAction
+        },
+        webpush: {
+            fcmOptions: {
+                link: payload.clickAction
+            }
+        },
+        android: {
+            priority: payload.type === 'SOS' ? 'high' : 'normal',
+            notification: {
+                clickAction: 'FLUTTER_NOTIFICATION_CLICK' // For future Flutter if used, or just handled by standard intent
+            }
+        }
+    };
+
+    try {
+        const response = await admin.messaging().sendEachForMulticast(messagingPayload);
+        console.log(`Successfully sent ${response.successCount} notifications for parent ${uid}`);
+
+        // Clean up invalid tokens if any
+        if (response.failureCount > 0) {
+            const tokensToRemove: Promise<any>[] = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const error = resp.error;
+                    if (error?.code === 'messaging/invalid-registration-token' ||
+                        error?.code === 'messaging/registration-token-not-registered') {
+                        tokensToRemove.push(devicesSnap.docs[idx].ref.delete());
+                    }
+                }
+            });
+            await Promise.all(tokensToRemove);
+        }
+    } catch (error) {
+        console.error(`Error sending FCM to parent ${uid}:`, error);
+    }
+}

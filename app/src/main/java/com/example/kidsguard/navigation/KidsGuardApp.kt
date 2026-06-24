@@ -254,32 +254,38 @@ fun KidsGuardApp(
                 onBack = { onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) },
                 prefHelper = prefHelper
             )
-            Screen.DeveloperMenu -> DeveloperMenuScreen(
-                onBack = { 
-                    if (prefHelper.userRole == "NONE") {
-                        onScreenChange(Screen.RoleSelection)
-                    } else {
-                        onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
-                    }
-                },
-                prefHelper = prefHelper,
-                repository = repository,
-                locationRepository = locationRepository,
-                onScreenChange = onScreenChange,
-                trackingRepository = trackingRepository,
-                trackingManager = trackingManager,
-                syncProvider = syncProvider,
-                commandHandler = commandHandler,
-                sosRepository = sosRepository,
-                routeRepository = routeRepository,
-                locationProvider = locationProvider,
-                updateRepository = updateRepository,
-                dailySummaryRepository = dailySummaryRepository,
-                knownRouteRepository = knownRouteRepository,
-                reverseGeocoder = reverseGeocoder,
-                errorLogRepository = errorLogRepository,
-                authRepository = authRepository
-            )
+            Screen.DeveloperMenu -> {
+                if (com.example.kidsguard.BuildConfig.DEBUG) {
+                    DeveloperMenuScreen(
+                        onBack = { 
+                            if (prefHelper.userRole == "NONE") {
+                                onScreenChange(Screen.RoleSelection)
+                            } else {
+                                onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
+                            }
+                        },
+                        prefHelper = prefHelper,
+                        repository = repository,
+                        locationRepository = locationRepository,
+                        onScreenChange = onScreenChange,
+                        trackingRepository = trackingRepository,
+                        trackingManager = trackingManager,
+                        syncProvider = syncProvider,
+                        commandHandler = commandHandler,
+                        sosRepository = sosRepository,
+                        routeRepository = routeRepository,
+                        locationProvider = locationProvider,
+                        updateRepository = updateRepository,
+                        dailySummaryRepository = dailySummaryRepository,
+                        knownRouteRepository = knownRouteRepository,
+                        reverseGeocoder = reverseGeocoder,
+                        errorLogRepository = errorLogRepository,
+                        authRepository = authRepository
+                    )
+                } else {
+                    onScreenChange(Screen.Home)
+                }
+            }
             Screen.Diagnostics -> DiagnosticsScreen(
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
             )

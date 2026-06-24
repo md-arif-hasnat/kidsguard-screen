@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import LiveMap from '@/components/LiveMap';
 import { MapPin, Users, Battery, Zap, CloudOff, Info } from 'lucide-react';
-import { isFirebaseConfigured } from '@/lib/firebase';
+import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';

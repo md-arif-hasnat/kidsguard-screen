@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
 import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
 import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone } from 'lucide-react';
-import { isFirebaseConfigured } from '@/lib/firebase';
+import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { User } from 'firebase/auth';
@@ -145,9 +145,7 @@ export default function Home() {
     }
   };
 
-  const useMockData = !isFirebaseConfigured || !user;
-
-  const activeSosEvents = useMockData
+  const activeSosEvents = showMocks
     ? MOCK_SOS.filter(s => !s.resolved).map(s => ({
         ...s,
         name: s.childName,
@@ -162,7 +160,7 @@ export default function Home() {
   const isLive = isFirebaseConfigured && !!user && !!family;
   const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
 
-  const allActivities = useMockData
+  const allActivities = showMocks
     ? MOCK_ACTIVITY
     : Object.values(childrenActivities).flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
 
@@ -199,7 +197,7 @@ export default function Home() {
                 <DebugRow label="Family ID" value={family?.familyId || "None"} />
                 <DebugRow label="Child Device Count" value={family?.childDeviceIds.length.toString() || "0"} />
                 <DebugRow label="Stored Family ID" value={typeof window !== 'undefined' ? localStorage.getItem("kidsguard_family_id") || "None" : "N/A"} />
-                <DebugRow label="Mock Mode Active" value={useMockData ? "YES" : "NO"} />
+                <DebugRow label="Mock Mode Active" value={showMocks ? "YES" : "NO"} />
                 <DebugRow label="Last Error" value={error || "None"} color={error ? "text-rose-400" : "text-slate-500"} />
             </div>
         </div>
@@ -215,7 +213,7 @@ export default function Home() {
         <p className="text-slate-500 mt-1">
           {family
             ? `Monitoring ${family.childDeviceIds.length} ${family.childDeviceIds.length === 1 ? 'child' : 'children'}`
-            : useMockData
+            : showMocks
             ? `Monitoring ${MOCK_CHILDREN.length} children (Mock)`
             : 'Searching for children...'}
         </p>
@@ -293,7 +291,7 @@ export default function Home() {
             family.childDeviceIds.map((childId) => (
                 <ChildStatusCard key={childId} childId={childId} />
             ))
-            ) : useMockData ? (
+            ) : showMocks ? (
             MOCK_CHILDREN.map((child) => (
                 <ChildStatusCard key={child.id} child={child} />
             ))

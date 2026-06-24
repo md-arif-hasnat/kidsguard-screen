@@ -126,16 +126,18 @@ fun HomeScreen(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastLogoTapTime > 2000) {
-                            logoTapCount = 1
-                        } else {
-                            logoTapCount++
-                        }
-                        lastLogoTapTime = now
-                        if (logoTapCount >= 7) {
-                            logoTapCount = 0
-                            onOpenDeveloperMenu()
+                        if (com.example.kidsguard.BuildConfig.DEBUG) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastLogoTapTime > 2000) {
+                                logoTapCount = 1
+                            } else {
+                                logoTapCount++
+                            }
+                            lastLogoTapTime = now
+                            if (logoTapCount >= 7) {
+                                logoTapCount = 0
+                                onOpenDeveloperMenu()
+                            }
                         }
                     },
                 tint = MaterialTheme.colorScheme.primary
@@ -303,7 +305,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "v1.0.0 (Debug) - ${android.os.Build.MODEL}",
+                text = if (com.example.kidsguard.BuildConfig.DEBUG) "v1.0.0 (Debug) - ${android.os.Build.MODEL}" else "v1.0.0",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)

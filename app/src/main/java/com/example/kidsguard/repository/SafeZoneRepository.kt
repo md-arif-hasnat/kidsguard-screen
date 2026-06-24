@@ -21,11 +21,13 @@ class SafeZoneRepository {
     private var syncJob: kotlinx.coroutines.Job? = null
 
     init {
-        // Mock initial data
-        _safeZones.value = listOf(
-            SafeZone(name = "Home", type = "Home", address = "Musterstraße 10, 41236 Mönchengladbach", latitude = 37.7749, longitude = -122.4194, radiusMeters = 300.0),
-            SafeZone(name = "School", type = "School", address = "Example School, Mönchengladbach", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0)
-        )
+        // Production: No mock data in release
+        if (com.example.kidsguard.BuildConfig.DEBUG) {
+            _safeZones.value = listOf(
+                SafeZone(name = "Home", type = "Home", address = "Musterstraße 10, 41236 Mönchengladbach", latitude = 37.7749, longitude = -122.4194, radiusMeters = 300.0),
+                SafeZone(name = "School", type = "School", address = "Example School, Mönchengladbach", latitude = 37.7849, longitude = -122.4294, radiusMeters = 200.0)
+            )
+        }
     }
 
     fun setSyncProvider(provider: RemoteSyncProvider, id: String, familyId: String? = null) {

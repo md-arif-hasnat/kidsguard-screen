@@ -470,7 +470,36 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
     
     // Future placeholders for Messaging
-    fun registerFcmToken(token: String) {
-        // TODO: Save FCM token to child document
+    fun registerFcmToken(uid: String, token: String, role: String) {
+        if (uid.isEmpty() || token.isEmpty()) return
+        
+        val deviceId = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            .getString("device_id", java.util.UUID.randomUUID().toString()) ?: ""
+            
+        if (role == "PARENT") {
+            db.collection(FirebaseConfig.COL_PARENTS)
+                .document(uid)
+                .collection(FirebaseConfig.COL_DEVICES)
+                .document(deviceId)
+                .set(mapOf(
+                    "deviceId" to deviceId,
+                    "token" to token,
+                    "platform" to "Android",
+                    "deviceName" to android.os.Build.MODEL,
+                    "lastSeen" to com.google.firebase.Timestamp.now(),
+                    "appVersion" to "1.0.0"
+                ), com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener {
+                    Log.d(TAG, "Parent FCM token registered successfully")
+                }
+        } else {
+            // Register child token for remote commands
+            db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(uid)
+                .update("fcmToken", token)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Child FCM token registered successfully")
+                }
+        }
     }
 }

@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera, Globe } from 'lucide-react';
+import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera, Globe, Smartphone } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { NotificationRepository, NotificationSettings } from '@/lib/repositories/NotificationRepository';
 import { User } from 'firebase/auth';
 import AvatarPicker from '@/components/AvatarPicker';
 import { clsx } from 'clsx';
@@ -12,6 +13,13 @@ import { clsx } from 'clsx';
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
+    safeZone: true,
+    sos: true,
+    battery: true,
+    deviceStatus: true,
+    pairing: true
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -27,12 +35,19 @@ export default function SettingsPage() {
       setUser(authUser);
       if (authUser) {
         try {
-          const p = await ParentRepository.getProfile(authUser.uid);
+          const [p, ns] = await Promise.all([
+            ParentRepository.getProfile(authUser.uid),
+            NotificationRepository.getNotificationSettings(authUser.uid)
+          ]);
+
           if (p) {
             setProfile(p);
             setDisplayName(p.displayName || authUser.displayName || '');
             setPhoneNumber(p.phoneNumber || authUser.phoneNumber || '');
             setRegion(p.region || 'DE');
+          }
+          if (ns) {
+            setNotifSettings(ns);
           }
         } catch (err) {
           console.error("Error loading profile:", err);
@@ -51,21 +66,29 @@ export default function SettingsPage() {
     setStatus(null);
 
     try {
-      await ParentRepository.updateProfile(user.uid, {
-        displayName: displayName.trim(),
-        phoneNumber: phoneNumber.trim(),
-        region
-      });
-      setStatus({ type: 'success', message: 'Profile updated successfully!' });
+      await Promise.all([
+        ParentRepository.updateProfile(user.uid, {
+            displayName: displayName.trim(),
+            phoneNumber: phoneNumber.trim(),
+            region
+        }),
+        NotificationRepository.updateNotificationSettings(user.uid, notifSettings)
+      ]);
+
+      setStatus({ type: 'success', message: 'Profile and notification settings updated successfully!' });
 
       // Refresh profile data
       const updated = await ParentRepository.getProfile(user.uid);
       if (updated) setProfile(updated);
     } catch (err: any) {
-      setStatus({ type: 'error', message: err.message || 'Failed to update profile' });
+      setStatus({ type: 'error', message: err.message || 'Failed to update settings' });
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleNotif = (key: keyof NotificationSettings) => {
+    setNotifSettings(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleAvatarSelect = async (avatarId: string) => {
@@ -241,26 +264,74 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-6 text-slate-900">
             <Bell size={20} className="text-primary-500" />
-            <h2 className="font-bold text-lg">Notifications</h2>
+            <h2 className="font-bold text-lg">Notification Preferences</h2>
           </div>
           <div className="space-y-4">
-            <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
-              <div className="space-y-0.5">
-                <span className="font-bold text-slate-800 text-sm">Browser Push Alerts</span>
-                <p className="text-xs text-slate-500">Receive real-time safety alerts in your browser.</p>
-              </div>
-              <input type="checkbox" className="w-5 h-5 accent-primary-600" defaultChecked />
-            </label>
-            <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
-              <div className="space-y-0.5">
-                <span className="font-bold text-slate-800 text-sm">Critical SOS Alerts (Sound)</span>
-                <p className="text-xs text-slate-500">Play an audible alarm when an SOS is triggered.</p>
-              </div>
-              <input type="checkbox" className="w-5 h-5 accent-primary-600" defaultChecked />
-            </label>
+            <NotificationToggle
+                label="Safe Zone Alerts"
+                description="Arrived at / Left Home, School, etc."
+                checked={notifSettings.safeZone}
+                onChange={() => toggleNotif('safeZone')}
+            />
+            <NotificationToggle
+                label="SOS Alerts"
+                description="Critical emergency signals from child devices."
+                checked={notifSettings.sos}
+                onChange={() => toggleNotif('sos')}
+            />
+            <NotificationToggle
+                label="Battery Alerts"
+                description="Low battery warnings (under 20%)."
+                checked={notifSettings.battery}
+                onChange={() => toggleNotif('battery')}
+            />
+            <NotificationToggle
+                label="Device Status Alerts"
+                description="Online/Offline status changes."
+                checked={notifSettings.deviceStatus}
+                onChange={() => toggleNotif('deviceStatus')}
+            />
+            <NotificationToggle
+                label="Pairing Alerts"
+                description="When a new child device is linked."
+                checked={notifSettings.pairing}
+                onChange={() => toggleNotif('pairing')}
+            />
+
+            <div className="mt-8 pt-6 border-t border-slate-100">
+                <button
+                    type="button"
+                    onClick={async () => {
+                        if (!user) return;
+                        await NotificationRepository.registerDevice(user.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
+                        alert("Device registration requested. Please grant permission if prompted.");
+                    }}
+                    className="text-primary-600 font-bold hover:underline flex items-center gap-2"
+                >
+                    <Smartphone size={16} />
+                    Enable Push Notifications on this Browser
+                </button>
+            </div>
           </div>
         </section>
       </div>
     </DashboardLayout>
   );
+}
+
+function NotificationToggle({ label, description, checked, onChange }: { label: string, description: string, checked: boolean, onChange: () => void }) {
+    return (
+        <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
+            <div className="space-y-0.5">
+                <span className="font-bold text-slate-800 text-sm">{label}</span>
+                <p className="text-xs text-slate-500">{description}</p>
+            </div>
+            <input
+                type="checkbox"
+                className="w-5 h-5 accent-primary-600 cursor-pointer"
+                checked={checked}
+                onChange={onChange}
+            />
+        </label>
+    )
 }

@@ -22,7 +22,6 @@ import {
   Info,
   Camera
 } from 'lucide-react';
-import { isFirebaseConfigured } from '@/lib/firebase';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
@@ -33,6 +32,7 @@ import { DeviationRepository, RouteDeviation } from '@/lib/repositories/Deviatio
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import AvatarPicker from '@/components/AvatarPicker';
+import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 
 import { User as UserAuth } from 'firebase/auth';
 import { observeAuth } from '@/lib/auth';
@@ -76,9 +76,10 @@ export default function ChildDashboard() {
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
 
     const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
-    const unsubZones = SafeZoneRepository.listenToSafeZones(familyId, setSafeZones);
+    const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
 
     return () => {
+      unsubAuth();
       unsubStatus();
       unsubLocation();
       unsubActivity();
@@ -105,13 +106,27 @@ export default function ChildDashboard() {
     summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : null,
     avatarId: status?.avatarId,
     isLoading: status === null
-  } : {
+  } : showMocks ? {
     ...mockChild,
     accuracy: 20,
     activities: MOCK_ACTIVITY,
     summary: MOCK_SUMMARY,
     avatarId: (mockChild as any).avatarId,
     isLoading: false
+  } : {
+    name: "Unknown",
+    battery: 0,
+    isCharging: false,
+    lastSeen: "N/A",
+    currentZone: "N/A",
+    status: "UNLOCKED",
+    lat: 0,
+    lng: 0,
+    accuracy: 0,
+    activities: [],
+    summary: null,
+    avatarId: "child_1",
+    isLoading: true
   };
 
   const handleCommand = async (type: CommandType) => {
@@ -177,14 +192,14 @@ export default function ChildDashboard() {
             Firebase Live Mode: Viewing real-time telemetry for {childId}.
           </p>
         </div>
-      ) : (
+      ) : showMocks ? (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
           <CloudOff className="text-yellow-600" />
           <p className="text-yellow-700 font-medium text-sm">
             Firebase not configured. Using mock data for preview.
           </p>
         </div>
-      )}
+      ) : null}
 
       <header className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
@@ -261,7 +276,7 @@ export default function ChildDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[450px] relative">
-            {displayData.isLoading ? (
+            {displayData.isLoading && !showMocks ? (
                 <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
                     <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
                 </div>

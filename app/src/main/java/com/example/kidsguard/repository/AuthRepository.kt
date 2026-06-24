@@ -79,18 +79,37 @@ class AuthRepository(private val context: Context) {
             fcmTokenUpdatedAt = if (fcmToken != null) Timestamp.now() else null
         )
 
-        return try {
+        try {
+            // 1. Global devices collection
             db.collection(FirebaseConfig.COL_DEVICES)
                 .document(deviceId)
                 .set(deviceDoc)
                 .await()
+            
+            // 2. Parent-specific devices collection for FCM
+            if (prefs.userRole == "PARENT") {
+                db.collection(FirebaseConfig.COL_PARENTS)
+                    .document(uid)
+                    .collection(FirebaseConfig.COL_DEVICES)
+                    .document(deviceId)
+                    .set(mapOf(
+                        "deviceId" to deviceId,
+                        "token" to fcmToken,
+                        "platform" to "Android",
+                        "deviceName" to prefs.deviceName,
+                        "lastSeen" to Timestamp.now(),
+                        "appVersion" to "1.0.0"
+                    ), com.google.firebase.firestore.SetOptions.merge())
+                    .await()
+            }
+
             Log.i(TAG, "Device registration successful in Firestore")
             prefs.lastFirestoreWrite = System.currentTimeMillis()
-            true
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Firestore device registration failed", e)
             errorLogger.addError(TAG, "Device registration failed", e)
-            false
+            return false
         }
     }
 

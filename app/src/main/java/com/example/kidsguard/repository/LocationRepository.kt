@@ -148,7 +148,7 @@ class LocationRepository(
     }
 
     private fun loadHistory(): List<LocationPoint> {
-        val historyJson = prefs.getString("history_json", null) ?: return mockHistory()
+        val historyJson = prefs.getString("history_json", null) ?: return if (com.example.kidsguard.BuildConfig.DEBUG) mockHistory() else emptyList()
         val history = mutableListOf<LocationPoint>()
         try {
             val jsonArray = JSONArray(historyJson)
@@ -169,9 +169,9 @@ class LocationRepository(
                 )
             }
         } catch (e: Exception) {
-            return mockHistory()
+            return if (com.example.kidsguard.BuildConfig.DEBUG) mockHistory() else emptyList()
         }
-        return if (history.isEmpty()) mockHistory() else history
+        return if (history.isEmpty() && com.example.kidsguard.BuildConfig.DEBUG) mockHistory() else history
     }
 
     private fun mockHistory(): List<LocationPoint> {
