@@ -14,8 +14,11 @@ import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 
+import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ParentProfile | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
@@ -37,31 +40,57 @@ export default function Home() {
       return;
     }
 
-    const unsubscribeAuth = observeAuth((user) => {
-      setUser(user);
-      if (!user && isFirebaseConfigured) {
-        router.push('/login');
+    const unsubscribeAuth = observeAuth(async (authUser) => {
+      setUser(authUser);
+      if (authUser) {
+        console.log(`DEBUG: Parent authenticated: ${authUser.uid}`);
+        try {
+          // 1. Fetch Profile to get familyId
+          const p = await ParentRepository.getProfile(authUser.uid);
+          setProfile(p);
+
+          let fId = p?.familyId || localStorage.getItem("kidsguard_family_id");
+
+          // 2. If no familyId, create one (Auto-provisioning)
+          if (!fId) {
+            console.log("DEBUG: No familyId found for parent. Creating new family...");
+            fId = await FamilyRepository.createFamily(authUser.uid);
+            await ParentRepository.updateFamilyId(authUser.uid, fId);
+            localStorage.setItem("kidsguard_family_id", fId);
+          } else {
+            localStorage.setItem("kidsguard_family_id", fId);
+          }
+
+          console.log(`DEBUG: Using Family ID: ${fId}`);
+
+          // 3. Listen to Family
+          const unsubscribeFamily = FamilyRepository.listenToFamily(fId, (data) => {
+            if (data) {
+                console.log(`DEBUG: Family loaded. Children count: ${data.childDeviceIds.length}`);
+                setFamily(data);
+            }
+            setLoading(false);
+          });
+
+          return () => unsubscribeFamily();
+        } catch (err: any) {
+          console.error("DEBUG: Error in Home initialization:", err);
+          setError(err.message);
+          setLoading(false);
+        }
+      } else {
+        if (isFirebaseConfigured) {
+            router.push('/login');
+        } else {
+            setLoading(false);
+        }
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+        unsubscribeAuth();
+    };
   }, [router]);
-
-  useEffect(() => {
-    if (user) {
-      const familyId = localStorage.getItem("kidsguard_family_id");
-
-      if (familyId) {
-        const unsubscribeFamily = FamilyRepository.listenToFamily(familyId, (data) => {
-          setFamily(data);
-          setLoading(false);
-        });
-        return () => unsubscribeFamily();
-      } else {
-        setLoading(false);
-      }
-    }
-  }, [user]);
 
   // Listen to status and SOS for all children in family
   useEffect(() => {
@@ -204,8 +233,10 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
                 <DebugRow label="Firebase Configured" value={isFirebaseConfigured ? "YES" : "NO"} color={isFirebaseConfigured ? "text-emerald-400" : "text-yellow-400"} />
                 <DebugRow label="Auth User UID" value={user?.uid || "Not Signed In"} />
+                <DebugRow label="Parent Name" value={profile?.displayName || "N/A"} />
                 <DebugRow label="Family ID" value={family?.familyId || "None"} />
                 <DebugRow label="Child Device Count" value={family?.childDeviceIds.length.toString() || "0"} />
+                <DebugRow label="Stored Family ID" value={typeof window !== 'undefined' ? localStorage.getItem("kidsguard_family_id") || "None" : "N/A"} />
                 <DebugRow label="Mock Mode Active" value={useMockData ? "YES" : "NO"} />
                 <DebugRow label="Last Error" value={error || "None"} color={error ? "text-rose-400" : "text-slate-500"} />
             </div>
