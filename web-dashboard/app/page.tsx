@@ -178,58 +178,19 @@ export default function Home() {
 
   return (
     <DashboardLayout>
-      {isLive ? (
-        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="text-emerald-600" />
-            <p className="text-emerald-700 font-medium text-sm">
-              Firebase Live Mode: Connected as {user?.email}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs font-bold text-emerald-700 hover:underline"
-          >
-            {showDebug ? "Hide Debug" : "Show Debug"}
-          </button>
-        </div>
-      ) : isFirebaseConfigured ? (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Info className="text-blue-600" />
-            <p className="text-blue-700 font-medium text-sm">
-              Initial setup required. Please pair a child device.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs font-bold text-blue-700 hover:underline"
-          >
-            {showDebug ? "Hide Debug" : "Show Debug"}
-          </button>
-        </div>
-      ) : (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CloudOff className="text-yellow-600" />
-            <p className="text-yellow-700 font-medium text-sm">
-              Firebase not configured. Using local mock data for preview.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs font-bold text-yellow-700 hover:underline"
-          >
-            {showDebug ? "Hide Debug" : "Show Debug"}
-          </button>
-        </div>
-      )}
-
       {showDebug && (
         <div className="bg-slate-900 text-slate-300 p-6 rounded-xl mb-8 font-mono text-xs overflow-auto border border-slate-700 shadow-2xl">
-            <h3 className="text-primary-400 font-bold mb-4 flex items-center gap-2">
-                <Info size={14} /> SYSTEM DIAGNOSTICS
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-primary-400 font-bold flex items-center gap-2">
+                    <Info size={14} /> SYSTEM DIAGNOSTICS
+                </h3>
+                <button
+                    onClick={() => setShowDebug(false)}
+                    className="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-400 font-bold"
+                >
+                    CLOSE
+                </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
                 <DebugRow label="Firebase Configured" value={isFirebaseConfigured ? "YES" : "NO"} color={isFirebaseConfigured ? "text-emerald-400" : "text-yellow-400"} />
                 <DebugRow label="Auth User UID" value={user?.uid || "Not Signed In"} />
@@ -244,9 +205,18 @@ export default function Home() {
       )}
 
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Family Overview</h1>
+        <h1
+          className="text-3xl font-bold text-slate-900 cursor-default select-none"
+          onDoubleClick={() => setShowDebug(!showDebug)}
+        >
+          Family Overview
+        </h1>
         <p className="text-slate-500 mt-1">
-          {family ? `Monitoring ${family.childDeviceIds.length} devices` : useMockData ? `Monitoring ${MOCK_CHILDREN.length} devices (Mock)` : 'Searching for devices...'}
+          {family
+            ? `Monitoring ${family.childDeviceIds.length} ${family.childDeviceIds.length === 1 ? 'child' : 'children'}`
+            : useMockData
+            ? `Monitoring ${MOCK_CHILDREN.length} children (Mock)`
+            : 'Searching for children...'}
         </p>
       </header>
 
