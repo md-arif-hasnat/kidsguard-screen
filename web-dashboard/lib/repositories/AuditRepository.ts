@@ -52,7 +52,7 @@ export class AuditRepository {
     }
   }
 
-  static listenToFamilyLogs(familyId: string, onUpdate: (logs: AuditLog[]) => void) {
+  static listenToFamilyLogs(familyId: string, onUpdate: (logs: AuditLog[]) => void, onError?: (error: any) => void) {
     if (!db || !familyId) return () => {};
     const q = query(
       collection(db, "auditLogs"),
@@ -62,6 +62,9 @@ export class AuditRepository {
     );
     return onSnapshot(q, (snapshot) => {
       onUpdate(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog)));
+    }, (err) => {
+      console.error("Error listening to audit logs:", err);
+      if (onError) onError(err);
     });
   }
 

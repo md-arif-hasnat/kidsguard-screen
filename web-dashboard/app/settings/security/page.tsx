@@ -33,6 +33,7 @@ export default function SecurityPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [indexError, setIndexError] = useState(false);
 
   useEffect(() => {
     if (!profile?.familyId) {
@@ -43,6 +44,11 @@ export default function SecurityPage() {
     const unsubLogs = AuditRepository.listenToFamilyLogs(profile.familyId, (data) => {
       setLogs(data);
       setLoading(false);
+    }, (err) => {
+        if (err.message?.includes("index")) {
+            setIndexError(true);
+        }
+        setLoading(false);
     });
 
     const unsubFamily = FamilyRepository.listenToFamily(profile.familyId, setFamily);
@@ -137,6 +143,15 @@ export default function SecurityPage() {
             <div className="divide-y divide-slate-50">
               {loading ? (
                   <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary-600" /></div>
+              ) : indexError ? (
+                <div className="p-20 text-center space-y-4">
+                    <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                        <Clock size={24} />
+                    </div>
+                    <p className="text-slate-600 font-bold text-sm italic">
+                        Security logs are being prepared. Please try again shortly.
+                    </p>
+                </div>
               ) : logs.length > 0 ? logs.map((log) => (
                 <div key={log.id} className="p-6 hover:bg-slate-50 transition-colors group">
                     <div className="flex justify-between items-start">
