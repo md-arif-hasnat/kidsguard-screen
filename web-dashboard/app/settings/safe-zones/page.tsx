@@ -22,7 +22,8 @@ import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/SafeZoneRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
-import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
+import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { GeocodingService } from '@/lib/services/GeocodingService';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
@@ -199,14 +200,19 @@ export default function SafeZonesPage() {
     }
   };
 
-  const selectedChildName = selectedChildId ? (childrenStatus[selectedChildId]?.childName || "Child") : "Select a child";
+  const currentUserMember = family?.members.find(m => m.uid === profile?.uid);
+  const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
+  const canManageZones = RoleHelper.canManageSafeZones(currentRole);
 
   return (
     <DashboardLayout>
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Safe Zones</h1>
-          <p className="text-slate-500 text-sm md:text-base mt-1">Manage safety perimeters for your children.</p>
+          <div className="flex items-center gap-2 mt-1">
+              <p className="text-slate-500 text-sm md:text-base">Manage safety perimeters for your children.</p>
+              <span className="bg-slate-100 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">{currentRole} ACCESS</span>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
@@ -221,7 +227,7 @@ export default function SafeZonesPage() {
                 className="flex-1 sm:flex-none"
             />
 
-            {!showAddForm && selectedChildId && (
+            {!showAddForm && selectedChildId && canManageZones && (
             <button
                 onClick={() => setShowAddForm(true)}
                 className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center justify-center gap-2"
@@ -380,20 +386,22 @@ export default function SafeZonesPage() {
                     <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
                     {getIcon(zone.type)}
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                        onClick={() => handleEdit(zone)}
-                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary-600 transition-colors"
-                    >
-                        <Edit2 size={16} />
-                    </button>
-                    <button
-                        onClick={() => handleDelete(zone.id)}
-                        className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                    </div>
+                    {canManageZones && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            onClick={() => handleEdit(zone)}
+                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary-600 transition-colors"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                        <button
+                            onClick={() => handleDelete(zone.id)}
+                            className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                        </div>
+                    )}
                 </div>
                 <h3 className="font-bold text-slate-900 text-lg">{zone.name}</h3>
                 <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-1">{zone.type}</p>
@@ -429,7 +437,7 @@ export default function SafeZonesPage() {
                 onClick={() => setShowAddForm(true)}
                 className="mt-8 text-primary-600 font-bold hover:underline"
                 >
-                Add first zone for {selectedChildName}
+                Add first zone for {selectedChildId ? (childrenStatus[selectedChildId]?.childName || "Child") : "Child"}
                 </button>
             </div>
             )}

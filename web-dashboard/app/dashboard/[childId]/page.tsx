@@ -30,6 +30,7 @@ import {
   Clock as ClockIcon,
   Smartphone as SmartphoneIcon,
   ShieldAlert,
+  Shield,
   BarChart3,
   TrendingUp,
   Globe as GlobeIcon
@@ -51,6 +52,8 @@ import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User as UserAuth } from 'firebase/auth';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 import HealthCard from '@/components/analytics/HealthCard';
 import DeviceCharts from '@/components/analytics/DeviceCharts';
@@ -143,6 +146,8 @@ export default function ChildDashboard() {
     ]
   };
 
+  const [family, setFamily] = useState<FamilyData | null>(null);
+
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
 
@@ -156,6 +161,7 @@ export default function ChildDashboard() {
 
     const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
     const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
+    const unsubFamily = FamilyRepository.listenToFamily(familyId, setFamily);
 
     const unsubWebRules = WebProtectionRepository.listenToWebRules(childId, setWebRules);
     const unsubWebActivity = WebProtectionRepository.listenToWebActivity(childId, selectedDate, setWebActivity);
@@ -173,8 +179,15 @@ export default function ChildDashboard() {
       unsubWebRules();
       unsubWebActivity();
       unsubWebRequests();
+      unsubFamily();
     };
   }, [childId, selectedDate]);
+
+  const currentUserMember = family?.members.find(m => m.uid === profile?.uid);
+  const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
+  const canControl = RoleHelper.canSendRemoteCommands(currentRole);
+  const canManageWellbeing = RoleHelper.canManageChildren(currentRole);
+  const canManageWeb = RoleHelper.canManageWebProtection(currentRole);
 
   const mockChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
 
@@ -297,7 +310,8 @@ export default function ChildDashboard() {
         <div className="flex w-full md:w-auto gap-3">
           <button
             onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
-            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm"
+            disabled={!canControl}
+            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
           >
             <RotateCcw size={18} />
             <span className="hidden sm:inline">Refresh GPS</span>
@@ -305,8 +319,9 @@ export default function ChildDashboard() {
           </button>
           <button
             onClick={() => handleCommand(status?.kidGuardActive ? CommandType.UNLOCK_NOW : CommandType.LOCK_NOW)}
+            disabled={!canControl}
             className={cn(
-                "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm",
+                "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50",
                 status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'
             )}
           >
@@ -407,7 +422,7 @@ export default function ChildDashboard() {
                 </div>
 
                 <div className="space-y-8">
-                <RemoteControlPanel childId={childId} />
+                {canControl && <RemoteControlPanel childId={childId} />}
 
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -534,13 +549,21 @@ export default function ChildDashboard() {
                       { packageName: 'com.android.chrome', appName: 'Chrome', category: 'Browser', totalTimeMs: 900000, lastUsed: Date.now() }
                   ]} />
 
-                  <WellbeingControls
-                    limits={appLimits}
-                    blocks={blockRules}
-                    onUpdateLimit={(l) => setAppLimits(appLimits.map(x => x.packageName === l.packageName ? l : x))}
-                    onDeleteLimit={(pkg) => setAppLimits(appLimits.filter(x => x.packageName !== pkg))}
-                    onToggleBlock={(pkg, val) => setBlockRules(blockRules.map(x => x.packageName === pkg ? {...x, isBlocked: val} : x))}
-                  />
+                  {canManageWellbeing ? (
+                    <WellbeingControls
+                        limits={appLimits}
+                        blocks={blockRules}
+                        onUpdateLimit={(l) => setAppLimits(appLimits.map(x => x.packageName === l.packageName ? l : x))}
+                        onDeleteLimit={(pkg) => setAppLimits(appLimits.filter(x => x.packageName !== pkg))}
+                        onToggleBlock={(pkg, val) => setBlockRules(blockRules.map(x => x.packageName === pkg ? {...x, isBlocked: val} : x))}
+                    />
+                  ) : (
+                    <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center opacity-60">
+                        <Shield className="text-slate-300 mb-4" size={48} />
+                        <h3 className="font-bold text-slate-800">Managed by Parent</h3>
+                        <p className="text-sm text-slate-500 mt-1 italic">You have Guardian access. Wellbeing rules can only be edited by Parents or Owners.</p>
+                    </div>
+                  )}
               </div>
 
               <section className="bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl">
@@ -590,25 +613,35 @@ export default function ChildDashboard() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                   <div className="lg:col-span-2 space-y-12">
-                    <WebProtectionControls
-                        rules={webRules || {
-                            blockedDomains: [],
-                            allowedDomains: [],
-                            blockedCategories: [],
-                            allowedCategories: [],
-                            safeSearchEnabled: true,
-                            youtubeRestrictedMode: true,
-                            adultContentBlockEnabled: true
-                        }}
-                        onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules)}
-                    />
+                    {canManageWeb ? (
+                        <WebProtectionControls
+                            rules={webRules || {
+                                blockedDomains: [],
+                                allowedDomains: [],
+                                blockedCategories: [],
+                                allowedCategories: [],
+                                safeSearchEnabled: true,
+                                youtubeRestrictedMode: true,
+                                adultContentBlockEnabled: true
+                            }}
+                            onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules)}
+                        />
+                    ) : (
+                        <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center opacity-60 mb-12">
+                            <Shield className="text-slate-300 mb-4" size={48} />
+                            <h3 className="font-bold text-slate-800">Managed by Parent</h3>
+                            <p className="text-sm text-slate-500 mt-1 italic">Web protection rules can only be edited by Parents or Owners.</p>
+                        </div>
+                    )}
                     <WebActivityPanel events={webActivity} />
                   </div>
                   <div className="space-y-12">
-                    <WebAccessRequestsPanel
-                        requests={webRequests}
-                        onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain)}
-                    />
+                    {canManageWeb && (
+                        <WebAccessRequestsPanel
+                            requests={webRequests}
+                            onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain)}
+                        />
+                    )}
                   </div>
               </div>
           </div>

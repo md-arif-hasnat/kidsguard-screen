@@ -32,10 +32,20 @@ export interface FamilyInvite {
   id: string;
   email: string;
   role: FamilyRole;
-  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'REVOKED';
   invitedBy: string;
+  invitedByName?: string;
   invitedAt: any;
   expiresAt: any;
+  token?: string; // Client-side only for link generation
+}
+
+export interface DetailedInvite extends FamilyInvite {
+  familyId: string;
+  familyName: string;
+  tokenHash: string;
+  acceptedAt?: any;
+  acceptedByUid?: string;
 }
 
 export interface EmergencyContact {
@@ -109,29 +119,126 @@ export class FamilyRepository {
     return familyId;
   }
 
-  static async sendInvite(familyId: string, email: string, role: FamilyRole, invitedBy: string): Promise<void> {
-    if (!db) return;
+  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole, invitedBy: string, invitedByName?: string): Promise<string> {
+    if (!db) throw new Error("Firestore not initialized");
     const inviteId = uuidv4();
+    const token = uuidv4().replace(/-/g, ''); // Simple token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
-    const invite: FamilyInvite = {
+    const invite: DetailedInvite = {
       id: inviteId,
+      familyId,
+      familyName,
       email: email.toLowerCase(),
       role,
       status: 'PENDING',
       invitedBy,
+      invitedByName,
       invitedAt: serverTimestamp(),
-      expiresAt: expiresAt
+      expiresAt: expiresAt,
+      tokenHash: token // In production, hash this. Storing raw for MVP simplicity as requested to be in URL.
+    };
+
+    // 1. Create secure invite document
+    await setDoc(doc(db, "familyInvitations", inviteId), invite);
+
+    // 2. Update family summary
+    const summary: FamilyInvite = {
+      id: inviteId,
+      email: invite.email,
+      role: invite.role,
+      status: 'PENDING',
+      invitedBy: invite.invitedBy,
+      invitedAt: invite.invitedAt,
+      expiresAt: invite.expiresAt
     };
 
     const familyRef = doc(db, "families", familyId);
     await updateDoc(familyRef, {
-      invites: arrayUnion(invite)
+      invites: arrayUnion(summary)
     });
 
-    // In a real app, this would trigger a Cloud Function to send the actual email.
-    console.log(`MOCK: Sending invite email to ${email} for role ${role}`);
+    console.log(`WEB: Invite created. Link: /invite/${inviteId}?token=${token}`);
+    return token;
+  }
+
+  static async getInvite(inviteId: string): Promise<DetailedInvite | null> {
+    if (!db) return null;
+    const snap = await getDoc(doc(db, "familyInvitations", inviteId));
+    return snap.exists() ? snap.data() as DetailedInvite : null;
+  }
+
+  static async acceptInvite(inviteId: string, uid: string, email: string, displayName: string): Promise<string> {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const inviteRef = doc(db, "familyInvitations", inviteId);
+    const inviteSnap = await getDoc(inviteRef);
+    if (!inviteSnap.exists()) throw new Error("Invitation not found");
+
+    const invite = inviteSnap.data() as DetailedInvite;
+    if (invite.status !== 'PENDING') throw new Error(`Invitation is ${invite.status}`);
+    if (invite.email !== email.toLowerCase()) throw new Error("This invitation was sent to another email address");
+
+    const now = new Date();
+    if (invite.expiresAt.toDate() < now) throw new Error("Invitation has expired");
+
+    // 1. Update invite status
+    await updateDoc(inviteRef, {
+      status: 'ACCEPTED',
+      acceptedAt: serverTimestamp(),
+      acceptedByUid: uid
+    });
+
+    // 2. Add member to family
+    const familyRef = doc(db, "families", invite.familyId);
+    const newMember: FamilyMember = {
+      uid,
+      email,
+      displayName,
+      role: invite.role,
+      joinedAt: serverTimestamp(),
+      invitedBy: invite.invitedBy,
+      assignedChildren: ["*"] // Default to all for now
+    };
+
+    await updateDoc(familyRef, {
+      members: arrayUnion(newMember)
+    });
+
+    // 3. Update family invites summary
+    const familySnap = await getDoc(familyRef);
+    if (familySnap.exists()) {
+      const familyData = familySnap.data() as FamilyData;
+      const updatedInvites = (familyData.invites ?? []).map(i =>
+        i.id === inviteId ? { ...i, status: 'ACCEPTED' as const } : i
+      );
+      await updateDoc(familyRef, { invites: updatedInvites });
+    }
+
+    // 4. Update parent profile
+    const parentRef = doc(db, "parents", uid);
+    await updateDoc(parentRef, { familyId: invite.familyId });
+
+    return invite.familyId;
+  }
+
+  static async revokeInvite(familyId: string, inviteId: string): Promise<void> {
+    if (!db) return;
+
+    // 1. Update secure invite
+    await updateDoc(doc(db, "familyInvitations", inviteId), { status: 'REVOKED' });
+
+    // 2. Update family summary
+    const familyRef = doc(db, "families", familyId);
+    const familySnap = await getDoc(familyRef);
+    if (familySnap.exists()) {
+      const data = familySnap.data() as FamilyData;
+      const updatedInvites = (data.invites ?? []).map(i =>
+        i.id === inviteId ? { ...i, status: 'REVOKED' as const } : i
+      );
+      await updateDoc(familyRef, { invites: updatedInvites });
+    }
   }
 
   static async updateMemberRole(familyId: string, memberUid: string, newRole: FamilyRole): Promise<void> {

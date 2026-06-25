@@ -20,9 +20,11 @@ import {
   Camera
 } from 'lucide-react';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
-import { FamilyRepository, FamilyData, FamilyRole, FamilyMember, FamilyInvite, EmergencyContact } from '@/lib/repositories/FamilyRepository';
+import { FamilyRepository, FamilyData, FamilyRole, FamilyMember, FamilyInvite, EmergencyContact, DetailedInvite } from '@/lib/repositories/FamilyRepository';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Copy, RefreshCw, XCircle } from 'lucide-react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -47,6 +49,9 @@ export default function FamilyManagementPage() {
   const [contactPhone, setContactPhone] = useState('');
   const [addingContact, setAddingContact] = useState(false);
 
+  // Invite Result
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+
   useEffect(() => {
     if (!profile?.familyId) {
       setLoading(false);
@@ -65,14 +70,35 @@ export default function FamilyManagementPage() {
     e.preventDefault();
     if (!family || !inviteEmail) return;
     setInviting(true);
+    setLastInviteLink(null);
     try {
-      await FamilyRepository.sendInvite(family.familyId, inviteEmail, inviteRole, profile!.uid);
+      const token = await FamilyRepository.sendInvite(
+        family.familyId,
+        family.settings.name,
+        inviteEmail,
+        inviteRole,
+        profile!.uid,
+        profile?.displayName || "Family Owner"
+      );
+
+      const inviteId = family.invites?.find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
+      const link = `${window.location.origin}/invite/${inviteId}?token=${token}`;
+      setLastInviteLink(link);
       setInviteEmail('');
-      alert("Invite sent successfully!");
+      // alert("Invite created! Copy the link below.");
     } catch (err) {
       alert("Failed to send invite");
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!family || !confirm("Revoke this invitation?")) return;
+    try {
+      await FamilyRepository.revokeInvite(family.familyId, inviteId);
+    } catch (err) {
+      alert("Failed to revoke invite");
     }
   };
 
@@ -97,7 +123,10 @@ export default function FamilyManagementPage() {
     }
   };
 
-  const isOwner = family?.ownerId === profile?.uid;
+  const currentUserMember = family?.members.find(m => m.uid === profile?.uid);
+  const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
+  const isOwner = currentRole === FamilyRole.OWNER;
+  const canInvite = RoleHelper.canInviteMembers(currentRole);
 
   if (loading) {
     return (
@@ -137,10 +166,10 @@ export default function FamilyManagementPage() {
                 </div>
                 <div className="divide-y divide-slate-50">
                   {(family?.members ?? []).map((member) => (
-                    <div key={member.uid} className="p-6 flex items-center justify-between">
+                    <div key={member.uid} className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-black">
-                          {member.displayName?.[0] || member.email?.[0] || "?"}
+                        <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-black overflow-hidden border-2 border-primary-200">
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.uid}`} alt="avatar" />
                         </div>
                         <div>
                           <p className="font-bold text-slate-800">{member.displayName || "Family Member"}</p>
@@ -149,21 +178,26 @@ export default function FamilyManagementPage() {
                             <span className={cn(
                               "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
                               member.role === FamilyRole.OWNER ? "bg-indigo-100 text-indigo-700" :
-                              member.role === FamilyRole.PARENT ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                              member.role === FamilyRole.PARENT ? "bg-emerald-100 text-emerald-700" :
+                              member.role === FamilyRole.GUARDIAN ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
                             )}>
                               {member.role}
                             </span>
+                            <span className="text-[10px] text-slate-400 font-medium">Joined {member.joinedAt?.toDate ? member.joinedAt.toDate().toLocaleDateString() : 'recently'}</span>
                           </div>
                         </div>
                       </div>
-                      {isOwner && member.uid !== profile?.uid && family && (
-                        <button
-                          onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
-                          className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isOwner && member.uid !== profile?.uid && (
+                            <button
+                            onClick={() => FamilyRepository.removeMember(family!.familyId, member.uid)}
+                            className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                            title="Remove Member"
+                            >
+                            <Trash2 size={18} />
+                            </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -176,38 +210,73 @@ export default function FamilyManagementPage() {
                   <UserPlus className="text-primary-600" />
                   Invite Member
                 </h3>
-                <form onSubmit={handleSendInvite} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={inviteEmail}
-                      onChange={e => setInviteEmail(e.target.value)}
-                      placeholder="guardian@example.com"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Assigned Role</label>
-                    <select
-                      value={inviteRole}
-                      onChange={e => setInviteRole(e.target.value as FamilyRole)}
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                {canInvite ? (
+                    <form onSubmit={handleSendInvite} className="space-y-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Email Address</label>
+                        <input
+                        type="email"
+                        required
+                        value={inviteEmail}
+                        onChange={e => setInviteEmail(e.target.value)}
+                        placeholder="guardian@example.com"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Assigned Role</label>
+                        <select
+                        value={inviteRole}
+                        onChange={e => setInviteRole(e.target.value as FamilyRole)}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                        >
+                        <option value={FamilyRole.PARENT}>Parent (Full Access)</option>
+                        <option value={FamilyRole.GUARDIAN}>Guardian (Limited)</option>
+                        <option value={FamilyRole.VIEWER}>Viewer (Read-only)</option>
+                        </select>
+                    </div>
+                    <button
+                        disabled={inviting}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all flex items-center justify-center gap-2"
                     >
-                      <option value={FamilyRole.PARENT}>Parent (Full Access)</option>
-                      <option value={FamilyRole.GUARDIAN}>Guardian (Limited)</option>
-                      <option value={FamilyRole.VIEWER}>Viewer (Read-only)</option>
-                    </select>
-                  </div>
-                  <button
-                    disabled={inviting}
-                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all flex items-center justify-center gap-2"
-                  >
-                    {inviting ? <Loader2 className="animate-spin" size={18} /> : <UserPlus size={18} />}
-                    Send Invitation
-                  </button>
-                </form>
+                        {inviting ? <Loader2 className="animate-spin" size={18} /> : <UserPlus size={18} />}
+                        Generate Invitation
+                    </button>
+                    </form>
+                ) : (
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
+                        <Shield className="mx-auto text-slate-300 mb-4" size={32} />
+                        <p className="text-sm font-medium text-slate-500 italic">Only Owners and Parents can invite new members.</p>
+                    </div>
+                )}
+
+                {lastInviteLink && (
+                    <div className="mt-8 bg-emerald-50 border-2 border-emerald-100 rounded-2xl p-6 animate-in zoom-in-95 duration-200">
+                        <p className="text-xs font-black text-emerald-600 uppercase mb-3 flex items-center gap-2">
+                            <CheckCircle2 size={14} />
+                            Invitation Created!
+                        </p>
+                        <p className="text-[10px] text-emerald-500 font-medium leading-relaxed mb-4">
+                            Send this secure link to the invited member. They must sign in with the email you provided.
+                        </p>
+                        <div className="flex gap-2">
+                            <input
+                                readOnly
+                                value={lastInviteLink}
+                                className="flex-1 bg-white border border-emerald-100 rounded-xl px-4 py-2 text-xs font-mono text-slate-600 outline-none"
+                            />
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(lastInviteLink);
+                                    alert("Copied to clipboard!");
+                                }}
+                                className="bg-emerald-600 text-white p-3 rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100"
+                            >
+                                <Copy size={18} />
+                            </button>
+                        </div>
+                    </div>
+                )}
               </section>
             </div>
           </div>
@@ -223,21 +292,53 @@ export default function FamilyManagementPage() {
             </div>
             <div className="divide-y divide-slate-50">
               {(family?.invites ?? []).length > 0 ? (family?.invites ?? []).map((invite) => (
-                <div key={invite.id} className="p-6 flex items-center justify-between">
+                <div key={invite.id} className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                       <Mail size={20} />
                     </div>
                     <div>
                       <p className="font-bold text-slate-800">{invite.email}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{invite.role} • {invite.status}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={cn(
+                            "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
+                            invite.status === 'PENDING' ? "bg-amber-100 text-amber-600" :
+                            invite.status === 'ACCEPTED' ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"
+                        )}>
+                            {invite.status}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{invite.role}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Expires</p>
-                    <p className="text-xs font-bold text-slate-600">
-                      {invite.expiresAt?.toDate?.() ? invite.expiresAt.toDate().toLocaleDateString() : new Date(invite.expiresAt).toLocaleDateString()}
-                    </p>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right hidden sm:block">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Expires</p>
+                        <p className="text-xs font-bold text-slate-600">
+                        {invite.expiresAt?.toDate ? invite.expiresAt.toDate().toLocaleDateString() : new Date(invite.expiresAt).toLocaleDateString()}
+                        </p>
+                    </div>
+                    {invite.status === 'PENDING' && canInvite && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={() => {
+                                    // In real app, re-fetch token or re-generate
+                                    alert("In production, this would re-generate the token and send the email.");
+                                }}
+                                className="p-2 text-slate-400 hover:text-primary-600 transition-colors"
+                                title="Resend Email"
+                            >
+                                <RefreshCw size={18} />
+                            </button>
+                            <button
+                                onClick={() => handleRevokeInvite(invite.id)}
+                                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                                title="Revoke Invite"
+                            >
+                                <XCircle size={18} />
+                            </button>
+                        </div>
+                    )}
                   </div>
                 </div>
               )) : (
