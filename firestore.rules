@@ -21,92 +21,133 @@ service cloud.firestore {
       return isParent() && getParentFamilyId() == familyId;
     }
 
+    function getFamilyData(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data;
+    }
+
+    function getUserMember(familyId) {
+      return getFamilyData(familyId).members.filter(m => m.uid == request.auth.uid)[0];
+    }
+
+    function getUserRole(familyId) {
+      return getUserMember(familyId).role;
+    }
+
+    function isOwner(familyId) {
+      return getUserRole(familyId) == 'OWNER';
+    }
+
+    function isParentOrAbove(familyId) {
+      let role = getUserRole(familyId);
+      return role == 'OWNER' || role == 'PARENT';
+    }
+
+    function isGuardianOrAbove(familyId) {
+      let role = getUserRole(familyId);
+      return role == 'OWNER' || role == 'PARENT' || role == 'GUARDIAN';
+    }
+
     function isChildInFamily(childId) {
       let familyId = getParentFamilyId();
-      return isParent() && childId in get(/databases/$(database)/documents/families/$(familyId)).data.childDeviceIds;
+      return isParent() && childId in getFamilyData(familyId).childDeviceIds;
     }
 
     // --- Rules ---
 
-    // Parents collection: Only the parent can read/write their own profile
     match /parents/{uid} {
       allow read, write: if request.auth.uid == uid;
 
       match /notificationSettings/{doc} {
         allow read, write: if request.auth.uid == uid;
       }
-
       match /notifications/{notifId} {
         allow read, write: if request.auth.uid == uid;
       }
-
       match /devices/{deviceId} {
         allow read, write: if request.auth.uid == uid;
       }
     }
 
-    // Families collection: Parents can read their family data.
-    // Write access should generally be restricted to Cloud Functions for safety,
-    // but we allow update for pairing if we don't have functions yet.
     match /families/{familyId} {
       allow read: if isFamilyMember(familyId);
       allow create: if isSignedIn();
-      allow update: if isFamilyMember(familyId);
+      // Only Owner can manage family members/settings in this document
+      allow update: if isOwner(familyId);
 
       match /safeZones/{zoneId} {
-        allow read, write: if isFamilyMember(familyId);
+        allow read: if isGuardianOrAbove(familyId);
+        allow write: if isParentOrAbove(familyId);
       }
     }
 
-    // Children collection: Parents can read their children's data.
     match /children/{childId} {
       allow read: if isChildInFamily(childId);
-      allow write: if isSignedIn(); // Allow child app (anonymous auth) to create its record
+      allow write: if isSignedIn();
 
       match /status/current {
         allow read: if isChildInFamily(childId);
-        allow write: if isSignedIn(); // Child app updates status
-      }
-
-      match /locations/{docId} {
-        allow read: if isChildInFamily(childId);
-        allow create: if isSignedIn(); // Child app uploads location
-      }
-
-      match /activities/{docId} {
-        allow read: if isChildInFamily(childId);
-        allow create: if isSignedIn(); // Child app uploads activity
-      }
-
-      match /sosEvents/{docId} {
-        allow read: if isChildInFamily(childId);
-        allow create: if isSignedIn(); // Child app triggers SOS
-        allow update: if isChildInFamily(childId); // Parent resolves SOS
+        allow write: if isSignedIn();
       }
 
       match /safeZones/{zoneId} {
-        allow read: if isChildInFamily(childId);
-        allow write: if isChildInFamily(childId); // Parent manages zones
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow write: if isParentOrAbove(getParentFamilyId());
       }
 
-      match /dailySummaries/{docId} {
-        allow read: if isChildInFamily(childId);
+      match /locations/{docId} {
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn();
+      }
+
+      match /activities/{docId} {
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn();
+      }
+
+      match /sosEvents/{docId} {
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn();
+        allow update: if isParentOrAbove(getParentFamilyId());
       }
 
       match /remoteCommands/{docId} {
-        allow read: if isSignedIn(); // Child app listens for commands
-        allow create: if isChildInFamily(childId); // Parent sends command
-        allow update: if isSignedIn(); // Child app marks as executed
+        allow read: if isSignedIn();
+        allow create: if isParentOrAbove(getParentFamilyId());
+        allow update: if isSignedIn();
+      }
+
+      match /webRules/current {
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow write: if isParentOrAbove(getParentFamilyId());
+      }
+
+      match /appUsage/{date} {
+        allow read: if isGuardianOrAbove(getParentFamilyId());
+        allow write: if isSignedIn();
       }
     }
 
-    // Pairing Codes: Short-lived, used for linking
+    match /familyInvitations/{inviteId} {
+      allow read: if isSignedIn();
+      allow create: if isParentOrAbove(request.resource.data.familyId);
+      allow update: if isSignedIn() && (request.resource.data.status == 'ACCEPTED' || isParentOrAbove(get(/databases/$(database)/documents/familyInvitations/$(inviteId)).data.familyId));
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isGuardianOrAbove(resource.data.familyId);
+      allow create: if isSignedIn();
+    }
+
     match /pairingCodes/{code} {
       allow read, write: if isSignedIn();
     }
 
-    // App Config: Read-only for everyone
     match /appConfig/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /appReleases/{doc} {
       allow read: if true;
       allow write: if false;
     }

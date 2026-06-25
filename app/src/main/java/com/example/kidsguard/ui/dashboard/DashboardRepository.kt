@@ -17,6 +17,7 @@ import com.example.kidsguard.tracking.LocalSafeZoneChecker
 import com.example.kidsguard.tracking.TrackingConfig
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.tracking.TrackingState
+import com.example.kidsguard.utils.DeviceUtils
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -88,11 +89,11 @@ class DashboardRepository(
                 }
 
                 val nearest = effectiveLastLocation?.let { point ->
-                    safeZones.minByOrNull { checker.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
+                    safeZones.minByOrNull { DeviceUtils.calculateDistance(point.latitude, point.longitude, it.latitude, it.longitude) }
                 }
                 val distance = nearest?.let { zone ->
                     effectiveLastLocation?.let { point ->
-                        checker.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
+                        DeviceUtils.calculateDistance(point.latitude, point.longitude, zone.latitude, zone.longitude)
                     }
                 }
                 

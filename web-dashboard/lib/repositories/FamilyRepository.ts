@@ -10,6 +10,7 @@ import {
   deleteDoc
 } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
+import { AuditRepository, AuditAction } from "./AuditRepository";
 
 export enum FamilyRole {
   OWNER = "OWNER",
@@ -159,6 +160,14 @@ export class FamilyRepository {
       invites: arrayUnion(summary)
     });
 
+    await AuditRepository.log({
+      familyId,
+      actorUid: invitedBy,
+      actorName: invitedByName || "Parent",
+      action: AuditAction.MEMBER_INVITED,
+      details: `Invited ${email} as ${role}`
+    });
+
     console.log(`WEB: Invite created. Link: /invite/${inviteId}?token=${token}`);
     return token;
   }
@@ -220,6 +229,14 @@ export class FamilyRepository {
     const parentRef = doc(db, "parents", uid);
     await updateDoc(parentRef, { familyId: invite.familyId });
 
+    await AuditRepository.log({
+        familyId: invite.familyId,
+        actorUid: uid,
+        actorName: displayName,
+        action: AuditAction.MEMBER_JOINED,
+        details: `Joined family as ${invite.role}`
+    });
+
     return invite.familyId;
   }
 
@@ -253,6 +270,15 @@ export class FamilyRepository {
     );
 
     await updateDoc(familyRef, { members: updatedMembers });
+
+    await AuditRepository.log({
+      familyId,
+      actorUid: "current_user", // Simplification for MVP, should be passed in
+      actorName: "Admin",
+      action: AuditAction.ROLE_CHANGED,
+      targetId: memberUid,
+      details: `Changed role to ${newRole}`
+    });
   }
 
   static async removeMember(familyId: string, memberUid: string): Promise<void> {
@@ -265,6 +291,15 @@ export class FamilyRepository {
     const updatedMembers = data.members.filter(m => m.uid !== memberUid);
 
     await updateDoc(familyRef, { members: updatedMembers });
+
+    await AuditRepository.log({
+      familyId,
+      actorUid: "current_user",
+      actorName: "Admin",
+      action: AuditAction.MEMBER_REMOVED,
+      targetId: memberUid,
+      details: `Removed member from family`
+    });
   }
 
   static async updateFamilySettings(familyId: string, settings: Partial<FamilySettings>): Promise<void> {
@@ -357,6 +392,15 @@ export class FamilyRepository {
     await updateDoc(codeRef, {
         used: true,
         familyId: familyId
+    });
+
+    await AuditRepository.log({
+        familyId,
+        actorUid: "admin", // Pair usually happens via a form, actor info should be passed
+        actorName: "Parent",
+        action: AuditAction.CHILD_PAIRED,
+        targetId: childId,
+        details: `Paired new child: ${pairingData.childName || childId}`
     });
 
     console.log(`WEB: Pairing successful for child ${childId}`);

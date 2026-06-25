@@ -23,6 +23,7 @@ import com.example.kidsguard.sync.SyncChildStatus
 import com.example.kidsguard.sync.SyncLocationUpdate
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.tracking.LocalSafeZoneChecker
+import com.example.kidsguard.utils.DeviceUtils
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -156,7 +157,7 @@ fun MapScreen(
                 safeZones.forEach { zone ->
                     val zoneLatLng = LatLng(zone.latitude, zone.longitude)
                     val distance = effectiveLocation?.let { 
-                        checker.calculateDistance(it.latitude, it.longitude, zone.latitude, zone.longitude) 
+                        DeviceUtils.calculateDistance(it.latitude, it.longitude, zone.latitude, zone.longitude)
                     }
                     val isInside = distance != null && distance <= zone.radiusMeters
 

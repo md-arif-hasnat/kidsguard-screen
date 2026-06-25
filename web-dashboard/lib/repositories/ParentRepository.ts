@@ -1,5 +1,6 @@
 import { db } from "../firebase";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { AuditRepository, AuditAction } from "./AuditRepository";
 
 export interface ParentProfile {
   uid: string;
@@ -61,6 +62,17 @@ export class ParentRepository {
     await setDoc(doc(db, "parents", user.uid), profile, { merge: true });
 
     const updated = await this.getProfile(user.uid);
+
+    if (updated?.familyId) {
+      await AuditRepository.log({
+        familyId: updated.familyId,
+        actorUid: user.uid,
+        actorName: updated.displayName || "Parent",
+        action: AuditAction.LOGIN_SUCCESS,
+        details: `Successful login via ${provider}`
+      });
+    }
+
     return updated!;
   }
 

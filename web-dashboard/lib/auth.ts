@@ -11,7 +11,8 @@ import {
   OAuthProvider,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  ConfirmationResult
+  ConfirmationResult,
+  sendEmailVerification
 } from "firebase/auth";
 
 export const signIn = async (): Promise<User | null> => {
@@ -40,6 +41,7 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
   if (!auth) return null;
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(result.user);
     return result.user;
   } catch (error) {
     console.error("Signup failed:", error);

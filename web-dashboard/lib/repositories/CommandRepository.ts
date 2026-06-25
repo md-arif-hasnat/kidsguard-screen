@@ -1,6 +1,7 @@
 import { db } from "../firebase";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
+import { AuditRepository, AuditAction } from "./AuditRepository";
 
 export enum CommandType {
   REFRESH_LOCATION = "REFRESH_LOCATION",
@@ -48,6 +49,17 @@ export class CommandRepository {
 
     try {
       await setDoc(commandRef, command);
+
+      // Part 4: Command Audit
+      await AuditRepository.log({
+        familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+        actorUid: parentId,
+        actorName: localStorage.getItem("kidsguard_parent_name") || "Parent",
+        action: AuditAction.REMOTE_COMMAND_SENT,
+        targetId: childId,
+        details: `Sent ${commandType} command`
+      });
+
       console.log(`Command ${commandType} sent to ${childId}`);
     } catch (error) {
       console.error("Error sending remote command:", error);

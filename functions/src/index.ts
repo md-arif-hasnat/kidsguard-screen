@@ -113,6 +113,50 @@ export const onStatusChanged = functions.firestore
     });
 
 /**
+ * Triggered when a new family invitation is created.
+ */
+export const onInviteCreated = functions.firestore
+    .document('familyInvitations/{inviteId}')
+    .onCreate(async (snapshot, context) => {
+        const invite = snapshot.data();
+        const { inviteId } = context.params;
+
+        const inviteLink = `https://kidsguard-screen.vercel.app/invite/${inviteId}?token=${invite.tokenHash}`;
+
+        console.log(`Sending invite email to ${invite.invitedEmail}`);
+
+        await EmailService.sendInviteEmail({
+            to: invite.invitedEmail,
+            familyName: invite.familyName,
+            invitedByName: invite.invitedByName || "A member",
+            role: invite.invitedRole,
+            link: inviteLink,
+            expiresAt: invite.expiresAt.toDate().toLocaleDateString()
+        });
+    });
+
+/**
+ * Triggered when an invitation is accepted.
+ */
+export const onInviteAccepted = functions.firestore
+    .document('familyInvitations/{inviteId}')
+    .onUpdate(async (change, context) => {
+        const after = change.after.data();
+        const before = change.before.data();
+
+        if (after.status === 'ACCEPTED' && before.status === 'PENDING') {
+            // Notify owner
+            await notifyParent(after.invitedByUid, {
+                title: '🤝 Invitation Accepted',
+                body: `${after.invitedEmail} has joined the family vault as a ${after.invitedRole}.`,
+                type: 'PAIRING',
+                childId: '',
+                clickAction: '/settings/family'
+            });
+        }
+    });
+
+/**
  * Triggered when a new child is paired to a family.
  */
 export const onFamilyUpdated = functions.firestore
@@ -123,15 +167,14 @@ export const onFamilyUpdated = functions.firestore
 
         if (!before || !after) return;
 
+        // 1. Detect new children
         const newChildren = after.childDeviceIds.filter((id: string) => !before.childDeviceIds.includes(id));
-
         for (const childId of newChildren) {
-            // Find child name
             const childSnap = await db.collection('children').doc(childId).get();
             const childName = childSnap.data()?.name || 'New Device';
 
-            const parentIds = after.parentIds as string[];
-            for (const uid of parentIds) {
+            const memberUids = (after.members as any[]).map(m => m.uid);
+            for (const uid of memberUids) {
                 await notifyParent(uid, {
                     title: '📱 New Child Paired',
                     body: `${childName} has been successfully linked to your family vault.`,
@@ -143,8 +186,25 @@ export const onFamilyUpdated = functions.firestore
         }
     });
 
-
 // --- Helper Functions ---
+
+class EmailService {
+    static async sendInviteEmail(params: { to: string, familyName: string, invitedByName: string, role: string, link: string, expiresAt: string }) {
+        // In production, integrate with SendGrid, Resend, etc.
+        console.log(`
+            --- MOCK EMAIL ---
+            To: ${params.to}
+            Subject: Invitation to join the ${params.familyName} Family on KidsGuard
+            Body:
+            Hello,
+            ${params.invitedByName} has invited you to join their family vault as a ${params.role}.
+            Click here to accept: ${params.link}
+            This invitation expires on ${params.expiresAt}.
+            ------------------
+        `);
+        return Promise.resolve();
+    }
+}
 
 interface NotificationPayload {
     title: string;

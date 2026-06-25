@@ -57,6 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
     { name: 'History', href: '/history', icon: History },
     { name: 'Family', href: '/settings/family', icon: Users },
+    { name: 'Security', href: '/settings/security', icon: Shield },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

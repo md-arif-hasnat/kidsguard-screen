@@ -1,6 +1,7 @@
 import { db } from "../firebase";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
+import { AuditRepository, AuditAction } from "./AuditRepository";
 
 export type SafeZoneType = 'Home' | 'School' | 'Playground' | 'Relative House' | 'Custom';
 
@@ -79,6 +80,16 @@ export class SafeZoneRepository {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+
+    await AuditRepository.log({
+      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      actorUid: "current_user",
+      actorName: "Parent",
+      action: AuditAction.SAFE_ZONE_EDITED,
+      targetId: childId,
+      details: `Added safe zone: ${zone.name}`
+    });
+
     return id;
   }
 
@@ -89,12 +100,30 @@ export class SafeZoneRepository {
       ...updates,
       updatedAt: serverTimestamp()
     });
+
+    await AuditRepository.log({
+      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      actorUid: "current_user",
+      actorName: "Parent",
+      action: AuditAction.SAFE_ZONE_EDITED,
+      targetId: childId,
+      details: `Updated safe zone: ${updates.name || zoneId}`
+    });
   }
 
   static async deleteSafeZone(childId: string, zoneId: string): Promise<void> {
     if (!db) return;
     const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await deleteDoc(zoneRef);
+
+    await AuditRepository.log({
+      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      actorUid: "current_user",
+      actorName: "Parent",
+      action: AuditAction.SAFE_ZONE_EDITED,
+      targetId: childId,
+      details: `Deleted safe zone: ${zoneId}`
+    });
   }
 
   // Keep legacy for backward compatibility if needed temporarily
