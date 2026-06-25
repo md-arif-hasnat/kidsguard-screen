@@ -60,7 +60,9 @@ data class SyncLocationUpdate(
     val accuracy: Float,
     val speed: Float,
     val bearing: Float,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val batteryLevel: Int? = null,
+    val source: String = "GPS"
 )
 
 data class SyncActivityEvent(

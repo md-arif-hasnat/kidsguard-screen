@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.*
 
 class LocationRepository(
     private val context: Context,
@@ -65,6 +66,9 @@ class LocationRepository(
         return _locationHistory.value
     }
 
+    private var lastSyncedLocation: LocationPoint? = null
+    private var lastSyncTime = 0L
+
     fun addLocationPoint(point: LocationPoint) {
         try {
             val pointWithAddress = if (point.address == null && geocoder != null) {
@@ -88,8 +92,21 @@ class LocationRepository(
             _locationHistory.value = currentList
             saveHistory(currentList)
 
+            // Filter for excessive writes
+            val now = System.currentTimeMillis()
+            val distanceSinceLast = lastSyncedLocation?.let {
+                calculateDistance(it.latitude, it.longitude, pointWithAddress.latitude, pointWithAddress.longitude)
+            } ?: Double.MAX_VALUE
+
+            // Sync to Firebase if:
+            // 1. First time
+            // 2. Moved > 30 meters
+            // 3. More than 5 minutes passed (heartbeat)
+            val shouldSync = lastSyncedLocation == null || distanceSinceLast > 30 || (now - lastSyncTime > 300000)
+
             // Sync to Firebase if Child role and Firebase active
-            if (prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+            if (shouldSync && prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+                val battery = com.example.kidsguard.data.getBatteryLevel(context)
                 syncProvider?.syncLocation(
                     com.example.kidsguard.sync.SyncLocationUpdate(
                         childId = prefHelper.pairingCode,
@@ -98,9 +115,12 @@ class LocationRepository(
                         accuracy = pointWithAddress.accuracy,
                         speed = pointWithAddress.speed,
                         bearing = pointWithAddress.bearing,
-                        timestamp = pointWithAddress.timestamp
+                        timestamp = pointWithAddress.timestamp,
+                        batteryLevel = battery
                     )
                 )
+                lastSyncedLocation = pointWithAddress
+                lastSyncTime = now
             }
 
             // Trigger Safe Zone Check
@@ -126,6 +146,21 @@ class LocationRepository(
     fun clearLocationHistory() {
         _locationHistory.value = emptyList()
         prefs.edit().clear().apply()
+    }
+
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371e3 // Earth's radius in meters
+        val phi1 = lat1 * PI / 180
+        val phi2 = lat2 * PI / 180
+        val deltaPhi = (lat2 - lat1) * PI / 180
+        val deltaLambda = (lon2 - lon1) * PI / 180
+
+        val a = sin(deltaPhi / 2).pow(2) +
+                cos(phi1) * cos(phi2) *
+                sin(deltaLambda / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return r * c
     }
 
     private fun saveHistory(history: List<LocationPoint>) {

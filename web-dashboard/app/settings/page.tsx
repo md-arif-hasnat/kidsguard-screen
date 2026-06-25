@@ -116,7 +116,7 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Account Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Account Settings</h1>
       </div>
 
       {showAvatarPicker && (
@@ -133,43 +133,43 @@ export default function SettingsPage() {
           status.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
         }`}>
           {status.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-          <p className="font-medium">{status.message}</p>
+          <p className="font-medium text-sm">{status.message}</p>
         </div>
       )}
 
-      <div className="max-w-4xl space-y-8 pb-12">
+      <div className="max-w-4xl space-y-6 md:space-y-8 pb-12">
         {/* Profile Section */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-8 border-b border-slate-100 bg-slate-50/50">
-             <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50">
+             <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
                 <div className="relative group">
-                  <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
                     {profile?.avatarId ? (
                         <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.avatarId}`} alt="Profile" className="w-full h-full object-cover" />
                     ) : user?.photoURL ? (
                         <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                        <UserIcon size={40} />
+                        <UserIcon size={32} />
                     )}
                   </div>
                   <button
                     onClick={() => setShowAvatarPicker(true)}
-                    className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-2 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
+                    className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 md:p-2 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
                   >
-                    <Camera size={16} />
+                    <Camera size={14} />
                   </button>
                 </div>
                 <div className="text-center md:text-left">
-                   <h2 className="text-2xl font-bold text-slate-900">{profile?.displayName || "Parent Account"}</h2>
-                   <p className="text-slate-500 font-medium">Logged in via {profile?.provider || "Firebase"}</p>
+                   <h2 className="text-xl md:text-2xl font-bold text-slate-900">{profile?.displayName || "Parent Account"}</h2>
+                   <p className="text-slate-500 font-medium text-sm">Logged in via {profile?.provider || "Firebase"}</p>
                 </div>
              </div>
           </div>
 
-          <form onSubmit={handleSave} className="p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={handleSave} className="p-6 md:p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 ml-1">Full Name</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Full Name</label>
                 <div className="relative">
                   <UserIcon className="absolute left-3 top-3 text-slate-400" size={18} />
                   <input
@@ -177,81 +177,66 @@ export default function SettingsPage() {
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
                     placeholder="Enter your name"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 ml-1">Phone Number</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Phone Number</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
                   <input
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
                     placeholder="+1234567890"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5 opacity-70">
-                <label className="text-sm font-bold text-slate-700 ml-1">Email Address</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
                   <input
                     type="email"
                     disabled
                     value={profile?.email || ""}
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none font-medium cursor-not-allowed"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 ml-1 italic">Email cannot be changed here.</p>
-              </div>
-
-              <div className="space-y-1.5 opacity-70">
-                <label className="text-sm font-bold text-slate-700 ml-1">Family ID</label>
-                <div className="relative">
-                  <Home className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="text"
-                    disabled
-                    value={profile?.familyId || "No family assigned"}
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none font-medium cursor-not-allowed"
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none font-medium cursor-not-allowed text-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 ml-1">Default Region (Map Center)</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Default Region</label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-3 text-slate-400" size={18} />
                   <select
                     value={region}
                     onChange={(e) => setRegion(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none text-sm"
                   >
-                    <option value="DE">Germany (Mönchengladbach)</option>
-                    <option value="BD">Bangladesh (Dhaka)</option>
-                    <option value="US">United States (New York)</option>
+                    <option value="DE">Germany</option>
+                    <option value="BD">Bangladesh</option>
+                    <option value="US">United States</option>
                     <option value="Global">Global View</option>
                   </select>
                 </div>
-                <p className="text-[10px] text-slate-400 ml-1 italic">Used for centering maps when child location is unavailable.</p>
               </div>
             </div>
 
-            <div className="pt-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-slate-50">
-               <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-                  <Fingerprint size={14} />
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-50">
+               <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono break-all">
+                  <Fingerprint size={12} />
                   ID: {user?.uid}
                </div>
                <button
                   type="submit"
                   disabled={saving}
-                  className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                >
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                   Save Changes
@@ -261,41 +246,29 @@ export default function SettingsPage() {
         </section>
 
         {/* Notifications Section */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-6 text-slate-900">
             <Bell size={20} className="text-primary-500" />
-            <h2 className="font-bold text-lg">Notification Preferences</h2>
+            <h2 className="font-bold text-lg">Notifications</h2>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <NotificationToggle
                 label="Safe Zone Alerts"
-                description="Arrived at / Left Home, School, etc."
+                description="Arrived/Left Home, School, etc."
                 checked={notifSettings.safeZone}
                 onChange={() => toggleNotif('safeZone')}
             />
             <NotificationToggle
                 label="SOS Alerts"
-                description="Critical emergency signals from child devices."
+                description="Critical emergency signals."
                 checked={notifSettings.sos}
                 onChange={() => toggleNotif('sos')}
             />
             <NotificationToggle
                 label="Battery Alerts"
-                description="Low battery warnings (under 20%)."
+                description="Low battery warnings."
                 checked={notifSettings.battery}
                 onChange={() => toggleNotif('battery')}
-            />
-            <NotificationToggle
-                label="Device Status Alerts"
-                description="Online/Offline status changes."
-                checked={notifSettings.deviceStatus}
-                onChange={() => toggleNotif('deviceStatus')}
-            />
-            <NotificationToggle
-                label="Pairing Alerts"
-                description="When a new child device is linked."
-                checked={notifSettings.pairing}
-                onChange={() => toggleNotif('pairing')}
             />
 
             <div className="mt-8 pt-6 border-t border-slate-100">
@@ -304,12 +277,12 @@ export default function SettingsPage() {
                     onClick={async () => {
                         if (!user) return;
                         await NotificationRepository.registerDevice(user.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
-                        alert("Device registration requested. Please grant permission if prompted.");
+                        alert("Device registration requested.");
                     }}
-                    className="text-primary-600 font-bold hover:underline flex items-center gap-2"
+                    className="w-full sm:w-auto text-primary-600 font-bold hover:underline flex items-center justify-center gap-2 text-sm"
                 >
                     <Smartphone size={16} />
-                    Enable Push Notifications on this Browser
+                    Enable Push on this Device
                 </button>
             </div>
           </div>

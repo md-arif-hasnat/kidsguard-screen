@@ -209,23 +209,25 @@ export default function SafeZonesPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Safe Zones</h1>
-          <p className="text-slate-500 mt-1">Manage safety perimeters for your children.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Safe Zones</h1>
+          <p className="text-slate-500 text-sm md:text-base mt-1">Manage safety perimeters for your children.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
             {/* Child Selector */}
-            <div className="relative group">
-                <button className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
-                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600">
-                        {selectedChildName[0]}
+            <div className="relative group flex-1 sm:flex-none">
+                <button className="w-full flex items-center justify-between sm:justify-start gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 shrink-0">
+                            {selectedChildName[0]}
+                        </div>
+                        <span className="truncate">{selectedChildName}</span>
                     </div>
-                    <span>{selectedChildName}</span>
                     <ChevronDown size={16} className="text-slate-400" />
                 </button>
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                <div className="absolute top-full right-0 mt-2 w-full sm:w-48 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
                     {family?.childDeviceIds.map(id => (
                         <button
                             key={id}
@@ -247,7 +249,7 @@ export default function SafeZonesPage() {
             {!showAddForm && selectedChildId && (
             <button
                 onClick={() => setShowAddForm(true)}
-                className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2"
+                className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center justify-center gap-2"
             >
                 <Plus size={20} />
                 Add Zone
@@ -268,27 +270,27 @@ export default function SafeZonesPage() {
             status.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
             )}>
             {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
-            <p className="font-medium">{status.message}</p>
+            <p className="font-medium text-sm">{status.message}</p>
             </div>
         )}
 
         {showAddForm && (
             <div className="bg-white rounded-2xl border-2 border-primary-100 shadow-xl overflow-hidden mb-8 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 bg-primary-50/30 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 flex items-center gap-2">
+            <div className="p-4 md:p-6 border-b border-slate-100 bg-primary-50/30 flex items-center justify-between">
+                <h2 className="font-bold text-slate-900 flex items-center gap-2 text-sm md:text-base">
                     <Settings size={18} className="text-primary-600" />
-                    {editingZone ? `Edit Zone for ${selectedChildName}` : `New Zone for ${selectedChildName}`}
+                    {editingZone ? `Edit Zone` : `New Zone`}
                 </h2>
-                <button onClick={resetForm} className="text-slate-400 hover:text-slate-600">Cancel</button>
+                <button onClick={resetForm} className="text-xs font-bold text-slate-400 hover:text-slate-600">Cancel</button>
             </div>
-            <form onSubmit={handleAddOrUpdate} className="p-8 space-y-6">
+            <form onSubmit={handleAddOrUpdate} className="p-4 md:p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Zone Type</label>
+                    <label className="text-xs font-bold text-slate-700 ml-1">Zone Type</label>
                     <select
                         value={type}
                         onChange={(e) => setType(e.target.value as SafeZoneType)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium text-sm"
                     >
                         <option value="Home">Home</option>
                         <option value="School">School</option>
@@ -298,18 +300,18 @@ export default function SafeZonesPage() {
                     </select>
                     </div>
                     <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Custom Name (Optional)</label>
+                    <label className="text-xs font-bold text-slate-700 ml-1">Custom Name (Optional)</label>
                     <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder={type}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium text-sm"
                     />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Address or Landmark</label>
-                    <div className="flex gap-2">
+                    <label className="text-xs font-bold text-slate-700 ml-1">Address or Landmark</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
                             <input
@@ -320,14 +322,14 @@ export default function SafeZonesPage() {
                                 setManualCoords(null); // Clear manual if address is being typed
                             }}
                             placeholder="e.g. 123 Main St, New York"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium text-sm"
                             />
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowMapPicker(true)}
                             className={clsx(
-                                "px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 border-2",
+                                "px-6 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border-2 text-sm",
                                 manualCoords ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                             )}
                         >
@@ -343,7 +345,7 @@ export default function SafeZonesPage() {
                     )}
                     </div>
                     <div className="space-y-3 md:col-span-2">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Radius (meters)</label>
+                    <label className="text-xs font-bold text-slate-700 ml-1">Radius (meters)</label>
                     <div className="flex flex-wrap gap-2">
                         {[100, 200, 300, 500, 750, 1000].map((r) => (
                         <button
@@ -351,7 +353,7 @@ export default function SafeZonesPage() {
                             type="button"
                             onClick={() => setRadius(r)}
                             className={clsx(
-                            "px-4 py-2 rounded-lg text-sm font-bold border-2 transition-all",
+                            "px-4 py-2 rounded-lg text-xs font-bold border-2 transition-all",
                             radius === r ? "border-primary-500 bg-primary-50 text-primary-600" : "border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200"
                             )}
                         >
@@ -362,14 +364,13 @@ export default function SafeZonesPage() {
                             "flex items-center gap-2 px-4 py-1.5 rounded-lg border-2 transition-all",
                             ![100, 200, 300, 500, 750, 1000].includes(radius) ? "border-primary-500 bg-primary-50" : "border-slate-100 bg-slate-50"
                         )}>
-                            <span className="text-xs font-bold text-slate-400 uppercase">Custom:</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Custom:</span>
                             <input
                                 type="number"
                                 value={radius}
                                 onChange={(e) => setRadius(parseInt(e.target.value) || 100)}
-                                className="w-16 bg-transparent outline-none font-bold text-sm text-slate-700"
+                                className="w-16 bg-transparent outline-none font-bold text-xs text-slate-700"
                             />
-                            <span className="text-xs font-bold text-slate-400 uppercase">m</span>
                         </div>
                     </div>
                     </div>
@@ -378,7 +379,7 @@ export default function SafeZonesPage() {
                     <button
                     type="submit"
                     disabled={saving}
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-10 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-10 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}
                     {editingZone ? 'Save Changes' : 'Create Safe Zone'}

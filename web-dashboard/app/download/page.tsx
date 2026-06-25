@@ -104,8 +104,8 @@ export default function DownloadPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-12 md:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-        <div className="space-y-8 animate-in slide-in-from-left duration-700">
+      <main className="max-w-6xl mx-auto px-6 py-8 md:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        <div className="space-y-6 md:space-y-8 animate-in slide-in-from-left duration-700">
           <div>
             <div className="flex items-center gap-3">
                 <span className="bg-primary-50 text-primary-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-primary-100">
@@ -120,31 +120,31 @@ export default function DownloadPage() {
                     </span>
                 )}
             </div>
-            <h1 className="text-5xl md:text-6xl font-black text-slate-900 mt-4 leading-[1.1]">
+            <h1 className="text-4xl md:text-6xl font-black text-slate-900 mt-4 leading-[1.1]">
               Download <span className="text-primary-600">KidsGuard</span>
             </h1>
-            <p className="text-lg text-slate-500 mt-6 max-w-lg leading-relaxed font-medium">
+            <p className="text-base md:text-lg text-slate-500 mt-6 max-w-lg leading-relaxed font-medium">
               Always download the latest secure version directly from our official distribution point. Install the application on your child&apos;s device to start monitoring.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             <ReleaseInfo label="Version" value={config.latestVersionName} icon={Info} />
             <ReleaseInfo label="Size" value={config.fileSize || "N/A"} icon={FileText} />
             <ReleaseInfo label="Released" value={config.releasedAt ? new Date(config.releasedAt.seconds * 1000).toLocaleDateString() : "Recent"} icon={Clock} />
             <ReleaseInfo label="Android" value={config.minimumAndroidVersion || "8.0+"} icon={Smartphone} />
           </div>
 
-          <div className="pt-4">
+          <div className="pt-2 md:pt-4">
             <button
                 onClick={handleDownload}
-                className="group w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white px-10 py-5 rounded-2xl font-black text-lg shadow-2xl shadow-primary-200 transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:scale-95"
+                className="group w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-base md:text-lg shadow-2xl shadow-primary-200 transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:scale-95"
             >
               <Download size={24} className="group-hover:animate-bounce" />
-              Download Latest APK
+              Download APK
             </button>
-            <p className="text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-widest text-center md:text-left">
-                Verified secure by Google App Check
+            <p className="text-[10px] md:text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-widest text-center md:text-left">
+                Verified secure by KidsGuard Security
             </p>
           </div>
         </div>

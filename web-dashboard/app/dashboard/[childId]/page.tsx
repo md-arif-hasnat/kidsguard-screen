@@ -42,6 +42,18 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function StatCard({ label, value, icon: Icon, color }: any) {
+    return (
+        <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-wider mb-1 md:mb-2">{label}</div>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Icon className={cn("w-5 h-5 md:w-6 md:h-6", color)} />
+            <span className="text-lg md:text-2xl font-bold text-slate-700 truncate">{value}</span>
+          </div>
+        </div>
+    )
+}
+
 export default function ChildDashboard() {
   const params = useParams();
   const childId = params.childId as string;
@@ -201,9 +213,9 @@ export default function ChildDashboard() {
         </div>
       ) : null}
 
-      <header className="flex justify-between items-center mb-8">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div className="flex items-center gap-4">
-          <div className="relative group">
+          <div className="relative group shrink-0">
             <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl overflow-hidden border-2 border-primary-200 transition-transform group-hover:scale-105">
               <img
                 src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayData.avatarId}`}
@@ -218,22 +230,26 @@ export default function ChildDashboard() {
               <Camera size={14} />
             </button>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">{displayData.name}&apos;s Dashboard</h1>
-            <p className="text-slate-500 font-medium">Child Device: {childId}</p>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 truncate">{displayData.name}&apos;s Dashboard</h1>
+            <p className="text-slate-500 font-medium text-sm truncate">Child Device: {childId}</p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex w-full md:w-auto gap-3">
           <button
             onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
-            className="bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2"
+            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm"
           >
             <RotateCcw size={18} />
-            Refresh GPS
+            <span className="hidden sm:inline">Refresh GPS</span>
+            <span className="sm:hidden">GPS</span>
           </button>
           <button
             onClick={() => handleCommand(status?.kidGuardActive ? CommandType.UNLOCK_NOW : CommandType.LOCK_NOW)}
-            className={`${status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'} text-white px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center gap-2`}
+            className={cn(
+                "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm",
+                status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'
+            )}
           >
             {status?.kidGuardActive ? <Unlock size={18} /> : <Lock size={18} />}
             {status?.kidGuardActive ? 'Unlock' : 'Lock Now'}
@@ -241,41 +257,16 @@ export default function ChildDashboard() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Battery Status</div>
-          <div className="flex items-center gap-3">
-            <Battery className={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} size={24} />
-            <span className="text-2xl font-bold">{displayData.battery}%</span>
-            {displayData.isCharging && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Charging</span>}
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Last Seen</div>
-          <div className="flex items-center gap-3">
-            <Zap className={status?.online ? "text-yellow-500" : "text-slate-400"} size={24} />
-            <span className="text-2xl font-bold text-slate-700">{displayData.lastSeen}</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Current Zone</div>
-          <div className="flex items-center gap-3">
-            <MapPin className="text-green-500" size={24} />
-            <span className="text-2xl font-bold text-slate-700 truncate">{displayData.currentZone}</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Security Mode</div>
-          <div className="flex items-center gap-3">
-            {displayData.status === 'LOCKED' ? <Lock className="text-red-500" size={24} /> : <Unlock className="text-green-500" size={24} />}
-            <span className="text-2xl font-bold text-slate-700">{displayData.status}</span>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+        <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
+        <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
+        <StatCard label="Current Zone" value={displayData.currentZone} icon={MapPin} color="text-green-500" />
+        <StatCard label="Security" value={displayData.status} icon={displayData.status === 'LOCKED' ? Lock : Unlock} color={displayData.status === 'LOCKED' ? "text-red-500" : "text-green-500"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[450px] relative">
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[350px] md:h-[450px] relative">
             {displayData.isLoading && !showMocks ? (
                 <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
                     <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
@@ -304,12 +295,12 @@ export default function ChildDashboard() {
             )}
           </section>
 
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
                 <ShieldCheck className="text-primary-600" />
                 Live Telemetry Panel
              </h2>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
                 <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
                 <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
@@ -317,18 +308,18 @@ export default function ChildDashboard() {
              </div>
           </section>
 
-          <section className="bg-primary-600 rounded-2xl p-8 text-white shadow-xl shadow-primary-100">
+          <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
             <div className="flex items-center gap-2 mb-4">
               <ShieldCheck size={24} />
               <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
             </div>
             {displayData.summary ? (
-              <div className="flex items-start gap-6">
-                <div className="text-4xl font-black bg-white/20 w-24 h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
+              <div className="flex flex-col md:flex-row items-start gap-6">
+                <div className="text-4xl font-black bg-white/20 w-20 h-20 md:w-24 md:h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
                   {displayData.summary.score}
                 </div>
                 <div>
-                  <p className="text-primary-100 font-medium leading-relaxed italic">
+                  <p className="text-primary-100 font-medium leading-relaxed italic text-sm md:text-base">
                     &quot;{displayData.summary.text}&quot;
                   </p>
                   <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
@@ -339,7 +330,7 @@ export default function ChildDashboard() {
               </div>
             ) : (
               <div className="py-4 text-center">
-                  <p className="text-primary-100 italic">No safety summary generated for today yet. Data is analyzed every evening.</p>
+                  <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
               </div>
             )}
           </section>

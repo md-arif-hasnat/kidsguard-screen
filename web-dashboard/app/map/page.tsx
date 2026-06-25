@@ -136,19 +136,19 @@ export default function MapPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Live Map Center</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Live Map Center</h1>
         {!isFirebaseConfigured && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 px-4 flex items-center gap-2">
             <CloudOff size={16} className="text-yellow-600" />
-            <span className="text-yellow-700 text-xs font-bold uppercase tracking-wide">Mock Mode</span>
+            <span className="text-yellow-700 text-[10px] font-bold uppercase tracking-wide">Mock Mode</span>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 md:gap-8">
         <div className="xl:col-span-3 space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative h-[calc(100vh-280px)]">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative h-[400px] md:h-[calc(100vh-280px)]">
             <LiveMap
                 childLocation={displayLocation}
                 defaultRegion={profile?.region}
@@ -163,7 +163,7 @@ export default function MapPage() {
 
             {/* Float Info Panel */}
             {selectedChildId && (
-                <div className="absolute bottom-6 left-6 right-6 md:right-auto md:w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 p-5 space-y-4">
+                <div className="absolute bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-auto md:w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 p-4 md:p-5 space-y-3 md:space-y-4 z-10">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden border-2 border-primary-200">
@@ -178,8 +178,8 @@ export default function MapPage() {
                                 )}
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-900">{activeChildStatus?.childName || mockActiveChild?.name || "Loading..."}</h3>
-                                <p className="text-xs text-slate-400 font-medium">{displayLocation?.timestamp ? new Date(displayLocation.timestamp).toLocaleTimeString() : "Updating..."}</p>
+                                <h3 className="font-bold text-slate-900 text-sm md:text-base">{activeChildStatus?.childName || mockActiveChild?.name || "Loading..."}</h3>
+                                <p className="text-[10px] text-slate-400 font-medium">{displayLocation?.timestamp ? new Date(displayLocation.timestamp).toLocaleTimeString() : "Updating..."}</p>
                             </div>
                         </div>
                         <button
@@ -194,34 +194,30 @@ export default function MapPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 pt-2">
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Battery</p>
+                        <div className="bg-slate-50 p-2 md:p-3 rounded-xl border border-slate-100">
+                            <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase mb-1">Battery</p>
                             <div className="flex items-center gap-2">
                                 <Battery size={14} className="text-primary-500" />
-                                <span className="text-sm font-bold">{activeChildStatus?.batteryPercent || mockActiveChild?.battery || 0}%</span>
+                                <span className="text-xs md:text-sm font-bold">{activeChildStatus?.batteryPercent || mockActiveChild?.battery || 0}%</span>
                             </div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Zone</p>
+                        <div className="bg-slate-50 p-2 md:p-3 rounded-xl border border-slate-100">
+                            <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase mb-1">Zone</p>
                             <div className="flex items-center gap-2">
                                 <MapPin size={14} className="text-green-500" />
-                                <span className="text-sm font-bold truncate">{activeChildStatus?.currentZone || mockActiveChild?.currentZone || "Unknown"}</span>
+                                <span className="text-xs md:text-sm font-bold truncate">{activeChildStatus?.currentZone || mockActiveChild?.currentZone || "Unknown"}</span>
                             </div>
                         </div>
                     </div>
 
                     {displayLocation && (
-                        <div className="bg-primary-50 p-3 rounded-xl border border-primary-100 flex items-start gap-3">
+                        <div className="bg-primary-50 p-2 md:p-3 rounded-xl border border-primary-100 flex items-start gap-3">
                             <Info size={16} className="text-primary-600 mt-0.5 shrink-0" />
                             <div>
-                                <p className="text-[10px] font-bold text-primary-400 uppercase">Current Telemetry</p>
-                                <p className="text-xs font-medium text-primary-700">
-                                    Lat: {displayLocation.lat.toFixed(5)}, Lng: {displayLocation.lng.toFixed(5)}
+                                <p className="text-[8px] md:text-[10px] font-bold text-primary-400 uppercase">Current Telemetry</p>
+                                <p className="text-[10px] md:text-xs font-medium text-primary-700">
+                                    {displayLocation.lat.toFixed(5)}, {displayLocation.lng.toFixed(5)}
                                 </p>
-                                <div className="flex gap-4 mt-0.5">
-                                    <p className="text-[10px] text-primary-500">Accuracy: ±{displayLocation.accuracy.toFixed(1)}m</p>
-                                    <p className="text-[10px] text-primary-500">Speed: {((displayLocation as any).speed || 0).toFixed(1)} m/s</p>
-                                </div>
                             </div>
                         </div>
                     )}
@@ -231,12 +227,12 @@ export default function MapPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+            <div className="flex items-center gap-2 mb-4 md:mb-6">
               <Users className="text-primary-500" size={20} />
-              <h2 className="font-bold">Child Selector</h2>
+              <h2 className="font-bold text-sm md:text-base">Child Selector</h2>
             </div>
-            <div className="space-y-3">
+            <div className="flex flex-row xl:flex-col gap-3 overflow-x-auto xl:overflow-x-visible pb-2 xl:pb-0">
               {(family ? family.childDeviceIds : MOCK_CHILDREN.map(c => c.id)).map(id => {
                 const status = childrenStatus[id];
                 const mock = MOCK_CHILDREN.find(c => c.id === id);
@@ -251,13 +247,13 @@ export default function MapPage() {
                         localStorage.setItem("kidsguard_selected_child", id);
                     }}
                     className={clsx(
-                      "p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between",
+                      "p-3 md:p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between min-w-[200px] xl:min-w-0",
                       isSelected ? "border-primary-500 bg-primary-50" : "border-slate-50 bg-slate-50 hover:border-slate-200"
                     )}
                   >
                     <div className="flex items-center gap-3">
                         <div className={clsx(
-                            "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden border-2",
+                            "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm overflow-hidden border-2",
                             isSelected ? "bg-primary-500 text-white border-primary-200" : "bg-slate-200 text-slate-500 border-transparent"
                         )}>
                             {status?.avatarId || mock?.avatarId ? (
@@ -271,20 +267,15 @@ export default function MapPage() {
                             )}
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900 text-sm">{name}</p>
+                            <p className="font-bold text-slate-900 text-xs md:text-sm">{name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <div className={clsx("w-1.5 h-1.5 rounded-full", (status?.online || mock?.online) ? "bg-green-500" : "bg-slate-400")} />
-                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                <span className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                                     {(status?.online || mock?.online) ? "Online" : "Offline"}
                                 </span>
                             </div>
                         </div>
                     </div>
-                    {(status?.batteryPercent || mock?.battery) !== undefined && (
-                        <div className="text-right">
-                            <span className="text-xs font-black text-slate-700">{status?.batteryPercent || mock?.battery}%</span>
-                        </div>
-                    )}
                   </div>
                 );
               })}

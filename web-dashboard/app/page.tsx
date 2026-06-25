@@ -264,21 +264,21 @@ export default function Home() {
       )}
 
       {activeSosEvents.length > 0 && !noChildrenPaired && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-8 flex items-center justify-between">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 md:p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 animate-pulse">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 animate-pulse shrink-0">
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h2 className="text-red-900 font-bold text-lg">ACTIVE SOS ALERT</h2>
-              <p className="text-red-700 font-medium">
+              <h2 className="text-red-900 font-bold text-base md:text-lg">ACTIVE SOS ALERT</h2>
+              <p className="text-red-700 font-medium text-sm md:text-base">
                 {activeSosEvents[0].name} triggered an SOS at {activeSosEvents[0].location}
               </p>
             </div>
           </div>
           <button
             onClick={() => router.push(`/dashboard/${activeSosEvents[0].childId}`)}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors"
+            className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors"
           >
             View Details
           </button>
@@ -286,7 +286,7 @@ export default function Home() {
       )}
 
       {!noChildrenPaired && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
             {family ? (
             family.childDeviceIds.map((childId) => (
                 <ChildStatusCard key={childId} childId={childId} />
@@ -299,7 +299,7 @@ export default function Home() {
 
             <div
                 onClick={() => setShowPairingForm(true)}
-                className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[200px]"
+                className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[160px] md:min-h-[200px]"
             >
             <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">
                 <Plus size={24} />
@@ -314,49 +314,85 @@ export default function Home() {
         <section className="mt-12">
             <h2 className="text-xl font-bold mb-6">Recent Alerts</h2>
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                <tr>
-                    <th className="px-6 py-4">Child</th>
-                    <th className="px-6 py-4">Event</th>
-                    <th className="px-6 py-4">Location</th>
-                    <th className="px-6 py-4">Time</th>
-                </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                {allActivities.length > 0 ? allActivities.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-medium">
-                        <div className="flex items-center gap-2">
-                           <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
-                              {childrenStatus[item.childId]?.childName?.[0] || "C"}
-                           </div>
-                           {childrenStatus[item.childId]?.childName || "Child"}
+                {/* Desktop Table */}
+                <div className="hidden md:block">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                        <tr>
+                            <th className="px-6 py-4">Child</th>
+                            <th className="px-6 py-4">Event</th>
+                            <th className="px-6 py-4">Location</th>
+                            <th className="px-6 py-4">Time</th>
+                        </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                        {allActivities.length > 0 ? allActivities.map((item: any) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-medium">
+                                <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
+                                    {childrenStatus[item.childId]?.childName?.[0] || "C"}
+                                </div>
+                                {childrenStatus[item.childId]?.childName || "Child"}
+                                </div>
+                            </td>
+                            <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                <div className={clsx(
+                                    "w-2 h-2 rounded-full",
+                                    item.type === 'EXIT_ZONE' ? "bg-red-500" : "bg-emerald-500"
+                                )} />
+                                <span className="font-bold">{item.title}</span>
+                                </div>
+                            </td>
+                            <td className="px-6 py-4">
+                                <span className="text-slate-600 font-medium">{item.zoneName || item.description || "System Alert"}</span>
+                            </td>
+                            <td className="px-6 py-4 text-slate-500 font-mono text-xs">
+                                {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                            </td>
+                        </tr>
+                        )) : (
+                        <tr>
+                            <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No recent alerts recorded.</td>
+                        </tr>
+                        )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile List */}
+                <div className="md:hidden divide-y divide-slate-100">
+                    {allActivities.length > 0 ? allActivities.map((item: any) => (
+                        <div key={item.id} className="p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
+                                        {childrenStatus[item.childId]?.childName?.[0] || "C"}
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-900">{childrenStatus[item.childId]?.childName || "Child"}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                    {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                                </span>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className={clsx(
+                                        "w-2 h-2 rounded-full",
+                                        item.type === 'EXIT_ZONE' ? "bg-red-500" : "bg-emerald-500"
+                                    )} />
+                                    <span className="text-sm font-bold text-slate-800">{item.title}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium mt-1 ml-4">
+                                    {item.zoneName || item.description || "System Alert"}
+                                </p>
+                            </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                           <div className={clsx(
-                             "w-2 h-2 rounded-full",
-                             item.type === 'EXIT_ZONE' ? "bg-red-500" : "bg-emerald-500"
-                           )} />
-                           <span className="font-bold">{item.title}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-slate-600 font-medium">{item.zoneName || item.description || "System Alert"}</span>
-                      </td>
-                      <td className="px-6 py-4 text-slate-500 font-mono text-xs">
-                        {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
-                      </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No recent alerts recorded.</td>
-                  </tr>
-                )}
-                </tbody>
-            </table>
+                    )) : (
+                        <div className="px-6 py-12 text-center text-slate-400 italic text-sm">No recent alerts recorded.</div>
+                    )}
+                </div>
             </div>
         </section>
       )}

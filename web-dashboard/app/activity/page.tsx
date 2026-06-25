@@ -50,18 +50,18 @@ export default function ActivityPage() {
         </div>
         <div className="divide-y divide-slate-100">
           {displayEvents.length > 0 ? displayEvents.map((item: any) => (
-            <div key={item.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-2 h-2 rounded-full bg-primary-500" />
+            <div key={item.id} className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
+              <div className="flex items-start gap-4">
+                <div className="w-2 h-2 rounded-full bg-primary-500 mt-2 shrink-0" />
                 <div>
-                  <p className="font-bold text-slate-900">{item.title}</p>
-                  <p className="text-sm text-slate-500">
+                  <p className="font-bold text-slate-900 text-sm md:text-base">{item.title}</p>
+                  <p className="text-xs md:text-sm text-slate-500">
                     {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleString() : `${item.date} • ${item.time}`}
                   </p>
                   {item.description && <p className="text-xs text-slate-400 mt-1">{item.description}</p>}
                 </div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 rounded-full uppercase">
+              <span className="self-start sm:self-center text-[10px] font-black px-3 py-1 bg-slate-100 text-slate-600 rounded-full uppercase whitespace-nowrap">
                 {item.type?.replace('_', ' ') || "INFO"}
               </span>
             </div>

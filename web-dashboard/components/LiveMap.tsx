@@ -60,9 +60,10 @@ interface LiveMapProps {
   currentZoneName?: string | null;
   safeZoneStatus?: 'INSIDE' | 'OUTSIDE';
   safeZones: Array<{ id: string; name: string; lat: number; lng: number; radius: number, type?: string }>;
-  routeHistory: Array<{ lat: number; lng: number }>;
+  routeHistory: Array<{ lat: number; lng: number; timestamp?: number }>;
   deviations: Array<{ id: string; lat: number; lng: number; message: string; time: string; severity: string }>;
   followChild: boolean;
+  replayPoint?: { lat: number; lng: number } | null;
 }
 
 const LiveMap: React.FC<LiveMapProps> = ({
@@ -74,7 +75,8 @@ const LiveMap: React.FC<LiveMapProps> = ({
   safeZones,
   routeHistory,
   deviations,
-  followChild
+  followChild,
+  replayPoint
 }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -100,15 +102,20 @@ const LiveMap: React.FC<LiveMapProps> = ({
 
   const normalizedRoute = normalizeMapPath(routeHistory);
   const normalizedChildLoc = normalizeMapPoint(childLocation);
+  const normalizedReplayPoint = normalizeMapPoint(replayPoint);
 
-  const center = normalizedChildLoc || getRegionCenter(defaultRegion);
-  const zoom = normalizedChildLoc ? 15 : getRegionZoom(defaultRegion);
+  const center = normalizedReplayPoint || normalizedChildLoc || getRegionCenter(defaultRegion);
+  const zoom = (normalizedReplayPoint || normalizedChildLoc) ? 15 : getRegionZoom(defaultRegion);
 
   useEffect(() => {
-    if (map && followChild && normalizedChildLoc) {
-      map.panTo(normalizedChildLoc);
+    if (map && followChild) {
+        if (normalizedReplayPoint) {
+            map.panTo(normalizedReplayPoint);
+        } else if (normalizedChildLoc) {
+            map.panTo(normalizedChildLoc);
+        }
     }
-  }, [map, followChild, normalizedChildLoc]);
+  }, [map, followChild, normalizedChildLoc, normalizedReplayPoint]);
 
   if (!apiKey) {
     return (
@@ -250,7 +257,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
       })}
 
       {/* Child Current Location Marker */}
-      {normalizedChildLoc && (
+      {normalizedChildLoc && !normalizedReplayPoint && (
         <>
             <Marker
                 position={normalizedChildLoc}
@@ -287,6 +294,46 @@ const LiveMap: React.FC<LiveMapProps> = ({
                 }}
             />
         </>
+      )}
+      {/* Replay Marker */}
+      {normalizedReplayPoint && (
+          <Marker
+              position={normalizedReplayPoint}
+              title="Replay Position"
+              icon={avatarId ? {
+                  url: `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarId}`,
+                  scaledSize: new google.maps.Size(40, 40),
+                  anchor: new google.maps.Point(20, 20)
+              } : {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: "#f59e0b",
+                  fillOpacity: 1,
+                  strokeColor: "#ffffff",
+                  strokeWeight: 2,
+                  scale: 10
+              }}
+          />
+      )}
+
+      {/* Route History Visualization */}
+      {normalizedRoute.length >= 1 && (
+          <>
+            {/* Start Marker */}
+            <Marker
+                position={normalizedRoute[0]}
+                label="A"
+                title="Route Start"
+            />
+
+            {/* End Marker */}
+            {normalizedRoute.length > 1 && (
+                <Marker
+                    position={normalizedRoute[normalizedRoute.length - 1]}
+                    label="B"
+                    title="Route End"
+                />
+            )}
+          </>
       )}
     </GoogleMap>
   ) : (

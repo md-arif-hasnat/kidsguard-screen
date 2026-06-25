@@ -53,23 +53,27 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom sm:zoom-in-95 duration-300">
+        <div className="p-4 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Pick Safe Zone Location</h2>
-            <p className="text-sm text-slate-500">Click on the map to set the center point</p>
+            <h2 className="text-lg md:text-xl font-bold text-slate-900">Pick Location</h2>
+            <p className="text-xs md:text-sm text-slate-500">Tap on the map to set the center</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 md:p-6">
           <div className="relative border-2 border-slate-100 rounded-2xl overflow-hidden mb-4">
             {isLoaded ? (
               <GoogleMap
-                mapContainerStyle={mapContainerStyle}
+                mapContainerStyle={{
+                    width: '100%',
+                    height: window.innerWidth < 640 ? '300px' : '400px',
+                    borderRadius: '0.75rem'
+                }}
                 center={center}
                 zoom={zoom}
                 onClick={onMapClick}
@@ -96,42 +100,42 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                 )}
               </GoogleMap>
             ) : (
-              <div className="w-full h-[400px] bg-slate-100 flex items-center justify-center animate-pulse">
+              <div className="w-full h-[300px] md:h-[400px] bg-slate-100 flex items-center justify-center animate-pulse">
                 <p className="text-slate-400 font-bold italic">Loading Map Engine...</p>
               </div>
             )}
 
             {!selectedPos && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="bg-primary-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-bounce">
+                    <div className="bg-primary-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-bounce scale-90 sm:scale-100">
                         <MapPin size={16} />
-                        <span className="text-sm font-bold uppercase tracking-wider">Tap to Place</span>
+                        <span className="text-xs sm:text-sm font-bold uppercase tracking-wider">Tap to Place</span>
                     </div>
                 </div>
             )}
           </div>
 
-          <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 flex items-start gap-3 mb-6">
+          <div className="bg-primary-50 p-3 md:p-4 rounded-xl border border-primary-100 flex items-start gap-3 mb-6">
             <Info size={20} className="text-primary-600 shrink-0 mt-0.5" />
-            <p className="text-sm text-primary-800 leading-relaxed font-medium">
-                The circle represents the active monitoring area ({radius}m). Your child will be considered &quot;Safe&quot; while inside this boundary.
+            <p className="text-xs md:text-sm text-primary-800 leading-relaxed font-medium">
+                The circle represents the active monitoring area ({radius}m).
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pb-4 sm:pb-0">
             <button
               onClick={onClose}
-              className="flex-1 px-6 py-3 rounded-xl border-2 border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-colors text-sm"
             >
               Cancel
             </button>
             <button
               disabled={!selectedPos}
               onClick={handleConfirm}
-              className="flex-1 px-6 py-3 rounded-xl bg-primary-600 text-white font-bold hover:bg-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200"
+              className="flex-1 px-4 py-3 rounded-xl bg-primary-600 text-white font-bold hover:bg-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 text-sm"
             >
               <Check size={20} />
-              Set This Location
+              Set Location
             </button>
           </div>
         </div>
