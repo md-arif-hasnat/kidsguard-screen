@@ -51,7 +51,7 @@ export default function Home() {
           if (!fId) {
             console.log("DEBUG: No familyId found for parent. Creating new family...");
             const createFam = async () => {
-                const newFId = await FamilyRepository.createFamily(profile.uid);
+                const newFId = await FamilyRepository.createFamily(profile.uid, profile.email, profile.displayName);
                 await ParentRepository.updateFamilyId(profile.uid, newFId);
                 localStorage.setItem("kidsguard_family_id", newFId);
             };
