@@ -13,7 +13,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
-  const { profile } = useParentProfile();
+  const { profile, family, role } = useParentProfile();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -22,6 +22,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         return () => unsubCount();
     }
   }, [profile?.uid]);
+
+  // Debug Logging
+  useEffect(() => {
+    if (profile && family) {
+        console.log("RBAC DEBUG [Header]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            resolvedRole: role,
+            displayName: profile.displayName
+        });
+    }
+  }, [profile, family, role]);
 
   const displayName = getDisplayName(profile, profile?.email);
   const avatarUrl = getAvatarUrl(profile);
@@ -70,7 +83,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-bold text-slate-900 leading-none">{displayName}</p>
-                <p className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">Parent Account</p>
+                <p className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">{role.replace('_', ' ')} Account</p>
               </div>
             </Link>
           </div>

@@ -20,7 +20,7 @@ import {
   Camera
 } from 'lucide-react';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
-import { FamilyRepository, FamilyData, FamilyRole, FamilyMember, FamilyInvite, EmergencyContact, DetailedInvite } from '@/lib/repositories/FamilyRepository';
+import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -33,10 +33,8 @@ function cn(...inputs: ClassValue[]) {
 type Tab = 'members' | 'invites' | 'contacts' | 'settings';
 
 export default function FamilyManagementPage() {
-  const { profile } = useParentProfile();
-  const [family, setFamily] = useState<FamilyData | null>(null);
+  const { profile, family, role, loading: profileLoading } = useParentProfile();
   const [activeTab, setActiveTab] = useState<Tab>('members');
-  const [loading, setLoading] = useState(true);
 
   // Invite Form
   const [inviteEmail, setInviteEmail] = useState('');
@@ -52,19 +50,18 @@ export default function FamilyManagementPage() {
   // Invite Result
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
 
+  // Debug Logging
   useEffect(() => {
-    if (!profile?.familyId) {
-      setLoading(false);
-      return;
+    if (profile && family) {
+        console.log("RBAC DEBUG [Family]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            resolvedRole: role,
+            canInvite: RoleHelper.canInviteMembers(role)
+        });
     }
-
-    const unsub = FamilyRepository.listenToFamily(profile.familyId, (data) => {
-      setFamily(data);
-      setLoading(false);
-    });
-
-    return () => unsub();
-  }, [profile]);
+  }, [profile, family, role]);
 
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,11 +78,10 @@ export default function FamilyManagementPage() {
         profile?.displayName || "Family Owner"
       );
 
-    const inviteId = (family?.invites ?? []).find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
+      const inviteId = (family?.invites ?? []).find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
       const link = `${window.location.origin}/invite/${inviteId}?token=${token}`;
       setLastInviteLink(link);
       setInviteEmail('');
-      // alert("Invite created! Copy the link below.");
     } catch (err) {
       alert("Failed to send invite");
     } finally {
@@ -95,7 +91,6 @@ export default function FamilyManagementPage() {
 
   const handleRevokeInvite = async (inviteId: string) => {
     if (!family || !confirm("Revoke this invitation?")) return;
-    if (!family || !inviteId) return;
     try {
       await FamilyRepository.revokeInvite(family.familyId, inviteId);
     } catch (err) {
@@ -124,13 +119,10 @@ export default function FamilyManagementPage() {
     }
   };
 
-  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid) ||
-                            (profile?.uid && family?.ownerId === profile.uid ? { uid: profile.uid, role: FamilyRole.OWNER } : null);
-  const currentRole = (currentUserMember as any)?.role || FamilyRole.VIEWER;
-  const isOwner = currentRole === FamilyRole.OWNER;
-  const canInvite = RoleHelper.canInviteMembers(currentRole);
+  const isOwner = role === FamilyRole.OWNER;
+  const canInvite = RoleHelper.canInviteMembers(role);
 
-  if (loading) {
+  if (profileLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center py-20">
@@ -189,9 +181,10 @@ export default function FamilyManagementPage() {
                           </div>
                         </div>
                       </div>
-                            {isOwner && member.uid !== profile?.uid && family?.familyId && (
-                                <button
-                                onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isOwner && member.uid !== profile?.uid && family?.familyId && (
+                            <button
+                            onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
                             className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
                             title="Remove Member"
                             >
@@ -199,6 +192,7 @@ export default function FamilyManagementPage() {
                             </button>
                         )}
                       </div>
+                    </div>
                   ))}
                 </div>
               </section>

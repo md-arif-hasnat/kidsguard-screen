@@ -20,6 +20,7 @@ import {
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { AuditRepository, AuditLog, AuditAction } from '@/lib/repositories/AuditRepository';
 import { DataRetentionRepository, RetentionPeriod } from '@/lib/repositories/DataRetentionRepository';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
@@ -29,7 +30,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export default function SecurityPage() {
-  const { profile } = useParentProfile();
+  const { profile, family: profileFamily, role: profileRole } = useParentProfile();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,8 +60,21 @@ export default function SecurityPage() {
     };
   }, [profile]);
 
+  // Debug Logging
+  useEffect(() => {
+    if (profile && family) {
+        console.log("RBAC DEBUG [Security]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            resolvedRole: profileRole,
+            canExport: true // All authenticated members can currently export their own audit view
+        });
+    }
+  }, [profile, family, profileRole]);
+
   const handleRetentionChange = async (period: RetentionPeriod) => {
-    if (!profile?.familyId) return;
+    if (!profile?.familyId || !RoleHelper.canManageFamily(profileRole)) return;
     await DataRetentionRepository.updateRetentionPolicy(profile.familyId, period);
 
     await AuditRepository.log({

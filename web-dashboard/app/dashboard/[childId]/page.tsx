@@ -49,10 +49,7 @@ import AvatarPicker from '@/components/AvatarPicker';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
-import { User as UserAuth } from 'firebase/auth';
-import { observeAuth } from '@/lib/auth';
-import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
-import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 import HealthCard from '@/components/analytics/HealthCard';
@@ -97,7 +94,7 @@ export default function ChildDashboard() {
   const childId = params.childId as string;
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const { profile } = useParentProfile();
+  const { profile, family, role, loading: profileLoading } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
@@ -146,8 +143,6 @@ export default function ChildDashboard() {
     ]
   };
 
-  const [family, setFamily] = useState<FamilyData | null>(null);
-
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
 
@@ -159,9 +154,8 @@ export default function ChildDashboard() {
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
     const unsubAnalytics = AnalyticsRepository.listenToDailyAnalytics(childId, selectedDate, setAnalytics);
 
-    const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
+    const familyId = family?.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
     const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
-    const unsubFamily = FamilyRepository.listenToFamily(familyId, setFamily);
 
     const unsubWebRules = WebProtectionRepository.listenToWebRules(childId, setWebRules);
     const unsubWebActivity = WebProtectionRepository.listenToWebActivity(childId, selectedDate, setWebActivity);
@@ -179,16 +173,12 @@ export default function ChildDashboard() {
       unsubWebRules();
       unsubWebActivity();
       unsubWebRequests();
-      unsubFamily();
     };
-  }, [childId, selectedDate]);
+  }, [childId, selectedDate, family?.familyId]);
 
-  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid) ||
-                            (profile?.uid && family?.ownerId === profile.uid ? { uid: profile.uid, role: FamilyRole.OWNER } : null);
-  const currentRole = (currentUserMember as any)?.role || FamilyRole.VIEWER;
-  const canControl = RoleHelper.canSendRemoteCommands(currentRole);
-  const canManageWellbeing = RoleHelper.canManageChildren(currentRole);
-  const canManageWeb = RoleHelper.canManageWebProtection(currentRole);
+  const canControl = RoleHelper.canSendRemoteCommands(role);
+  const canManageWellbeing = RoleHelper.canManageChildren(role);
+  const canManageWeb = RoleHelper.canManageWebProtection(role);
 
   const mockChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
 
@@ -273,6 +263,16 @@ export default function ChildDashboard() {
     time: new Date(d.timestamp).toLocaleTimeString(),
     severity: d.severity
   })) : MOCK_DEVIATIONS;
+
+  if (profileLoading) {
+      return (
+          <DashboardLayout>
+              <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin text-primary-600" size={48} />
+              </div>
+          </DashboardLayout>
+      );
+  }
 
   return (
     <DashboardLayout>
@@ -474,8 +474,7 @@ export default function ChildDashboard() {
 
               {summary && <AIReportCard summary={summary} />}
 
-              {activeTab === 'intelligence' && (
-                <div className="space-y-12">
+              <div className="space-y-12">
                     <WeeklyReportPanel report={mockWeeklyReport} />
 
                     <ScheduleManager
@@ -502,7 +501,6 @@ export default function ChildDashboard() {
                         </div>
                     </div>
                 </div>
-              )}
 
               {analytics ? (
                   <DeviceCharts data={analytics} />

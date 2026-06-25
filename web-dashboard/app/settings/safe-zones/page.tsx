@@ -18,22 +18,17 @@ import {
   AlertCircle,
   ChevronDown
 } from 'lucide-react';
-import { observeAuth } from '@/lib/auth';
-import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/SafeZoneRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
-import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { GeocodingService } from '@/lib/services/GeocodingService';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
-import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
 import MapLocationPicker from '@/components/MapLocationPicker';
 import ChildSelector from '@/components/ChildSelector';
 
 export default function SafeZonesPage() {
-  const { profile, loading: profileLoading } = useParentProfile();
-  const [family, setFamily] = useState<FamilyData | null>(null);
+  const { profile, family, role, loading: profileLoading } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
 
@@ -53,31 +48,20 @@ export default function SafeZonesPage() {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [editingZone, setEditingZone] = useState<SafeZone | null>(null);
 
+  // Initial child selection
   useEffect(() => {
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
     if (savedChildId) setSelectedChildId(savedChildId);
 
-    if (profile) {
-      if (profile.familyId) {
-        const unsubFamily = FamilyRepository.listenToFamily(profile.familyId, (data) => {
-            if (data) {
-                setFamily(data);
-                if (!selectedChildId && data.childDeviceIds.length > 0) {
-                    setSelectedChildId(data.childDeviceIds[0]);
-                }
-            }
-        });
-        return () => unsubFamily();
-      }
-    } else if (!profileLoading) {
-      setLoading(false);
+    if (family && !selectedChildId && (family.childDeviceIds ?? []).length > 0) {
+        setSelectedChildId(family.childDeviceIds[0]);
     }
-  }, [profile, profileLoading]);
+  }, [family]);
 
   // Listen to status of all children in family to get names
   useEffect(() => {
     if (!family) return;
-    const unsubscribes = family.childDeviceIds.map(id =>
+    const unsubscribes = (family.childDeviceIds ?? []).map(id =>
       ChildRepository.listenToChildStatus(id, (s) => {
         if (s) setChildrenStatus(prev => ({ ...prev, [id]: s }));
       })
@@ -103,7 +87,7 @@ export default function SafeZonesPage() {
       }
     );
     return () => unsubZones();
-  }, [selectedChildId, family]);
+  }, [selectedChildId, family?.familyId]);
 
   const handleAddOrUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,10 +184,17 @@ export default function SafeZonesPage() {
     }
   };
 
-  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid) ||
-                            (profile?.uid && family?.ownerId === profile.uid ? { uid: profile.uid, role: FamilyRole.OWNER } : null);
-  const currentRole = (currentUserMember as any)?.role || FamilyRole.VIEWER;
-  const canManageZones = RoleHelper.canManageSafeZones(currentRole);
+  const canManageZones = RoleHelper.canManageSafeZones(role);
+
+  if (profileLoading) {
+    return (
+        <DashboardLayout>
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="animate-spin text-primary-600" size={48} />
+            </div>
+        </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -212,19 +203,18 @@ export default function SafeZonesPage() {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Safe Zones</h1>
           <div className="flex items-center gap-2 mt-1">
               <p className="text-slate-500 text-sm md:text-base">Manage safety perimeters for your children.</p>
-              <span className="bg-slate-100 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">{currentRole} ACCESS</span>
+              <span className="bg-slate-100 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">{role.replace('_', ' ')} ACCESS</span>
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-            {/* Unified Child Selector */}
             <ChildSelector
                 selectedChildId={selectedChildId}
                 onSelect={(id) => {
                     setSelectedChildId(id);
                     localStorage.setItem("kidsguard_selected_child", id);
                 }}
-                familyId={profile?.familyId}
+                familyId={family?.familyId}
                 className="flex-1 sm:flex-none"
             />
 

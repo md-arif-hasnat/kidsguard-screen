@@ -12,7 +12,7 @@ import AvatarPicker from '@/components/AvatarPicker';
 import { clsx } from 'clsx';
 
 export default function SettingsPage() {
-  const { profile, loading: profileLoading } = useParentProfile();
+  const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
     safeZone: true,
     sos: true,
@@ -46,6 +46,18 @@ export default function SettingsPage() {
         setLoading(false);
     }
   }, [profile, profileLoading]);
+
+  // Debug Logging
+  useEffect(() => {
+    if (profile && family) {
+        console.log("RBAC DEBUG [Settings]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            resolvedRole: profileRole
+        });
+    }
+  }, [profile, family, profileRole]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

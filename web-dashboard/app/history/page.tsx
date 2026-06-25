@@ -19,7 +19,8 @@ import {
     AlertCircle,
     Activity as ActivityIcon,
     ArrowRight,
-    Loader2
+    Loader2,
+    ShieldAlert
 } from 'lucide-react';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_ROUTE_HISTORY, MOCK_SAFE_ZONES } from '@/lib/mockData';
@@ -29,14 +30,14 @@ import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentReposi
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { observeAuth } from '@/lib/auth';
 import { calculateDistance, formatDuration } from '@/lib/utils/GeofenceUtils';
 import { clsx } from 'clsx';
 import ChildSelector from '@/components/ChildSelector';
 
 export default function HistoryPage() {
-  const { profile, loading: profileLoading } = useParentProfile();
-  const [family, setFamily] = useState<FamilyData | null>(null);
+  const { profile, family, role, loading: profileLoading } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
 
@@ -56,26 +57,30 @@ export default function HistoryPage() {
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
     if (savedChildId) setSelectedChildId(savedChildId);
 
-    if (profile) {
-        if (profile.familyId) {
-            FamilyRepository.listenToFamily(profile.familyId, (data) => {
-                if (data) {
-                    setFamily(data);
-                    if (!selectedChildId && data.childDeviceIds.length > 0) {
-                        setSelectedChildId(data.childDeviceIds[0]);
-                    }
-                }
-            });
-        }
-    } else if (!profileLoading) {
-        setLoading(false);
+    if (family && !selectedChildId && (family.childDeviceIds ?? []).length > 0) {
+        setSelectedChildId(family.childDeviceIds[0]);
     }
-  }, [profile, profileLoading]);
+  }, [family]);
+
+  // Debug Logging
+  useEffect(() => {
+    if (profile && family) {
+        console.log("RBAC DEBUG [History]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            resolvedRole: role,
+            canViewHistory: RoleHelper.canViewRouteHistory(role)
+        });
+    }
+  }, [profile, family, role]);
+
+  const canViewHistory = RoleHelper.canViewRouteHistory(role);
 
   // Listen to status of all children for names
   useEffect(() => {
     if (!family) return;
-    const unsubscribes = family.childDeviceIds.map(id =>
+    const unsubscribes = (family.childDeviceIds ?? []).map(id =>
         ChildRepository.listenToChildStatus(id, (s) => {
             if (s) setChildrenStatus(prev => ({ ...prev, [id]: s }));
         })
@@ -108,7 +113,7 @@ export default function HistoryPage() {
     };
   }, [selectedChildId, date]);
 
-  // Route Summary Logic (Client-side implementation)
+  // Route Summary Logic
   const summary = useMemo(() => {
     if (routeHistory.length < 2) return null;
 
@@ -132,14 +137,14 @@ export default function HistoryPage() {
         maxSpeedKmh: maxSpeed * 3.6,
         startTime: start,
         endTime: end,
-        stopsCount: 0, // Simplified for now
+        stopsCount: 0,
         safeZoneVisits: activities.filter(a => a.type === 'ENTER_ZONE').length
     };
   }, [routeHistory, activities]);
 
   // Timeline Events
   const timelineEvents = useMemo(() => {
-    const events = activities
+    const events = (activities ?? [])
         .filter(a => {
             const aDate = new Date(a.timestamp).toISOString().split('T')[0];
             return aDate === date;
@@ -187,6 +192,30 @@ export default function HistoryPage() {
 
   const selectedChildName = selectedChildId ? (childrenStatus[selectedChildId]?.childName || "Child") : "Select a child";
 
+  if (profileLoading) {
+      return (
+          <DashboardLayout>
+              <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin text-primary-600" size={48} />
+              </div>
+          </DashboardLayout>
+      );
+  }
+
+  if (!canViewHistory) {
+      return (
+        <DashboardLayout>
+            <div className="py-20 text-center bg-white rounded-3xl border border-slate-100 shadow-sm">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShieldAlert size={40} className="text-rose-500" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">Access Restricted</h2>
+                <p className="text-slate-500 max-w-sm mx-auto mt-2">Your role does not have permission to view granular route history.</p>
+            </div>
+        </DashboardLayout>
+      )
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
@@ -196,14 +225,13 @@ export default function HistoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Unified Child Selector */}
           <ChildSelector
               selectedChildId={selectedChildId}
               onSelect={(id) => {
                   setSelectedChildId(id);
                   localStorage.setItem("kidsguard_selected_child", id);
               }}
-              familyId={profile?.familyId}
+              familyId={family?.familyId}
           />
 
           <div className="relative">
@@ -307,7 +335,7 @@ export default function HistoryPage() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    <SummaryCard label="Distance" value={`${(summary?.totalDistanceMeters || 0 / 1000).toFixed(1)} km`} icon={MapPin} color="text-blue-500" />
+                    <SummaryCard label="Distance" value={`${((summary?.totalDistanceMeters || 0) / 1000).toFixed(1)} km`} icon={MapPin} color="text-blue-500" />
                     <SummaryCard label="Duration" value={formatDuration(summary?.totalDurationMinutes || 0)} icon={Clock} color="text-emerald-500" />
                     <SummaryCard label="Max Speed" value={`${Math.round(summary?.maxSpeedKmh || 0)} km/h`} icon={FastForward} color="text-orange-500" />
                     <SummaryCard label="Zones" value={`${summary?.safeZoneVisits || 0} visits`} icon={ShieldCheck} color="text-primary-500" />
@@ -334,7 +362,6 @@ export default function HistoryPage() {
                             </div>
                         ))}
 
-                        {/* Start/End placeholders if no activities */}
                         {timelineEvents.length === 0 && (
                             <div className="text-center py-10">
                                 <p className="text-xs text-slate-400 italic">No significant events logged today.</p>
