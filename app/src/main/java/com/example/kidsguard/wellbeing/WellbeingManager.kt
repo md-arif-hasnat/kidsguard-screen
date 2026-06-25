@@ -13,6 +13,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.os.Build
+import android.os.UserManager
+import androidx.annotation.RequiresApi
+import com.example.kidsguard.admin.KidsGuardAdminReceiver
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -23,7 +29,9 @@ class WellbeingManager(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private val tracker = AppUsageTracker(context)
-    
+    private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    private val adminComponent = ComponentName(context, KidsGuardAdminReceiver::class.java)
+
     private val _settings = MutableStateFlow(WellbeingSettings())
     val settings: StateFlow<WellbeingSettings> = _settings
 
@@ -34,6 +42,26 @@ class WellbeingManager(
     init {
         startSettingsListener()
         startUsageSync()
+        applySystemRestrictions()
+    }
+
+    private fun applySystemRestrictions() {
+        if (dpm.isAdminActive(adminComponent)) {
+            try {
+                // Android 15+: Prevent creating Private Space to bypass parental controls
+                if (Build.VERSION.SDK_INT >= 35) { // Android 15
+                    // UserManager.DISALLOW_ADD_PRIVATE_PROFILE is "no_add_private_profile"
+                    dpm.addUserRestriction(adminComponent, "no_add_private_profile")
+                    Log.i(TAG, "Restriction applied: no_add_private_profile")
+                }
+                
+                // Prevent uninstalling KidsGuard if it's a device admin
+                // Note: Standard Admin cannot set itself as uninstall protected easily 
+                // but we can monitor it.
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply system restrictions", e)
+            }
+        }
     }
 
     private fun startSettingsListener() {

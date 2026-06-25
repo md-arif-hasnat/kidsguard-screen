@@ -2,6 +2,8 @@ package com.example.kidsguard
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.app.ActivityOptions
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.wellbeing.WellbeingManager
@@ -58,7 +60,20 @@ class KidGuardAccessibilityService : AccessibilityService() {
             putExtra("action", "BLOCK_SCREEN")
             putExtra("blocked_package", packageName)
         }
-        startActivity(intent)
+        
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+ (and 15)
+            try {
+                val options = ActivityOptions.makeBasic()
+                if (Build.VERSION.SDK_INT >= 35) {
+                    options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                }
+                startActivity(intent, options.toBundle())
+            } catch (e: Exception) {
+                startActivity(intent)
+            }
+        } else {
+            startActivity(intent)
+        }
     }
 
     private fun bringOurAppToFront() {
@@ -67,7 +82,14 @@ class KidGuardAccessibilityService : AccessibilityService() {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         }
-        startActivity(intent)
+        
+        if (Build.VERSION.SDK_INT >= 35) {
+            val options = ActivityOptions.makeBasic()
+            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+            startActivity(intent, options.toBundle())
+        } else {
+            startActivity(intent)
+        }
     }
 
     override fun onInterrupt() {}
