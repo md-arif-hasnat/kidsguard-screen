@@ -25,12 +25,13 @@ class ChildStatusManager(
     private val syncProvider: RemoteSyncProvider,
     private val trackingRepository: TrackingRepository,
     private val safeZoneRepository: SafeZoneRepository,
-    private val locationRepository: LocationRepository
+    private val locationRepository: LocationRepository,
+    private val scheduleRepository: com.example.kidsguard.repository.ChildScheduleRepository? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private val errorLogger = ErrorLogRepository(context)
     private val checker = LocalSafeZoneChecker(safeZoneRepository, com.example.kidsguard.notifications.LocalNotificationEngine(context), prefHelper)
-    private val predictionEngine = PredictionEngine(context, locationRepository, safeZoneRepository)
+    private val predictionEngine = PredictionEngine(context, locationRepository, safeZoneRepository, scheduleRepository)
 
     companion object {
         private const val TAG = "ChildStatusManager"

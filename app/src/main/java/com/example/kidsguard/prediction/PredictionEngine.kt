@@ -12,7 +12,8 @@ import kotlin.math.abs
 class PredictionEngine(
     private val context: Context,
     private val locationRepository: LocationRepository,
-    private val safeZoneRepository: SafeZoneRepository
+    private val safeZoneRepository: SafeZoneRepository,
+    private val scheduleRepository: com.example.kidsguard.repository.ChildScheduleRepository? = null
 ) {
     private var lastBatteryLevel: Int? = null
     private var lastBatteryTime: Long? = null
@@ -74,16 +75,30 @@ class PredictionEngine(
     }
 
     private fun detectLateArrival(status: SyncChildStatus, now: Long): Boolean {
-        // In a real app, this would query a ScheduleRepository
-        // MOCK: Expect school arrival by 08:30
+        val schedules = scheduleRepository?.schedules?.value?.filter { it.enabled } ?: return false
         val calendar = java.util.Calendar.getInstance()
-        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-        val minute = calendar.get(java.util.Calendar.MINUTE)
-        
-        if (hour >= 8 && minute > 30) {
-            // If it's after 08:30 and we aren't in "School" (mocking zone name)
-            if (status.currentZone != "School" && status.currentZone != "Home") {
-                return true
+        val currentDay = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+        val currentHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+        val currentMinute = calendar.get(java.util.Calendar.MINUTE)
+
+        schedules.forEach { schedule ->
+            if (schedule.dayOfWeek == currentDay) {
+                val timeParts = schedule.arrivalTime.split(":")
+                if (timeParts.size == 2) {
+                    val targetHour = timeParts[0].toInt()
+                    val targetMin = timeParts[1].toInt()
+                    
+                    // If current time is past arrival time + tolerance
+                    val targetTotalMins = targetHour * 60 + targetMin + schedule.toleranceMinutes
+                    val currentTotalMins = currentHour * 60 + currentMinute
+                    
+                    if (currentTotalMins > targetTotalMins) {
+                        // If not in the correct zone
+                        if (status.currentZoneId != schedule.zoneId) {
+                            return true
+                        }
+                    }
+                }
             }
         }
         return false

@@ -9,6 +9,7 @@ enum class CommandType {
     LOCK_NOW,
     UNLOCK_NOW,
     RING_PHONE,
+    SOUND_SIREN,
     START_TRACKING,
     STOP_TRACKING,
     REFRESH_LOCATION
@@ -86,6 +87,16 @@ data class SyncSafetySummary(
     val recommendation: String
 )
 
+data class SyncWeeklyReport(
+    val weekStartDate: String,
+    val averageSafetyScore: Int,
+    val totalDistanceKm: Double,
+    val totalAlerts: Int,
+    val topVisitedZones: List<String>,
+    val safetyTrend: String, // "Improving", "Stable", "Declining"
+    val recommendations: List<String>
+)
+
 data class SyncLocationUpdate(
     val childId: String,
     val latitude: Double,
@@ -133,4 +144,29 @@ data class SyncNotificationEvent(
     val body: String,
     val sentAt: Long = System.currentTimeMillis(),
     val read: Boolean = false
+)
+
+data class SyncAppUsage(
+    val packageName: String,
+    val appName: String,
+    val category: String,
+    val totalTimeMs: Long,
+    val lastUsed: Long,
+    val date: String
+)
+
+data class SyncAppLimit(
+    val packageName: String,
+    val dailyLimitMs: Long,
+    val enabled: Boolean = true
+)
+
+data class SyncAppBlockRule(
+    val packageName: String,
+    val isBlocked: Boolean = false
+)
+
+data class SyncWellbeingSettings(
+    val appLimits: List<SyncAppLimit> = emptyList(),
+    val blockRules: List<SyncAppBlockRule> = emptyList()
 )

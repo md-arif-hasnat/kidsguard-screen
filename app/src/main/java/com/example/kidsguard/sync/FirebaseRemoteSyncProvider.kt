@@ -468,6 +468,94 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             
         awaitClose { registration.remove() }
     }
+
+    override fun syncAppUsage(childId: String, usage: List<SyncAppUsage>) {
+        if (childId.isEmpty() || usage.isEmpty()) return
+        
+        val date = usage.first().date
+        val batch = db.batch()
+        
+        usage.forEach { app ->
+            val ref = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("appUsage")
+                .document(date)
+                .collection("apps")
+                .document(app.packageName.replace(".", "_"))
+            batch.set(ref, app)
+        }
+        
+        batch.commit().addOnSuccessListener {
+            Log.d(TAG, "App usage synced successfully for $date")
+        }
+    }
+
+    override fun getWellbeingSettings(childId: String): Flow<SyncWellbeingSettings?> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(null)
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("settings")
+            .document("wellbeing")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for wellbeing settings", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null && snapshot.exists()) {
+                    trySend(snapshot.toObject(SyncWellbeingSettings::class.java))
+                } else {
+                    trySend(SyncWellbeingSettings())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings) {
+        if (childId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("settings")
+            .document("wellbeing")
+            .set(settings)
+            .addOnSuccessListener {
+                Log.d(TAG, "Wellbeing settings updated")
+            }
+    }
+
+    override fun getAppUsageHistory(childId: String, date: String): Flow<List<SyncAppUsage>> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("appUsage")
+            .document(date)
+            .collection("apps")
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for app usage history", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    val apps = snapshots.documents.mapNotNull { it.toObject(SyncAppUsage::class.java) }
+                    trySend(apps)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
     
     // Future placeholders for Messaging
     fun registerFcmToken(uid: String, token: String, role: String) {

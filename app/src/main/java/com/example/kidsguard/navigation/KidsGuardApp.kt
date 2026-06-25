@@ -34,7 +34,8 @@ fun KidsGuardApp(
     syncProvider: RemoteSyncProvider,
     commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
-    authRepository: AuthRepository
+    authRepository: AuthRepository,
+    blockedPackage: String? = null
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -315,6 +316,10 @@ fun KidsGuardApp(
                     selectedChildIdFlow.value = id
                     onScreenChange(Screen.ParentDashboard)
                 }
+            )
+            Screen.AppBlocked -> AppBlockedScreen(
+                packageName = blockedPackage,
+                onBackToHome = { onScreenChange(Screen.Home) }
             )
         }
     }

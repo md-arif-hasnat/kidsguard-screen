@@ -90,6 +90,15 @@ class RemoteCommandHandler(
                     notificationEngine.sendSafetyAlert("Find My Phone", "Parent is ringing your phone!")
                     showToast("Remote RING executed")
                 }
+                CommandType.SOUND_SIREN -> {
+                    notificationEngine.triggerSiren()
+                    safeZoneRepository.addEvent(ActivityEvent(
+                        type = "REMOTE_SIREN",
+                        title = "Emergency Siren Triggered",
+                        description = "Command from parent executed successfully"
+                    ))
+                    showToast("Remote SIREN executed")
+                }
             }
             _lastExecutionResult.value = "SUCCESS: ${command.commandType}"
             syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.EXECUTED)

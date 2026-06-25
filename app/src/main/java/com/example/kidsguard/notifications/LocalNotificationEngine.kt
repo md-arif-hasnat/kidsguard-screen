@@ -49,4 +49,39 @@ class LocalNotificationEngine(
             errorLogRepository?.addError("NotificationEngine", "Failed to send alert: $title", e)
         }
     }
+
+    fun triggerSiren() {
+        try {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // In a real app, we would play a custom media file. 
+            // Here we use the default alarm/ringtone for the notification.
+            val sirenNotification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle("🚨 EMERGENCY SIREN")
+                .setContentText("A parent has triggered the emergency siren on this device.")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setFullScreenIntent(null, true)
+                .setOngoing(true)
+                .setVibrate(longArrayOf(0, 1000, 500, 1000))
+                .build()
+
+            notificationManager.notify(911, sirenNotification)
+            
+            // Start playing alarm sound
+            val ringtoneUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+            val ringtone = android.media.RingtoneManager.getRingtone(context, ringtoneUri)
+            ringtone?.play()
+            
+            // Stop sound after 30 seconds
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                ringtone?.stop()
+                notificationManager.cancel(911)
+            }, 30000)
+            
+        } catch (e: Exception) {
+            errorLogRepository?.addError("NotificationEngine", "Failed to trigger siren", e)
+        }
+    }
 }

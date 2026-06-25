@@ -23,6 +23,12 @@ interface RemoteSyncProvider {
     fun getFamilyMembers(familyId: String): kotlinx.coroutines.flow.Flow<List<String>>
     fun getSafeZones(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>>
     fun getSafeZonesForChild(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SafeZone>>
+    
+    // Wellbeing sync
+    fun syncAppUsage(childId: String, usage: List<SyncAppUsage>)
+    fun getWellbeingSettings(childId: String): kotlinx.coroutines.flow.Flow<SyncWellbeingSettings?>
+    fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings)
+    fun getAppUsageHistory(childId: String, date: String): kotlinx.coroutines.flow.Flow<List<SyncAppUsage>>
 
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -174,6 +180,22 @@ class LocalMockSyncProvider : RemoteSyncProvider {
                 com.example.kidsguard.models.SafeZone(id = "zone_child_1", name = "Home (Child)", type = "Home", latitude = 37.7749, longitude = -122.4194, radiusMeters = 300.0)
             )
         )
+    }
+
+    override fun syncAppUsage(childId: String, usage: List<SyncAppUsage>) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun getWellbeingSettings(childId: String): kotlinx.coroutines.flow.Flow<SyncWellbeingSettings?> {
+        return kotlinx.coroutines.flow.flowOf(SyncWellbeingSettings())
+    }
+
+    override fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun getAppUsageHistory(childId: String, date: String): kotlinx.coroutines.flow.Flow<List<SyncAppUsage>> {
+        return kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     // Testing helper to simulate a remote command

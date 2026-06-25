@@ -1,5 +1,6 @@
 package com.example.kidsguard
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.Log
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var locationProvider: LocalLocationProvider
     private var currentScreenState = mutableStateOf(Screen.Home)
+    private var blockedPackageName = mutableStateOf<String?>(null)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
 
@@ -167,13 +169,18 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Determine initial screen based on role and pairing status
-        val initialScreen = when {
-            prefHelper.isLocked -> Screen.Locked
-            prefHelper.userRole == "NONE" -> Screen.RoleSelection
-            prefHelper.userRole == "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
-            prefHelper.userRole == "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
-            else -> Screen.Home
+        // Determining initial screen
+        handleIntent(intent)
+        val initialScreen = if (currentScreenState.value == Screen.AppBlocked) {
+            Screen.AppBlocked
+        } else {
+            when {
+                prefHelper.isLocked -> Screen.Locked
+                prefHelper.userRole == "NONE" -> Screen.RoleSelection
+                prefHelper.userRole == "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                prefHelper.userRole == "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+                else -> Screen.Home
+            }
         }
         currentScreenState.value = initialScreen
 
@@ -215,10 +222,25 @@ class MainActivity : ComponentActivity() {
                         syncProvider = syncProvider,
                         commandHandler = commandHandler,
                         updateRepository = updateRepository,
-                        authRepository = authRepository
+                        authRepository = authRepository,
+                        blockedPackage = blockedPackageName.value
                     )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleIntent(it) }
+    }
+
+    private fun handleIntent(intent: android.content.Intent) {
+        val action = intent.getStringExtra("action")
+        if (action == "BLOCK_SCREEN") {
+            val pkg = intent.getStringExtra("blocked_package")
+            blockedPackageName.value = pkg
+            currentScreenState.value = Screen.AppBlocked
         }
     }
 
