@@ -71,59 +71,94 @@ service cloud.firestore {
     match /families/{familyId} {
       allow read: if isFamilyMember(familyId);
       allow create: if isSignedIn();
-      // Only Owner can manage family members/settings in this document
       allow update: if isOwner(familyId);
 
       match /safeZones/{zoneId} {
         allow read: if isGuardianOrAbove(familyId);
         allow write: if isParentOrAbove(familyId);
       }
+      match /emergencyContacts/{contactId} {
+        allow read: if isGuardianOrAbove(familyId);
+        allow write: if isParentOrAbove(familyId);
+      }
     }
 
     match /children/{childId} {
+      // Top level child doc
       allow read: if isChildInFamily(childId);
-      allow write: if isSignedIn();
+      allow write: if isSignedIn(); // Child app initialization
 
+      // Child Status
       match /status/current {
         allow read: if isChildInFamily(childId);
-        allow write: if isSignedIn();
+        allow write: if isSignedIn(); // Child app updates status
       }
 
+      // Safe Zones (Scoped by child)
       match /safeZones/{zoneId} {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow write: if isParentOrAbove(getParentFamilyId());
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow write: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
       }
 
+      // Location Tracking
       match /locations/{docId} {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow create: if isSignedIn();
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn(); // Child app uploads location
       }
 
+      // Activity Feed
       match /activities/{docId} {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow create: if isSignedIn();
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn(); // Child app uploads activity
       }
 
+      // SOS Events
       match /sosEvents/{docId} {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow create: if isSignedIn();
-        allow update: if isParentOrAbove(getParentFamilyId());
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn(); // Child app triggers SOS
+        allow update: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
       }
 
+      // Remote Commands
       match /remoteCommands/{docId} {
-        allow read: if isSignedIn();
-        allow create: if isParentOrAbove(getParentFamilyId());
-        allow update: if isSignedIn();
+        allow read: if isSignedIn(); // Child app listens
+        allow create: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
+        allow update: if isSignedIn(); // Child app marks as EXECUTED
       }
 
+      // Web Protection
       match /webRules/current {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow write: if isParentOrAbove(getParentFamilyId());
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow write: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
+      }
+      match /webActivity/{date}/events/{docId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn(); // Child app reports activity
+      }
+      match /accessRequests/{requestId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow create: if isSignedIn(); // Child app requests access
+        allow update: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
       }
 
+      // Intelligence & Analytics
+      match /dailySummaries/{docId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+      }
+      match /routeSummaries/{docId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+      }
+      match /analytics/{date} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+      }
+      match /routeDeviations/{docId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+      }
+
+      // Digital Wellbeing
       match /appUsage/{date} {
-        allow read: if isGuardianOrAbove(getParentFamilyId());
-        allow write: if isSignedIn();
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow write: if isSignedIn(); // Child app reports usage
       }
     }
 

@@ -20,12 +20,11 @@ export enum CommandType {
 }
 
 export class CommandRepository {
-  static async sendCommand(childId: string, commandType: CommandType, payload: string | null = null) {
+  static async sendCommand(childId: string, familyId: string, parentId: string, parentName: string, commandType: CommandType, payload: string | null = null) {
     if (!db || !childId) return;
 
     const commandId = uuidv4();
     const commandRef = doc(db, "children", childId, "remoteCommands", commandId);
-    const parentId = localStorage.getItem("kidsguard_parent_id") || "unknown";
 
     const expiryMap: Record<string, number> = {
         [CommandType.REFRESH_LOCATION]: 2 * 60 * 1000,
@@ -52,9 +51,9 @@ export class CommandRepository {
 
       // Part 4: Command Audit
       await AuditRepository.log({
-        familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+        familyId,
         actorUid: parentId,
-        actorName: localStorage.getItem("kidsguard_parent_name") || "Parent",
+        actorName: parentName,
         action: AuditAction.REMOTE_COMMAND_SENT,
         targetId: childId,
         details: `Sent ${commandType} command`

@@ -37,7 +37,7 @@ import { clsx } from 'clsx';
 import ChildSelector from '@/components/ChildSelector';
 
 export default function HistoryPage() {
-  const { profile, family, role, loading: profileLoading } = useParentProfile();
+  const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
 
@@ -91,6 +91,15 @@ export default function HistoryPage() {
   // Load History Data
   useEffect(() => {
     if (!selectedChildId || !date) {
+        setLoading(false);
+        return;
+    }
+
+    // Multi-tenant Guard
+    if (!profileLoading && !isChildAccessible(selectedChildId)) {
+        console.warn(`SECURITY: Blocked access to history for child ${selectedChildId}`);
+        setRouteHistory([]);
+        setActivities([]);
         setLoading(false);
         return;
     }
@@ -191,6 +200,22 @@ export default function HistoryPage() {
   } : null;
 
   const selectedChildName = selectedChildId ? (childrenStatus[selectedChildId]?.childName || "Child") : "Select a child";
+
+  if (isFirebaseConfigured && selectedChildId && !isChildAccessible(selectedChildId)) {
+    return (
+        <DashboardLayout>
+            <div className="flex flex-col items-center justify-center py-32 text-center">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6 border-2 border-rose-100">
+                    <ShieldAlert size={40} className="text-rose-500" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-800">Access Restricted</h2>
+                <p className="text-slate-500 max-w-md mx-auto mt-2 italic font-medium">
+                    You do not have permission to view historical movements for this device.
+                </p>
+            </div>
+        </DashboardLayout>
+    );
+  }
 
   if (profileLoading) {
       return (

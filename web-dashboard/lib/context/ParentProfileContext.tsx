@@ -10,6 +10,7 @@ interface ParentProfileContextType {
   profile: ParentProfile | null;
   family: FamilyData | null;
   role: FamilyRole;
+  isChildAccessible: (childId: string | null) => boolean;
   loading: boolean;
 }
 
@@ -17,6 +18,7 @@ const ParentProfileContext = createContext<ParentProfileContextType>({
   profile: null,
   family: null,
   role: FamilyRole.VIEWER,
+  isChildAccessible: () => false,
   loading: true
 });
 
@@ -64,7 +66,7 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
   const role = useMemo(() => {
     const resolved = RoleHelper.resolveRole(family, authUser?.uid);
     // Debug log for role resolution
-    if (authUser && family) {
+    if (process.env.NODE_ENV === 'development' && authUser && family) {
         console.log("RBAC RESOLUTION:", {
             uid: authUser.uid,
             familyId: family.familyId,
@@ -76,8 +78,22 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
     return resolved;
   }, [family, authUser?.uid]);
 
+  const isChildAccessible = (childId: string | null) => {
+      if (!childId || !family) return false;
+      const accessible = (family.childDeviceIds ?? []).includes(childId);
+
+      if (process.env.NODE_ENV === 'development' && childId) {
+          console.log("TENANT ISOLATION CHECK:", {
+              familyId: family.familyId,
+              requestedChildId: childId,
+              isAccessible: accessible
+          });
+      }
+      return accessible;
+  };
+
   return (
-    <ParentProfileContext.Provider value={{ profile, family, role, loading }}>
+    <ParentProfileContext.Provider value={{ profile, family, role, loading, isChildAccessible }}>
       {children}
     </ParentProfileContext.Provider>
   );

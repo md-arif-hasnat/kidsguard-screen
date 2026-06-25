@@ -81,4 +81,13 @@ export class ChildRepository {
     await updateDoc(childRef, { avatarId, updatedAt: serverTimestamp() });
     await updateDoc(statusRef, { avatarId });
   }
+
+  /**
+   * Part 9: Ensures a child document has the correct familyId link.
+   */
+  static async ensureFamilyLink(childId: string, familyId: string): Promise<void> {
+      if (!db || !childId || !familyId) return;
+      const ref = doc(db, "children", childId);
+      await updateDoc(ref, { familyId, updatedAt: serverTimestamp() });
+  }
 }

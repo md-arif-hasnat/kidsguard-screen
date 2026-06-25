@@ -20,8 +20,7 @@ import ChildAvatar from '@/components/ChildAvatar';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 
 export default function Home() {
-  const { profile, loading: profileLoading } = useParentProfile();
-  const [family, setFamily] = useState<FamilyData | null>(null);
+  const { profile, family: profileFamily, loading: profileLoading } = useParentProfile();
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
   const [childrenActivities, setChildrenActivities] = useState<Record<string, ActivityEvent[]>>({});
@@ -36,6 +35,8 @@ export default function Home() {
 
   const router = useRouter();
 
+  const family = profileFamily;
+
   useEffect(() => {
     if (!isFirebaseConfigured) {
       setLoading(false);
@@ -44,37 +45,19 @@ export default function Home() {
 
     if (profile) {
         console.log(`DEBUG: Parent profile loaded: ${profile.uid}`);
-        try {
-          let fId = profile.familyId || localStorage.getItem("kidsguard_family_id");
 
-          // 2. If no familyId, create one (Auto-provisioning)
-          if (!fId) {
+        // Auto-provisioning if familyId is missing
+        if (!profile.familyId && !profileLoading) {
             console.log("DEBUG: No familyId found for parent. Creating new family...");
             const createFam = async () => {
                 const newFId = await FamilyRepository.createFamily(profile.uid, profile.email, profile.displayName);
                 await ParentRepository.updateFamilyId(profile.uid, newFId);
-                localStorage.setItem("kidsguard_family_id", newFId);
             };
             createFam();
-          } else {
-            localStorage.setItem("kidsguard_family_id", fId);
-          }
+        }
 
-          if (fId) {
-            console.log(`DEBUG: Using Family ID: ${fId}`);
-            const unsubscribeFamily = FamilyRepository.listenToFamily(fId, (data) => {
-                if (data) {
-                    console.log(`DEBUG: Family loaded. Children count: ${data.childDeviceIds.length}`);
-                    setFamily(data);
-                }
-                setLoading(false);
-            });
-            return () => unsubscribeFamily();
-          }
-        } catch (err: any) {
-          console.error("DEBUG: Error in Home initialization:", err);
-          setError(err.message);
-          setLoading(false);
+        if (family) {
+            setLoading(false);
         }
     } else if (!profileLoading) {
         if (isFirebaseConfigured) {
@@ -83,7 +66,7 @@ export default function Home() {
             setLoading(false);
         }
     }
-  }, [profile, profileLoading, router]);
+  }, [profile, profileLoading, family, router]);
 
   // Listen to status and SOS for all children in family
   useEffect(() => {

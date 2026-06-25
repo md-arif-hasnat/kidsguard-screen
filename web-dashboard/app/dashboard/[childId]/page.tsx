@@ -94,8 +94,9 @@ export default function ChildDashboard() {
   const childId = params.childId as string;
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const { profile, family, role, loading: profileLoading } = useParentProfile();
+  const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  // ... rest of state
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -146,6 +147,12 @@ export default function ChildDashboard() {
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
 
+    // Multi-tenant Guard
+    if (!profileLoading && !isChildAccessible(childId)) {
+        console.warn(`SECURITY: Blocked access to child ${childId} for family ${family?.familyId}`);
+        return;
+    }
+
     const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
     const unsubLocation = LocationRepository.listenToLatestLocation(childId, setLocation);
     const unsubActivity = ActivityRepository.listenToActivity(childId, setActivities);
@@ -154,7 +161,9 @@ export default function ChildDashboard() {
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
     const unsubAnalytics = AnalyticsRepository.listenToDailyAnalytics(childId, selectedDate, setAnalytics);
 
-    const familyId = family?.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
+    const familyId = family?.familyId;
+    if (!familyId) return;
+
     const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
 
     const unsubWebRules = WebProtectionRepository.listenToWebRules(childId, setWebRules);
@@ -224,8 +233,15 @@ export default function ChildDashboard() {
         alert("Firebase not configured. Commands disabled in mock mode.");
         return;
     }
+    if (!profile || !family) return;
     try {
-        await CommandRepository.sendCommand(childId, type);
+        await CommandRepository.sendCommand(
+            childId,
+            family.familyId,
+            profile.uid,
+            profile.displayName || "Parent",
+            type
+        );
     } catch (e) {
         alert("Failed to send command.");
     }
@@ -269,6 +285,29 @@ export default function ChildDashboard() {
           <DashboardLayout>
               <div className="flex items-center justify-center py-20">
                   <Loader2 className="animate-spin text-primary-600" size={48} />
+              </div>
+          </DashboardLayout>
+      );
+  }
+
+  if (isFirebaseConfigured && !isChildAccessible(childId)) {
+      return (
+          <DashboardLayout>
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                  <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6 border-2 border-rose-100">
+                      <ShieldAlert size={40} className="text-rose-500" />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-800">Access Restricted</h2>
+                  <p className="text-slate-500 max-w-md mx-auto mt-2 italic font-medium">
+                      You do not have permission to view telemetry or manage data for this device.
+                      If this is your child, ensure they are paired with your Family ID.
+                  </p>
+                  <button
+                    onClick={() => window.location.href = '/'}
+                    className="mt-8 bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all"
+                  >
+                      Return to Overview
+                  </button>
               </div>
           </DashboardLayout>
       );

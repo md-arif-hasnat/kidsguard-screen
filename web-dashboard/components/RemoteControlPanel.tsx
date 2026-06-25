@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { db } from '@/lib/firebase';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -27,6 +28,7 @@ interface RemoteControlPanelProps {
 }
 
 export default function RemoteControlPanel({ childId }: RemoteControlPanelProps) {
+    const { profile, family } = useParentProfile();
     const [loading, setLoading] = useState<string | null>(null);
     const [message, setMessage] = useState('');
     const [recentCommands, setRecentCommands] = useState<any[]>([]);
@@ -44,9 +46,17 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
     }, [childId]);
 
     const handleSend = async (type: CommandType, payload: string | null = null) => {
+        if (!profile || !family) return;
         setLoading(type);
         try {
-            await CommandRepository.sendCommand(childId, type, payload);
+            await CommandRepository.sendCommand(
+                childId,
+                family.familyId,
+                profile.uid,
+                profile.displayName || "Parent",
+                type,
+                payload
+            );
             if (type === CommandType.SHOW_MESSAGE) setMessage('');
         } catch (e) {
             alert("Failed to send command");

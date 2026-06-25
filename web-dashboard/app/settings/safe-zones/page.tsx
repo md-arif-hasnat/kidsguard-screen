@@ -16,10 +16,12 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
   ChevronDown
 } from 'lucide-react';
 import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/SafeZoneRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { isFirebaseConfigured } from '@/lib/firebase';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { GeocodingService } from '@/lib/services/GeocodingService';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
@@ -28,7 +30,7 @@ import MapLocationPicker from '@/components/MapLocationPicker';
 import ChildSelector from '@/components/ChildSelector';
 
 export default function SafeZonesPage() {
-  const { profile, family, role, loading: profileLoading } = useParentProfile();
+  const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
 
@@ -56,7 +58,22 @@ export default function SafeZonesPage() {
     if (family && !selectedChildId && (family.childDeviceIds ?? []).length > 0) {
         setSelectedChildId(family.childDeviceIds[0]);
     }
-  }, [family]);
+  }, [family, selectedChildId]);
+
+  // Debug Logging
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && profile && family) {
+        console.log("RBAC DEBUG [SafeZones]:", {
+            uid: profile.uid,
+            familyId: family.familyId,
+            ownerId: family.ownerId,
+            selectedChildId,
+            isAccessible: isChildAccessible(selectedChildId),
+            resolvedRole: role,
+            canManage: RoleHelper.canManageSafeZones(role)
+        });
+    }
+  }, [profile, family, role, selectedChildId, isChildAccessible]);
 
   // Listen to status of all children in family to get names
   useEffect(() => {
@@ -75,6 +92,13 @@ export default function SafeZonesPage() {
       setSafeZones([]);
       setLoading(false);
       return;
+    }
+
+    // Multi-tenant Guard
+    if (!profileLoading && !isChildAccessible(selectedChildId)) {
+        console.warn(`SECURITY: Blocked access to safe zones for child ${selectedChildId}`);
+        setLoading(false);
+        return;
     }
 
     setLoading(true);
@@ -128,10 +152,10 @@ export default function SafeZonesPage() {
       };
 
       if (editingZone) {
-        await SafeZoneRepository.updateSafeZone(selectedChildId, editingZone.id, zoneData);
+        await SafeZoneRepository.updateSafeZone(selectedChildId, family!.familyId, editingZone.id, zoneData);
         setStatus({ type: 'success', message: 'Safe zone updated!' });
       } else {
-        await SafeZoneRepository.addSafeZone(selectedChildId, zoneData);
+        await SafeZoneRepository.addSafeZone(selectedChildId, family!.familyId, zoneData);
         setStatus({ type: 'success', message: 'Safe zone added!' });
       }
 
@@ -165,9 +189,9 @@ export default function SafeZonesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!selectedChildId || !confirm("Delete this safe zone?")) return;
+    if (!selectedChildId || !family || !confirm("Delete this safe zone?")) return;
     try {
-      await SafeZoneRepository.deleteSafeZone(selectedChildId, id);
+      await SafeZoneRepository.deleteSafeZone(selectedChildId, family.familyId, id);
       setStatus({ type: 'success', message: 'Safe zone deleted.' });
     } catch (err) {
       setStatus({ type: 'error', message: 'Failed to delete.' });
@@ -185,6 +209,22 @@ export default function SafeZonesPage() {
   };
 
   const canManageZones = RoleHelper.canManageSafeZones(role);
+
+  if (isFirebaseConfigured && selectedChildId && !isChildAccessible(selectedChildId)) {
+      return (
+          <DashboardLayout>
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                  <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6 border-2 border-rose-100">
+                      <ShieldAlert size={40} className="text-rose-500" />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-800">Access Restricted</h2>
+                  <p className="text-slate-500 max-w-md mx-auto mt-2 italic font-medium">
+                      You do not have permission to manage safe zones for this device.
+                  </p>
+              </div>
+          </DashboardLayout>
+      );
+  }
 
   if (profileLoading) {
     return (

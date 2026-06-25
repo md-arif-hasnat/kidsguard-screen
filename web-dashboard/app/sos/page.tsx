@@ -6,24 +6,64 @@ import { AlertTriangle, MapPin, CloudOff } from 'lucide-react';
 import { MOCK_SOS } from '@/lib/mockData';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { Loader2, ShieldAlert } from 'lucide-react';
 
 export default function SosPage() {
+  const { profile, family, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
   const [childId, setChildId] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedChildId = localStorage.getItem("kidsguard_selected_child") || "child_001";
+    const savedChildId = localStorage.getItem("kidsguard_selected_child");
     setChildId(savedChildId);
-  }, []);
+
+    if (family && !savedChildId && (family.childDeviceIds ?? []).length > 0) {
+        setChildId(family.childDeviceIds[0]);
+    }
+  }, [family]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
 
+    // Multi-tenant Guard
+    if (!profileLoading && !isChildAccessible(childId)) {
+        console.warn(`SECURITY: Blocked access to SOS for child ${childId}`);
+        setSosEvents([]);
+        return;
+    }
+
     const unsubscribe = SosRepository.listenToSosEvents(childId, setSosEvents);
     return () => unsubscribe();
-  }, [childId]);
+  }, [childId, profileLoading, isChildAccessible]);
 
   const displaySos = isFirebaseConfigured ? sosEvents : MOCK_SOS;
+
+  if (profileLoading) {
+      return (
+          <DashboardLayout>
+              <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin text-primary-600" size={48} />
+              </div>
+          </DashboardLayout>
+      );
+  }
+
+  if (isFirebaseConfigured && childId && !isChildAccessible(childId)) {
+      return (
+          <DashboardLayout>
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                  <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6 border-2 border-rose-100">
+                      <ShieldAlert size={40} className="text-rose-500" />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-800">Access Restricted</h2>
+                  <p className="text-slate-500 max-w-md mx-auto mt-2 italic font-medium">
+                      You do not have permission to view emergency signals for this device.
+                  </p>
+              </div>
+          </DashboardLayout>
+      );
+  }
 
   return (
     <DashboardLayout>

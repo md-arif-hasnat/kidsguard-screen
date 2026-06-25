@@ -69,7 +69,7 @@ export class SafeZoneRepository {
     };
   }
 
-  static async addSafeZone(childId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>): Promise<string> {
+  static async addSafeZone(childId: string, familyId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>): Promise<string> {
     if (!db) throw new Error("Firestore not initialized");
     const id = uuidv4();
     const zoneRef = doc(db, "children", childId, "safeZones", id);
@@ -77,12 +77,13 @@ export class SafeZoneRepository {
       ...zone,
       id,
       childId,
+      familyId, // Explicitly scope new zones by familyId too
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
     await AuditRepository.log({
-      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      familyId,
       actorUid: "current_user",
       actorName: "Parent",
       action: AuditAction.SAFE_ZONE_EDITED,
@@ -93,7 +94,7 @@ export class SafeZoneRepository {
     return id;
   }
 
-  static async updateSafeZone(childId: string, zoneId: string, updates: Partial<SafeZone>): Promise<void> {
+  static async updateSafeZone(childId: string, familyId: string, zoneId: string, updates: Partial<SafeZone>): Promise<void> {
     if (!db) return;
     const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await updateDoc(zoneRef, {
@@ -102,7 +103,7 @@ export class SafeZoneRepository {
     });
 
     await AuditRepository.log({
-      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      familyId,
       actorUid: "current_user",
       actorName: "Parent",
       action: AuditAction.SAFE_ZONE_EDITED,
@@ -111,13 +112,13 @@ export class SafeZoneRepository {
     });
   }
 
-  static async deleteSafeZone(childId: string, zoneId: string): Promise<void> {
+  static async deleteSafeZone(childId: string, familyId: string, zoneId: string): Promise<void> {
     if (!db) return;
     const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await deleteDoc(zoneRef);
 
     await AuditRepository.log({
-      familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+      familyId,
       actorUid: "current_user",
       actorName: "Parent",
       action: AuditAction.SAFE_ZONE_EDITED,
