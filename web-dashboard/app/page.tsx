@@ -13,13 +13,13 @@ import { User } from 'firebase/auth';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
+import { useParentProfile, getDisplayName } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
 
-import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { ParentRepository } from '@/lib/repositories/ParentRepository';
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const { profile, loading: profileLoading } = useParentProfile();
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
@@ -41,57 +41,48 @@ export default function Home() {
       return;
     }
 
-    const unsubscribeAuth = observeAuth(async (authUser) => {
-      setUser(authUser);
-      if (authUser) {
-        console.log(`DEBUG: Parent authenticated: ${authUser.uid}`);
+    if (profile) {
+        console.log(`DEBUG: Parent profile loaded: ${profile.uid}`);
         try {
-          // 1. Fetch Profile to get familyId
-          const p = await ParentRepository.getProfile(authUser.uid);
-          setProfile(p);
-
-          let fId = p?.familyId || localStorage.getItem("kidsguard_family_id");
+          let fId = profile.familyId || localStorage.getItem("kidsguard_family_id");
 
           // 2. If no familyId, create one (Auto-provisioning)
           if (!fId) {
             console.log("DEBUG: No familyId found for parent. Creating new family...");
-            fId = await FamilyRepository.createFamily(authUser.uid);
-            await ParentRepository.updateFamilyId(authUser.uid, fId);
-            localStorage.setItem("kidsguard_family_id", fId);
+            const createFam = async () => {
+                const newFId = await FamilyRepository.createFamily(profile.uid);
+                await ParentRepository.updateFamilyId(profile.uid, newFId);
+                localStorage.setItem("kidsguard_family_id", newFId);
+            };
+            createFam();
           } else {
             localStorage.setItem("kidsguard_family_id", fId);
           }
 
-          console.log(`DEBUG: Using Family ID: ${fId}`);
-
-          // 3. Listen to Family
-          const unsubscribeFamily = FamilyRepository.listenToFamily(fId, (data) => {
-            if (data) {
-                console.log(`DEBUG: Family loaded. Children count: ${data.childDeviceIds.length}`);
-                setFamily(data);
-            }
-            setLoading(false);
-          });
-
-          return () => unsubscribeFamily();
+          if (fId) {
+            console.log(`DEBUG: Using Family ID: ${fId}`);
+            const unsubscribeFamily = FamilyRepository.listenToFamily(fId, (data) => {
+                if (data) {
+                    console.log(`DEBUG: Family loaded. Children count: ${data.childDeviceIds.length}`);
+                    setFamily(data);
+                }
+                setLoading(false);
+            });
+            return () => unsubscribeFamily();
+          }
         } catch (err: any) {
           console.error("DEBUG: Error in Home initialization:", err);
           setError(err.message);
           setLoading(false);
         }
-      } else {
+    } else if (!profileLoading) {
         if (isFirebaseConfigured) {
             router.push('/login');
         } else {
             setLoading(false);
         }
-      }
-    });
-
-    return () => {
-        unsubscribeAuth();
-    };
-  }, [router]);
+    }
+  }, [profile, profileLoading, router]);
 
   // Listen to status and SOS for all children in family
   useEffect(() => {
@@ -192,8 +183,8 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
                 <DebugRow label="Firebase Configured" value={isFirebaseConfigured ? "YES" : "NO"} color={isFirebaseConfigured ? "text-emerald-400" : "text-yellow-400"} />
-                <DebugRow label="Auth User UID" value={user?.uid || "Not Signed In"} />
-                <DebugRow label="Parent Name" value={profile?.displayName || "N/A"} />
+                <DebugRow label="Auth User UID" value={profile?.uid || "Not Signed In"} />
+                <DebugRow label="Parent Name" value={getDisplayName(profile)} />
                 <DebugRow label="Family ID" value={family?.familyId || "None"} />
                 <DebugRow label="Child Device Count" value={family?.childDeviceIds.length.toString() || "0"} />
                 <DebugRow label="Stored Family ID" value={typeof window !== 'undefined' ? localStorage.getItem("kidsguard_family_id") || "None" : "N/A"} />

@@ -11,14 +11,14 @@ import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
-import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { observeAuth } from '@/lib/auth';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
 
 export default function MapPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const { profile, loading: profileLoading } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
@@ -40,31 +40,20 @@ export default function MapPage() {
 
   // Fetch Family and Children if Firebase is configured
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!isFirebaseConfigured || !profile) return;
 
-    const unsubscribeAuth = observeAuth(async (authUser) => {
-        setUser(authUser);
-        if (authUser) {
-            const p = await ParentRepository.getProfile(authUser.uid);
-            if (p) {
-                setProfile(p);
-                const familyId = p.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
+    const familyId = profile.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
 
-                const unsubFamily = FamilyRepository.listenToFamily(familyId, (data) => {
-                if (data) {
-                    setFamily(data);
-                    if (!selectedChildId && data.childDeviceIds.length > 0) {
-                    setSelectedChildId(data.childDeviceIds[0]);
-                    }
-                }
-                });
-                return () => unsubFamily();
-            }
+    const unsubFamily = FamilyRepository.listenToFamily(familyId, (data) => {
+    if (data) {
+        setFamily(data);
+        if (!selectedChildId && data.childDeviceIds.length > 0) {
+        setSelectedChildId(data.childDeviceIds[0]);
         }
+    }
     });
-
-    return () => unsubscribeAuth();
-  }, [selectedChildId]);
+    return () => unsubFamily();
+  }, [selectedChildId, profile]);
 
   // Listen to status of all children in family
   useEffect(() => {

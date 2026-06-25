@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ParentProfileProvider } from "@/lib/context/ParentProfileContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,7 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
-        {children}
+        <ParentProfileProvider>
+            {children}
+        </ParentProfileProvider>
       </body>
     </html>
   );

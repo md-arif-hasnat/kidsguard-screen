@@ -24,25 +24,19 @@ import { SafeZoneRepository, SafeZone, SafeZoneType } from '@/lib/repositories/S
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { GeocodingService } from '@/lib/services/GeocodingService';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
 import MapLocationPicker from '@/components/MapLocationPicker';
 
 export default function SafeZonesPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const { profile, loading: profileLoading } = useParentProfile();
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
 
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showMapPicker, setShowMapPicker] = useState(false);
-  const [editingZone, setEditingZone] = useState<SafeZone | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -50,34 +44,33 @@ export default function SafeZonesPage() {
   const [address, setAddress] = useState('');
   const [radius, setRadius] = useState(200);
   const [manualCoords, setManualCoords] = useState<{ lat: number, lng: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [editingZone, setEditingZone] = useState<SafeZone | null>(null);
 
   useEffect(() => {
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
     if (savedChildId) setSelectedChildId(savedChildId);
 
-    const unsub = observeAuth(async (authUser) => {
-      setUser(authUser);
-      if (authUser) {
-        const p = await ParentRepository.getProfile(authUser.uid);
-        if (p) {
-          setProfile(p);
-          if (p.familyId) {
-            const unsubFamily = FamilyRepository.listenToFamily(p.familyId, (data) => {
-                if (data) {
+    if (profile) {
+      if (profile.familyId) {
+        const unsubFamily = FamilyRepository.listenToFamily(profile.familyId, (data) => {
+            if (data) {
                 setFamily(data);
                 if (!selectedChildId && data.childDeviceIds.length > 0) {
                     setSelectedChildId(data.childDeviceIds[0]);
                 }
-                }
-            });
-            return () => unsubFamily();
-          }
-        }
+            }
+        });
+        return () => unsubFamily();
       }
+    } else if (!profileLoading) {
       setLoading(false);
-    });
-    return () => unsub();
-  }, []);
+    }
+  }, [profile, profileLoading]);
 
   // Listen to status of all children in family to get names
   useEffect(() => {

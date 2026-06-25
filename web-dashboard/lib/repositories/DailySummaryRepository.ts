@@ -7,6 +7,10 @@ export interface DailySummary {
   childId: string;
   summaryText: string;
   safetyScore: number;
+  visitedZones?: string[];
+  totalDistanceKm?: number;
+  alertCount?: number;
+  recommendation?: string;
   generatedAt: number;
 }
 

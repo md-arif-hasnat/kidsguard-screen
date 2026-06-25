@@ -28,13 +28,13 @@ import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { observeAuth } from '@/lib/auth';
 import { calculateDistance, formatDuration } from '@/lib/utils/GeofenceUtils';
 import { clsx } from 'clsx';
 
 export default function HistoryPage() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const { profile, loading: profileLoading } = useParentProfile();
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
@@ -55,28 +55,21 @@ export default function HistoryPage() {
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
     if (savedChildId) setSelectedChildId(savedChildId);
 
-    const unsubAuth = observeAuth(async (authUser) => {
-        setUser(authUser);
-        if (authUser) {
-            const p = await ParentRepository.getProfile(authUser.uid);
-            if (p) {
-                setProfile(p);
-                if (p.familyId) {
-                    FamilyRepository.listenToFamily(p.familyId, (data) => {
-                        if (data) {
-                            setFamily(data);
-                            if (!selectedChildId && data.childDeviceIds.length > 0) {
-                                setSelectedChildId(data.childDeviceIds[0]);
-                            }
-                        }
-                    });
+    if (profile) {
+        if (profile.familyId) {
+            FamilyRepository.listenToFamily(profile.familyId, (data) => {
+                if (data) {
+                    setFamily(data);
+                    if (!selectedChildId && data.childDeviceIds.length > 0) {
+                        setSelectedChildId(data.childDeviceIds[0]);
+                    }
                 }
-            }
+            });
         }
-    });
-
-    return () => unsubAuth();
-  }, []);
+    } else if (!profileLoading) {
+        setLoading(false);
+    }
+  }, [profile, profileLoading]);
 
   // Listen to status of all children for names
   useEffect(() => {

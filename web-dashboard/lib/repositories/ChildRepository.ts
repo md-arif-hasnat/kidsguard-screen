@@ -18,6 +18,40 @@ export interface ChildStatus {
   deviceName?: string;
   appVersion?: string;
   androidVersion?: string;
+
+  // Part 1: Device Health
+  batteryTemp?: number;
+  internetType?: 'WIFI' | 'MOBILE' | 'NONE';
+  wifiSsid?: string;
+  storageUsedBytes?: number;
+  storageTotalBytes?: number;
+  ramUsedBytes?: number;
+  ramTotalBytes?: number;
+  gpsEnabled?: boolean;
+  bluetoothEnabled?: boolean;
+  predictions?: SyncPredictions;
+}
+
+export interface SyncPredictions {
+  batteryRemainingMinutes?: number;
+  batteryDieAtTimestamp?: number;
+  offlineRisk?: 'Low' | 'Medium' | 'High';
+  approachingZoneId?: string;
+  distanceToApproachingZone?: number;
+  unusualRouteDetected: boolean;
+  lateArrivalDetected: boolean;
+  longStopDetected: boolean;
+  stopLocation?: string;
+  lastPredictionAt: number;
+}
+
+export interface SyncSafetySummary {
+  date: string;
+  safetyScore: number;
+  visitedZones: string[];
+  totalDistanceKm: number;
+  alertCount: number;
+  recommendation: string;
 }
 
 export class ChildRepository {

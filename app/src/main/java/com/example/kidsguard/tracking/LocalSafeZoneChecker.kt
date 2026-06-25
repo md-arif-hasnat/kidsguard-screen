@@ -6,7 +6,7 @@ import com.example.kidsguard.models.LocationPoint
 import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.SyncActivityEvent
-import kotlin.math.*
+import com.example.kidsguard.utils.DeviceUtils
 
 class LocalSafeZoneChecker(
     private val safeZoneRepository: SafeZoneRepository,
@@ -28,7 +28,7 @@ class LocalSafeZoneChecker(
         zones.forEach { zone ->
             if (!zone.enabled) return@forEach
 
-            val distance = calculateDistance(
+            val distance = DeviceUtils.calculateDistance(
                 point.latitude, point.longitude,
                 zone.latitude, zone.longitude
             )
@@ -120,23 +120,5 @@ class LocalSafeZoneChecker(
             zoneId,
             if (inside) "INSIDE" else "OUTSIDE"
         )
-    }
-
-    /**
-     * Haversine formula to calculate distance between two points in meters.
-     */
-    fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val r = 6371e3 // Earth's radius in meters
-        val phi1 = lat1 * PI / 180
-        val phi2 = lat2 * PI / 180
-        val deltaPhi = (lat2 - lat1) * PI / 180
-        val deltaLambda = (lon2 - lon1) * PI / 180
-
-        val a = sin(deltaPhi / 2).pow(2) +
-                cos(phi1) * cos(phi2) *
-                sin(deltaLambda / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        return r * c
     }
 }

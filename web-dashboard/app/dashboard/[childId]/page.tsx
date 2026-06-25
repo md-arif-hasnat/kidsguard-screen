@@ -10,7 +10,7 @@ import {
   MapPin,
   Lock,
   Unlock,
-  ShieldCheck,
+  ShieldCheck as ShieldCheckIcon,
   Activity,
   ChevronRight,
   History,
@@ -20,7 +20,13 @@ import {
   CloudOff,
   CheckCircle2,
   Info,
-  Camera
+  Camera,
+  LayoutDashboard,
+  Brain,
+  Smartphone,
+  Calendar,
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
@@ -29,14 +35,21 @@ import { DailySummaryRepository, DailySummary } from '@/lib/repositories/DailySu
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
 import { DeviationRepository, RouteDeviation } from '@/lib/repositories/DeviationRepository';
+import { AnalyticsRepository, DeviceAnalytics } from '@/lib/repositories/AnalyticsRepository';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import AvatarPicker from '@/components/AvatarPicker';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User as UserAuth } from 'firebase/auth';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+
+import HealthCard from '@/components/analytics/HealthCard';
+import DeviceCharts from '@/components/analytics/DeviceCharts';
+import AIInsightPanel from '@/components/AIInsightPanel';
+import AIReportCard from '@/components/AIReportCard';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -54,31 +67,27 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
+type Tab = 'overview' | 'intelligence' | 'health';
+
 export default function ChildDashboard() {
   const params = useParams();
   const childId = params.childId as string;
 
-  const [user, setUser] = useState<UserAuth | null>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const { profile } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [summary, setSummary] = useState<DailySummary | null>(null);
+  const [analytics, setAnalytics] = useState<DeviceAnalytics | null>(null);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [routeHistory, setRouteHistory] = useState<LocationPoint[]>([]);
   const [deviations, setDeviations] = useState<RouteDeviation[]>([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
-
-    const unsubAuth = observeAuth(async (authUser) => {
-        setUser(authUser);
-        if (authUser) {
-            const p = await ParentRepository.getProfile(authUser.uid);
-            if (p) setProfile(p);
-        }
-    });
 
     const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
     const unsubLocation = LocationRepository.listenToLatestLocation(childId, setLocation);
@@ -86,12 +95,12 @@ export default function ChildDashboard() {
     const unsubSummary = DailySummaryRepository.listenToLatestSummary(childId, setSummary);
     const unsubHistory = LocationRepository.listenToLocationHistory(childId, setRouteHistory);
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
+    const unsubAnalytics = AnalyticsRepository.listenToDailyAnalytics(childId, selectedDate, setAnalytics);
 
     const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
     const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
 
     return () => {
-      unsubAuth();
       unsubStatus();
       unsubLocation();
       unsubActivity();
@@ -99,8 +108,9 @@ export default function ChildDashboard() {
       unsubHistory();
       unsubDeviations();
       unsubZones();
+      unsubAnalytics();
     };
-  }, [childId]);
+  }, [childId, selectedDate]);
 
   const mockChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
 
@@ -148,7 +158,6 @@ export default function ChildDashboard() {
     }
     try {
         await CommandRepository.sendCommand(childId, type);
-        alert(`Command ${type} sent!`);
     } catch (e) {
         alert("Failed to send command.");
     }
@@ -197,21 +206,6 @@ export default function ChildDashboard() {
           onClose={() => setShowAvatarPicker(false)}
         />
       )}
-      {isFirebaseConfigured ? (
-        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-8 flex items-center gap-3">
-          <CheckCircle2 className="text-emerald-600" />
-          <p className="text-emerald-700 font-medium text-sm">
-            Firebase Live Mode: Viewing real-time telemetry for {childId}.
-          </p>
-        </div>
-      ) : showMocks ? (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
-          <CloudOff className="text-yellow-600" />
-          <p className="text-yellow-700 font-medium text-sm">
-            Firebase not configured. Using mock data for preview.
-          </p>
-        </div>
-      ) : null}
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div className="flex items-center gap-4">
@@ -235,6 +229,7 @@ export default function ChildDashboard() {
             <p className="text-slate-500 font-medium text-sm truncate">Child Device: {childId}</p>
           </div>
         </div>
+
         <div className="flex w-full md:w-auto gap-3">
           <button
             onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
@@ -257,126 +252,201 @@ export default function ChildDashboard() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-        <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
-        <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
-        <StatCard label="Current Zone" value={displayData.currentZone} icon={MapPin} color="text-green-500" />
-        <StatCard label="Security" value={displayData.status} icon={displayData.status === 'LOCKED' ? Lock : Unlock} color={displayData.status === 'LOCKED' ? "text-red-500" : "text-green-500"} />
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl mb-8 w-fit">
+          <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={LayoutDashboard} label="Overview" />
+          <TabButton active={activeTab === 'intelligence'} onClick={() => setActiveTab('intelligence')} icon={Brain} label="Intelligence" />
+          <TabButton active={activeTab === 'health'} onClick={() => setActiveTab('health')} icon={Smartphone} label="Device Health" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[350px] md:h-[450px] relative">
-            {displayData.isLoading && !showMocks ? (
-                <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
-                    <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
-                </div>
-            ) : (
-                <>
-                <LiveMap
-                    childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
-                    defaultRegion={profile?.region}
-                    avatarId={displayData.avatarId}
-                    currentZoneName={displayData.currentZone}
-                    safeZoneStatus={status?.safeZoneStatus}
-                    safeZones={displayZones}
-                    routeHistory={displayRoute}
-                    deviations={displayDeviations}
-                    followChild={true}
-                />
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
-                <div className="flex items-center gap-2">
-                    <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
-                    <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
-                </div>
-                </div>
-                </>
-            )}
-          </section>
-
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
-             <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <ShieldCheck className="text-primary-600" />
-                Live Telemetry Panel
-             </h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
-                <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
-                <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
-                <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
-             </div>
-          </section>
-
-          <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
-            <div className="flex items-center gap-2 mb-4">
-              <ShieldCheck size={24} />
-              <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
+      {activeTab === 'overview' && (
+        <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+                <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
+                <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
+                <StatCard label="Current Zone" value={displayData.currentZone} icon={MapPin} color="text-green-500" />
+                <StatCard label="Security" value={displayData.status} icon={displayData.status === 'LOCKED' ? Lock : Unlock} color={displayData.status === 'LOCKED' ? "text-red-500" : "text-green-500"} />
             </div>
-            {displayData.summary ? (
-              <div className="flex flex-col md:flex-row items-start gap-6">
-                <div className="text-4xl font-black bg-white/20 w-20 h-20 md:w-24 md:h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
-                  {displayData.summary.score}
-                </div>
-                <div>
-                  <p className="text-primary-100 font-medium leading-relaxed italic text-sm md:text-base">
-                    &quot;{displayData.summary.text}&quot;
-                  </p>
-                  <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
-                    View Full Report
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="py-4 text-center">
-                  <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
-              </div>
-            )}
-          </section>
-        </div>
 
-        <div className="space-y-8">
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <Activity className="text-primary-500" size={20} />
-                <h2 className="font-bold">Activity Feed</h2>
-              </div>
-              <button className="text-xs font-bold text-primary-600">View All</button>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[350px] md:h-[450px] relative">
+                    {displayData.isLoading && !showMocks ? (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
+                            <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
+                        </div>
+                    ) : (
+                        <>
+                        <LiveMap
+                            childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
+                            defaultRegion={profile?.region}
+                            avatarId={displayData.avatarId}
+                            currentZoneName={displayData.currentZone}
+                            safeZoneStatus={status?.safeZoneStatus}
+                            safeZones={displayZones}
+                            routeHistory={displayRoute}
+                            deviations={displayDeviations}
+                            followChild={true}
+                        />
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
+                        <div className="flex items-center gap-2">
+                            <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
+                            <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
+                        </div>
+                        </div>
+                        </>
+                    )}
+                </section>
+
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                        <ShieldCheckIcon className="text-primary-600" />
+                        Live Telemetry Panel
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
+                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
+                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
+                        <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
+                    </div>
+                </section>
+
+                <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
+                    <div className="flex items-center gap-2 mb-4">
+                    <ShieldCheckIcon size={24} />
+                    <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
+                    </div>
+                    {displayData.summary ? (
+                    <div className="flex flex-col md:flex-row items-start gap-6">
+                        <div className="text-4xl font-black bg-white/20 w-20 h-20 md:w-24 md:h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
+                        {displayData.summary.score}
+                        </div>
+                        <div>
+                        <p className="text-primary-100 font-medium leading-relaxed italic text-sm md:text-base">
+                            &quot;{displayData.summary.text}&quot;
+                        </p>
+                        <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
+                            View Full Report
+                            <ChevronRight size={16} />
+                        </button>
+                        </div>
+                    </div>
+                    ) : (
+                    <div className="py-4 text-center">
+                        <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
+                    </div>
+                    )}
+                </section>
+                </div>
+
+                <div className="space-y-8">
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                        <Activity className="text-primary-500" size={20} />
+                        <h2 className="font-bold">Activity Feed</h2>
+                    </div>
+                    <button className="text-xs font-bold text-primary-600">View All</button>
+                    </div>
+                    <div className="space-y-6">
+                    {displayData.activities.length > 0 ? displayData.activities.map((item: any) => (
+                        <div key={item.id} className="flex gap-4 items-start">
+                        <div className="w-1 bg-slate-100 self-stretch rounded-full mt-2 ml-2" />
+                        <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-400">
+                                {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                            </p>
+                            <p className="font-bold text-slate-700">{item.title}</p>
+                            {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+                        </div>
+                        </div>
+                    )) : (
+                        <p className="text-center py-8 text-slate-400 italic text-sm">No activity recorded today.</p>
+                    )}
+                    </div>
+                </section>
+
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-6">
+                    <History className="text-primary-500" size={20} />
+                    <h2 className="font-bold">Remote Controls</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                    <ControlBtn icon={Lock} label="Force Lock" onClick={() => handleCommand(CommandType.LOCK_NOW)} color="text-red-600" />
+                    <ControlBtn icon={Unlock} label="Force Unlock" onClick={() => handleCommand(CommandType.UNLOCK_NOW)} color="text-green-600" />
+                    <ControlBtn icon={Play} label="Start Tracking" onClick={() => handleCommand(CommandType.START_TRACKING)} color="text-primary-600" />
+                    <ControlBtn icon={RotateCcw} label="Stop Tracking" onClick={() => handleCommand(CommandType.STOP_TRACKING)} color="text-slate-600" />
+                    </div>
+                </section>
+                </div>
             </div>
-            <div className="space-y-6">
-              {displayData.activities.length > 0 ? displayData.activities.map((item: any) => (
-                <div key={item.id} className="flex gap-4 items-start">
-                  <div className="w-1 bg-slate-100 self-stretch rounded-full mt-2 ml-2" />
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-400">
-                        {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
-                    </p>
-                    <p className="font-bold text-slate-700">{item.title}</p>
-                    {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+        </>
+      )}
+
+      {activeTab === 'intelligence' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+              <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-slate-900">Activity Intelligence</h2>
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+                      <Calendar size={16} className="text-slate-400" />
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="text-sm font-bold text-slate-700 outline-none"
+                      />
                   </div>
-                </div>
-              )) : (
-                <p className="text-center py-8 text-slate-400 italic text-sm">No activity recorded today.</p>
-              )}
-            </div>
-          </section>
+              </div>
 
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
-            <div className="flex items-center gap-2 mb-6">
-              <History className="text-primary-500" size={20} />
-              <h2 className="font-bold">Remote Controls</h2>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-               <ControlBtn icon={Lock} label="Force Lock" onClick={() => handleCommand(CommandType.LOCK_NOW)} color="text-red-600" />
-               <ControlBtn icon={Unlock} label="Force Unlock" onClick={() => handleCommand(CommandType.UNLOCK_NOW)} color="text-green-600" />
-               <ControlBtn icon={Play} label="Start Tracking" onClick={() => handleCommand(CommandType.START_TRACKING)} color="text-primary-600" />
-               <ControlBtn icon={RotateCcw} label="Stop Tracking" onClick={() => handleCommand(CommandType.STOP_TRACKING)} color="text-slate-600" />
-            </div>
-          </section>
-        </div>
-      </div>
+              {status && <AIInsightPanel status={status} />}
+
+              {summary && <AIReportCard summary={summary} />}
+
+              {activeTab === 'intelligence' && (
+                <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[2.5rem] p-8 md:p-12 text-white shadow-xl shadow-primary-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                        <div>
+                            <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
+                                <TrendingUp className="text-white" />
+                            </div>
+                            <h3 className="text-3xl font-black mb-2">Weekly AI Safety Report</h3>
+                            <p className="text-primary-100 text-lg font-medium opacity-80">Your child&apos;s safety trends and behavioral insights for the past 7 days.</p>
+                        </div>
+                        <button className="bg-white text-primary-600 px-8 py-4 rounded-2xl font-bold shadow-lg hover:bg-primary-50 transition-all flex items-center gap-2">
+                            Generate Weekly Analysis
+                            <ArrowRight size={20} />
+                        </button>
+                    </div>
+                </div>
+              )}
+
+              {analytics ? (
+                  <DeviceCharts data={analytics} />
+              ) : (
+                  <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200">
+                      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
+                          <Brain size={40} />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800">No Intelligence Data Found</h3>
+                      <p className="text-slate-500 max-w-xs mx-auto mt-2 italic text-sm">Detailed device analytics are processed nightly. Check back tomorrow for today&apos;s summary.</p>
+                  </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'health' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+              <h2 className="text-xl font-bold text-slate-900">Device Health \u0026 Diagnostics</h2>
+              {status ? (
+                  <HealthCard status={status} />
+              ) : (
+                  <p>Loading device details...</p>
+              )}
+          </div>
+      )}
+
     </DashboardLayout>
   );
 }
@@ -400,10 +470,25 @@ function TelemetryItem({ label, value, status }: { label: string, value: string,
             <div className="flex items-center gap-2">
                 <div className={cn(
                     "w-2 h-2 rounded-full",
-                    status === 'healthy' ? "bg-green-500" : status === 'warning' ? "bg-orange-500" : "bg-red-500"
+                    status === 'healthy' ? "bg-emerald-500" : status === 'warning' ? "bg-orange-500" : "bg-red-500"
                 )} />
                 <span className="text-sm font-black text-slate-700">{value}</span>
             </div>
         </div>
+    )
+}
+
+function TabButton({ active, onClick, icon: Icon, label }: any) {
+    return (
+        <button
+            onClick={onClick}
+            className={clsx(
+                "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all",
+                active ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+        >
+            <Icon size={18} />
+            {label}
+        </button>
     )
 }

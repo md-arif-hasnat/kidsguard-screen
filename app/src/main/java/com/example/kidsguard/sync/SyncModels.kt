@@ -50,7 +50,40 @@ data class SyncChildStatus(
     val lastSeen: Long = System.currentTimeMillis(),
     val lastUpdated: Long = System.currentTimeMillis(),
     val appVersion: String = "",
-    val androidVersion: String = ""
+    val androidVersion: String = "",
+    // Part 1: Device Health
+    val batteryTemp: Float = 0f,
+    val internetType: String = "NONE", // WIFI, MOBILE, NONE
+    val wifiSsid: String? = null,
+    val storageUsedBytes: Long = 0,
+    val storageTotalBytes: Long = 0,
+    val ramUsedBytes: Long = 0,
+    val ramTotalBytes: Long = 0,
+    val gpsEnabled: Boolean = true,
+    val bluetoothEnabled: Boolean = false,
+    val predictions: SyncPredictions? = null
+)
+
+data class SyncPredictions(
+    val batteryRemainingMinutes: Int? = null,
+    val batteryDieAtTimestamp: Long? = null,
+    val offlineRisk: String? = null, // "Low", "Medium", "High"
+    val approachingZoneId: String? = null,
+    val distanceToApproachingZone: Double? = null,
+    val unusualRouteDetected: Boolean = false,
+    val lateArrivalDetected: Boolean = false,
+    val longStopDetected: Boolean = false,
+    val stopLocation: String? = null,
+    val lastPredictionAt: Long = System.currentTimeMillis()
+)
+
+data class SyncSafetySummary(
+    val date: String, // YYYY-MM-DD
+    val safetyScore: Int,
+    val visitedZones: List<String>,
+    val totalDistanceKm: Double,
+    val alertCount: Int,
+    val recommendation: String
 )
 
 data class SyncLocationUpdate(

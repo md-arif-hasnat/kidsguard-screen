@@ -4,15 +4,15 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera, Globe, Smartphone } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
-import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { NotificationRepository, NotificationSettings } from '@/lib/repositories/NotificationRepository';
+import { useParentProfile, getAvatarUrl, getDisplayName } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
 import AvatarPicker from '@/components/AvatarPicker';
 import { clsx } from 'clsx';
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ParentProfile | null>(null);
+  const { profile, loading: profileLoading } = useParentProfile();
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
     safeZone: true,
     sos: true,
@@ -31,55 +31,40 @@ export default function SettingsPage() {
   const [region, setRegion] = useState<'DE' | 'BD' | 'US' | 'Global'>('DE');
 
   useEffect(() => {
-    const unsub = observeAuth(async (authUser) => {
-      setUser(authUser);
-      if (authUser) {
-        try {
-          const [p, ns] = await Promise.all([
-            ParentRepository.getProfile(authUser.uid),
-            NotificationRepository.getNotificationSettings(authUser.uid)
-          ]);
+    if (profile) {
+        setDisplayName(profile.displayName || '');
+        setPhoneNumber(profile.phoneNumber || '');
+        setRegion(profile.region || 'DE');
 
-          if (p) {
-            setProfile(p);
-            setDisplayName(p.displayName || authUser.displayName || '');
-            setPhoneNumber(p.phoneNumber || authUser.phoneNumber || '');
-            setRegion(p.region || 'DE');
-          }
-          if (ns) {
-            setNotifSettings(ns);
-          }
-        } catch (err) {
-          console.error("Error loading profile:", err);
-        }
-      }
-      setLoading(false);
-    });
-    return () => unsub();
-  }, []);
+        const loadNotifs = async () => {
+            const ns = await NotificationRepository.getNotificationSettings(profile.uid);
+            if (ns) setNotifSettings(ns);
+            setLoading(false);
+        };
+        loadNotifs();
+    } else if (!profileLoading) {
+        setLoading(false);
+    }
+  }, [profile, profileLoading]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!profile) return;
 
     setSaving(true);
     setStatus(null);
 
     try {
       await Promise.all([
-        ParentRepository.updateProfile(user.uid, {
+        ParentRepository.updateProfile(profile.uid, {
             displayName: displayName.trim(),
             phoneNumber: phoneNumber.trim(),
             region
         }),
-        NotificationRepository.updateNotificationSettings(user.uid, notifSettings)
+        NotificationRepository.updateNotificationSettings(profile.uid, notifSettings)
       ]);
 
       setStatus({ type: 'success', message: 'Profile and notification settings updated successfully!' });
-
-      // Refresh profile data
-      const updated = await ParentRepository.getProfile(user.uid);
-      if (updated) setProfile(updated);
     } catch (err: any) {
       setStatus({ type: 'error', message: err.message || 'Failed to update settings' });
     } finally {
@@ -92,10 +77,9 @@ export default function SettingsPage() {
   };
 
   const handleAvatarSelect = async (avatarId: string) => {
-    if (!user) return;
+    if (!profile) return;
     try {
-      await ParentRepository.updateProfile(user.uid, { avatarId });
-      setProfile(prev => prev ? { ...prev, avatarId } : null);
+      await ParentRepository.updateProfile(profile.uid, { avatarId });
       setShowAvatarPicker(false);
       setStatus({ type: 'success', message: 'Avatar updated successfully!' });
     } catch (err: any) {
@@ -103,7 +87,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-[60vh]">
@@ -112,6 +96,8 @@ export default function SettingsPage() {
       </DashboardLayout>
     );
   }
+
+  const avatarUrl = getAvatarUrl(profile);
 
   return (
     <DashboardLayout>
@@ -144,10 +130,8 @@ export default function SettingsPage() {
              <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
                 <div className="relative group">
                   <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
-                    {profile?.avatarId ? (
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.avatarId}`} alt="Profile" className="w-full h-full object-cover" />
-                    ) : user?.photoURL ? (
-                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                    {avatarUrl ? (
+                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                         <UserIcon size={32} />
                     )}
@@ -231,7 +215,7 @@ export default function SettingsPage() {
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-50">
                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono break-all">
                   <Fingerprint size={12} />
-                  ID: {user?.uid}
+                  ID: {profile?.uid}
                </div>
                <button
                   type="submit"
@@ -275,8 +259,8 @@ export default function SettingsPage() {
                 <button
                     type="button"
                     onClick={async () => {
-                        if (!user) return;
-                        await NotificationRepository.registerDevice(user.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
+                        if (!profile) return;
+                        await NotificationRepository.registerDevice(profile.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
                         alert("Device registration requested.");
                     }}
                     className="w-full sm:w-auto text-primary-600 font-bold hover:underline flex items-center justify-center gap-2 text-sm"

@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import { Bell, User, Search, Settings, Menu } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
+import { useParentProfile, getDisplayName, getAvatarUrl } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
 import Link from 'next/link';
 
@@ -12,19 +13,18 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [user, setUser] = useState<any>(null);
+  const { profile } = useParentProfile();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const unsubAuth = observeAuth((authUser) => {
-      setUser(authUser);
-      if (authUser) {
-        const unsubCount = NotificationRepository.listenToUnreadCount(authUser.uid, setUnreadCount);
+    if (profile?.uid) {
+        const unsubCount = NotificationRepository.listenToUnreadCount(profile.uid, setUnreadCount);
         return () => unsubCount();
-      }
-    });
-    return () => unsubAuth();
-  }, []);
+    }
+  }, [profile?.uid]);
+
+  const displayName = getDisplayName(profile, profile?.email);
+  const avatarUrl = getAvatarUrl(profile);
 
   return (
     <div className="flex min-h-screen bg-slate-50 overflow-x-hidden">
@@ -61,11 +61,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             </Link>
 
             <Link href="/settings" className="flex items-center gap-3 p-1.5 md:pr-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-all group">
-              <div className="w-9 h-9 rounded-lg bg-primary-100 flex items-center justify-center text-primary-600 font-bold">
-                {user?.email?.[0].toUpperCase() || <User size={20} />}
+              <div className="w-9 h-9 rounded-lg bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden">
+                {avatarUrl ? (
+                    <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                    displayName[0].toUpperCase()
+                )}
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-xs font-bold text-slate-900 leading-none">{user?.email?.split('@')[0] || "Account"}</p>
+                <p className="text-xs font-bold text-slate-900 leading-none">{displayName}</p>
                 <p className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">Parent Account</p>
               </div>
             </Link>

@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 
 export interface ParentProfile {
   uid: string;
@@ -20,6 +20,21 @@ export class ParentRepository {
     const ref = doc(db, "parents", uid);
     const snap = await getDoc(ref);
     return snap.exists() ? snap.data() as ParentProfile : null;
+  }
+
+  static listenToProfile(uid: string, onUpdate: (profile: ParentProfile | null) => void) {
+    if (!db || !uid) return () => {};
+    const ref = doc(db, "parents", uid);
+    return onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as ParentProfile);
+      } else {
+        onUpdate(null);
+      }
+    }, (error) => {
+      console.error("Error listening to parent profile:", error);
+      onUpdate(null);
+    });
   }
 
   static async createOrUpdateProfile(user: any, provider: string): Promise<ParentProfile> {
