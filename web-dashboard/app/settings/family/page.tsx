@@ -136,7 +136,7 @@ export default function FamilyManagementPage() {
                   </h3>
                 </div>
                 <div className="divide-y divide-slate-50">
-                  {family?.members.map((member) => (
+                  {(family?.members ?? []).map((member) => (
                     <div key={member.uid} className="p-6 flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-black">
@@ -156,7 +156,7 @@ export default function FamilyManagementPage() {
                           </div>
                         </div>
                       </div>
-                      {isOwner && member.uid !== profile?.uid && (
+                      {isOwner && member.uid !== profile?.uid && family && (
                         <button
                           onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
                           className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
@@ -222,7 +222,7 @@ export default function FamilyManagementPage() {
               </h3>
             </div>
             <div className="divide-y divide-slate-50">
-              {family?.invites && family.invites.length > 0 ? family.invites.map((invite) => (
+              {(family?.invites ?? []).length > 0 ? (family?.invites ?? []).map((invite) => (
                 <div key={invite.id} className="p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -261,7 +261,7 @@ export default function FamilyManagementPage() {
                   <p className="text-slate-500 text-xs mt-1">Shared contacts reachable from the child&apos;s device SOS menu.</p>
                 </div>
                 <div className="divide-y divide-slate-50">
-                  {family?.emergencyContacts?.map((contact) => (
+                  {(family?.emergencyContacts ?? []).map((contact) => (
                     <div key={contact.id} className="p-6 flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 font-black">
@@ -272,12 +272,14 @@ export default function FamilyManagementPage() {
                           <p className="text-xs text-slate-500">{contact.relationship} • {contact.phone}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => FamilyRepository.removeEmergencyContact(family.familyId, contact.id)}
-                        className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {family && (
+                        <button
+                          onClick={() => FamilyRepository.removeEmergencyContact(family.familyId, contact.id)}
+                          className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   ))}
                   {(!family?.emergencyContacts || family.emergencyContacts.length === 0) && (
@@ -321,7 +323,7 @@ export default function FamilyManagementPage() {
                     <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100">
                         <div>
                             <p className="font-bold text-slate-800">Family Name</p>
-                            <p className="text-sm text-slate-500 font-medium">{family?.settings.name}</p>
+                            <p className="text-sm text-slate-500 font-medium">{family?.settings?.name ?? 'Not set'}</p>
                         </div>
                         <button className="text-xs font-black text-primary-600 hover:underline uppercase">Change</button>
                     </div>
@@ -332,7 +334,7 @@ export default function FamilyManagementPage() {
                             </div>
                             <div>
                                 <p className="font-bold text-slate-800">Region \u0026 Timezone</p>
-                                <p className="text-sm text-slate-500 font-medium">{family?.settings.country} • {family?.settings.timezone}</p>
+                                <p className="text-sm text-slate-500 font-medium">{family?.settings?.country ?? 'N/A'} • {family?.settings?.timezone ?? 'N/A'}</p>
                             </div>
                         </div>
                     </div>
