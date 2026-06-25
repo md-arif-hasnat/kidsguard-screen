@@ -43,7 +43,7 @@ export default function WellbeingControls({ limits, blocks, onUpdateLimit, onDel
                 </div>
 
                 <div className="space-y-4">
-                    {limits.length > 0 ? limits.map((limit) => (
+                    {(limits ?? []).length > 0 ? (limits ?? []).map((limit) => (
                         <div key={limit.packageName} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary-600">
@@ -74,7 +74,7 @@ export default function WellbeingControls({ limits, blocks, onUpdateLimit, onDel
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {blocks.map((block) => (
+                    {(blocks ?? []).map((block) => (
                         <div key={block.packageName} className={cn(
                             "flex items-center justify-between p-4 rounded-2xl border transition-all",
                             block.isBlocked ? "bg-rose-50 border-rose-100" : "bg-slate-50 border-slate-100"

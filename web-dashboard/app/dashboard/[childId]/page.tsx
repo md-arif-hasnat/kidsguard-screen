@@ -183,8 +183,9 @@ export default function ChildDashboard() {
     };
   }, [childId, selectedDate]);
 
-  const currentUserMember = family?.members.find(m => m.uid === profile?.uid);
-  const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
+  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid) ||
+                            (profile?.uid && family?.ownerId === profile.uid ? { uid: profile.uid, role: FamilyRole.OWNER } : null);
+  const currentRole = (currentUserMember as any)?.role || FamilyRole.VIEWER;
   const canControl = RoleHelper.canSendRemoteCommands(currentRole);
   const canManageWellbeing = RoleHelper.canManageChildren(currentRole);
   const canManageWeb = RoleHelper.canManageWebProtection(currentRole);

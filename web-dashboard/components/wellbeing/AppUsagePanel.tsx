@@ -21,7 +21,7 @@ export default function AppUsagePanel({ usage }: AppUsagePanelProps) {
         return `${minutes}m`;
     };
 
-    const sortedUsage = [...usage].sort((a, b) => b.totalTimeMs - a.totalTimeMs);
+    const sortedUsage = [...(usage ?? [])].sort((a, b) => b.totalTimeMs - a.totalTimeMs);
 
     return (
         <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">

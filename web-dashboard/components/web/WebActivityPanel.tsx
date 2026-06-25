@@ -22,7 +22,7 @@ export default function WebActivityPanel({ events }: WebActivityPanelProps) {
                 </h3>
             </div>
             <div className="divide-y divide-slate-50">
-                {events.length > 0 ? events.map((event, i) => (
+                {(events ?? []).length > 0 ? (events ?? []).map((event, i) => (
                     <div key={i} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors group">
                         <div className="flex items-center gap-4">
                             <div className={cn(

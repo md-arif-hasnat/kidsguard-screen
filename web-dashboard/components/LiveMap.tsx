@@ -191,7 +191,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
       )}
 
       {/* Safe Zones */}
-      {safeZones.map(zone => {
+      {(safeZones ?? []).map(zone => {
         const center = normalizeMapPoint(zone);
         if (!center) return null;
 
@@ -241,7 +241,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
       })}
 
       {/* Deviations */}
-      {deviations.map(dev => {
+      {(deviations ?? []).map(dev => {
         const pos = normalizeMapPoint(dev);
         if (!pos) return null;
         return (

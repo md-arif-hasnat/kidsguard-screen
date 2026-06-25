@@ -200,8 +200,9 @@ export default function SafeZonesPage() {
     }
   };
 
-  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid);
-  const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
+  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid) ||
+                            (profile?.uid && family?.ownerId === profile.uid ? { uid: profile.uid, role: FamilyRole.OWNER } : null);
+  const currentRole = (currentUserMember as any)?.role || FamilyRole.VIEWER;
   const canManageZones = RoleHelper.canManageSafeZones(currentRole);
 
   return (

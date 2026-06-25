@@ -57,7 +57,7 @@ export default function ChildSelector({
     if (variant === 'list') {
         return (
             <div className={clsx("flex flex-col gap-3", className)}>
-                {childIds.map(id => {
+                {(childIds ?? []).map(id => {
                     const child = children[id];
                     const isSelected = selectedChildId === id;
                     const name = child?.childName || "Loading...";
@@ -115,7 +115,7 @@ export default function ChildSelector({
                 <>
                     <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
                     <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                        {childIds.map(id => {
+                        {(childIds ?? []).map(id => {
                             const child = children[id];
                             const name = child?.childName || "Loading...";
                             return (

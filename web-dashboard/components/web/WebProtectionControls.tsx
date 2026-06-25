@@ -15,10 +15,10 @@ interface WebProtectionControlsProps {
 
 export default function WebProtectionControls({ rules, onUpdate }: WebProtectionControlsProps) {
     const toggleCategory = (cat: WebCategory) => {
-        const isBlocked = rules.blockedCategories.includes(cat);
+        const isBlocked = (rules?.blockedCategories ?? []).includes(cat);
         const newBlocked = isBlocked
-            ? rules.blockedCategories.filter(c => c !== cat)
-            : [...rules.blockedCategories, cat];
+            ? (rules?.blockedCategories ?? []).filter(c => c !== cat)
+            : [...(rules?.blockedCategories ?? []), cat];
         onUpdate({ ...rules, blockedCategories: newBlocked });
     };
 
@@ -72,9 +72,9 @@ export default function WebProtectionControls({ rules, onUpdate }: WebProtection
                         >
                             <p className={cn(
                                 "text-[10px] font-black uppercase mb-1",
-                                rules.blockedCategories.includes(cat) ? "text-rose-600" : "text-slate-400"
+                                (rules?.blockedCategories ?? []).includes(cat) ? "text-rose-600" : "text-slate-400"
                             )}>
-                                {rules.blockedCategories.includes(cat) ? "Blocked" : "Allowed"}
+                                {(rules?.blockedCategories ?? []).includes(cat) ? "Blocked" : "Allowed"}
                             </p>
                             <p className="font-bold text-slate-700">{cat.charAt(0) + cat.slice(1).toLowerCase()}</p>
                         </button>
@@ -147,7 +147,7 @@ function UrlList({ title, icon: Icon, domains, onAdd, onDelete, color }: any) {
                 </button>
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                {domains.map((d: string) => (
+                {(domains ?? []).map((d: string) => (
                     <div key={d} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-50 group">
                         <span className="text-sm font-bold text-slate-600">{d}</span>
                         <button onClick={() => onDelete(d)} className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">

@@ -60,7 +60,7 @@ export default function WeeklyReportPanel({ report }: WeeklyReportPanelProps) {
               Top Active Zones
             </h3>
             <div className="space-y-3">
-              {report.topVisitedZones.map((zone, i) => (
+              {(report?.topVisitedZones ?? []).map((zone, i) => (
                 <div key={zone} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <span className="font-bold text-slate-700">{zone}</span>
                   <span className="text-[10px] font-bold text-slate-400">#{i + 1} Most Visited</span>
@@ -75,7 +75,7 @@ export default function WeeklyReportPanel({ report }: WeeklyReportPanelProps) {
               Strategic Recommendations
             </h3>
             <div className="space-y-3">
-              {report.recommendations.map((rec, i) => (
+              {(report?.recommendations ?? []).map((rec, i) => (
                 <div key={i} className="flex gap-3 p-4 bg-primary-50 rounded-xl border border-primary-100">
                   <AlertCircle size={18} className="text-primary-600 shrink-0 mt-0.5" />
                   <p className="text-sm text-slate-700 font-medium">{rec}</p>

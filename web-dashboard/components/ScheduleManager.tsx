@@ -22,7 +22,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules }: ScheduleManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [newSchedule, setNewSchedule] = useState({
-    zoneId: safeZones[0]?.id || '',
+    zoneId: (safeZones ?? [])[0]?.id || '',
     dayOfWeek: 1,
     arrivalTime: '08:00',
     enabled: true
@@ -62,7 +62,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
                 value={newSchedule.zoneId}
                 onChange={e => setNewSchedule({...newSchedule, zoneId: e.target.value})}
               >
-                {safeZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                {(safeZones ?? []).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
               </select>
             </div>
             <div>
@@ -95,7 +95,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
       )}
 
       <div className="grid grid-cols-1 gap-4">
-        {schedules.length > 0 ? schedules.map(s => (
+        {(schedules ?? []).length > 0 ? (schedules ?? []).map(s => (
           <div key={s.id} className="flex items-center justify-between p-6 bg-white border border-slate-100 rounded-2xl hover:border-primary-200 transition-all group">
             <div className="flex items-center gap-6">
               <div className="w-12 h-12 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
@@ -103,7 +103,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
               </div>
               <div>
                 <p className="font-black text-slate-800 text-lg">
-                  {safeZones.find(z => z.id === s.zoneId)?.name || 'Unknown Zone'}
+                  {(safeZones ?? []).find(z => z.id === s.zoneId)?.name || 'Unknown Zone'}
                 </p>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-lg">{DAYS[s.dayOfWeek]}</span>

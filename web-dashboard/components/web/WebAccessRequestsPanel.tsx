@@ -14,7 +14,7 @@ interface WebAccessRequestsPanelProps {
 }
 
 export default function WebAccessRequestsPanel({ requests, onHandle }: WebAccessRequestsPanelProps) {
-    const pending = requests.filter(r => r.status === "PENDING");
+    const pending = (requests ?? []).filter(r => r.status === "PENDING");
 
     return (
         <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden h-full">
@@ -30,7 +30,7 @@ export default function WebAccessRequestsPanel({ requests, onHandle }: WebAccess
                 )}
             </div>
             <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
-                {requests.length > 0 ? requests.map((req) => (
+                {(requests ?? []).length > 0 ? (requests ?? []).map((req) => (
                     <div key={req.requestId} className="p-6 hover:bg-slate-50 transition-colors group">
                         <div className="flex justify-between items-start mb-4">
                             <div>
