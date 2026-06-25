@@ -4,15 +4,21 @@ import java.util.UUID
 
 enum class SyncPlatform { ANDROID, IOS }
 enum class SyncRole { PARENT, CHILD }
-enum class CommandStatus { PENDING, EXECUTED, FAILED }
+enum class CommandStatus { PENDING, RECEIVED, EXECUTED, FAILED, EXPIRED }
 enum class CommandType {
+    REFRESH_LOCATION,
+    RING_DEVICE,
+    LOCK_DEVICE,
+    UNLOCK_DEVICE,
+    SHOW_MESSAGE,
+    VIBRATE_DEVICE,
+    // Legacy mapping support
     LOCK_NOW,
     UNLOCK_NOW,
     RING_PHONE,
     SOUND_SIREN,
     START_TRACKING,
-    STOP_TRACKING,
-    REFRESH_LOCATION
+    STOP_TRACKING
 }
 
 data class SyncDevice(
@@ -132,8 +138,12 @@ data class SyncRemoteCommand(
     val commandType: CommandType,
     val payload: String? = null,
     val status: CommandStatus = CommandStatus.PENDING,
+    val createdByParentId: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val executedAt: Long? = null
+    val receivedAt: Long? = null,
+    val executedAt: Long? = null,
+    val expiresAt: Long? = null,
+    val resultMessage: String? = null
 )
 
 data class SyncNotificationEvent(

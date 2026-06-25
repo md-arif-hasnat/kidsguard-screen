@@ -13,7 +13,7 @@ interface RemoteSyncProvider {
     fun syncSosEvent(event: com.example.kidsguard.models.SosEvent)
     fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
-    fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus)
+    fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String? = null)
     fun getChildStatus(childId: String): kotlinx.coroutines.flow.Flow<SyncChildStatus?>
     fun getLatestActivity(childId: String): kotlinx.coroutines.flow.Flow<SyncActivityEvent?>
     fun getActivityHistory(childId: String): kotlinx.coroutines.flow.Flow<List<SyncActivityEvent>>
@@ -87,7 +87,7 @@ class LocalMockSyncProvider : RemoteSyncProvider {
         this.commandListener = onCommand
     }
 
-    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus) {
+    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String?) {
         // Mock: Update local state
     }
 

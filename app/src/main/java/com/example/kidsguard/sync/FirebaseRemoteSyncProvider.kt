@@ -212,14 +212,27 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus) {
+    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String?) {
         if (childId.isEmpty() || commandId.isEmpty()) return
         
+        val updates = mutableMapOf<String, Any>(
+            "status" to status
+        )
+        
+        val now = System.currentTimeMillis()
+        when (status) {
+            CommandStatus.RECEIVED -> updates["receivedAt"] = now
+            CommandStatus.EXECUTED, CommandStatus.FAILED -> updates["executedAt"] = now
+            else -> {}
+        }
+        
+        resultMessage?.let { updates["resultMessage"] = it }
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection(FirebaseConfig.COL_REMOTE_COMMANDS)
             .document(commandId)
-            .update("status", status, "executedAt", System.currentTimeMillis())
+            .update(updates)
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to update command status", e)
                 errorLogger.addError(TAG, "Failed to update command status", e)

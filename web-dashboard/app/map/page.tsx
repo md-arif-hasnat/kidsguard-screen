@@ -16,6 +16,8 @@ import { observeAuth } from '@/lib/auth';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
+import ChildSelector from '@/components/ChildSelector';
+import ChildAvatar from '@/components/ChildAvatar';
 
 export default function MapPage() {
   const { profile, loading: profileLoading } = useParentProfile();
@@ -155,17 +157,13 @@ export default function MapPage() {
                 <div className="absolute bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-auto md:w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 p-4 md:p-5 space-y-3 md:space-y-4 z-10">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden border-2 border-primary-200">
-                                {activeChildStatus?.avatarId || mockActiveChild?.avatarId ? (
-                                    <img
-                                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${activeChildStatus?.avatarId || mockActiveChild?.avatarId}`}
-                                        alt="avatar"
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    activeChildStatus?.childName?.[0] || mockActiveChild?.name?.[0] || "?"
-                                )}
-                            </div>
+                            <ChildAvatar
+                                name={activeChildStatus?.childName || mockActiveChild?.name}
+                                avatarId={activeChildStatus?.avatarId || mockActiveChild?.avatarId}
+                                photoUrl={activeChildStatus?.photoUrl}
+                                size="lg"
+                                className="border-2 border-primary-200"
+                            />
                             <div>
                                 <h3 className="font-bold text-slate-900 text-sm md:text-base">{activeChildStatus?.childName || mockActiveChild?.name || "Loading..."}</h3>
                                 <p className="text-[10px] text-slate-400 font-medium">{displayLocation?.timestamp ? new Date(displayLocation.timestamp).toLocaleTimeString() : "Updating..."}</p>
@@ -221,54 +219,16 @@ export default function MapPage() {
               <Users className="text-primary-500" size={20} />
               <h2 className="font-bold text-sm md:text-base">Child Selector</h2>
             </div>
-            <div className="flex flex-row xl:flex-col gap-3 overflow-x-auto xl:overflow-x-visible pb-2 xl:pb-0">
-              {(family ? family.childDeviceIds : MOCK_CHILDREN.map(c => c.id)).map(id => {
-                const status = childrenStatus[id];
-                const mock = MOCK_CHILDREN.find(c => c.id === id);
-                const name = status?.childName || mock?.name || "Child";
-                const isSelected = selectedChildId === id;
 
-                return (
-                  <div
-                    key={id}
-                    onClick={() => {
-                        setSelectedChildId(id);
-                        localStorage.setItem("kidsguard_selected_child", id);
-                    }}
-                    className={clsx(
-                      "p-3 md:p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between min-w-[200px] xl:min-w-0",
-                      isSelected ? "border-primary-500 bg-primary-50" : "border-slate-50 bg-slate-50 hover:border-slate-200"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                        <div className={clsx(
-                            "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm overflow-hidden border-2",
-                            isSelected ? "bg-primary-500 text-white border-primary-200" : "bg-slate-200 text-slate-500 border-transparent"
-                        )}>
-                            {status?.avatarId || mock?.avatarId ? (
-                                <img
-                                    src={`https://api.dicebear.com/7.x/bottts/svg?seed=${status?.avatarId || mock?.avatarId}`}
-                                    alt="avatar"
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                name[0]
-                            )}
-                        </div>
-                        <div>
-                            <p className="font-bold text-slate-900 text-xs md:text-sm">{name}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                                <div className={clsx("w-1.5 h-1.5 rounded-full", (status?.online || mock?.online) ? "bg-green-500" : "bg-slate-400")} />
-                                <span className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                                    {(status?.online || mock?.online) ? "Online" : "Offline"}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ChildSelector
+                selectedChildId={selectedChildId}
+                onSelect={(id) => {
+                    setSelectedChildId(id);
+                    localStorage.setItem("kidsguard_selected_child", id);
+                }}
+                familyId={profile?.familyId}
+                variant="list"
+            />
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

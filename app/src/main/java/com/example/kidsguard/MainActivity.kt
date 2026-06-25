@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var blockedPackageName = mutableStateOf<String?>(null)
     private var blockedUrl = mutableStateOf<String?>(null)
+    private var remoteMessage = mutableStateOf<String?>(null)
+    private var remoteCommandMode = mutableStateOf(com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
 
@@ -106,7 +108,7 @@ class MainActivity : ComponentActivity() {
         childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
 
         commandHandler = RemoteCommandHandler(
-            context = this,
+            androidContext = this,
             prefHelper = prefHelper,
             trackingManager = trackingManager,
             syncProvider = syncProvider,
@@ -123,6 +125,24 @@ class MainActivity : ComponentActivity() {
                     if (point != null) {
                         locationRepository.addLocationPoint(point)
                     }
+                }
+            },
+            onShowMessageRequested = { msg ->
+                remoteMessage.value = msg
+                remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
+                currentScreenState.value = Screen.RemoteCommand
+            },
+            onRingRequested = {
+                notificationEngine.triggerSiren()
+                remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.RINGING
+                currentScreenState.value = Screen.RemoteCommand
+            },
+            onVibrateRequested = {
+                val vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(5000, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    vibrator.vibrate(5000)
                 }
             }
         )
@@ -230,7 +250,9 @@ class MainActivity : ComponentActivity() {
                         blockedUrl = blockedUrl.value,
                         onRequestWebAccess = { url ->
                             webManager.requestAccess(url)
-                        }
+                        },
+                        remoteMessage = remoteMessage.value,
+                        remoteCommandMode = remoteCommandMode.value
                     )
                 }
             }

@@ -7,6 +7,7 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
+import ChildAvatar from './ChildAvatar';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -69,17 +70,12 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow cursor-pointer">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg overflow-hidden border-2 border-primary-200">
-              {displayChild.avatarId ? (
-                <img
-                  src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayChild.avatarId}`}
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                displayChild.name[0]
-              )}
-            </div>
+            <ChildAvatar
+              name={displayChild.name}
+              avatarId={displayChild.avatarId}
+              photoUrl={status?.photoUrl}
+              size="xl"
+            />
             <div>
               <h3 className="font-bold text-lg">{displayChild.name}</h3>
               <div className="flex items-center gap-1.5">

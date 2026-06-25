@@ -15,6 +15,7 @@ import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 import { useParentProfile, getDisplayName } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
+import ChildAvatar from '@/components/ChildAvatar';
 
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 
@@ -323,9 +324,12 @@ export default function Home() {
                         <tr key={item.id} className="hover:bg-slate-50">
                             <td className="px-6 py-4 font-medium">
                                 <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
-                                    {childrenStatus[item.childId]?.childName?.[0] || "C"}
-                                </div>
+                                <ChildAvatar
+                                    name={childrenStatus[item.childId]?.childName}
+                                    avatarId={childrenStatus[item.childId]?.avatarId}
+                                    photoUrl={childrenStatus[item.childId]?.photoUrl}
+                                    size="sm"
+                                />
                                 {childrenStatus[item.childId]?.childName || "Child"}
                                 </div>
                             </td>
@@ -360,9 +364,12 @@ export default function Home() {
                         <div key={item.id} className="p-4 space-y-3">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 font-bold">
-                                        {childrenStatus[item.childId]?.childName?.[0] || "C"}
-                                    </div>
+                                    <ChildAvatar
+                                        name={childrenStatus[item.childId]?.childName}
+                                        avatarId={childrenStatus[item.childId]?.avatarId}
+                                        photoUrl={childrenStatus[item.childId]?.photoUrl}
+                                        size="sm"
+                                    />
                                     <span className="text-sm font-bold text-slate-900">{childrenStatus[item.childId]?.childName || "Child"}</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 font-mono">

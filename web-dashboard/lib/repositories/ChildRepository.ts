@@ -5,6 +5,7 @@ export interface ChildStatus {
   childId: string;
   childName: string;
   avatarId?: string;
+  photoUrl?: string;
   batteryPercent: number;
   charging: boolean;
   online: boolean;

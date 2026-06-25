@@ -68,6 +68,8 @@ import { WebProtectionRepository, WebRuleSet, WebActivityEvent, WebAccessRequest
 import WebActivityPanel from '@/components/web/WebActivityPanel';
 import WebProtectionControls from '@/components/web/WebProtectionControls';
 import WebAccessRequestsPanel from '@/components/web/WebAccessRequestsPanel';
+import RemoteControlPanel from '@/components/RemoteControlPanel';
+import ChildAvatar from '@/components/ChildAvatar';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -272,13 +274,13 @@ export default function ChildDashboard() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div className="flex items-center gap-4">
           <div className="relative group shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl overflow-hidden border-2 border-primary-200 transition-transform group-hover:scale-105">
-              <img
-                src={`https://api.dicebear.com/7.x/bottts/svg?seed=${displayData.avatarId}`}
-                alt="avatar"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <ChildAvatar
+              name={displayData.name}
+              avatarId={displayData.avatarId}
+              photoUrl={status?.photoUrl}
+              size="xl"
+              className="rounded-2xl transition-transform group-hover:scale-105"
+            />
             <button
               onClick={() => setShowAvatarPicker(true)}
               className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
@@ -405,6 +407,8 @@ export default function ChildDashboard() {
                 </div>
 
                 <div className="space-y-8">
+                <RemoteControlPanel childId={childId} />
+
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
@@ -428,20 +432,6 @@ export default function ChildDashboard() {
                     )) : (
                         <p className="text-center py-8 text-slate-400 italic text-sm">No activity recorded today.</p>
                     )}
-                    </div>
-                </section>
-
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-6">
-                    <History className="text-primary-500" size={20} />
-                    <h2 className="font-bold">Remote Controls</h2>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3">
-                    <ControlBtn icon={Lock} label="Force Lock" onClick={() => handleCommand(CommandType.LOCK_NOW)} color="text-red-600" />
-                    <ControlBtn icon={Unlock} label="Force Unlock" onClick={() => handleCommand(CommandType.UNLOCK_NOW)} color="text-green-600" />
-                    <ControlBtn icon={Siren} label="Trigger Siren" onClick={() => handleCommand(CommandType.SOUND_SIREN)} color="text-rose-600" />
-                    <ControlBtn icon={Play} label="Start Tracking" onClick={() => handleCommand(CommandType.START_TRACKING)} color="text-primary-600" />
-                    <ControlBtn icon={RotateCcw} label="Stop Tracking" onClick={() => handleCommand(CommandType.STOP_TRACKING)} color="text-slate-600" />
                     </div>
                 </section>
                 </div>

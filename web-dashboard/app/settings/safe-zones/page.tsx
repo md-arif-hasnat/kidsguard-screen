@@ -28,6 +28,7 @@ import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { User } from 'firebase/auth';
 import { clsx } from 'clsx';
 import MapLocationPicker from '@/components/MapLocationPicker';
+import ChildSelector from '@/components/ChildSelector';
 
 export default function SafeZonesPage() {
   const { profile, loading: profileLoading } = useParentProfile();
@@ -209,35 +210,16 @@ export default function SafeZonesPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-            {/* Child Selector */}
-            <div className="relative group flex-1 sm:flex-none">
-                <button className="w-full flex items-center justify-between sm:justify-start gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] text-primary-600 shrink-0">
-                            {selectedChildName[0]}
-                        </div>
-                        <span className="truncate">{selectedChildName}</span>
-                    </div>
-                    <ChevronDown size={16} className="text-slate-400" />
-                </button>
-                <div className="absolute top-full right-0 mt-2 w-full sm:w-48 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
-                    {family?.childDeviceIds.map(id => (
-                        <button
-                            key={id}
-                            onClick={() => {
-                                setSelectedChildId(id);
-                                localStorage.setItem("kidsguard_selected_child", id);
-                            }}
-                            className={clsx(
-                                "w-full text-left px-4 py-3 text-sm font-bold transition-colors",
-                                selectedChildId === id ? "bg-primary-50 text-primary-600" : "text-slate-600 hover:bg-slate-50"
-                            )}
-                        >
-                            {childrenStatus[id]?.childName || "Child"}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {/* Unified Child Selector */}
+            <ChildSelector
+                selectedChildId={selectedChildId}
+                onSelect={(id) => {
+                    setSelectedChildId(id);
+                    localStorage.setItem("kidsguard_selected_child", id);
+                }}
+                familyId={profile?.familyId}
+                className="flex-1 sm:flex-none"
+            />
 
             {!showAddForm && selectedChildId && (
             <button

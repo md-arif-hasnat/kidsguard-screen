@@ -37,7 +37,9 @@ fun KidsGuardApp(
     authRepository: AuthRepository,
     blockedPackage: String? = null,
     blockedUrl: String? = null,
-    onRequestWebAccess: (String) -> Unit = {}
+    onRequestWebAccess: (String) -> Unit = {},
+    remoteMessage: String? = null,
+    remoteCommandMode: com.example.kidsguard.ui.screens.RemoteCommandMode = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -327,6 +329,11 @@ fun KidsGuardApp(
                 url = blockedUrl,
                 onRequestAccess = { blockedUrl?.let { onRequestWebAccess(it) } },
                 onBackToHome = { onScreenChange(Screen.Home) }
+            )
+            Screen.RemoteCommand -> RemoteCommandScreen(
+                mode = remoteCommandMode,
+                message = remoteMessage,
+                onDismiss = { onScreenChange(Screen.Home) }
             )
         }
     }
