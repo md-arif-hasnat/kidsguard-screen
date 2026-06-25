@@ -30,7 +30,9 @@ import {
   Clock as ClockIcon,
   Smartphone as SmartphoneIcon,
   ShieldAlert,
-  BarChart3
+  BarChart3,
+  TrendingUp,
+  Globe as GlobeIcon
 } from 'lucide-react';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
@@ -62,6 +64,11 @@ import ScreenTimeStats from '@/components/wellbeing/ScreenTimeStats';
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
 import WellbeingControls, { AppLimit, BlockRule } from '@/components/wellbeing/WellbeingControls';
 
+import { WebProtectionRepository, WebRuleSet, WebActivityEvent, WebAccessRequest } from '@/lib/repositories/WebProtectionRepository';
+import WebActivityPanel from '@/components/web/WebActivityPanel';
+import WebProtectionControls from '@/components/web/WebProtectionControls';
+import WebAccessRequestsPanel from '@/components/web/WebAccessRequestsPanel';
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -78,7 +85,7 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
-type Tab = 'overview' | 'intelligence' | 'wellbeing' | 'health';
+type Tab = 'overview' | 'intelligence' | 'wellbeing' | 'internet' | 'health';
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -109,6 +116,11 @@ export default function ChildDashboard() {
     { packageName: 'com.snapchat.android', appName: 'Snapchat', isBlocked: false },
     { packageName: 'com.roblox.client', appName: 'Roblox', isBlocked: false }
   ]);
+
+  // Phase AE: Web Protection State
+  const [webRules, setWebRules] = useState<WebRuleSet | null>(null);
+  const [webActivity, setWebActivity] = useState<WebActivityEvent[]>([]);
+  const [webRequests, setWebRequests] = useState<WebAccessRequest[]>([]);
 
   // Mock data for Phase AD
   const [mockSchedules, setMockSchedules] = useState<Schedule[]>([
@@ -143,6 +155,10 @@ export default function ChildDashboard() {
     const familyId = localStorage.getItem("kidsguard_family_id") || "mock_family_123";
     const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
 
+    const unsubWebRules = WebProtectionRepository.listenToWebRules(childId, setWebRules);
+    const unsubWebActivity = WebProtectionRepository.listenToWebActivity(childId, selectedDate, setWebActivity);
+    const unsubWebRequests = WebProtectionRepository.listenToAccessRequests(childId, setWebRequests);
+
     return () => {
       unsubStatus();
       unsubLocation();
@@ -152,6 +168,9 @@ export default function ChildDashboard() {
       unsubDeviations();
       unsubZones();
       unsubAnalytics();
+      unsubWebRules();
+      unsubWebActivity();
+      unsubWebRequests();
     };
   }, [childId, selectedDate]);
 
@@ -300,6 +319,7 @@ export default function ChildDashboard() {
           <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={LayoutDashboard} label="Overview" />
           <TabButton active={activeTab === 'intelligence'} onClick={() => setActiveTab('intelligence')} icon={Brain} label="Intelligence" />
           <TabButton active={activeTab === 'wellbeing'} onClick={() => setActiveTab('wellbeing')} icon={ClockIcon} label="Wellbeing" />
+          <TabButton active={activeTab === 'internet'} onClick={() => setActiveTab('internet')} icon={GlobeIcon} label="Internet" />
           <TabButton active={activeTab === 'health'} onClick={() => setActiveTab('health')} icon={Smartphone} label="Device Health" />
       </div>
 
@@ -557,6 +577,50 @@ export default function ChildDashboard() {
                       </div>
                   </div>
               </section>
+          </div>
+      )}
+
+      {activeTab === 'internet' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="flex justify-between items-center">
+                  <div>
+                      <h2 className="text-2xl font-black text-slate-900">Internet Protection</h2>
+                      <p className="text-slate-500 font-medium">Safe browsing and content filtering for {displayData.name}.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+                      <Calendar size={16} className="text-slate-400" />
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="text-sm font-bold text-slate-700 outline-none"
+                      />
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                  <div className="lg:col-span-2 space-y-12">
+                    <WebProtectionControls
+                        rules={webRules || {
+                            blockedDomains: [],
+                            allowedDomains: [],
+                            blockedCategories: [],
+                            allowedCategories: [],
+                            safeSearchEnabled: true,
+                            youtubeRestrictedMode: true,
+                            adultContentBlockEnabled: true
+                        }}
+                        onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules)}
+                    />
+                    <WebActivityPanel events={webActivity} />
+                  </div>
+                  <div className="space-y-12">
+                    <WebAccessRequestsPanel
+                        requests={webRequests}
+                        onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain)}
+                    />
+                  </div>
+              </div>
           </div>
       )}
 

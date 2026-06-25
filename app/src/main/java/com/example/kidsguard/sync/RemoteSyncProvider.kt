@@ -30,6 +30,12 @@ interface RemoteSyncProvider {
     fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings)
     fun getAppUsageHistory(childId: String, date: String): kotlinx.coroutines.flow.Flow<List<SyncAppUsage>>
 
+    // Web protection sync
+    fun getWebRules(childId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.web.WebRuleSet?>
+    fun syncWebActivity(childId: String, activity: com.example.kidsguard.web.WebActivityEvent)
+    fun createWebAccessRequest(request: com.example.kidsguard.web.WebAccessRequest)
+    fun getWebAccessRequests(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.web.WebAccessRequest>>
+
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
 }
@@ -195,6 +201,22 @@ class LocalMockSyncProvider : RemoteSyncProvider {
     }
 
     override fun getAppUsageHistory(childId: String, date: String): kotlinx.coroutines.flow.Flow<List<SyncAppUsage>> {
+        return kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    override fun getWebRules(childId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.web.WebRuleSet?> {
+        return kotlinx.coroutines.flow.flowOf(com.example.kidsguard.web.WebRuleSet())
+    }
+
+    override fun syncWebActivity(childId: String, activity: com.example.kidsguard.web.WebActivityEvent) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun createWebAccessRequest(request: com.example.kidsguard.web.WebAccessRequest) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun getWebAccessRequests(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.web.WebAccessRequest>> {
         return kotlinx.coroutines.flow.flowOf(emptyList())
     }
 

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * PRODUCTION READY: Remote sync provider powered by Firebase.
@@ -549,6 +552,81 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 if (snapshots != null) {
                     val apps = snapshots.documents.mapNotNull { it.toObject(SyncAppUsage::class.java) }
                     trySend(apps)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun getWebRules(childId: String): Flow<com.example.kidsguard.web.WebRuleSet?> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(null)
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("webRules")
+            .document("current")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for web rules", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null && snapshot.exists()) {
+                    trySend(snapshot.toObject(com.example.kidsguard.web.WebRuleSet::class.java))
+                } else {
+                    trySend(com.example.kidsguard.web.WebRuleSet())
+                }
+            }
+            
+        awaitClose { registration.remove() }
+    }
+
+    override fun syncWebActivity(childId: String, activity: com.example.kidsguard.web.WebActivityEvent) {
+        if (childId.isEmpty()) return
+        
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(activity.timestamp))
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("webActivity")
+            .document(date)
+            .collection("events")
+            .document()
+            .set(activity)
+    }
+
+    override fun createWebAccessRequest(request: com.example.kidsguard.web.WebAccessRequest) {
+        if (request.childId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(request.childId)
+            .collection("accessRequests")
+            .document(request.requestId)
+            .set(request)
+    }
+
+    override fun getWebAccessRequests(childId: String): Flow<List<com.example.kidsguard.web.WebAccessRequest>> = callbackFlow {
+        if (childId.isEmpty()) {
+            trySend(emptyList())
+            return@callbackFlow
+        }
+
+        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("accessRequests")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening for access requests", e)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshots != null) {
+                    trySend(snapshots.toObjects(com.example.kidsguard.web.WebAccessRequest::class.java))
                 } else {
                     trySend(emptyList())
                 }

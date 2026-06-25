@@ -35,7 +35,9 @@ fun KidsGuardApp(
     commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
     authRepository: AuthRepository,
-    blockedPackage: String? = null
+    blockedPackage: String? = null,
+    blockedUrl: String? = null,
+    onRequestWebAccess: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -319,6 +321,11 @@ fun KidsGuardApp(
             )
             Screen.AppBlocked -> AppBlockedScreen(
                 packageName = blockedPackage,
+                onBackToHome = { onScreenChange(Screen.Home) }
+            )
+            Screen.WebBlocked -> WebBlockedScreen(
+                url = blockedUrl,
+                onRequestAccess = { blockedUrl?.let { onRequestWebAccess(it) } },
                 onBackToHome = { onScreenChange(Screen.Home) }
             )
         }

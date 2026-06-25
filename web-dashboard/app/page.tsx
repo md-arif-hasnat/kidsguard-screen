@@ -148,8 +148,10 @@ export default function Home() {
         location: e.latitude ? `${e.latitude.toFixed(4)}, ${e.longitude?.toFixed(4)}` : "Unknown Location"
       }));
 
-  const isLive = isFirebaseConfigured && !!user && !!family;
+  //const isLive = isFirebaseConfigured && !!user && !!family;
+  const isLive = isFirebaseConfigured && Boolean(profile) && Boolean(family);
   const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
+
 
   const allActivities = showMocks
     ? MOCK_ACTIVITY

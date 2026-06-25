@@ -1,5 +1,5 @@
 package com.example.kidsguard.navigation
 
 enum class Screen {
-    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup, LocationHistory, DeveloperMenu, LiveMap, TrackingStatus, PermissionChecklist, SosHistory, RouteHistory, RouteReplay, DailySummary, KnownRoutes, RouteDeviations, Diagnostics, ReleaseChecklist, ErrorLogs, ChildList, AppBlocked
+    RoleSelection, Home, Locked, Settings, ParentDashboard, SafeZoneList, ActivityFeed, ChildSetup, ParentSetup, LocationHistory, DeveloperMenu, LiveMap, TrackingStatus, PermissionChecklist, SosHistory, RouteHistory, RouteReplay, DailySummary, KnownRoutes, RouteDeviations, Diagnostics, ReleaseChecklist, ErrorLogs, ChildList, AppBlocked, WebBlocked
 }

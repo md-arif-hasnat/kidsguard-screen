@@ -58,10 +58,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var commandHandler: RemoteCommandHandler
     private lateinit var authRepository: AuthRepository
     private lateinit var childStatusManager: ChildStatusManager
+    private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var locationProvider: LocalLocationProvider
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var blockedPackageName = mutableStateOf<String?>(null)
+    private var blockedUrl = mutableStateOf<String?>(null)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
 
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
+        webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
 
         // Initialize synchronization for repositories
         val syncId = prefHelper.childId
@@ -223,7 +226,11 @@ class MainActivity : ComponentActivity() {
                         commandHandler = commandHandler,
                         updateRepository = updateRepository,
                         authRepository = authRepository,
-                        blockedPackage = blockedPackageName.value
+                        blockedPackage = blockedPackageName.value,
+                        blockedUrl = blockedUrl.value,
+                        onRequestWebAccess = { url ->
+                            webManager.requestAccess(url)
+                        }
                     )
                 }
             }
@@ -241,6 +248,10 @@ class MainActivity : ComponentActivity() {
             val pkg = intent.getStringExtra("blocked_package")
             blockedPackageName.value = pkg
             currentScreenState.value = Screen.AppBlocked
+        } else if (action == "WEB_BLOCKED") {
+            val url = intent.getStringExtra("blocked_url")
+            blockedUrl.value = url
+            currentScreenState.value = Screen.WebBlocked
         }
     }
 
