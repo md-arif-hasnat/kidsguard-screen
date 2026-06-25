@@ -81,7 +81,7 @@ export default function FamilyManagementPage() {
         profile?.displayName || "Family Owner"
       );
 
-      const inviteId = family.invites?.find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
+    const inviteId = (family?.invites ?? []).find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
       const link = `${window.location.origin}/invite/${inviteId}?token=${token}`;
       setLastInviteLink(link);
       setInviteEmail('');
@@ -95,6 +95,7 @@ export default function FamilyManagementPage() {
 
   const handleRevokeInvite = async (inviteId: string) => {
     if (!family || !confirm("Revoke this invitation?")) return;
+    if (!family || !inviteId) return;
     try {
       await FamilyRepository.revokeInvite(family.familyId, inviteId);
     } catch (err) {
@@ -123,7 +124,7 @@ export default function FamilyManagementPage() {
     }
   };
 
-  const currentUserMember = family?.members.find(m => m.uid === profile?.uid);
+  const currentUserMember = (family?.members ?? []).find(m => m.uid === profile?.uid);
   const currentRole = currentUserMember?.role || FamilyRole.VIEWER;
   const isOwner = currentRole === FamilyRole.OWNER;
   const canInvite = RoleHelper.canInviteMembers(currentRole);
@@ -187,10 +188,9 @@ export default function FamilyManagementPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {isOwner && member.uid !== profile?.uid && (
-                            <button
-                            onClick={() => FamilyRepository.removeMember(family!.familyId, member.uid)}
+                            {isOwner && member.uid !== profile?.uid && family?.familyId && (
+                                <button
+                                onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
                             className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
                             title="Remove Member"
                             >
@@ -198,7 +198,6 @@ export default function FamilyManagementPage() {
                             </button>
                         )}
                       </div>
-                    </div>
                   ))}
                 </div>
               </section>
@@ -315,7 +314,7 @@ export default function FamilyManagementPage() {
                     <div className="text-right hidden sm:block">
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Expires</p>
                         <p className="text-xs font-bold text-slate-600">
-                        {invite.expiresAt?.toDate ? invite.expiresAt.toDate().toLocaleDateString() : new Date(invite.expiresAt).toLocaleDateString()}
+                        {invite.expiresAt?.toDate ? invite.expiresAt.toDate().toLocaleDateString() : invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : 'N/A'}
                         </p>
                     </div>
                     {invite.status === 'PENDING' && canInvite && (
@@ -373,7 +372,7 @@ export default function FamilyManagementPage() {
                           <p className="text-xs text-slate-500">{contact.relationship} • {contact.phone}</p>
                         </div>
                       </div>
-                      {family && (
+                      {family?.familyId && (
                         <button
                           onClick={() => FamilyRepository.removeEmergencyContact(family.familyId, contact.id)}
                           className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
