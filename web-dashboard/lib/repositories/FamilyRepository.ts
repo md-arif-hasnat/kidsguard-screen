@@ -7,7 +7,8 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  Timestamp
 } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction } from "./AuditRepository";
@@ -104,7 +105,7 @@ export class FamilyRepository {
         email: parentEmail || undefined,
         displayName: parentDisplayName || "Owner",
         role: FamilyRole.OWNER,
-        joinedAt: serverTimestamp(),
+        joinedAt: Timestamp.now(),
         assignedChildren: ["*"]
       }],
       childDeviceIds: [],
@@ -151,7 +152,7 @@ export class FamilyRepository {
       role: invite.role,
       status: 'PENDING',
       invitedBy: invite.invitedBy,
-      invitedAt: invite.invitedAt,
+      invitedAt: Timestamp.now(),
       expiresAt: invite.expiresAt
     };
 
@@ -206,7 +207,7 @@ export class FamilyRepository {
       email,
       displayName,
       role: invite.role,
-      joinedAt: serverTimestamp(),
+      joinedAt: Timestamp.now(),
       invitedBy: invite.invitedBy,
       assignedChildren: ["*"] // Default to all for now
     };
