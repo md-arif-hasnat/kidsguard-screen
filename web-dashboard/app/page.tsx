@@ -50,8 +50,16 @@ export default function Home() {
         if (!profile.familyId && !profileLoading) {
             console.log("DEBUG: No familyId found for parent. Creating new family...");
             const createFam = async () => {
-                const newFId = await FamilyRepository.createFamily(profile.uid, profile.email, profile.displayName);
-                await ParentRepository.updateFamilyId(profile.uid, newFId);
+                try {
+                    const newFId = await FamilyRepository.createFamily(profile.uid, profile.email, profile.displayName);
+                    await ParentRepository.updateProfile(profile.uid, {
+                        familyId: newFId,
+                        role: 'OWNER'
+                    });
+                    console.log("DEBUG: New family created successfully:", newFId);
+                } catch (e) {
+                    console.error("DEBUG: Failed to auto-provision family:", e);
+                }
             };
             createFam();
         }

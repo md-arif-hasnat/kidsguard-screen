@@ -64,32 +64,29 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 4. Resolve Role (Single Source of Truth)
   const role = useMemo(() => {
-    const resolved = RoleHelper.resolveRole(family, authUser?.uid);
-    // Debug log for role resolution
-    if (process.env.NODE_ENV === 'development' && authUser && family) {
-        console.log("RBAC RESOLUTION:", {
+    const resolved = RoleHelper.resolveRole(family, authUser?.uid, profile);
+
+    // Debug log for role resolution in development
+    if (process.env.NODE_ENV === 'development' && authUser) {
+        console.log("RBAC DEBUG:", {
             uid: authUser.uid,
-            familyId: family.familyId,
-            ownerId: family.ownerId,
-            membersCount: (family.members ?? []).length,
-            resolvedRole: resolved
+            familyId: family?.familyId,
+            ownerId: family?.ownerId,
+            profileRole: profile?.role,
+            resolvedRole: resolved,
+            permissions: {
+                canManageFamily: RoleHelper.canManageFamily(resolved),
+                canInvite: RoleHelper.canInviteMembers(resolved),
+                canManageZones: RoleHelper.canManageSafeZones(resolved)
+            }
         });
     }
     return resolved;
-  }, [family, authUser?.uid]);
+  }, [family, authUser?.uid, profile]);
 
   const isChildAccessible = (childId: string | null) => {
       if (!childId || !family) return false;
-      const accessible = (family.childDeviceIds ?? []).includes(childId);
-
-      if (process.env.NODE_ENV === 'development' && childId) {
-          console.log("TENANT ISOLATION CHECK:", {
-              familyId: family.familyId,
-              requestedChildId: childId,
-              isAccessible: accessible
-          });
-      }
-      return accessible;
+      return (family.childDeviceIds ?? []).includes(childId);
   };
 
   return (

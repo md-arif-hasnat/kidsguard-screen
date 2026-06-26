@@ -83,7 +83,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-bold text-slate-900 leading-none">{displayName}</p>
-                <p className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider">{role.replace('_', ' ')} Account</p>
+                <p className="text-[10px] font-black text-primary-600 mt-1 uppercase tracking-wider">{role} ACCOUNT</p>
               </div>
             </Link>
           </div>

@@ -378,7 +378,7 @@ export class FamilyRepository {
 
     // 3. Create/Update child record
     const childRef = doc(db, "children", childId);
-    await setDoc(childRef, {
+    const childUpdate: any = {
         childId,
         deviceId,
         name: pairingData.childName || "Unnamed Child",
@@ -386,7 +386,8 @@ export class FamilyRepository {
         familyId: familyId,
         pairedAt: serverTimestamp(),
         lastSeen: serverTimestamp()
-    }, { merge: true });
+    };
+    await setDoc(childRef, childUpdate, { merge: true });
 
     // 4. Mark code as used and store familyId for the child to pick up
     await updateDoc(codeRef, {

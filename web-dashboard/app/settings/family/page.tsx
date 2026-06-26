@@ -17,14 +17,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Globe,
-  Camera
+  Camera,
+  Copy,
+  RefreshCw,
+  XCircle
 } from 'lucide-react';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
-import { FamilyRepository, FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { FamilyRepository, FamilyRole, FamilyInvite, EmergencyContact } from '@/lib/repositories/FamilyRepository';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Copy, RefreshCw, XCircle } from 'lucide-react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -50,10 +52,10 @@ export default function FamilyManagementPage() {
   // Invite Result
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
 
-  // Debug Logging
+  // Debug Logging in Development
   useEffect(() => {
-    if (profile && family) {
-        console.log("RBAC DEBUG [Family]:", {
+    if (process.env.NODE_ENV === 'development' && profile && family) {
+        console.log("RBAC DEBUG [FamilyPage]:", {
             uid: profile.uid,
             familyId: family.familyId,
             ownerId: family.ownerId,
@@ -134,9 +136,16 @@ export default function FamilyManagementPage() {
 
   return (
     <DashboardLayout>
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Family Management</h1>
-        <p className="text-slate-500 mt-1">Manage guardians, permissions, and shared family settings.</p>
+      <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 className="text-3xl font-bold text-slate-900">Family Management</h1>
+            <p className="text-slate-500 mt-1">Manage guardians, permissions, and shared family settings.</p>
+        </div>
+        <div className="flex items-center gap-2">
+            <span className="bg-primary-50 text-primary-600 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary-100">
+                {role.replace('_', ' ')} ACCESS
+            </span>
+        </div>
       </header>
 
       {/* Tab Bar */}

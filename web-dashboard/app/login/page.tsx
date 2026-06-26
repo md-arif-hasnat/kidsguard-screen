@@ -46,8 +46,11 @@ export default function Login() {
       let profile = await ParentRepository.createOrUpdateProfile(user, provider);
 
       if (!profile.familyId) {
-          const familyId = await FamilyRepository.createFamily(user.uid);
-          await ParentRepository.updateFamilyId(user.uid, familyId);
+          const familyId = await FamilyRepository.createFamily(user.uid, user.email, user.displayName);
+          await ParentRepository.updateProfile(user.uid, {
+              familyId,
+              role: 'OWNER'
+          });
           localStorage.setItem("kidsguard_family_id", familyId);
       } else {
           localStorage.setItem("kidsguard_family_id", profile.familyId);

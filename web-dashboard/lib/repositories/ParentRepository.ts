@@ -10,6 +10,7 @@ export interface ParentProfile {
   avatarId?: string;
   provider: string;
   familyId: string | null;
+  role?: string; // Optional cached role
   region?: 'DE' | 'BD' | 'US' | 'Global';
   createdAt: any;
   lastLoginAt: any;
@@ -51,6 +52,7 @@ export class ParentRepository {
       avatarId: existing?.avatarId || "parent_1",
       provider: provider,
       lastLoginAt: serverTimestamp(),
+      role: existing?.role || (existing?.familyId ? undefined : 'OWNER') // Default to OWNER for first family creation
     };
 
     if (!existing) {
