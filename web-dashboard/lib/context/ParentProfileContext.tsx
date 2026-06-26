@@ -41,9 +41,23 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
         setLoading(false);
         return;
     }
-    return ParentRepository.listenToProfile(authUser.uid, (data) => {
+    return ParentRepository.listenToProfile(authUser.uid, async (data) => {
         setProfile(data);
-        if (!data?.familyId) {
+
+        // Auto-provisioning for users missing a familyId (Backward Compatibility)
+        if (data && !data.familyId && !loading) {
+            console.log("CONTEXT: Auto-provisioning missing family for user:", authUser.uid);
+            try {
+                const newFId = await FamilyRepository.createFamily(authUser.uid, authUser.email, data.displayName);
+                await ParentRepository.updateProfile(authUser.uid, {
+                    familyId: newFId,
+                    role: 'OWNER'
+                });
+            } catch (e) {
+                console.error("CONTEXT: Failed to auto-provision family:", e);
+                setLoading(false);
+            }
+        } else if (!data?.familyId) {
             setFamily(null);
             setLoading(false);
         }
@@ -56,6 +70,7 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
         setFamily(null);
         return;
     }
+    setLoading(true); // Ensure loading is true while fetching family data
     return FamilyRepository.listenToFamily(profile.familyId, (data) => {
         setFamily(data);
         setLoading(false);

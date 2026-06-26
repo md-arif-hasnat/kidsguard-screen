@@ -44,29 +44,21 @@ export default function Home() {
     }
 
     if (profile) {
-        console.log(`DEBUG: Parent profile loaded: ${profile.uid}`);
-
-        // Auto-provisioning if familyId is missing
-        if (!profile.familyId && !profileLoading) {
-            console.log("DEBUG: No familyId found for parent. Creating new family...");
-            const createFam = async () => {
-                try {
-                    const newFId = await FamilyRepository.createFamily(profile.uid, profile.email, profile.displayName);
-                    await ParentRepository.updateProfile(profile.uid, {
-                        familyId: newFId,
-                        role: 'OWNER'
-                    });
-                    console.log("DEBUG: New family created successfully:", newFId);
-                } catch (e) {
-                    console.error("DEBUG: Failed to auto-provision family:", e);
-                }
-            };
-            createFam();
-        }
-
-        if (family) {
+        // If family is already loaded or profile has no familyId yet (new account)
+        // we can stop showing the local "Syncing" loader.
+        // login/page.tsx handles the initial creation.
+        if (family || (!profile.familyId && !profileLoading)) {
             setLoading(false);
         }
+
+        // Safety timeout: if we've been syncing for more than 10 seconds, stop showing global loader
+        const timer = setTimeout(() => {
+            if (loading) {
+                console.warn("Home: Sync timeout reached. Ending loader.");
+                setLoading(false);
+            }
+        }, 10000);
+        return () => clearTimeout(timer);
     } else if (!profileLoading) {
         if (isFirebaseConfigured) {
             router.push('/login');
@@ -74,7 +66,7 @@ export default function Home() {
             setLoading(false);
         }
     }
-  }, [profile, profileLoading, family, router]);
+  }, [profile, profileLoading, family, router, loading]);
 
   // Listen to status and SOS for all children in family
   useEffect(() => {
