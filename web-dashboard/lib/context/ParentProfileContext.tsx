@@ -30,23 +30,26 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 1. Sync with Firebase Auth
   useEffect(() => {
-    return observeAuth(setAuthUser);
+    return observeAuth((user) => {
+        setAuthUser(user);
+        if (!user) {
+            setProfile(null);
+            setFamily(null);
+            setLoading(false);
+        }
+    });
   }, []);
 
   // 2. Sync with Parent Profile
   useEffect(() => {
-    if (!authUser) {
-        setProfile(null);
-        setFamily(null);
-        setLoading(false);
-        return;
-    }
-    return ParentRepository.listenToProfile(authUser.uid, async (data) => {
+    if (!authUser) return;
+
+    const unsub = ParentRepository.listenToProfile(authUser.uid, async (data) => {
         setProfile(data);
 
-        // Auto-provisioning for users missing a familyId (Backward Compatibility)
-        if (data && !data.familyId && !loading) {
-            console.log("CONTEXT: Auto-provisioning missing family for user:", authUser.uid);
+        // Auto-provisioning logic (Linear fallback)
+        if (data && !data.familyId) {
+            console.log("CONTEXT: Auto-provisioning family for:", authUser.uid);
             try {
                 const newFId = await FamilyRepository.createFamily(authUser.uid, authUser.email, data.displayName);
                 await ParentRepository.updateProfile(authUser.uid, {
@@ -54,49 +57,37 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
                     role: 'OWNER'
                 });
             } catch (e) {
-                console.error("CONTEXT: Failed to auto-provision family:", e);
+                console.error("CONTEXT: Auto-provision failed", e);
                 setLoading(false);
             }
-        } else if (!data?.familyId) {
-            setFamily(null);
-            setLoading(false);
+        } else if (!data) {
+            // Profile doesn't exist yet, should be created by Login page
+            // But if it's somehow missing, we stay in loading or handle error
         }
     });
+
+    return () => unsub();
   }, [authUser]);
 
   // 3. Sync with Family Data
   useEffect(() => {
     if (!profile?.familyId) {
-        setFamily(null);
+        if (profile) setLoading(false); // If profile loaded but no familyId (and not auto-provisioning), stop loading
         return;
     }
-    setLoading(true); // Ensure loading is true while fetching family data
-    return FamilyRepository.listenToFamily(profile.familyId, (data) => {
+
+    setLoading(true);
+    const unsub = FamilyRepository.listenToFamily(profile.familyId, (data) => {
         setFamily(data);
         setLoading(false);
     });
+
+    return () => unsub();
   }, [profile?.familyId]);
 
   // 4. Resolve Role (Single Source of Truth)
   const role = useMemo(() => {
-    const resolved = RoleHelper.resolveRole(family, authUser?.uid, profile);
-
-    // Debug log for role resolution in development
-    if (process.env.NODE_ENV === 'development' && authUser) {
-        console.log("RBAC DEBUG:", {
-            uid: authUser.uid,
-            familyId: family?.familyId,
-            ownerId: family?.ownerId,
-            profileRole: profile?.role,
-            resolvedRole: resolved,
-            permissions: {
-                canManageFamily: RoleHelper.canManageFamily(resolved),
-                canInvite: RoleHelper.canInviteMembers(resolved),
-                canManageZones: RoleHelper.canManageSafeZones(resolved)
-            }
-        });
-    }
-    return resolved;
+    return RoleHelper.resolveRole(family, authUser?.uid, profile);
   }, [family, authUser?.uid, profile]);
 
   const isChildAccessible = (childId: string | null) => {

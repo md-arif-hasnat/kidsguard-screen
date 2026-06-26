@@ -52,8 +52,16 @@ export class ParentRepository {
       avatarId: existing?.avatarId || "parent_1",
       provider: provider,
       lastLoginAt: serverTimestamp(),
-      role: existing?.role || (existing?.familyId ? undefined : 'OWNER') // Default to OWNER for first family creation
     };
+
+    if (existing?.role) {
+        profile.role = existing.role;
+    } else if (!existing?.familyId) {
+        // Only auto-assign OWNER if they don't have a family yet (new creator)
+        profile.role = 'OWNER';
+    }
+    // Note: If they have a familyId but no role, we leave it out of this setDoc
+    // to avoid writing 'undefined' and let RoleHelper resolve it from family members.
 
     if (!existing) {
       profile.createdAt = serverTimestamp();

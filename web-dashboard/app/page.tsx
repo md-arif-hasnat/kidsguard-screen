@@ -20,7 +20,7 @@ import ChildAvatar from '@/components/ChildAvatar';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 
 export default function Home() {
-  const { profile, family: profileFamily, loading: profileLoading } = useParentProfile();
+  const { profile, family: profileFamily, loading: contextLoading } = useParentProfile();
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
   const [childrenActivities, setChildrenActivities] = useState<Record<string, ActivityEvent[]>>({});
@@ -44,29 +44,25 @@ export default function Home() {
     }
 
     if (profile) {
-        // If family is already loaded or profile has no familyId yet (new account)
-        // we can stop showing the local "Syncing" loader.
-        // login/page.tsx handles the initial creation.
-        if (family || (!profile.familyId && !profileLoading)) {
+        // If family is loaded OR profile exists but has no familyId yet (context will auto-provision)
+        // OR context has finished all loading
+        if (family || !contextLoading) {
             setLoading(false);
         }
 
-        // Safety timeout: if we've been syncing for more than 10 seconds, stop showing global loader
+        // Safety timeout to prevent infinite hang
         const timer = setTimeout(() => {
-            if (loading) {
-                console.warn("Home: Sync timeout reached. Ending loader.");
-                setLoading(false);
-            }
-        }, 10000);
+            setLoading(false);
+        }, 8000);
         return () => clearTimeout(timer);
-    } else if (!profileLoading) {
+    } else if (!contextLoading) {
         if (isFirebaseConfigured) {
             router.push('/login');
         } else {
             setLoading(false);
         }
     }
-  }, [profile, profileLoading, family, router, loading]);
+  }, [profile, contextLoading, family, router]);
 
   // Listen to status and SOS for all children in family
   useEffect(() => {
