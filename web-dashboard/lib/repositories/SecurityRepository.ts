@@ -8,7 +8,8 @@ import {
   where,
   writeBatch,
   getDoc,
-  orderBy
+  orderBy,
+  limit
 } from "firebase/firestore";
 import { deleteUser } from "firebase/auth";
 
@@ -21,54 +22,57 @@ export class SecurityRepository {
     // 1. Delete parent profile
     batch.delete(doc(db, "parents", uid));
 
-    // 2. Remove from audit logs actor
-    // (Logs usually persist for compliance but we could anonymize)
-
     await batch.commit();
 
-    // 3. Delete from Auth
+    // 2. Delete from Auth
     const user = auth?.currentUser;
     if (user && user.uid === uid) {
       await deleteUser(user);
     }
   }
 
-  static async exportAllData(uid: string, familyId: string): Promise<any> {
-    if (!db) return null;
+  /**
+   * Part 3 - Data Export
+   * Fetches all sensitive data for the family and returns a structured object.
+   */
+  static async exportAllFamilyData(familyId: string): Promise<any> {
+    if (!db || !familyId) return null;
 
     const exportData: any = {
       exportedAt: new Date().toISOString(),
-      profile: {},
       family: {},
-      auditLogs: [],
-      children: []
+      children: [],
+      auditLogs: []
     };
 
-    // Fetch Profile
-    const profileSnap = await getDoc(doc(db, "parents", uid));
-    if (profileSnap.exists()) exportData.profile = profileSnap.data();
-
-    // Fetch Family
+    // 1. Fetch Family Doc
     const familySnap = await getDoc(doc(db, "families", familyId));
     if (familySnap.exists()) {
         exportData.family = familySnap.data();
+    }
 
-        // Fetch Audit Logs
-        const logsSnap = await getDocs(query(collection(db, "auditLogs"), where("familyId", "==", familyId)));
-        exportData.auditLogs = logsSnap.docs.map(d => d.data());
+    // 2. Fetch Audit Logs
+    const logsSnap = await getDocs(query(collection(db, "auditLogs"), where("familyId", "==", familyId)));
+    exportData.auditLogs = logsSnap.docs.map(d => d.data());
 
-        // Fetch Children Data (Summary)
-        const childrenIds = exportData.family.childDeviceIds || [];
-        for (const childId of childrenIds) {
-            const childSnap = await getDoc(doc(db, "children", childId));
-            if (childSnap.exists()) {
-                exportData.children.push({
-                    info: childSnap.data(),
-                    // In a full export, we'd loop through locations, activities etc.
-                    // For MVP we just export the main records.
-                });
-            }
-        }
+    // 3. Fetch Children Data
+    const childIds = exportData.family.childDeviceIds || [];
+    for (const childId of childIds) {
+        const childObj: any = { id: childId, details: {}, status: {}, safeZones: [], activities: [] };
+
+        const childSnap = await getDoc(doc(db, "children", childId));
+        if (childSnap.exists()) childObj.details = childSnap.data();
+
+        const statusSnap = await getDoc(doc(db, "children", childId, "status", "current"));
+        if (statusSnap.exists()) childObj.status = statusSnap.data();
+
+        const zonesSnap = await getDocs(collection(db, "children", childId, "safeZones"));
+        childObj.safeZones = zonesSnap.docs.map(d => d.data());
+
+        const activitiesSnap = await getDocs(query(collection(db, "children", childId, "activities"), orderBy("timestamp", "desc"), limit(100)));
+        childObj.activities = activitiesSnap.docs.map(d => d.data());
+
+        exportData.children.push(childObj);
     }
 
     return exportData;

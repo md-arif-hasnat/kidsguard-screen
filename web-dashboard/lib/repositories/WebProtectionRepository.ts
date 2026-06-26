@@ -1,5 +1,6 @@
 import { db } from "../firebase";
 import { doc, onSnapshot, collection, query, orderBy, setDoc, updateDoc } from "firebase/firestore";
+import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export enum WebCategory {
     SAFE = "SAFE",
@@ -62,6 +63,18 @@ export class WebProtectionRepository {
         if (!db || !childId) return;
         const ref = doc(db, "children", childId, "webRules", "current");
         await setDoc(ref, rules);
+
+        await AuditRepository.log({
+            actorUid: "current_user",
+            actorEmail: "parent",
+            familyId: localStorage.getItem("kidsguard_family_id") || "unknown",
+            childId: childId,
+            action: AuditAction.WEB_RULE_CHANGED,
+            targetType: 'WEB',
+            targetId: childId,
+            severity: AuditSeverity.NOTICE,
+            metadata: { rules }
+        });
     }
 
     static listenToWebActivity(childId: string, date: string, onUpdate: (events: WebActivityEvent[]) => void) {

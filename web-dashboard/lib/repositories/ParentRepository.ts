@@ -1,6 +1,6 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
-import { AuditRepository, AuditAction } from "./AuditRepository";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp } from "firebase/firestore";
+import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export interface ParentProfile {
   uid: string;
@@ -77,9 +77,12 @@ export class ParentRepository {
       await AuditRepository.log({
         familyId: updated.familyId,
         actorUid: user.uid,
-        actorName: updated.displayName || "Parent",
-        action: AuditAction.LOGIN_SUCCESS,
-        details: `Successful login via ${provider}`
+        actorEmail: updated.email || "unknown",
+        action: AuditAction.LOGIN,
+        targetType: 'SECURITY',
+        targetId: user.uid,
+        severity: AuditSeverity.INFO,
+        metadata: { provider }
       });
     }
 

@@ -1,7 +1,7 @@
 import { db } from "../firebase";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
-import { AuditRepository, AuditAction } from "./AuditRepository";
+import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export enum CommandType {
   REFRESH_LOCATION = "REFRESH_LOCATION",
@@ -51,12 +51,15 @@ export class CommandRepository {
 
       // Part 4: Command Audit
       await AuditRepository.log({
-        familyId,
         actorUid: parentId,
-        actorName: parentName,
+        actorEmail: parentName,
+        familyId: familyId,
+        childId: childId,
         action: AuditAction.REMOTE_COMMAND_SENT,
-        targetId: childId,
-        details: `Sent ${commandType} command`
+        targetType: 'CHILD',
+        targetId: commandId,
+        severity: AuditSeverity.NOTICE,
+        metadata: { commandType, payload }
       });
 
       console.log(`Command ${commandType} sent to ${childId}`);

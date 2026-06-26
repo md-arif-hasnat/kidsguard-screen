@@ -1,7 +1,7 @@
 import { db } from "../firebase";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
-import { AuditRepository, AuditAction } from "./AuditRepository";
+import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export type SafeZoneType = 'Home' | 'School' | 'Playground' | 'Relative House' | 'Custom';
 
@@ -77,18 +77,20 @@ export class SafeZoneRepository {
       ...zone,
       id,
       childId,
-      familyId, // Explicitly scope new zones by familyId too
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
     await AuditRepository.log({
-      familyId,
       actorUid: "current_user",
-      actorName: "Parent",
-      action: AuditAction.SAFE_ZONE_EDITED,
-      targetId: childId,
-      details: `Added safe zone: ${zone.name}`
+      actorEmail: "parent",
+      familyId,
+      action: AuditAction.SAFE_ZONE_CREATED,
+      targetType: 'ZONE',
+      targetId: id,
+      childId: childId,
+      severity: AuditSeverity.INFO,
+      metadata: { name: zone.name }
     });
 
     return id;
@@ -103,12 +105,15 @@ export class SafeZoneRepository {
     });
 
     await AuditRepository.log({
-      familyId,
       actorUid: "current_user",
-      actorName: "Parent",
+      actorEmail: "parent",
+      familyId,
       action: AuditAction.SAFE_ZONE_EDITED,
-      targetId: childId,
-      details: `Updated safe zone: ${updates.name || zoneId}`
+      targetType: 'ZONE',
+      targetId: zoneId,
+      childId: childId,
+      severity: AuditSeverity.INFO,
+      metadata: { updates }
     });
   }
 
@@ -118,12 +123,14 @@ export class SafeZoneRepository {
     await deleteDoc(zoneRef);
 
     await AuditRepository.log({
-      familyId,
       actorUid: "current_user",
-      actorName: "Parent",
-      action: AuditAction.SAFE_ZONE_EDITED,
-      targetId: childId,
-      details: `Deleted safe zone: ${zoneId}`
+      actorEmail: "parent",
+      familyId,
+      action: AuditAction.SAFE_ZONE_DELETED,
+      targetType: 'ZONE',
+      targetId: zoneId,
+      childId: childId,
+      severity: AuditSeverity.WARNING
     });
   }
 

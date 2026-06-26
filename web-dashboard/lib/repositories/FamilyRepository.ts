@@ -11,7 +11,7 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
-import { AuditRepository, AuditAction } from "./AuditRepository";
+import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export enum FamilyRole {
   OWNER = "OWNER",
@@ -64,6 +64,7 @@ export interface FamilySettings {
   timezone: string;
   country: string;
   language: string;
+  dataRetentionDays?: number; // Phase AI
 }
 
 export interface FamilyData {
@@ -113,11 +114,24 @@ export class FamilyRepository {
         name: `${parentDisplayName || 'New'} Family`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         country: "US", // Default
-        language: "en"
+        language: "en",
+        dataRetentionDays: 365 // Default to 1 year
       },
       createdAt: serverTimestamp()
     };
     await setDoc(doc(db, "families", familyId), family);
+
+    await AuditRepository.log({
+        actorUid: parentId,
+        actorEmail: parentEmail || "unknown",
+        familyId,
+        action: AuditAction.FAMILY_CREATED,
+        targetType: 'FAMILY',
+        targetId: familyId,
+        severity: AuditSeverity.NOTICE,
+        metadata: { familyName: family.settings.name }
+    });
+
     return familyId;
   }
 
@@ -162,11 +176,14 @@ export class FamilyRepository {
     });
 
     await AuditRepository.log({
-      familyId,
       actorUid: invitedBy,
-      actorName: invitedByName || "Parent",
+      actorEmail: "current_user", // Simplification
+      familyId,
       action: AuditAction.MEMBER_INVITED,
-      details: `Invited ${email} as ${role}`
+      targetType: 'MEMBER',
+      targetId: email,
+      severity: AuditSeverity.INFO,
+      metadata: { role, inviteId }
     });
 
     console.log(`WEB: Invite created. Link: /invite/${inviteId}?token=${token}`);
@@ -231,11 +248,14 @@ export class FamilyRepository {
     await updateDoc(parentRef, { familyId: invite.familyId });
 
     await AuditRepository.log({
-        familyId: invite.familyId,
         actorUid: uid,
-        actorName: displayName,
-        action: AuditAction.MEMBER_JOINED,
-        details: `Joined family as ${invite.role}`
+        actorEmail: email,
+        familyId: invite.familyId,
+        action: AuditAction.INVITE_ACCEPTED,
+        targetType: 'MEMBER',
+        targetId: uid,
+        severity: AuditSeverity.NOTICE,
+        metadata: { role: invite.role, invitedBy: invite.invitedBy }
     });
 
     return invite.familyId;
@@ -273,12 +293,14 @@ export class FamilyRepository {
     await updateDoc(familyRef, { members: updatedMembers });
 
     await AuditRepository.log({
+      actorUid: "current_user",
+      actorEmail: "admin",
       familyId,
-      actorUid: "current_user", // Simplification for MVP, should be passed in
-      actorName: "Admin",
       action: AuditAction.ROLE_CHANGED,
+      targetType: 'MEMBER',
       targetId: memberUid,
-      details: `Changed role to ${newRole}`
+      severity: AuditSeverity.NOTICE,
+      metadata: { newRole }
     });
   }
 
@@ -294,12 +316,13 @@ export class FamilyRepository {
     await updateDoc(familyRef, { members: updatedMembers });
 
     await AuditRepository.log({
-      familyId,
       actorUid: "current_user",
-      actorName: "Admin",
+      actorEmail: "admin",
+      familyId,
       action: AuditAction.MEMBER_REMOVED,
+      targetType: 'MEMBER',
       targetId: memberUid,
-      details: `Removed member from family`
+      severity: AuditSeverity.WARNING
     });
   }
 
@@ -397,12 +420,14 @@ export class FamilyRepository {
     });
 
     await AuditRepository.log({
+        actorUid: "admin",
+        actorEmail: "admin",
         familyId,
-        actorUid: "admin", // Pair usually happens via a form, actor info should be passed
-        actorName: "Parent",
         action: AuditAction.CHILD_PAIRED,
+        targetType: 'CHILD',
         targetId: childId,
-        details: `Paired new child: ${pairingData.childName || childId}`
+        severity: AuditSeverity.NOTICE,
+        metadata: { childName: pairingData.childName || childId }
     });
 
     console.log(`WEB: Pairing successful for child ${childId}`);
