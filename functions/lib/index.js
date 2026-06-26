@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosChanged = exports.onActivityCreated = void 0;
+exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosChanged = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -169,6 +169,24 @@ exports.onFamilyUpdated = functions.firestore
         }
     }
 });
+exports.onProtectionModeChanged = functions.firestore
+    .document('children/{childId}/protectionModes/{modeId}')
+    .onWrite(async (change, context) => {
+    const { childId } = context.params;
+    const after = change.after.data();
+    const before = change.before.data();
+    if (!after)
+        return;
+    if (after.enabled && (!before || !before.enabled)) {
+        await broadcastToParents(childId, {
+            title: `🛡️ Mode Activated: ${after.name}`,
+            body: `Protection rules for ${after.type} are now active.`,
+            type: 'SAFE_ZONE',
+            childId: childId,
+            clickAction: `/dashboard/${childId}`
+        });
+    }
+});
 class EmailService {
     static async sendInviteEmail(params) {
         console.log(`
@@ -195,8 +213,11 @@ async function broadcastToParents(childId, payload) {
         return;
     }
     const family = familyQuery.docs[0].data();
-    const parentIds = family.parentIds;
-    const promises = parentIds.map(uid => notifyParent(uid, payload));
+    const members = family.members || [];
+    const parentUids = members
+        .filter(m => m.role === 'OWNER' || m.role === 'PARENT')
+        .map(m => m.uid);
+    const promises = parentUids.map(uid => notifyParent(uid, payload));
     await Promise.all(promises);
 }
 async function notifyParent(uid, payload) {

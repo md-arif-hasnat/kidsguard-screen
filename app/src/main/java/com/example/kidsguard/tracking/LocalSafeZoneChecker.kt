@@ -114,6 +114,9 @@ class LocalSafeZoneChecker(
         zoneId: String?,
         zoneName: String?
     ) {
+        // Update preference helper for local automation (Protection Modes)
+        prefHelper.currentZoneId = if (inside) zoneId else null
+
         // SafeZoneRepository should expose a way to update the "status/current" fields
         safeZoneRepository.updateSyncStatus(
             zoneName ?: "Unknown",

@@ -186,6 +186,29 @@ export const onFamilyUpdated = functions.firestore
         }
     });
 
+/**
+ * Triggered when a protection mode is created or updated.
+ */
+export const onProtectionModeChanged = functions.firestore
+    .document('children/{childId}/protectionModes/{modeId}')
+    .onWrite(async (change, context) => {
+        const { childId } = context.params;
+        const after = change.after.data();
+        const before = change.before.data();
+
+        if (!after) return; // Deleted
+
+        if (after.enabled && (!before || !before.enabled)) {
+            await broadcastToParents(childId, {
+                title: `🛡️ Mode Activated: ${after.name}`,
+                body: `Protection rules for ${after.type} are now active.`,
+                type: 'SAFE_ZONE', // Reusing type or add new
+                childId: childId,
+                clickAction: `/dashboard/${childId}`
+            });
+        }
+    });
+
 // --- Helper Functions ---
 
 class EmailService {
@@ -230,10 +253,13 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
     }
 
     const family = familyQuery.docs[0].data();
-    const parentIds = family.parentIds as string[];
+    const members = family.members as any[] || [];
+    const parentUids = members
+        .filter(m => m.role === 'OWNER' || m.role === 'PARENT')
+        .map(m => m.uid);
 
     // 2. Notify each parent
-    const promises = parentIds.map(uid => notifyParent(uid, payload));
+    const promises = parentUids.map(uid => notifyParent(uid, payload));
     await Promise.all(promises);
 }
 

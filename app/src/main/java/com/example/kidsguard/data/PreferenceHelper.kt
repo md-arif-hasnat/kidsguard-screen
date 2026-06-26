@@ -138,6 +138,10 @@ class PreferenceHelper(context: Context) {
     var lastSeenVersionCode: Int
         get() = prefs.getInt("last_seen_version_code", 0)
         set(value) = prefs.edit().putInt("last_seen_version_code", value).apply()
+
+    var currentZoneId: String?
+        get() = prefs.getString("current_zone_id", null)
+        set(value) = prefs.edit().putString("current_zone_id", value).apply()
 }
 
 object RemoteStatusService {

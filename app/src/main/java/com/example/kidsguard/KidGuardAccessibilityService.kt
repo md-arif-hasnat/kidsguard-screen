@@ -9,11 +9,13 @@ import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.wellbeing.WellbeingManager
 import com.example.kidsguard.web.WebProtectionManager
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
+import com.example.kidsguard.managers.ProtectionModeManager
 
 class KidGuardAccessibilityService : AccessibilityService() {
 
     private var wellbeingManager: WellbeingManager? = null
     private var webManager: WebProtectionManager? = null
+    private var protectionModeManager: ProtectionModeManager? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -21,12 +23,20 @@ class KidGuardAccessibilityService : AccessibilityService() {
         val sync = FirebaseRemoteSyncProvider(applicationContext)
         wellbeingManager = WellbeingManager(applicationContext, prefHelper, sync)
         webManager = WebProtectionManager(applicationContext, prefHelper, sync)
+        protectionModeManager = ProtectionModeManager(applicationContext, prefHelper.childId)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val prefHelper = PreferenceHelper(applicationContext)
         
-        // 1. Global Lock Mode
+        // 1. Protection Modes Enforcement (Highest Priority)
+        val packageName = event.packageName?.toString() ?: return
+        if (packageName != applicationContext.packageName && protectionModeManager?.isAppBlocked(packageName) == true) {
+            blockApp(packageName)
+            return
+        }
+
+        // 2. Global Lock Mode (Legacy support)
         if (prefHelper.isLocked) {
             handleGlobalLock(event)
             return

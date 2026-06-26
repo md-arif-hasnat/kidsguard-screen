@@ -35,3 +35,24 @@ data class FamilyDoc(
     val childDeviceIds: List<String> = emptyList(),
     val createdAt: Timestamp? = null
 )
+
+data class ProtectionModeSchedule(
+    val days: List<Int> = emptyList(),
+    val startTime: String = "",
+    val endTime: String = ""
+)
+
+data class ProtectionModeDoc(
+    val id: String = "",
+    val name: String = "",
+    val type: String = "SCHOOL",
+    val enabled: Boolean = false,
+    val schedule: ProtectionModeSchedule? = null,
+    val triggerZoneId: String? = null,
+    val allowedApps: List<String> = emptyList(),
+    val blockedApps: List<String> = emptyList(),
+    val allowedDomains: List<String> = emptyList(),
+    val blockedDomains: List<String> = emptyList(),
+    val screenTimeLimitMinutes: Int? = null,
+    val lockDevice: Boolean = false
+)

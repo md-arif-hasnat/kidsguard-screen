@@ -70,6 +70,7 @@ import WebProtectionControls from '@/components/web/WebProtectionControls';
 import WebAccessRequestsPanel from '@/components/web/WebAccessRequestsPanel';
 import RemoteControlPanel from '@/components/RemoteControlPanel';
 import ChildAvatar from '@/components/ChildAvatar';
+import ProtectionModePanel from '@/components/modes/ProtectionModePanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -87,7 +88,7 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
-type Tab = 'overview' | 'intelligence' | 'wellbeing' | 'internet' | 'health';
+type Tab = 'overview' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -377,6 +378,7 @@ export default function ChildDashboard() {
           <TabButton active={activeTab === 'intelligence'} onClick={() => setActiveTab('intelligence')} icon={Brain} label="Intelligence" />
           <TabButton active={activeTab === 'wellbeing'} onClick={() => setActiveTab('wellbeing')} icon={ClockIcon} label="Wellbeing" />
           <TabButton active={activeTab === 'internet'} onClick={() => setActiveTab('internet')} icon={GlobeIcon} label="Internet" />
+          <TabButton active={activeTab === 'modes'} onClick={() => setActiveTab('modes')} icon={Shield} label="Modes" />
           <TabButton active={activeTab === 'health'} onClick={() => setActiveTab('health')} icon={Smartphone} label="Device Health" />
       </div>
 
@@ -693,6 +695,17 @@ export default function ChildDashboard() {
               ) : (
                   <p>Loading device details...</p>
               )}
+          </div>
+      )}
+
+      {activeTab === 'modes' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <ProtectionModePanel
+                  childId={childId}
+                  familyId={family?.familyId || ''}
+                  safeZones={safeZones}
+                  role={role}
+              />
           </div>
       )}
 
