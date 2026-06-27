@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   ArrowUpCircle,
   FileCode,
-  Lock
+  Lock,
+  Monitor
 } from 'lucide-react';
 import { ConfigRepository, ReleaseChannel, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
@@ -39,6 +40,11 @@ export default function ReleaseManager() {
   const [fileSize, setFileSize] = useState('');
   const [minAndroid, setMinAndroid] = useState('8.0');
 
+  // Web Fields
+  const [webVersion, setWebVersion] = useState('1.0.0');
+  const [webMessage, setWebMessage] = useState('New web version available.');
+  const [webNotes, setWebNotes] = useState('');
+
   const isAdmin = role === FamilyRole.OWNER;
 
   useEffect(() => {
@@ -57,9 +63,13 @@ export default function ReleaseManager() {
           setMandatory(active.mandatoryUpdate);
           setChannel(active.releaseChannel);
           setMessage(active.updateMessage);
-          setReleaseNotes(active.releaseNotes);
+          setReleaseNotes(Array.isArray(active.releaseNotes) ? active.releaseNotes.join('\n') : active.releaseNotes);
           setFileSize(active.fileSize);
           setMinAndroid(active.minimumAndroidVersion);
+
+          setWebVersion(active.webVersion || '1.0.0');
+          setWebMessage(active.webUpdateMessage || 'New web version available.');
+          setWebNotes(Array.isArray(active.webReleaseNotes) ? active.webReleaseNotes.join('\n') : active.webReleaseNotes || '');
         }
         setHistory(releases);
       } catch (err) {
@@ -103,9 +113,12 @@ export default function ReleaseManager() {
         mandatoryUpdate: mandatory,
         releaseChannel: channel,
         updateMessage: message,
-        releaseNotes: notes,
+        releaseNotes: notes.split('\n').filter(n => n.trim() !== ''),
         fileSize,
-        minimumAndroidVersion: minAndroid
+        minimumAndroidVersion: minAndroid,
+        webVersion,
+        webUpdateMessage: webMessage,
+        webReleaseNotes: webNotes.split('\n').filter(n => n.trim() !== '')
       }, {
         uid: profile?.uid || "unknown",
         email: profile?.email
@@ -274,7 +287,7 @@ export default function ReleaseManager() {
                             />
                         </div>
                         <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Release Notes</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Release Notes (One per line)</label>
                             <textarea
                                 rows={4}
                                 value={notes}
@@ -282,6 +295,43 @@ export default function ReleaseManager() {
                                 placeholder="✓ Added Safe Zone alerts"
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm resize-none"
                             />
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-6">
+                        <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+                            <Monitor size={16} className="text-primary-600" />
+                            Web / PWA Update Configuration
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Web Version</label>
+                                <input
+                                    type="text"
+                                    value={webVersion}
+                                    onChange={e => setWebVersion(e.target.value)}
+                                    placeholder="1.0.0"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Web Update Message</label>
+                                <input
+                                    type="text"
+                                    value={webMessage}
+                                    onChange={e => setWebMessage(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm"
+                                />
+                            </div>
+                            <div className="space-y-1.5 md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Web Release Notes (One per line)</label>
+                                <textarea
+                                    rows={3}
+                                    value={webNotes}
+                                    onChange={e => setWebNotes(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm resize-none"
+                                />
+                            </div>
                         </div>
                     </div>
 

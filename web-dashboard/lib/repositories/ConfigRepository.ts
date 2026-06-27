@@ -13,7 +13,10 @@ export interface UpdateConfig {
   releasedAt: any;
   fileSize: string;
   minimumAndroidVersion: string;
-  releaseNotes: string;
+  releaseNotes: string | string[]; // Support both formats
+  webVersion?: string;
+  webUpdateMessage?: string;
+  webReleaseNotes?: string | string[];
 }
 
 export interface AppRelease extends UpdateConfig {
