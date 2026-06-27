@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ParentProfileProvider } from "@/lib/context/ParentProfileContext";
@@ -7,7 +7,25 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "KidsGuard Parent Dashboard",
-  description: "Monitor and manage your children's safety",
+  description: "Enterprise-grade family safety and child protection dashboard.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "KidsGuard",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#020617",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
