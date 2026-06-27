@@ -57,9 +57,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var syncProvider: RemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
     private lateinit var authRepository: AuthRepository
+    private lateinit var remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository
+    private lateinit var protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository
     private lateinit var childStatusManager: ChildStatusManager
     private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
     private lateinit var notificationEngine: LocalNotificationEngine
+    private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
     private lateinit var locationProvider: LocalLocationProvider
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var blockedPackageName = mutableStateOf<String?>(null)
@@ -84,12 +87,16 @@ class MainActivity : ComponentActivity() {
         updateRepository = UpdateRepository(this)
         trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         authRepository = AuthRepository(this)
+        protectionModeRepository = com.example.kidsguard.repository.ProtectionModeRepository()
+        parentNotificationManager = com.example.kidsguard.notifications.ParentNotificationManager(this)
 
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
             FirebaseRemoteSyncProvider(this)
         } else {
             LocalMockSyncProvider()
         }
+
+        remoteCommandRepository = com.example.kidsguard.repository.RemoteCommandRepository(syncProvider)
 
         locationRepository = LocationRepository(this, repository, knownRouteRepository, reverseGeocoder, errorLogRepository, syncProvider)
         sosRepository = SosRepository(this)
@@ -179,6 +186,9 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Log.i("MainActivity", "User already signed in: ${currentUser.uid}")
                     authRepository.registerDevice()
+                    if (prefHelper.userRole == "PARENT") {
+                        parentNotificationManager.registerParentDevice()
+                    }
                 }
             }
         }
@@ -246,6 +256,13 @@ class MainActivity : ComponentActivity() {
                         commandHandler = commandHandler,
                         updateRepository = updateRepository,
                         authRepository = authRepository,
+                        protectionModeRepository = protectionModeRepository,
+                        remoteCommandRepository = remoteCommandRepository,
+                        onParentLoginSuccess = {
+                            lifecycleScope.launch {
+                                parentNotificationManager.registerParentDevice()
+                            }
+                        },
                         blockedPackage = blockedPackageName.value,
                         blockedUrl = blockedUrl.value,
                         onRequestWebAccess = { url ->

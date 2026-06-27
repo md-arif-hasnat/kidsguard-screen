@@ -44,6 +44,28 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    suspend fun signInWithEmail(email: String, password: String): Boolean {
+        return try {
+            val result = auth.signInWithEmailAndPassword(email, password).await()
+            prefs.firebaseUid = result.user?.uid
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Email Sign-in failed", e)
+            false
+        }
+    }
+
+    suspend fun signUpWithEmail(email: String, password: String): Boolean {
+        return try {
+            val result = auth.createUserWithEmailAndPassword(email, password).await()
+            prefs.firebaseUid = result.user?.uid
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Email Sign-up failed", e)
+            false
+        }
+    }
+
     suspend fun registerDevice(): Boolean {
         if (!FirebaseConfig.isFirebaseConfigured(context)) {
             Log.w(TAG, "Device registration skipped: Firebase not configured")

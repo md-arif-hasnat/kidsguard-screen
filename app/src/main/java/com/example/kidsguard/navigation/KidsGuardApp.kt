@@ -35,6 +35,9 @@ fun KidsGuardApp(
     commandHandler: com.example.kidsguard.sync.RemoteCommandHandler,
     updateRepository: com.example.kidsguard.update.UpdateRepository,
     authRepository: AuthRepository,
+    protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository,
+    remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository,
+    onParentLoginSuccess: () -> Unit = {},
     blockedPackage: String? = null,
     blockedUrl: String? = null,
     onRequestWebAccess: (String) -> Unit = {},
@@ -96,7 +99,16 @@ fun KidsGuardApp(
         if (currentScreen == Screen.Home) {
             when (userRole) {
                 "NONE" -> Screen.RoleSelection
-                "PARENT" -> if (pairedId == null) Screen.ParentSetup else Screen.ParentDashboard
+                "PARENT" -> {
+                    val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                    if (currentUser == null) {
+                        Screen.ParentLogin
+                    } else if (pairedId == null) {
+                        Screen.ParentSetup
+                    } else {
+                        Screen.ParentDashboard
+                    }
+                }
                 "CHILD" -> if (pairedId == null) Screen.ChildSetup else Screen.Home
                 else -> currentScreen
             }
@@ -111,13 +123,28 @@ fun KidsGuardApp(
                 onRoleSelected = { role: String ->
                     prefHelper.userRole = role
                     val nextScreen = when(role) {
-                        "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                        "PARENT" -> {
+                            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                            if (currentUser == null) Screen.ParentLogin else if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                        }
                         "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
                         else -> Screen.RoleSelection
                     }
                     onScreenChange(nextScreen)
                 },
                 onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) }
+            )
+            Screen.ParentLogin -> ParentLoginScreen(
+                authRepository = authRepository,
+                onLoginSuccess = {
+                    onParentLoginSuccess()
+                    val next = if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                    onScreenChange(next)
+                },
+                onBack = { 
+                    prefHelper.userRole = "NONE"
+                    onScreenChange(Screen.RoleSelection)
+                }
             )
             Screen.ChildSetup -> ChildSetupScreen(
                 prefHelper = prefHelper,
@@ -177,6 +204,11 @@ fun KidsGuardApp(
                 onOpenKnownRoutes = { onScreenChange(Screen.KnownRoutes) },
                 onOpenRouteDeviations = { onScreenChange(Screen.RouteDeviations) },
                 onOpenChildList = { onScreenChange(Screen.ChildList) },
+                onOpenChildDetail = { id -> 
+                    selectedChildIdFlow.value = id
+                    onScreenChange(Screen.ChildDetail)
+                },
+                onOpenNotifications = { onScreenChange(Screen.Notifications) },
                 onBack = { onScreenChange(Screen.RoleSelection) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -185,6 +217,7 @@ fun KidsGuardApp(
                 trackingManager = trackingManager,
                 syncProvider = syncProvider,
                 commandHandler = commandHandler,
+                remoteCommandRepository = remoteCommandRepository,
                 sosRepository = sosRepository,
                 routeRepository = routeRepository,
                 updateRepository = updateRepository,
@@ -192,6 +225,39 @@ fun KidsGuardApp(
                 knownRouteRepository = knownRouteRepository,
                 selectedChildIdFlow = selectedChildIdFlow
             )
+            Screen.ChildDetail -> {
+                selectedChildId?.let { id ->
+                    ChildDetailScreen(
+                        childId = id,
+                        syncProvider = syncProvider,
+                        remoteCommandRepository = remoteCommandRepository,
+                        onBack = { onScreenChange(Screen.ParentDashboard) },
+                        onOpenProtectionModes = { onScreenChange(Screen.ProtectionModes) },
+                        onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) }
+                    )
+                } ?: onScreenChange(Screen.ParentDashboard)
+            }
+            Screen.ProtectionModes -> {
+                selectedChildId?.let { id ->
+                    ProtectionModesScreen(
+                        childId = id,
+                        repository = protectionModeRepository,
+                        onBack = { onScreenChange(Screen.ChildDetail) }
+                    )
+                } ?: onScreenChange(Screen.ParentDashboard)
+            }
+            Screen.Notifications -> {
+                selectedChildId?.let { id ->
+                    NotificationsScreen(
+                        childId = id,
+                        syncProvider = syncProvider,
+                        onBack = { onScreenChange(Screen.ParentDashboard) }
+                    )
+                } ?: onScreenChange(Screen.ParentDashboard)
+            }
+            Screen.SecurityAudit -> {
+                onScreenChange(Screen.ParentDashboard)
+            }
             Screen.DailySummary -> DailySummaryScreen(
                 repository = dailySummaryRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
