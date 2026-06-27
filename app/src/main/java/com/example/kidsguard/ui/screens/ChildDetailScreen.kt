@@ -29,7 +29,8 @@ fun ChildDetailScreen(
     remoteCommandRepository: RemoteCommandRepository,
     onBack: () -> Unit,
     onOpenProtectionModes: () -> Unit,
-    onOpenLocationHistory: () -> Unit
+    onOpenLocationHistory: () -> Unit,
+    onOpenInternetProtection: () -> Unit
 ) {
     val statusState = remember { mutableStateOf<SyncChildStatus?>(null) }
     
@@ -154,32 +155,12 @@ fun ChildDetailScreen(
                     icon = Icons.Default.Public,
                     title = "Web Protection",
                     subtitle = "Content filtering and safe search",
-                    onClick = { /* TODO */ }
+                    onClick = onOpenInternetProtection
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
-    }
-}
-
-@Composable
-fun ActionIconBtn(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(8.dp)
-    ) {
-        Surface(
-            modifier = Modifier.size(48.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = color.copy(alpha = 0.1f)
-        ) {
-            Icon(icon, contentDescription = label, tint = color, modifier = Modifier.padding(12.dp))
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -191,30 +172,6 @@ fun DetailStatCard(label: String, value: String, icon: ImageVector, modifier: Mo
             Spacer(modifier = Modifier.height(4.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun ControlRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -90,6 +90,12 @@ class SafeZoneRepository {
 
     fun deleteSafeZone(id: String) {
         _safeZones.value = _safeZones.value.filter { it.id != id }
+        
+        val currentChildId = childId
+        if (syncProvider != null && currentChildId != null && currentChildId.isNotEmpty()) {
+            android.util.Log.d("SafeZoneRepo", "Syncing deleted safe zone for child: $id")
+            syncProvider?.deleteSafeZone(currentChildId, id)
+        }
     }
 
     fun addEvent(event: ActivityEvent, detailed: SyncActivityEvent? = null) {

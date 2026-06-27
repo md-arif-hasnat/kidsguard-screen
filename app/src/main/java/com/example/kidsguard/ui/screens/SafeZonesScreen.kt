@@ -1,6 +1,7 @@
 package com.example.kidsguard.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,10 +23,13 @@ import com.example.kidsguard.repository.SafeZoneRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
+fun SafeZoneListScreen(
+    repository: SafeZoneRepository, 
+    onBack: () -> Unit,
+    onAddZone: () -> Unit,
+    onEditZone: (SafeZone) -> Unit
+) {
     val safeZones by repository.safeZones.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
-    var zoneToEdit by remember { mutableStateOf<SafeZone?>(null) }
     var zoneToDelete by remember { mutableStateOf<SafeZone?>(null) }
 
     Scaffold(
@@ -40,79 +44,70 @@ fun SafeZoneListScreen(repository: SafeZoneRepository, onBack: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = onAddZone) {
                 Icon(Icons.Default.Add, contentDescription = "Add Safe Zone")
             }
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(safeZones) { zone ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ListItem(
-                        headlineContent = { Text(zone.name, fontWeight = FontWeight.Bold) },
-                        supportingContent = { 
-                            Column {
-                                Text("Type: ${zone.type}")
-                                Text("Radius: ${zone.radiusMeters.toInt()}m")
-                            }
-                        },
-                        leadingContent = {
-                            val icon = when (zone.type) {
-                                "Home" -> Icons.Default.Home
-                                "School" -> Icons.Default.School
-                                "Playground" -> Icons.Default.SportsBaseball
-                                "Mosque" -> Icons.Default.Place
-                                "Grandma" -> Icons.Default.Person
-                                else -> Icons.Default.LocationOn
-                            }
-                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(
-                                    checked = zone.enabled,
-                                    onCheckedChange = {
-                                        repository.updateSafeZone(zone.copy(enabled = it))
-                                    }
-                                )
-                                IconButton(onClick = { zoneToEdit = zone }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
-                                }
-                                IconButton(onClick = { zoneToDelete = zone }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
-                    )
+        if (safeZones.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
+                    Text("No safe zones created", color = Color.Gray)
+                    Button(onClick = onAddZone, modifier = Modifier.padding(top = 16.dp)) {
+                        Text("Create First Zone")
+                    }
                 }
             }
-        }
-
-        if (showAddDialog) {
-            SafeZoneEditDialog(
-                onDismiss = { showAddDialog = false },
-                onSave = { newZone ->
-                    repository.addSafeZone(newZone)
-                    showAddDialog = false
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(safeZones) { zone ->
+                    Card(modifier = Modifier.fillMaxWidth().clickable { onEditZone(zone) }) {
+                        ListItem(
+                            headlineContent = { Text(zone.name, fontWeight = FontWeight.Bold) },
+                            supportingContent = { 
+                                Column {
+                                    Text("Type: ${zone.type}")
+                                    Text("Radius: ${zone.radiusMeters.toInt()}m")
+                                }
+                            },
+                            leadingContent = {
+                                val icon = when (zone.type) {
+                                    "Home" -> Icons.Default.Home
+                                    "School" -> Icons.Default.School
+                                    "Playground" -> Icons.Default.SportsBaseball
+                                    "Mosque" -> Icons.Default.Place
+                                    "Grandma" -> Icons.Default.Person
+                                    else -> Icons.Default.LocationOn
+                                }
+                                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            trailingContent = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Switch(
+                                        checked = zone.enabled,
+                                        onCheckedChange = {
+                                            repository.updateSafeZone(zone.copy(enabled = it))
+                                        }
+                                    )
+                                    IconButton(onClick = { onEditZone(zone) }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                    }
+                                    IconButton(onClick = { zoneToDelete = zone }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
-            )
-        }
-
-        if (zoneToEdit != null) {
-            SafeZoneEditDialog(
-                initialZone = zoneToEdit,
-                onDismiss = { zoneToEdit = null },
-                onSave = { updatedZone ->
-                    repository.updateSafeZone(updatedZone)
-                    zoneToEdit = null
-                }
-            )
+            }
         }
 
         if (zoneToDelete != null) {

@@ -136,6 +136,23 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
+    override fun deleteSafeZone(childId: String, zoneId: String) {
+        if (childId.isEmpty() || zoneId.isEmpty()) return
+        
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection(FirebaseConfig.COL_SAFE_ZONES)
+            .document(zoneId)
+            .delete()
+            .addOnSuccessListener {
+                Log.d(TAG, "Safe zone deleted successfully from child $childId: $zoneId")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to delete safe zone from child $childId", e)
+                errorLogger.addError(TAG, "Failed to delete safe zone", e)
+            }
+    }
+
     override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent) {
         if (event.childId.isEmpty()) return
         

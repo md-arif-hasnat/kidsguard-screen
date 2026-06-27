@@ -49,6 +49,7 @@ fun KidsGuardApp(
     val locationProvider = remember { LocalLocationProvider(context) }
     
     var selectedRouteId by remember { mutableStateOf<String?>(null) }
+    var selectedZone by remember { mutableStateOf<com.example.kidsguard.models.SafeZone?>(null) }
     val selectedChildIdFlow = remember { MutableStateFlow<String?>(prefHelper.selectedChildId) }
     val selectedChildId by selectedChildIdFlow.collectAsState()
     
@@ -233,7 +234,17 @@ fun KidsGuardApp(
                         remoteCommandRepository = remoteCommandRepository,
                         onBack = { onScreenChange(Screen.ParentDashboard) },
                         onOpenProtectionModes = { onScreenChange(Screen.ProtectionModes) },
-                        onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) }
+                        onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
+                        onOpenInternetProtection = { onScreenChange(Screen.InternetProtection) }
+                    )
+                } ?: onScreenChange(Screen.ParentDashboard)
+            }
+            Screen.InternetProtection -> {
+                selectedChildId?.let { id ->
+                    InternetProtectionScreen(
+                        childId = id,
+                        syncProvider = syncProvider,
+                        onBack = { onScreenChange(Screen.ChildDetail) }
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
@@ -295,8 +306,23 @@ fun KidsGuardApp(
             }
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
-                onBack = { onScreenChange(Screen.ParentDashboard) }
+                onBack = { onScreenChange(Screen.ParentDashboard) },
+                onAddZone = { 
+                    selectedZone = null
+                    onScreenChange(Screen.SafeZoneEditor)
+                },
+                onEditZone = { zone ->
+                    selectedZone = zone
+                    onScreenChange(Screen.SafeZoneEditor)
+                }
             )
+            Screen.SafeZoneEditor -> {
+                SafeZoneEditorScreen(
+                    zone = selectedZone,
+                    repository = repository,
+                    onBack = { onScreenChange(Screen.SafeZoneList) }
+                )
+            }
             Screen.ActivityFeed -> ActivityFeedScreen(
                 repository = repository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
@@ -331,10 +357,25 @@ fun KidsGuardApp(
                 prefHelper = prefHelper,
                 repository = repository
             )
-            Screen.Settings -> SettingsScreen(
-                onBack = { onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) },
-                prefHelper = prefHelper
-            )
+            Screen.Settings -> {
+                if (prefHelper.userRole == "PARENT") {
+                    ParentSettingsScreen(
+                        onBack = { onScreenChange(Screen.ParentDashboard) },
+                        prefHelper = prefHelper,
+                        authRepository = authRepository,
+                        onLogout = {
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                            prefHelper.userRole = "NONE"
+                            onScreenChange(Screen.RoleSelection)
+                        }
+                    )
+                } else {
+                    SettingsScreen(
+                        onBack = { onScreenChange(Screen.Home) },
+                        prefHelper = prefHelper
+                    )
+                }
+            }
             Screen.DeveloperMenu -> {
                 if (com.example.kidsguard.BuildConfig.DEBUG) {
                     DeveloperMenuScreen(
