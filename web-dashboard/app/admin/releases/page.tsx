@@ -12,16 +12,21 @@ import {
   ExternalLink,
   ShieldAlert,
   ArrowUpCircle,
-  FileCode
+  FileCode,
+  Lock
 } from 'lucide-react';
-import { ConfigRepository, ReleaseChannel, AppRelease } from '@/lib/repositories/ConfigRepository';
+import { ConfigRepository, ReleaseChannel, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { FamilyRole } from '@/lib/repositories/FamilyRepository';
 import { clsx } from 'clsx';
 
 export default function ReleaseManager() {
+  const { profile, role, loading: profileLoading } = useParentProfile();
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
+  const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
 
   // Form State
   const [versionCode, setVersionCode] = useState(1);
@@ -34,6 +39,8 @@ export default function ReleaseManager() {
   const [fileSize, setFileSize] = useState('');
   const [minAndroid, setMinAndroid] = useState('8.0');
 
+  const isAdmin = role === FamilyRole.OWNER;
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -43,6 +50,7 @@ export default function ReleaseManager() {
         ]);
 
         if (active) {
+          setCurrentConfig(active);
           setVersionCode(active.latestVersionCode + 1);
           setVersionName(active.latestVersionName);
           setApkUrl(active.apkDownloadUrl);
@@ -64,8 +72,26 @@ export default function ReleaseManager() {
     loadData();
   }, []);
 
+  const validate = () => {
+    if (!versionName) return "Version Name is required.";
+    if (isNaN(versionCode) || versionCode <= 0) return "Version Code must be a positive number.";
+    if (currentConfig && versionCode <= currentConfig.latestVersionCode) {
+        return `Version Code must be greater than current (${currentConfig.latestVersionCode}).`;
+    }
+    if (!apkUrl.startsWith("https://")) return "APK Download URL must start with https://";
+    return null;
+  };
+
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
+
+    const error = validate();
+    if (error) {
+        setStatus({ type: 'error', message: error });
+        return;
+    }
+
     setPublishing(true);
     setStatus(null);
 
@@ -80,13 +106,20 @@ export default function ReleaseManager() {
         releaseNotes: notes,
         fileSize,
         minimumAndroidVersion: minAndroid
+      }, {
+        uid: profile?.uid || "unknown",
+        email: profile?.email
       });
 
       setStatus({ type: 'success', message: `Release v${versionName} published successfully!` });
 
       const releases = await ConfigRepository.getRecentReleases(10);
       setHistory(releases);
-      setVersionCode(v => v + 1);
+      const active = await ConfigRepository.getUpdateConfig();
+      if (active) {
+          setCurrentConfig(active);
+          setVersionCode(active.latestVersionCode + 1);
+      }
     } catch (err: any) {
       setStatus({ type: 'error', message: err.message || 'Failed to publish release' });
     } finally {
@@ -94,13 +127,29 @@ export default function ReleaseManager() {
     }
   };
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="animate-spin text-primary-600" size={48} />
         </div>
       </DashboardLayout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+        <DashboardLayout>
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-6">
+                    <Lock size={40} />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Access Denied</h2>
+                <p className="text-slate-500 mt-2 max-w-md">
+                    Only system owners and administrators have permission to manage application releases.
+                </p>
+            </div>
+        </DashboardLayout>
     );
   }
 
@@ -239,6 +288,7 @@ export default function ReleaseManager() {
                     <div className="pt-4 border-t border-slate-50 flex justify-end">
                         <button
                             disabled={publishing}
+                            type="submit"
                             className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-black py-4 px-12 rounded-2xl shadow-xl shadow-primary-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-sm"
                         >
                             {publishing ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}

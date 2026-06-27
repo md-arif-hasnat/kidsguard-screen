@@ -55,12 +55,16 @@ export class ConfigRepository {
     }
   }
 
-  static async publishRelease(release: Omit<UpdateConfig, 'releasedAt'>): Promise<void> {
+  static async publishRelease(release: Omit<UpdateConfig, 'releasedAt'>, user: { uid: string, email?: string | null }): Promise<void> {
     if (!db) return;
 
+    const timestamp = serverTimestamp();
     const releaseData = {
         ...release,
-        releasedAt: serverTimestamp()
+        releasedAt: timestamp,
+        createdAt: timestamp,
+        createdByUid: user.uid,
+        createdByEmail: user.email || "unknown"
     };
 
     // 1. Add to history

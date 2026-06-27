@@ -74,6 +74,8 @@ fun DeveloperMenuScreen(
     val locationHistory by locationRepository.locationHistory.collectAsState()
     val lastGps = locationHistory.firstOrNull()
 
+    val updateState by updateRepository.updateState.collectAsState()
+
     val recentCommandsList = remember { mutableStateListOf<SyncRemoteCommand>() }
 
     LaunchedEffect(prefHelper.pairingCode) {
@@ -116,6 +118,40 @@ fun DeveloperMenuScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text("Update System Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Current Version: ${updateState.currentVersionName} (${updateState.currentVersionCode})", style = MaterialTheme.typography.bodySmall)
+                    val latest = updateState.updateInfo
+                    if (latest != null) {
+                        Text("Latest Version: ${latest.latestVersionName} (${latest.latestVersionCode})", style = MaterialTheme.typography.bodySmall)
+                        Text("Mandatory Status: ${if (latest.mandatoryUpdate || latest.forceUpdate) "REQUIRED" else "OPTIONAL"}", 
+                            style = MaterialTheme.typography.bodySmall, 
+                            color = if (latest.mandatoryUpdate || latest.forceUpdate) MaterialTheme.colorScheme.error else Color.Gray)
+                    } else {
+                        Text("Latest Version: Not fetched", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Mandatory Status: N/A", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { updateRepository.simulateUpdate(force = false) }, modifier = Modifier.weight(1f)) {
+                            Text("Simulate Optional Update", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(onClick = { updateRepository.simulateUpdate(force = true) }, modifier = Modifier.weight(1f)) {
+                            Text("Simulate Mandatory Update", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Button(
+                        onClick = { updateRepository.clearUpdateState() }, 
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Reset Update State", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
             Text("Remote Control Debug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             
             Card(modifier = Modifier.fillMaxWidth()) {

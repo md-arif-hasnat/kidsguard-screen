@@ -114,6 +114,11 @@ export default function DownloadPage() {
                 <span className="bg-primary-50 text-primary-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-primary-100">
                     Official Release
                 </span>
+                {config.mandatoryUpdate && (
+                    <span className="bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border border-rose-100">
+                        Critical Update
+                    </span>
+                )}
                 {config.releaseChannel !== 'stable' && (
                     <span className={clsx(
                         "text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full border",
@@ -183,9 +188,20 @@ export default function DownloadPage() {
             <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-2xl shadow-slate-900/20">
                 <h3 className="font-bold text-primary-400 uppercase tracking-widest text-xs mb-4">Release Notes</h3>
                 <div className="prose prose-invert prose-sm">
-                    <p className="text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
-                        {config.releaseNotes || "Security improvements and background stability enhancements."}
-                    </p>
+                    {Array.isArray(config.releaseNotes) ? (
+                        <ul className="space-y-2 list-none p-0">
+                            {config.releaseNotes.map((note, idx) => (
+                                <li key={idx} className="text-slate-300 leading-relaxed font-medium flex gap-2">
+                                    <span className="text-primary-500">•</span>
+                                    {note}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
+                            {config.releaseNotes || "Security improvements and background stability enhancements."}
+                        </p>
+                    )}
                 </div>
             </div>
 

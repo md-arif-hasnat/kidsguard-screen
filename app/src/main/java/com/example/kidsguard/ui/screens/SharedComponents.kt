@@ -94,6 +94,14 @@ fun UpdateDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 }
+                
+                if (updateInfo.releaseNotes.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("What's New:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    updateInfo.releaseNotes.forEach { note ->
+                        Text("• $note", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -123,7 +131,9 @@ fun WhatsNewDialog(
             Column {
                 Text("New Features", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(updateInfo.releaseNotes)
+                updateInfo.releaseNotes.forEach { note ->
+                    Text("• $note", style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
         confirmButton = {
