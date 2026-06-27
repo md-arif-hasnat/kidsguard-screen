@@ -106,20 +106,21 @@ class LocationRepository(
             val shouldSync = forceSync || lastSyncedLocation == null || distanceSinceLast > 30 || (now - lastSyncTime > 300000)
 
             // Sync to Firebase if Child role and Firebase active
-            if (shouldSync && prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
+            if (shouldSync && prefHelper.userRole == "CHILD" && prefHelper.childId.isNotEmpty()) {
                 val battery = com.example.kidsguard.data.getBatteryLevel(context)
-                syncProvider?.syncLocation(
-                    com.example.kidsguard.sync.SyncLocationUpdate(
-                        childId = prefHelper.pairingCode,
-                        latitude = pointWithAddress.latitude,
-                        longitude = pointWithAddress.longitude,
-                        accuracy = pointWithAddress.accuracy,
-                        speed = pointWithAddress.speed,
-                        bearing = pointWithAddress.bearing,
-                        timestamp = pointWithAddress.timestamp,
-                        batteryLevel = battery
-                    )
+                val update = com.example.kidsguard.sync.SyncLocationUpdate(
+                    childId = prefHelper.childId,
+                    latitude = pointWithAddress.latitude,
+                    longitude = pointWithAddress.longitude,
+                    accuracy = pointWithAddress.accuracy,
+                    speed = pointWithAddress.speed,
+                    bearing = pointWithAddress.bearing,
+                    timestamp = pointWithAddress.timestamp,
+                    batteryLevel = battery
                 )
+                
+                android.util.Log.i("LocationRepository", "Syncing GPS to Firebase for child: ${prefHelper.childId}")
+                syncProvider?.syncLocation(update)
                 lastSyncedLocation = pointWithAddress
                 lastSyncTime = now
             }

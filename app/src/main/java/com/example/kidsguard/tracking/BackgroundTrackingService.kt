@@ -169,7 +169,7 @@ class BackgroundTrackingService : Service() {
                         city = addressInfo?.city,
                         country = addressInfo?.country
                     )
-                    Log.d(TAG, "Captured location: $point (Forced: $forceNextLocationSync)")
+                    Log.i(TAG, "GPS Acquired: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}")
                     locationRepository.addLocationPoint(point, forceNextLocationSync)
                     forceNextLocationSync = false
                     

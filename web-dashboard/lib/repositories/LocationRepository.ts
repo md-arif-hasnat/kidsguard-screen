@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, query, orderBy, limit, onSnapshot, doc, where, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, doc, where, Timestamp, getDoc } from "firebase/firestore";
 
 export interface LocationPoint {
   latitude: number;
@@ -30,12 +30,36 @@ export class LocationRepository {
   static listenToLatestLocation(childId: string, onUpdate: (location: LocationPoint | null) => void) {
     if (!db || !childId) return () => {};
 
-    const latestRef = doc(db, "children", childId, "locations", "latest");
-    return onSnapshot(latestRef, (snapshot) => {
+    // Use unified devices collection for latest status as primary source
+    const deviceRef = doc(db, "devices", childId);
+    return onSnapshot(deviceRef, (snapshot) => {
       if (snapshot.exists()) {
-        onUpdate(snapshot.data() as LocationPoint);
+        const data = snapshot.data();
+        if (data.currentLocation) {
+            onUpdate({
+                latitude: data.currentLocation.latitude,
+                longitude: data.currentLocation.longitude,
+                accuracy: data.currentLocation.accuracy,
+                timestamp: data.currentLocation.updatedAt?.toMillis() || Date.now(),
+                speed: data.currentLocation.speed || 0,
+                bearing: data.currentLocation.bearing || 0
+            } as LocationPoint);
+            return;
+        }
+      }
+
+      // Fallback to children collection if not found in devices
+      if (db) {
+        const latestRef = doc(db, "children", childId, "locations", "latest");
+        getDoc(latestRef).then(snap => {
+            if (snap.exists()) {
+                onUpdate(snap.data() as LocationPoint);
+            } else {
+                onUpdate(null);
+            }
+        });
       } else {
-        onUpdate(null);
+          onUpdate(null);
       }
     }, (error) => {
       console.error("Error listening to latest location:", error);

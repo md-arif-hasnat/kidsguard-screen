@@ -70,7 +70,9 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             return
         }
 
-        Log.d(TAG, "Syncing location to Firebase for child ${update.childId}: lat=${update.latitude}, lng=${update.longitude}")
+        Log.d(TAG, "GPS Acquired: lat=${update.latitude}, lng=${update.longitude}, accuracy=${update.accuracy}")
+        Log.i(TAG, "Uploading to Firestore: children/${update.childId}/locations/latest and devices/${update.childId}")
+
         val batch = db.batch()
         
         // 1. Save to locations history
@@ -80,7 +82,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document()
         batch.set(historyRef, update)
 
-        // 2. Update latest location
+        // 2. Update latest location in children collection
         val latestRef = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(update.childId)
             .collection("locations")
@@ -93,11 +95,24 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .collection("status")
             .document("current")
         batch.update(statusRef, "lastLocation", update)
+        
+        // 4. Update devices collection (Unified device status)
+        val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
+            .document(update.childId)
+        batch.update(deviceRef, mapOf(
+            "currentLocation" to mapOf(
+                "latitude" to update.latitude,
+                "longitude" to update.longitude,
+                "accuracy" to update.accuracy,
+                "updatedAt" to com.google.firebase.Timestamp.now()
+            ),
+            "lastSeen" to com.google.firebase.Timestamp.now()
+        ))
 
         batch.commit()
             .addOnSuccessListener {
                 _lastSyncTimestamp.value = System.currentTimeMillis()
-                Log.d(TAG, "Location synced successfully")
+                Log.i(TAG, "Location upload success for ${update.childId}")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to sync location", e)
