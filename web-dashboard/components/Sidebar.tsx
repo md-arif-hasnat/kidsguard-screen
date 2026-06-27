@@ -16,12 +16,16 @@ import {
   MapPin,
   Bell,
   X,
-  ShieldAlert
+  ShieldAlert,
+  BarChart3,
+  Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { signOut, observeAuth } from '@/lib/auth';
 import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState<any>(null);
+  const { role } = useParentProfile();
 
   useEffect(() => {
     const unsubAuth = observeAuth((authUser) => {
@@ -61,6 +66,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'Security', href: '/settings/security', icon: Shield },
     { name: 'Support \u0026 Beta', href: '/support', icon: ShieldAlert },
     { name: 'Settings', href: '/settings', icon: Settings },
+  ];
+
+  const adminItems = [
+    { name: 'System Analytics', href: '/admin/analytics', icon: BarChart3 },
+    { name: 'App Releases', href: '/admin/releases', icon: Zap },
   ];
 
   const handleSignOut = async () => {
@@ -114,6 +124,33 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </Link>
           );
         })}
+
+        {RoleHelper.canAccessAdminPortal(role) && (
+            <div className="pt-8 pb-2">
+                <p className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Admin Portal</p>
+                {adminItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            onClick={() => { if (onClose) onClose(); }}
+                            className={cn(
+                                "flex items-center justify-between px-4 py-3 rounded-lg transition-colors",
+                                isActive
+                                ? "bg-slate-700 text-white"
+                                : "text-slate-500 hover:bg-slate-800 hover:text-white"
+                            )}
+                        >
+                            <div className="flex items-center gap-3">
+                                <item.icon size={18} />
+                                <span className="font-medium text-sm">{item.name}</span>
+                            </div>
+                        </Link>
+                    );
+                })}
+            </div>
+        )}
       </nav>
 
       <div className="pt-4 border-t border-slate-800">

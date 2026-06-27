@@ -1,14 +1,30 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Share, Download, X, PlusSquare, MoreVertical, Smartphone } from 'lucide-react';
+import { Share, Download, X, PlusSquare, MoreVertical, Smartphone, Shield } from 'lucide-react';
+import { AuditRepository, AuditAction, AuditSeverity } from '@/lib/repositories/AuditRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 
 export default function PWAInstallBanner() {
+  const { profile, family } = useParentProfile();
   const [showBanner, setShowBanner] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other' | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
+    window.addEventListener('appinstalled', () => {
+        if (profile && family) {
+            AuditRepository.log({
+                actorUid: profile.uid,
+                actorEmail: profile.email || "user",
+                familyId: family.familyId,
+                action: AuditAction.PWA_INSTALLED,
+                targetType: 'SYSTEM',
+                severity: AuditSeverity.INFO
+            });
+        }
+    });
+
     // 1. Detect platform
     const ua = window.navigator.userAgent.toLowerCase();
     const isIOS = /iphone|ipad|ipod/.test(ua);
@@ -59,7 +75,19 @@ export default function PWAInstallBanner() {
         </div>
         <div className="flex items-center gap-2">
             <button
-                onClick={() => setShowInstructions(true)}
+                onClick={() => {
+                    setShowInstructions(true);
+                    if (profile && family) {
+                        AuditRepository.log({
+                            actorUid: profile.uid,
+                            actorEmail: profile.email || "user",
+                            familyId: family.familyId,
+                            action: AuditAction.PWA_INSTALL_CLICKED,
+                            targetType: 'SYSTEM',
+                            severity: AuditSeverity.INFO
+                        });
+                    }
+                }}
                 className="bg-white text-primary-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary-50 transition-colors"
             >
                 Install

@@ -12,6 +12,7 @@ export interface ParentProfile {
   familyId: string | null;
   role?: string; // Optional cached role
   region?: 'DE' | 'BD' | 'US' | 'Global';
+  lastActiveDate?: string; // Phase AQ (YYYY-MM-DD)
   createdAt: any;
   lastLoginAt: any;
 }
@@ -44,6 +45,8 @@ export class ParentRepository {
 
     const existing = await this.getProfile(user.uid);
 
+    const today = new Date().toISOString().split('T')[0];
+
     const profile: Partial<ParentProfile> = {
       uid: user.uid,
       email: user.email || (existing?.email || null),
@@ -52,6 +55,7 @@ export class ParentRepository {
       avatarId: existing?.avatarId || "parent_1",
       provider: provider,
       lastLoginAt: serverTimestamp(),
+      lastActiveDate: today // Phase AQ
     };
 
     if (existing?.role) {

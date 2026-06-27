@@ -75,4 +75,8 @@ export class RoleHelper {
   static canManageReleaseManager(role: FamilyRole): boolean {
     return role === FamilyRole.OWNER;
   }
+
+  static canAccessAdminPortal(role: FamilyRole): boolean {
+      return role === FamilyRole.OWNER;
+  }
 }
