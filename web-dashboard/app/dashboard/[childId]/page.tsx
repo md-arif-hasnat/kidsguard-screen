@@ -155,7 +155,10 @@ export default function ChildDashboard() {
     }
 
     const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
-    const unsubLocation = LocationRepository.listenToLatestLocation(childId, setLocation);
+    const unsubLocation = LocationRepository.listenToLatestLocation(childId, (loc) => {
+        console.log(`WEB DEBUG: Received child location for ${childId}:`, loc);
+        setLocation(loc);
+    });
     const unsubActivity = ActivityRepository.listenToActivity(childId, setActivities);
     const unsubSummary = DailySummaryRepository.listenToLatestSummary(childId, setSummary);
     const unsubHistory = LocationRepository.listenToLocationHistory(childId, setRouteHistory);
