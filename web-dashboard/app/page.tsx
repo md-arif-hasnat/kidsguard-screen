@@ -139,10 +139,10 @@ export default function Home() {
 
   if (loading && isFirebaseConfigured) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="animate-spin text-primary-600" size={48} />
-                <p className="font-bold">Syncing Family Vault...</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+            <div className="flex flex-col items-center gap-6">
+                <img src="/loading-logo.png" alt="KidsGuard" className="h-24 w-auto animate-pulse" />
+                <p className="font-black uppercase tracking-[0.3em] text-primary-500 animate-pulse">Syncing Family Vault...</p>
             </div>
         </div>
     );

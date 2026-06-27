@@ -65,8 +65,8 @@ export default function PWAInstallBanner() {
     <>
       <div className="bg-slate-900 text-white p-3 md:p-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] animate-in slide-in-from-top duration-500 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
-            <Shield size={20} />
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
+            <img src="/app-icon.png" alt="Icon" className="w-full h-full object-cover" />
           </div>
           <div>
             <p className="text-sm font-black tracking-tight leading-none">KidsGuard for Mobile</p>

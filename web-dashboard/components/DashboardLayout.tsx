@@ -66,6 +66,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-3 md:gap-6">
+            <div className="hidden md:block">
+              <img src="/navbar-logo.png" alt="KidsGuard" className="h-8 w-auto" />
+            </div>
+
             <Link href="/notifications" className="relative p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-500 hover:bg-slate-100 hover:text-primary-600 transition-all group">
               <Bell size={20} />
               {unreadCount > 0 && (

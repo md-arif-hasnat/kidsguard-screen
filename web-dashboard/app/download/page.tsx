@@ -99,10 +99,8 @@ export default function DownloadPage() {
       {/* Navbar */}
       <nav className="h-20 bg-white border-b border-slate-100 flex items-center px-6 md:px-12 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-200">
-            <Shield size={24} />
-          </div>
-          <div>
+          <img src="/navbar-logo.png" alt="KidsGuard" className="h-8 w-auto" />
+          <div className="hidden">
             <span className="text-xl font-black text-slate-900 tracking-tighter block leading-none">KidsGuard</span>
             <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Protect • Guide • Grow</span>
           </div>

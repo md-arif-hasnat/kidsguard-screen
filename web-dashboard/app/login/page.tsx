@@ -183,8 +183,8 @@ export default function Login() {
         {/* Loading Overlay - Fixed and Stable */}
         {loading && (
             <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
-                <div className="w-20 h-20 bg-primary-50 rounded-2xl flex items-center justify-center mb-6">
-                    <Loader2 className="animate-spin text-primary-600" size={40} />
+                <div className="mb-6">
+                    <img src="/loading-logo.png" alt="Loading..." className="h-20 w-auto animate-pulse" />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 mb-2">Secure Authentication</h2>
                 <p className="text-slate-500 font-medium italic animate-pulse">{loadingMessage}</p>
@@ -195,8 +195,8 @@ export default function Login() {
         )}
 
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-xl shadow-primary-200">
-            <Shield size={36} />
+          <div className="mb-4">
+            <img src="/navbar-logo.png" alt="KidsGuard Logo" className="h-16 w-auto" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
             KidsGuard

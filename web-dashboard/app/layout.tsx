@@ -12,6 +12,15 @@ export const metadata: Metadata = {
   },
   description: "Enterprise-grade family safety and child protection dashboard.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     title: "KidsGuard",
@@ -22,11 +31,20 @@ export const metadata: Metadata = {
     siteName: "KidsGuard",
     title: "KidsGuard - Family Safety Platform",
     description: "Protect • Guide • Grow. The complete family safety platform.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "KidsGuard - Protect • Guide • Grow",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "KidsGuard - Family Safety Platform",
     description: "Protect • Guide • Grow. The complete family safety platform.",
+    images: ["/og-image.png"],
   },
   formatDetection: {
     telephone: false,
