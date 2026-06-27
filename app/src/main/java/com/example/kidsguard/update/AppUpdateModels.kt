@@ -13,7 +13,10 @@ data class AppUpdateInfo(
     val releasedAt: Timestamp? = null,
     val fileSize: String = "",
     val minimumAndroidVersion: String = "",
-    val releaseNotes: List<String> = emptyList()
+    val releaseNotes: List<String> = emptyList(),
+    val webVersion: String = "",
+    val webUpdateMessage: String = "",
+    val webReleaseNotes: List<String> = emptyList()
 )
 
 data class AppUpdateState(

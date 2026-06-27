@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import PWAInstallBanner from './PWAInstallBanner';
+import PWAUpdateBanner from './PWAUpdateBanner';
 import { Bell, User, Search, Settings, Menu } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
@@ -46,6 +47,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
       <div className="flex-1 flex flex-col lg:ml-64 w-full">
         <PWAInstallBanner />
+        <PWAUpdateBanner />
         {/* Top Header */}
         <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-4">

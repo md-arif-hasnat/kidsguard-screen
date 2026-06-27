@@ -64,26 +64,35 @@ class UpdateRepository(private val context: Context) {
         Log.d(TAG, "Checking for updates from Firestore...")
         try {
             val doc = db.document(CONFIG_PATH).get().await()
-            if (doc.exists()) {
-                val info = doc.toObject(AppUpdateInfo::class.java)
-                if (info != null) {
-                    val currentCode = getCurrentVersionCode()
-                    val isAvailable = info.latestVersionCode > currentCode
-                    Log.i(TAG, "Update check result: Available=$isAvailable, Latest=${info.latestVersionCode}, Current=$currentCode")
-                    
-                    _updateState.value = _updateState.value.copy(
-                        updateInfo = info,
-                        isUpdateAvailable = isAvailable
-                    )
-
-                    // Part 4: What's New logic
-                    if (info.latestVersionCode.toInt() == currentCode && prefs.lastSeenVersionCode < currentCode) {
-                        Log.d(TAG, "New version detected! Showing What's New for v$currentCode")
-                        _showWhatsNew.value = info
-                    }
-                }
+            val info = if (doc.exists()) {
+                doc.toObject(AppUpdateInfo::class.java)
             } else {
-                Log.w(TAG, "Update config document not found at $CONFIG_PATH")
+                Log.w(TAG, "Update config document not found at $CONFIG_PATH, using fallback")
+                AppUpdateInfo(
+                    latestVersionCode = 1,
+                    latestVersionName = "1.0.0",
+                    apkDownloadUrl = "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v1.0.0/KidsGuard-v1.0.0.apk",
+                    mandatoryUpdate = false,
+                    updateMessage = "First KidsGuard beta release is available.",
+                    releaseNotes = listOf("Initial beta release", "Live tracking", "Safe zones", "Parent dashboard")
+                )
+            }
+
+            if (info != null) {
+                val currentCode = getCurrentVersionCode()
+                val isAvailable = info.latestVersionCode > currentCode
+                Log.i(TAG, "Update check result: Available=$isAvailable, Latest=${info.latestVersionCode}, Current=$currentCode")
+                
+                _updateState.value = _updateState.value.copy(
+                    updateInfo = info,
+                    isUpdateAvailable = isAvailable
+                )
+
+                // Part 4: What's New logic
+                if (info.latestVersionCode.toInt() == currentCode && prefs.lastSeenVersionCode < currentCode) {
+                    Log.d(TAG, "New version detected! Showing What's New for v$currentCode")
+                    _showWhatsNew.value = info
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check for updates", e)
