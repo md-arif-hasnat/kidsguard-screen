@@ -72,12 +72,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const SidebarContent = (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-10 px-2">
+      <div className="flex flex-col mb-10 px-2">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => { router.push('/'); if (onClose) onClose(); }}>
-          <Shield className="text-primary-500 w-8 h-8" />
-          <h1 className="text-xl font-bold tracking-tight text-white">KidsGuard</h1>
+          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary-900/50">
+            <Shield size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-black tracking-tighter text-white">KidsGuard</h1>
+            <p className="text-[7px] font-black text-primary-400 uppercase tracking-[0.2em] -mt-0.5">Protect • Guide • Grow</p>
+          </div>
         </div>
-        <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
+        <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors absolute top-4 right-4">
           <X size={24} />
         </button>
       </div>

@@ -195,16 +195,14 @@ export default function Login() {
         )}
 
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center text-primary-600 mb-4 shadow-sm">
+          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-xl shadow-primary-200">
             <Shield size={36} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            {showPhoneLogin ? (showOtpInput ? "Verify Code" : "Phone Login") : (isSignUp ? "Create Account" : "Welcome Back")}
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
+            KidsGuard
           </h1>
-          <p className="text-slate-500 mt-2 text-center font-medium">
-            {showPhoneLogin
-              ? (showOtpInput ? "Enter the 6-digit code sent to your phone" : "Enter your phone number to continue")
-              : (isSignUp ? "Sign up to start protecting your family" : "Sign in to your Parent Dashboard")}
+          <p className="text-[10px] font-black text-primary-600 uppercase tracking-[0.3em] mt-1">
+            Protect • Guide • Grow
           </p>
         </div>
 

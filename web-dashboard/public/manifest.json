@@ -1,7 +1,7 @@
 {
-  "name": "KidsGuard Parent",
+  "name": "KidsGuard Parent Dashboard",
   "short_name": "KidsGuard",
-  "description": "Enterprise-grade family safety and child protection dashboard.",
+  "description": "Protect • Guide • Grow. The complete family safety platform.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
@@ -11,7 +11,13 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",

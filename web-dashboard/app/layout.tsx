@@ -6,13 +6,27 @@ import { ParentProfileProvider } from "@/lib/context/ParentProfileContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "KidsGuard Parent Dashboard",
+  title: {
+    default: "KidsGuard - Protect • Guide • Grow",
+    template: "%s | KidsGuard"
+  },
   description: "Enterprise-grade family safety and child protection dashboard.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "KidsGuard",
     statusBarStyle: "black-translucent",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "KidsGuard",
+    title: "KidsGuard - Family Safety Platform",
+    description: "Protect • Guide • Grow. The complete family safety platform.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "KidsGuard - Family Safety Platform",
+    description: "Protect • Guide • Grow. The complete family safety platform.",
   },
   formatDetection: {
     telephone: false,

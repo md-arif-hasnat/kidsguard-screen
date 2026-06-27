@@ -47,14 +47,14 @@ export default function PWAInstallBanner() {
 
   return (
     <>
-      <div className="bg-primary-600 text-white p-3 md:p-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] animate-in slide-in-from-top duration-500">
+      <div className="bg-slate-900 text-white p-3 md:p-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] animate-in slide-in-from-top duration-500 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-            <Smartphone size={20} />
+          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+            <Shield size={20} />
           </div>
           <div>
             <p className="text-sm font-black tracking-tight leading-none">KidsGuard for Mobile</p>
-            <p className="text-[10px] font-bold opacity-80 mt-1">Install for a better experience</p>
+            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mt-1">Protect • Guide • Grow</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
