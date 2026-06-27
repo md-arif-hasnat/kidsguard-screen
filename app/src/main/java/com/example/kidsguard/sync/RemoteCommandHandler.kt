@@ -49,8 +49,8 @@ class RemoteCommandHandler(
             return
         }
 
-        // Update status to RECEIVED
-        syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.RECEIVED)
+        // Update status to EXECUTING
+        syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.EXECUTING)
         _lastCommandReceived.value = "${command.commandType} (${command.commandId})"
         
         try {
@@ -101,9 +101,12 @@ class RemoteCommandHandler(
                     onVibrateRequested()
                     logActivity("REMOTE_VIBRATE", "Device Vibrated", "Parent triggered vibration")
                 }
+                else -> {
+                    Log.w(TAG, "Unhandled command type: ${command.commandType}")
+                }
             }
             _lastExecutionResult.value = "SUCCESS: ${command.commandType}"
-            syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.EXECUTED)
+            syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.SUCCESS)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to execute command", e)
             _lastExecutionResult.value = "FAILED: ${e.message}"

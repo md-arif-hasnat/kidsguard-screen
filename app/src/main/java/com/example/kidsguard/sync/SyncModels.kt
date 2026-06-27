@@ -4,7 +4,7 @@ import java.util.UUID
 
 enum class SyncPlatform { ANDROID, IOS }
 enum class SyncRole { PARENT, CHILD }
-enum class CommandStatus { PENDING, RECEIVED, EXECUTED, FAILED, EXPIRED }
+enum class CommandStatus { PENDING, EXECUTING, SUCCESS, FAILED, EXPIRED }
 enum class CommandType {
     REFRESH_LOCATION,
     RING_DEVICE,
@@ -39,8 +39,8 @@ data class SyncFamily(
 )
 
 data class SyncChildStatus(
-    val childId: String,
-    val childName: String,
+    val childId: String = "",
+    val childName: String = "",
     val avatarId: String = "avatar_1",
     val deviceId: String = "",
     val deviceName: String = "",
@@ -134,8 +134,8 @@ data class SyncActivityEvent(
 
 data class SyncRemoteCommand(
     val commandId: String = UUID.randomUUID().toString(),
-    val childId: String,
-    val commandType: CommandType,
+    val childId: String = "",
+    val commandType: CommandType = CommandType.REFRESH_LOCATION,
     val payload: String? = null,
     val status: CommandStatus = CommandStatus.PENDING,
     val createdByParentId: String = "",

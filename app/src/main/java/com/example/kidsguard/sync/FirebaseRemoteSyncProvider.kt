@@ -204,8 +204,12 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit) {
-        if (childId.isEmpty()) return
+        if (childId.isEmpty()) {
+            Log.w(TAG, "listenForRemoteCommands: childId is empty")
+            return
+        }
         
+        Log.i(TAG, "Starting remote command listener for child: $childId")
         commandListener?.remove()
         commandListener = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
@@ -213,15 +217,21 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .whereEqualTo("status", "PENDING")
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
-                    Log.e(TAG, "Listen failed.", e)
+                    Log.e(TAG, "Remote command listen failed.", e)
                     errorLogger.addError(TAG, "Remote command listen failed", e)
                     return@addSnapshotListener
                 }
 
                 if (snapshots != null) {
+                    if (snapshots.isEmpty) {
+                        Log.v(TAG, "No pending commands for $childId")
+                    } else {
+                        Log.i(TAG, "Received ${snapshots.size()} pending commands")
+                    }
                     for (doc in snapshots.documents) {
                         val command = doc.toObject(SyncRemoteCommand::class.java)
                         if (command != null) {
+                            Log.d(TAG, "Processing pending command: ${command.commandId} type: ${command.commandType}")
                             onCommand(command)
                         }
                     }
@@ -230,16 +240,20 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String?) {
-        if (childId.isEmpty() || commandId.isEmpty()) return
+        if (childId.isEmpty() || commandId.isEmpty()) {
+            Log.w(TAG, "updateCommandStatus: invalid IDs. child: $childId cmd: $commandId")
+            return
+        }
         
+        Log.i(TAG, "Updating command $commandId status to $status")
         val updates = mutableMapOf<String, Any>(
             "status" to status
         )
         
         val now = System.currentTimeMillis()
         when (status) {
-            CommandStatus.RECEIVED -> updates["receivedAt"] = now
-            CommandStatus.EXECUTED, CommandStatus.FAILED -> updates["executedAt"] = now
+            CommandStatus.EXECUTING -> updates["receivedAt"] = now
+            CommandStatus.SUCCESS, CommandStatus.FAILED -> updates["executedAt"] = now
             else -> {}
         }
         
