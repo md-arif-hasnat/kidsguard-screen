@@ -15,7 +15,8 @@ import {
   LayoutDashboard,
   MapPin,
   Bell,
-  X
+  X,
+  ShieldAlert
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -58,6 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'History', href: '/history', icon: History },
     { name: 'Family', href: '/settings/family', icon: Users },
     { name: 'Security', href: '/settings/security', icon: Shield },
+    { name: 'Support \u0026 Beta', href: '/support', icon: ShieldAlert },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

@@ -31,6 +31,8 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     var notificationsGranted by remember { mutableStateOf(PermissionUtils.hasNotificationPermission(context)) }
     var batteryIgnored by remember { mutableStateOf(PermissionUtils.isBatteryOptimizationIgnored(context)) }
     var accessibilityEnabled by remember { mutableStateOf(PermissionUtils.isAccessibilityServiceEnabled(context)) }
+    var usageStatsGranted by remember { mutableStateOf(PermissionUtils.hasUsageStatsPermission(context)) }
+    var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
     // Auto refresh
     LaunchedEffect(Unit) {
@@ -40,6 +42,8 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             notificationsGranted = PermissionUtils.hasNotificationPermission(context)
             batteryIgnored = PermissionUtils.isBatteryOptimizationIgnored(context)
             accessibilityEnabled = PermissionUtils.isAccessibilityServiceEnabled(context)
+            usageStatsGranted = PermissionUtils.hasUsageStatsPermission(context)
+            overlayGranted = Settings.canDrawOverlays(context)
             delay(2000)
         }
     }
@@ -47,7 +51,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Permission Checklist") },
+                title = { Text("Setup Checklist") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -65,16 +69,21 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                "For KidsGuard to work properly, please grant the following permissions on the child's device.",
+                "Critical Setup Required",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                "For KidsGuard to monitor and protect this device, the following permissions must be active.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             PermissionCard(
                 title = "Location Access",
-                description = "Required to track the device position.",
+                description = "Required to track the device position in real-time.",
                 icon = Icons.Default.LocationOn,
-                status = if (locationGranted) "Granted" else "Missing",
+                status = if (locationGranted) "Ready" else "Missing",
                 isGranted = locationGranted,
                 onClick = {
                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -85,10 +94,10 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             )
 
             PermissionCard(
-                title = "Background Location",
-                description = "Allows tracking even when the app is closed. Select 'Allow all the time'.",
+                title = "Always-On Location",
+                description = "Allows tracking even when the app is closed. Important: Select 'Allow all the time'.",
                 icon = Icons.Default.MyLocation,
-                status = if (bgLocationGranted) "Granted" else "Missing",
+                status = if (bgLocationGranted) "Ready" else "Missing",
                 isGranted = bgLocationGranted,
                 onClick = {
                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -99,50 +108,71 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             )
 
             PermissionCard(
-                title = "Notifications",
-                description = "Required to send safety alerts and keep the service running.",
-                icon = Icons.Default.Notifications,
-                status = if (notificationsGranted) "Granted" else "Missing",
-                isGranted = notificationsGranted,
+                title = "Usage Statistics",
+                description = "Required to monitor app usage and enforce time limits.",
+                icon = Icons.Default.BarChart,
+                status = if (usageStatsGranted) "Ready" else "Missing",
+                isGranted = usageStatsGranted,
                 onClick = {
-                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    }
+                    val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                     context.startActivity(intent)
                 }
             )
 
             PermissionCard(
-                title = "Battery Optimization",
-                description = "Disable to prevent the system from killing the tracking service.",
-                icon = Icons.Default.BatteryChargingFull,
-                status = if (batteryIgnored) "Optimized" else "Restricted",
-                isGranted = batteryIgnored,
+                title = "Display Over Other Apps",
+                description = "Required to show the lock screen when limits are reached.",
+                icon = Icons.Default.FlipToFront,
+                status = if (overlayGranted) "Ready" else "Missing",
+                isGranted = overlayGranted,
                 onClick = {
-                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
                     context.startActivity(intent)
                 }
             )
 
             PermissionCard(
                 title = "Accessibility Service",
-                description = "Required to prevent the child from leaving the app when locked.",
+                description = "The core engine for app blocking and web filtering.",
                 icon = Icons.Default.Accessibility,
-                status = if (accessibilityEnabled) "Enabled" else "Disabled",
+                status = if (accessibilityEnabled) "Active" else "Disabled",
                 isGranted = accessibilityEnabled,
                 onClick = {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     context.startActivity(intent)
                 }
             )
+
+            PermissionCard(
+                title = "Ignore Battery Limits",
+                description = "Prevents Android from stopping the app's background protection.",
+                icon = Icons.Default.BatteryChargingFull,
+                status = if (batteryIgnored) "Unrestricted" else "Optimized",
+                isGranted = batteryIgnored,
+                onClick = {
+                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    context.startActivity(intent)
+                }
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
+            val allDone = locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled
+            
             Button(
                 onClick = onBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (allDone) MaterialTheme.colorScheme.primary else Color.Gray
+                )
             ) {
-                Text("Done")
+                if (allDone) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Complete Setup")
+                } else {
+                    Text("Grant All to Continue")
+                }
             }
         }
     }
@@ -159,36 +189,54 @@ fun PermissionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isGranted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+        ),
+        border = if (!isGranted) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) else null
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isGranted) Color.Green else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = if (isGranted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
                         status,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isGranted) Color.Green else Color.Red,
-                        fontWeight = FontWeight.ExtraBold
+                        color = if (isGranted) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Black
                     )
                 }
                 if (!isGranted) {
-                    IconButton(onClick = onClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Open Settings")
+                    Button(
+                        onClick = onClick,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Grant", style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.Green)
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                description, 
+                style = MaterialTheme.typography.bodySmall, 
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified
+            )
         }
     }
 }
