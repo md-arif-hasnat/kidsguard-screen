@@ -325,6 +325,21 @@ fun DashboardContent(
 
         SafeZoneSummaryCard(data)
         
+        // Protection Modes Summary
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onOpenChildDetail() }
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Safety Automations", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("School Mode, Sleep Mode and Focus sessions are configured and ready.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
         ActivitySummaryCard(data, onOpenActivityFeed)
         
         Spacer(modifier = Modifier.height(32.dp))

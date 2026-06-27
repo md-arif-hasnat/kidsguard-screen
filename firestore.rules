@@ -160,6 +160,12 @@ service cloud.firestore {
         allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
         allow write: if isSignedIn(); // Child app reports usage
       }
+
+      // Protection Modes
+      match /protectionModes/{modeId} {
+        allow read: if isChildInFamily(childId) && isGuardianOrAbove(getParentFamilyId());
+        allow write: if isChildInFamily(childId) && isParentOrAbove(getParentFamilyId());
+      }
     }
 
     match /familyInvitations/{inviteId} {

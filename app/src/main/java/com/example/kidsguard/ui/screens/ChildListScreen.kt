@@ -31,7 +31,8 @@ fun ChildListScreen(
     onSelectChild: (String) -> Unit
 ) {
     val familyId = prefHelper.familyId ?: ""
-    val familyMembers by syncProvider.getFamilyMembers(familyId).collectAsState(initial = emptyList())
+    val familyMembersState = syncProvider.getFamilyMembers(familyId).collectAsState(initial = null)
+    val familyMembers = familyMembersState.value
 
     Scaffold(
         topBar = {
@@ -50,7 +51,11 @@ fun ChildListScreen(
             )
         }
     ) { innerPadding ->
-        if (familyMembers.isEmpty()) {
+        if (familyMembers == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (familyMembers.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                     Icon(Icons.Default.ChildCare, contentDescription = null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
