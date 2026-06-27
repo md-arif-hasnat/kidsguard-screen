@@ -103,6 +103,18 @@ export default function DownloadPage() {
             <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 mt-6 max-w-lg leading-relaxed font-medium">
               Always download the latest secure version directly from our official distribution point. Install the application on your child&apos;s device to start monitoring.
             </p>
+
+            <div className="space-y-2 mt-4">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Features:</p>
+                <ul className="grid grid-cols-2 gap-2">
+                    {["Safe Zones", "Live Tracking", "Web Protection", "Family Management"].map(feature => (
+                        <li key={feature} className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary-500" />
+                            {feature}
+                        </li>
+                    ))}
+                </ul>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -118,7 +130,7 @@ export default function DownloadPage() {
                 className="group w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-base md:text-lg shadow-2xl shadow-primary-200 transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:scale-95"
             >
               <Download size={24} className="group-hover:animate-bounce" />
-              Download APK
+              Download KidsGuard APK
             </button>
             <p className="text-[10px] md:text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-widest text-center md:text-left">
                 Verified secure by KidsGuard Security
@@ -206,17 +218,17 @@ export default function DownloadPage() {
                         </div>
                         <h3 className="font-bold text-slate-900 dark:text-white">Android Install</h3>
                     </div>
-                    <ul className="space-y-3">
+                    <ul className="space-y-4">
                         <li className="flex gap-3 text-sm text-slate-600 dark:text-slate-400 font-medium">
-                            <span className="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">1</span>
+                            <span className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">1</span>
                             Download APK
                         </li>
                         <li className="flex gap-3 text-sm text-slate-600 dark:text-slate-400 font-medium">
-                            <span className="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">2</span>
+                            <span className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">2</span>
                             Allow Unknown Sources
                         </li>
                         <li className="flex gap-3 text-sm text-slate-600 dark:text-slate-400 font-medium">
-                            <span className="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">3</span>
+                            <span className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">3</span>
                             Install KidsGuard
                         </li>
                     </ul>
@@ -227,11 +239,18 @@ export default function DownloadPage() {
                         <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl">
                             <Apple size={20} />
                         </div>
-                        <h3 className="font-bold text-slate-900 dark:text-white">iPhone Setup</h3>
+                        <h3 className="font-bold text-slate-900 dark:text-white">iPhone</h3>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-                        Install KidsGuard from Safari using <strong>Add to Home Screen</strong>.
-                    </p>
+                    <ul className="space-y-4">
+                        <li className="flex gap-3 text-sm text-slate-600 dark:text-slate-400 font-medium">
+                            <span className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">1</span>
+                            Install via Safari
+                        </li>
+                        <li className="flex gap-3 text-sm text-slate-600 dark:text-slate-400 font-medium">
+                            <span className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-slate-900 dark:text-slate-300">2</span>
+                            Add To Home Screen
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
