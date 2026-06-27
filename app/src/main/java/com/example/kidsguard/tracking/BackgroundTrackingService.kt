@@ -20,6 +20,9 @@ import com.example.kidsguard.geocoding.ReverseGeocoder
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
+import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
+import com.example.kidsguard.sync.RemoteCommandHandler
+import com.example.kidsguard.sync.SyncRemoteCommand
 import com.google.android.gms.location.*
 
 class BackgroundTrackingService : Service() {
@@ -32,6 +35,10 @@ class BackgroundTrackingService : Service() {
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var prefHelper: PreferenceHelper
     private lateinit var reverseGeocoder: ReverseGeocoder
+    private lateinit var syncProvider: FirebaseRemoteSyncProvider
+    private lateinit var commandHandler: RemoteCommandHandler
+    private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
+    private var forceNextLocationSync = false
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -44,16 +51,84 @@ class BackgroundTrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
         val appContext = applicationContext
-        locationRepository = LocationRepository(appContext)
+        prefHelper = PreferenceHelper(appContext)
+        errorLogRepository = com.example.kidsguard.repository.ErrorLogRepository(appContext)
+        reverseGeocoder = ReverseGeocoder(appContext, errorLogRepository)
+        syncProvider = FirebaseRemoteSyncProvider(appContext)
         safeZoneRepository = SafeZoneRepository() 
         trackingRepository = TrackingRepository(appContext)
+        
+        locationRepository = LocationRepository(
+            context = appContext,
+            safeZoneRepository = safeZoneRepository,
+            knownRouteRepository = com.example.kidsguard.routeintelligence.KnownRouteRepository(appContext),
+            geocoder = reverseGeocoder,
+            errorLogRepository = errorLogRepository,
+            syncProvider = syncProvider
+        )
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        notificationEngine = LocalNotificationEngine(appContext)
-        prefHelper = PreferenceHelper(appContext)
-        reverseGeocoder = ReverseGeocoder(appContext)
+        notificationEngine = LocalNotificationEngine(appContext, errorLogRepository)
+        
+        val trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(appContext), trackingRepository)
+        
+        commandHandler = RemoteCommandHandler(
+            androidContext = appContext,
+            prefHelper = prefHelper,
+            trackingManager = trackingManager,
+            syncProvider = syncProvider,
+            safeZoneRepository = safeZoneRepository,
+            notificationEngine = notificationEngine,
+            onLockRequested = {
+                broadcastCommandIntent("LOCK")
+            },
+            onUnlockRequested = {
+                broadcastCommandIntent("UNLOCK")
+            },
+            onRefreshLocationRequested = {
+                forceNextLocationSync = true
+                requestSingleLocationUpdate()
+            },
+            onShowMessageRequested = { msg ->
+                broadcastCommandIntent("SHOW_MESSAGE", msg)
+            },
+            onRingRequested = {
+                broadcastCommandIntent("RING")
+            },
+            onVibrateRequested = {
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(5000, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    vibrator.vibrate(5000)
+                }
+            }
+        )
 
         createNotificationChannel()
         setupLocationCallback()
+        setupCommandListener()
+    }
+
+    private fun setupCommandListener() {
+        val childId = prefHelper.childId
+        if (childId.isNotEmpty()) {
+            syncProvider.listenForRemoteCommands(childId) { command ->
+                Log.i(TAG, "Remote command received in service: ${command.commandType}")
+                commandHandler.handleCommand(command)
+            }
+        }
+    }
+
+    private fun broadcastCommandIntent(action: String, payload: String? = null) {
+        val intent = Intent(this, com.example.kidsguard.MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra("action", "REMOTE_COMMAND")
+            putExtra("command_action", action)
+            putExtra("payload", payload)
+        }
+        startActivity(intent)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -94,8 +169,9 @@ class BackgroundTrackingService : Service() {
                         city = addressInfo?.city,
                         country = addressInfo?.country
                     )
-                    Log.d(TAG, "Captured location: $point")
-                    locationRepository.addLocationPoint(point)
+                    Log.d(TAG, "Captured location: $point (Forced: $forceNextLocationSync)")
+                    locationRepository.addLocationPoint(point, forceNextLocationSync)
+                    forceNextLocationSync = false
                     
                     checkBatteryLevel()
                 }
@@ -143,6 +219,19 @@ class BackgroundTrackingService : Service() {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start location updates", e)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestSingleLocationUpdate() {
+        Log.d(TAG, "Requesting single location update")
+        try {
+            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
+                .setMaxUpdates(1)
+                .build()
+            fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to request single update", e)
         }
     }
 

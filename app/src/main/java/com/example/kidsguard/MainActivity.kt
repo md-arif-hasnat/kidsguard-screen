@@ -159,6 +159,10 @@ class MainActivity : ComponentActivity() {
         trackingManager.initialize()
         syncProvider.connect()
 
+        if (prefHelper.userRole == "CHILD") {
+            trackingManager.startTracking() // Ensure service is running for commands
+        }
+
         // Check for updates on startup
         lifecycleScope.launch {
             updateRepository.checkForUpdates()
@@ -192,15 +196,6 @@ class MainActivity : ComponentActivity() {
                         parentNotificationManager.registerParentDevice()
                     }
                 }
-            }
-        }
-        
-        // Setup command listener
-        val listenId = prefHelper.childId
-        if (listenId.isNotEmpty() && prefHelper.userRole == "CHILD") {
-            syncProvider.listenForRemoteCommands(listenId) { command ->
-                Log.d("MainActivity", "Remote command received: ${command.commandType}")
-                commandHandler.handleCommand(command)
             }
         }
         
@@ -293,6 +288,25 @@ class MainActivity : ComponentActivity() {
             val url = intent.getStringExtra("blocked_url")
             blockedUrl.value = url
             currentScreenState.value = Screen.WebBlocked
+        } else if (action == "REMOTE_COMMAND") {
+            val cmdAction = intent.getStringExtra("command_action")
+            val payload = intent.getStringExtra("payload")
+            Log.i("MainActivity", "Handling remote command intent: $cmdAction")
+            
+            when (cmdAction) {
+                "LOCK" -> currentScreenState.value = Screen.Locked
+                "UNLOCK" -> currentScreenState.value = Screen.Home
+                "SHOW_MESSAGE" -> {
+                    remoteMessage.value = payload
+                    remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
+                    currentScreenState.value = Screen.RemoteCommand
+                }
+                "RING" -> {
+                    notificationEngine.triggerSiren()
+                    remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.RINGING
+                    currentScreenState.value = Screen.RemoteCommand
+                }
+            }
         }
     }
 

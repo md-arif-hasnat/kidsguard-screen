@@ -69,7 +69,7 @@ class LocationRepository(
     private var lastSyncedLocation: LocationPoint? = null
     private var lastSyncTime = 0L
 
-    fun addLocationPoint(point: LocationPoint) {
+    fun addLocationPoint(point: LocationPoint, forceSync: Boolean = false) {
         try {
             val pointWithAddress = if (point.address == null && geocoder != null) {
                 try {
@@ -102,7 +102,8 @@ class LocationRepository(
             // 1. First time
             // 2. Moved > 30 meters
             // 3. More than 5 minutes passed (heartbeat)
-            val shouldSync = lastSyncedLocation == null || distanceSinceLast > 30 || (now - lastSyncTime > 300000)
+            // 4. Forced by remote command
+            val shouldSync = forceSync || lastSyncedLocation == null || distanceSinceLast > 30 || (now - lastSyncTime > 300000)
 
             // Sync to Firebase if Child role and Firebase active
             if (shouldSync && prefHelper.userRole == "CHILD" && prefHelper.pairingCode.isNotEmpty()) {
