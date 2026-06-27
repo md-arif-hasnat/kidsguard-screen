@@ -142,12 +142,12 @@ const LiveMap: React.FC<LiveMapProps> = ({
   const hasLocation = normalizedChildLoc && !isNaN(normalizedChildLoc.lat) && !isNaN(normalizedChildLoc.lng);
   const hasHistory = normalizedRoute.length > 0;
 
-  if (isLoaded && !hasLocation && !hasHistory && childLocation !== null) {
+  if (isLoaded && !hasLocation && !hasHistory) {
       return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-2xl text-slate-400 p-8 text-center">
               <MapPin size={48} className="mb-4 opacity-20" />
-              <h3 className="text-lg font-bold text-slate-600">No Location Available Yet</h3>
-              <p className="text-sm max-w-xs mx-auto mt-2">We haven&apos;t received any GPS data from this device. Ensure tracking is enabled on the child&apos;s phone.</p>
+              <h3 className="text-lg font-bold text-slate-600">No GPS coordinates received from child device yet</h3>
+              <p className="text-sm max-w-xs mx-auto mt-2">Ensure tracking is enabled on the child&apos;s phone and it has a clear view of the sky.</p>
           </div>
       )
   }

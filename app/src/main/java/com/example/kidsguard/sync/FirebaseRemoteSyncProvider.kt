@@ -65,8 +65,12 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncLocation(update: SyncLocationUpdate) {
-        if (update.childId.isEmpty()) return
+        if (update.childId.isEmpty()) {
+            Log.w(TAG, "syncLocation skipped: childId is empty")
+            return
+        }
 
+        Log.d(TAG, "Syncing location to Firebase for child ${update.childId}: lat=${update.latitude}, lng=${update.longitude}")
         val batch = db.batch()
         
         // 1. Save to locations history
