@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
 
@@ -34,16 +37,35 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     var usageStatsGranted by remember { mutableStateOf(PermissionUtils.hasUsageStatsPermission(context)) }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
-    // Auto refresh
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    fun refreshPermissions() {
+        locationGranted = PermissionUtils.hasLocationPermission(context)
+        bgLocationGranted = PermissionUtils.hasBackgroundLocationPermission(context)
+        notificationsGranted = PermissionUtils.hasNotificationPermission(context)
+        batteryIgnored = PermissionUtils.isBatteryOptimizationIgnored(context)
+        accessibilityEnabled = PermissionUtils.isAccessibilityServiceEnabled(context)
+        usageStatsGranted = PermissionUtils.hasUsageStatsPermission(context)
+        overlayGranted = Settings.canDrawOverlays(context)
+    }
+
+    // Refresh when app resumes
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Auto refresh loop (backup)
     LaunchedEffect(Unit) {
         while(true) {
-            locationGranted = PermissionUtils.hasLocationPermission(context)
-            bgLocationGranted = PermissionUtils.hasBackgroundLocationPermission(context)
-            notificationsGranted = PermissionUtils.hasNotificationPermission(context)
-            batteryIgnored = PermissionUtils.isBatteryOptimizationIgnored(context)
-            accessibilityEnabled = PermissionUtils.isAccessibilityServiceEnabled(context)
-            usageStatsGranted = PermissionUtils.hasUsageStatsPermission(context)
-            overlayGranted = Settings.canDrawOverlays(context)
+            refreshPermissions()
             delay(2000)
         }
     }

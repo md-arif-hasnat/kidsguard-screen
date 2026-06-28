@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">KidsGuard Screen</string>
-    <string name="accessibility_description">KidGuard prevents curious little hands from leaving the app when active.</string>
+    <string name="accessibility_description">KidGuard prevents curious little hands from leaving the app
+        when active.</string>
     <string name="device_admin_description">KidsGuard uses system protection to prevent accidental app uninstallation and manage wellbeing restrictions.</string>
 
     <!-- Play Store Metadata -->
