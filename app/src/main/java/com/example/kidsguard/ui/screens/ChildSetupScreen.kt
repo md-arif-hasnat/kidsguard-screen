@@ -27,6 +27,9 @@ import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import android.util.Log
+import com.example.kidsguard.utils.PermissionUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,12 +42,15 @@ fun ChildSetupScreen(
     onSetupComplete: () -> Unit, 
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(prefHelper.childName) }
     var code by remember { mutableStateOf(prefHelper.pairingCode) }
     var avatarId by remember { mutableStateOf(prefHelper.avatarId) }
     var isGenerating by remember { mutableStateOf(false) }
     var isPaired by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     val avatars = listOf("avatar_1", "avatar_2", "avatar_3", "avatar_4", "avatar_5", "avatar_6")
 
@@ -55,12 +61,39 @@ fun ChildSetupScreen(
             val db = FirebaseFirestore.getInstance()
             listener = db.collection("pairingCodes").document(code)
                 .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        Log.e("ChildSetup", "Pairing listener error", e)
+                        return@addSnapshotListener
+                    }
                     if (snapshot != null && snapshot.exists()) {
                         val used = snapshot.getBoolean("used") ?: false
                         if (used) {
-                            isPaired = true
-                            prefHelper.familyId = snapshot.getString("familyId")
-                            prefHelper.pairedChildId = snapshot.getString("childId")
+                            Log.i("ChildSetup", "Pairing detected for code: $code")
+                            scope.launch {
+                                isSaving = true
+                                try {
+                                    val familyId = snapshot.getString("familyId")
+                                    val childId = snapshot.getString("childId")
+                                    
+                                    prefHelper.familyId = familyId
+                                    prefHelper.pairedChildId = childId
+                                    prefHelper.userRole = "CHILD"
+                                    prefHelper.isSetupCompleted = true
+                                    
+                                    Log.i("ChildSetup", "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD")
+                                    isPaired = true
+                                    
+                                    // Automatic navigation after success
+                                    delay(2000)
+                                    Log.i("ChildSetup", "Navigating to next screen after successful pairing")
+                                    onSetupComplete()
+                                } catch (err: Exception) {
+                                    Log.e("ChildSetup", "Failed to save pairing data", err)
+                                    saveError = "Failed to finalize setup: ${err.message}"
+                                } finally {
+                                    isSaving = false
+                                }
+                            }
                         }
                     }
                 }
@@ -173,7 +206,15 @@ fun ChildSetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (isPaired) {
+            if (isSaving) {
+                CircularProgressIndicator()
+                Text("Finalizing setup...", modifier = Modifier.padding(top = 16.dp))
+            } else if (saveError != null) {
+                Text(saveError!!, color = MaterialTheme.colorScheme.error)
+                Button(onClick = { saveError = null }) {
+                    Text("Retry")
+                }
+            } else if (isPaired) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = null,
@@ -197,9 +238,10 @@ fun ChildSetupScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
                     onClick = onSetupComplete,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Go to Dashboard")
+                    Text("Continue to Permissions")
                 }
             } else if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
                 Button(

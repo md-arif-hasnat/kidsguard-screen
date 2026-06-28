@@ -110,7 +110,23 @@ fun KidsGuardApp(
                         Screen.ParentDashboard
                     }
                 }
-                "CHILD" -> if (pairedId == null) Screen.ChildSetup else Screen.Home
+                "CHILD" -> {
+                    if (pairedId == null) {
+                        Screen.ChildSetup
+                    } else {
+                        val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context) &&
+                            com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context) &&
+                            com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context) &&
+                            com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(context) &&
+                            com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context)
+                        
+                        if (!hasAllPermissions) {
+                            Screen.PermissionChecklist
+                        } else {
+                            Screen.Home
+                        }
+                    }
+                }
                 else -> currentScreen
             }
         } else {
@@ -152,7 +168,21 @@ fun KidsGuardApp(
                 authRepository = authRepository,
                 repository = repository,
                 syncProvider = syncProvider,
-                onSetupComplete = { onScreenChange(Screen.Home) },
+                onSetupComplete = {
+                    val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(context) &&
+                        com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context)
+                    
+                    if (hasAllPermissions) {
+                        android.util.Log.i("KidsGuardApp", "All permissions granted, navigating to Home")
+                        onScreenChange(Screen.Home)
+                    } else {
+                        android.util.Log.i("KidsGuardApp", "Missing permissions, navigating to PermissionChecklist")
+                        onScreenChange(Screen.PermissionChecklist)
+                    }
+                },
                 onBack = { 
                     prefHelper.userRole = "NONE"
                     onScreenChange(Screen.RoleSelection) 
