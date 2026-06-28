@@ -93,7 +93,7 @@ fun UpdateDialog(
                 if (isMandatory) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                }
+                    }
                 
                 if (updateInfo.releaseNotes.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))

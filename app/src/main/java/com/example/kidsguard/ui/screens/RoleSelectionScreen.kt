@@ -1,17 +1,18 @@
 package com.example.kidsguard.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kidsguard.R
 
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: () -> Unit) {
@@ -26,11 +27,11 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Shield,
-            contentDescription = null,
+        Image(
+            painter = painterResource(id = R.drawable.masterlogo),
+            contentDescription = "KidsGuard Logo",
             modifier = Modifier
-                .size(100.dp)
+                .size(120.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -48,8 +49,7 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
                             onOpenDeveloperMenu()
                         }
                     }
-                },
-            tint = MaterialTheme.colorScheme.primary
+                }
         )
         Spacer(modifier = Modifier.height(32.dp))
         Text(

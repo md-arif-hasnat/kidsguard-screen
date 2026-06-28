@@ -142,6 +142,10 @@ class PreferenceHelper(context: Context) {
     var currentZoneId: String?
         get() = prefs.getString("current_zone_id", null)
         set(value) = prefs.edit().putString("current_zone_id", value).apply()
+
+    var isSetupCompleted: Boolean
+        get() = prefs.getBoolean("setup_completed", false)
+        set(value) = prefs.edit().putBoolean("setup_completed", value).apply()
 }
 
 object RemoteStatusService {

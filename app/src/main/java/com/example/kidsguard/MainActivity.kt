@@ -208,7 +208,19 @@ class MainActivity : ComponentActivity() {
                 prefHelper.isLocked -> Screen.Locked
                 prefHelper.userRole == "NONE" -> Screen.RoleSelection
                 prefHelper.userRole == "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
-                prefHelper.userRole == "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
+                prefHelper.userRole == "CHILD" -> {
+                    if (prefHelper.pairedChildId == null) {
+                        Screen.ChildSetup
+                    } else {
+                        val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(this) &&
+                            com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(this) &&
+                            com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(this) &&
+                            com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(this) &&
+                            com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(this)
+                        
+                        if (!hasAllPermissions) Screen.PermissionChecklist else Screen.Home
+                    }
+                }
                 else -> Screen.Home
             }
         }
