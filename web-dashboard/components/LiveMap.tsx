@@ -145,9 +145,14 @@ const LiveMap: React.FC<LiveMapProps> = ({
   if (isLoaded && !hasLocation && !hasHistory) {
       return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-2xl text-slate-400 p-8 text-center">
-              <MapPin size={48} className="mb-4 opacity-20" />
-              <h3 className="text-lg font-bold text-slate-600">No GPS coordinates received from child device yet</h3>
-              <p className="text-sm max-w-xs mx-auto mt-2">Ensure tracking is enabled on the child&apos;s phone and it has a clear view of the sky.</p>
+              <div className="relative mb-4">
+                <MapPin size={48} className="opacity-20" />
+                <div className="absolute inset-0 animate-ping opacity-10 bg-primary-400 rounded-full scale-50" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-600 italic">Waiting for GPS signal...</h3>
+              <p className="text-sm max-w-xs mx-auto mt-2 font-medium opacity-80">
+                The device is connected. Waiting for a precise coordinate lock from the satellite.
+              </p>
           </div>
       )
   }
