@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.content.ComponentName
+import com.example.kidsguard.KidGuardAccessibilityService
+//import android.provider.Settings
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
 import androidx.core.content.ContextCompat
@@ -48,28 +51,21 @@ object PermissionUtils {
     }
 
     fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val expectedComponentName = "${context.packageName}/${context.packageName}.KidGuardAccessibilityService"
-        
-        // Method 1: Check Settings.Secure
-        val enabledServicesSetting = Settings.Secure.getString(
+
+        val componentName = ComponentName(
+            context,
+            KidGuardAccessibilityService::class.java
+        )
+
+        val enabledServices = Settings.Secure.getString(
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )
-        val isEnabledInSettings = enabledServicesSetting?.contains(expectedComponentName) == true
-        
-        // Method 2: Check AccessibilityManager
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServicesList = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        val isRunning = enabledServicesList.any { 
-            it.resolveInfo.serviceInfo.packageName == context.packageName && 
-            it.resolveInfo.serviceInfo.name == "${context.packageName}.KidGuardAccessibilityService"
-        }
+        ) ?: return false
 
-        val result = isEnabledInSettings || isRunning
-        android.util.Log.d("PermissionUtils", "SERVICE_ENABLED=$result")
-        android.util.Log.d("PermissionUtils", "SERVICE_COMPONENT_FOUND=$isRunning")
-        
-        return result
+        return enabledServices.contains(
+            componentName.flattenToString(),
+            ignoreCase = true
+        )
     }
 
     fun hasUsageStatsPermission(context: Context): Boolean {
