@@ -46,7 +46,8 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DiagnosticSection("App Information") {
-                DiagnosticRow("Version", "0.3.0-dev")
+                DiagnosticRow("Version", com.example.kidsguard.BuildConfig.VERSION_NAME)
+                DiagnosticRow("Version Code", com.example.kidsguard.BuildConfig.VERSION_CODE.toString())
                 DiagnosticRow("Build Type", if (com.example.kidsguard.BuildConfig.DEBUG) "Debug" else "Release")
                 DiagnosticRow("Package", context.packageName)
                 val prefHelper = remember { com.example.kidsguard.data.PreferenceHelper(context) }
