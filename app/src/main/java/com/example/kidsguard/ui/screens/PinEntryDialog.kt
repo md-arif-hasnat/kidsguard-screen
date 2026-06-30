@@ -55,9 +55,14 @@ fun PinEntryDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (pin == correctPin) {
+                    val enteredPin = pin.trim()
+                    val targetPin = correctPin.trim()
+                    
+                    if (enteredPin == targetPin) {
+                        android.util.Log.i("PinEntry", "PIN match success. Executing success handler.")
                         onCorrectPin()
                     } else {
+                        android.util.Log.w("PinEntry", "PIN mismatch. Entered: $enteredPin")
                         isError = true
                         onIncorrectPin()
                         pin = ""
