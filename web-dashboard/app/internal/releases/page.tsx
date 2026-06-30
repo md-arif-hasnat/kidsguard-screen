@@ -24,6 +24,7 @@ import { clsx } from 'clsx';
 export default function ReleaseManager() {
   const { admin, loading: adminLoading } = useInternalAdmin();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
@@ -48,7 +49,20 @@ export default function ReleaseManager() {
   const canPublish = admin?.role === PlatformAdminRole.SUPER_ADMIN || admin?.role === PlatformAdminRole.ADMIN;
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     async function loadData() {
+      console.log("RELEASE_DEBUG: starting data load");
+
+      // Spinner timeout - terminate loading after 10 seconds even if Firestore hangs
+      timeoutId = setTimeout(() => {
+        if (loading) {
+            console.warn("RELEASE_DEBUG: loading timeout reached");
+            setLoading(false);
+            setError("Connection timeout. Please refresh the page.");
+        }
+      }, 10000);
+
       try {
         const [active, releases] = await Promise.all([
           ConfigRepository.getUpdateConfig(),
@@ -70,16 +84,24 @@ export default function ReleaseManager() {
           setWebVersion(active.webVersion || '1.0.0');
           setWebMessage(active.webUpdateMessage || 'New web version available.');
           setWebNotes(Array.isArray(active.webReleaseNotes) ? active.webReleaseNotes.join('\n') : active.webReleaseNotes || '');
+        } else {
+            console.log("RELEASE_DEBUG: No active config found");
         }
+
         setHistory(releases);
-      } catch (err) {
-        console.error(err);
+        console.log("RELEASE_DEBUG: data load successful");
+      } catch (err: any) {
+        console.error("RELEASE_DEBUG: data load failed", err);
+        setError(err.message || "Failed to load release data");
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
+        console.log("RELEASE_DEBUG: loading state set to false");
       }
     }
 
     loadData();
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const validate = () => {
@@ -164,6 +186,13 @@ export default function ReleaseManager() {
             </span>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-8 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center gap-3">
+          <AlertCircle size={20} />
+          <p className="font-bold text-xs uppercase tracking-wider">{error}</p>
+        </div>
+      )}
 
       {status && (
         <div className={clsx(
@@ -344,30 +373,36 @@ export default function ReleaseManager() {
                 </div>
 
                 <div className="space-y-4 max-h-[400px] md:max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {history.map(rel => (
-                        <div key={rel.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-rose-500/50 transition-all group">
-                            <div className="flex justify-between items-start mb-2">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-black text-xs">v{rel.latestVersionName}</p>
-                                        <span className={clsx(
-                                            "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
-                                            rel.releaseChannel === 'stable' ? "bg-emerald-500/10 text-emerald-400" : rel.releaseChannel === 'beta' ? "bg-amber-500/10 text-amber-400" : "bg-rose-500/10 text-rose-400"
-                                        )}>
-                                            {rel.releaseChannel}
-                                        </span>
+                    {history.length === 0 ? (
+                        <div className="py-8 text-center bg-slate-950/50 rounded-2xl border border-slate-800 border-dashed">
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] italic">No releases published yet</p>
+                        </div>
+                    ) : (
+                        history.map(rel => (
+                            <div key={rel.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-rose-500/50 transition-all group">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-black text-xs">v{rel.latestVersionName}</p>
+                                            <span className={clsx(
+                                                "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                                                rel.releaseChannel === 'stable' ? "bg-emerald-500/10 text-emerald-400" : rel.releaseChannel === 'beta' ? "bg-amber-500/10 text-amber-400" : "bg-rose-500/10 text-rose-400"
+                                            )}>
+                                                {rel.releaseChannel}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    {rel.mandatoryUpdate && <ShieldAlert size={14} className="text-rose-500" />}
-                                    <a href={rel.apkDownloadUrl} target="_blank" className="text-slate-600 hover:text-rose-500 transition-colors">
-                                        <ExternalLink size={14} />
-                                    </a>
+                                    <div className="flex gap-2">
+                                        {rel.mandatoryUpdate && <ShieldAlert size={14} className="text-rose-500" />}
+                                        <a href={rel.apkDownloadUrl} target="_blank" className="text-slate-600 hover:text-rose-500 transition-colors">
+                                            <ExternalLink size={14} />
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </div>
             </section>
 
