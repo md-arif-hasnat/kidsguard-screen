@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Shield, Lock, Mail, Loader2, AlertCircle, Phone, Smartphone, Chrome, Apple, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { clsx } from 'clsx';
 import {
   loginWithEmail,
   signUpWithEmail,
@@ -139,23 +140,56 @@ export default function Login() {
     }
   };
 
+  const normalizePhoneNumber = (phone: string) => {
+    let cleaned = phone.trim().replace(/\s+/g, '');
+
+    // 00 prefix to +
+    if (cleaned.startsWith('00')) {
+      return '+' + cleaned.substring(2);
+    }
+
+    // Local German format (0...) to +49
+    if (cleaned.startsWith('0')) {
+      return '+49' + cleaned.substring(1);
+    }
+
+    return cleaned;
+  };
+
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setLoadingMessage("Sending verification code...");
+
+    const finalPhone = normalizePhoneNumber(phoneNumber);
+
     try {
       if (!recaptchaRef.current) {
         recaptchaRef.current = setupRecaptcha('recaptcha-container');
       }
-      const confirmation = await loginWithPhone(phoneNumber, recaptchaRef.current);
+      const confirmation = await loginWithPhone(finalPhone, recaptchaRef.current);
       if (confirmation) {
         confirmationResultRef.current = confirmation;
         setShowOtpInput(true);
         setLoading(false);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Phone auth error:", err);
+
+      let friendlyMessage = err.message;
+
+      if (err.code === 'auth/invalid-phone-number' || err.message?.includes('invalid-phone-number') || err.message?.includes('Invalid format')) {
+          friendlyMessage = "FORMAT_ERROR";
+      } else if (err.code === 'auth/quota-exceeded') {
+          friendlyMessage = "Too many requests. Please try again later.";
+      } else if (err.code === 'auth/too-many-requests') {
+          friendlyMessage = "Too many attempts. Please wait before trying again.";
+      } else {
+          friendlyMessage = "Authentication failed. Please verify your number and try again.";
+      }
+
+      setError(friendlyMessage);
       setLoading(false);
     }
   };
@@ -236,9 +270,45 @@ export default function Login() {
         </div>
 
         {error && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-xl mb-6 flex items-start gap-3 text-sm animate-in slide-in-from-top-2 duration-300">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p className="font-bold">{error}</p>
+            <div className={clsx(
+                "p-4 rounded-2xl mb-6 flex items-start gap-3 animate-in slide-in-from-top-2 duration-300 border shadow-sm",
+                error === "FORMAT_ERROR"
+                    ? "bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/30 dark:text-rose-400"
+                    : "bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/30"
+            )}>
+                <AlertCircle size={20} className="shrink-0 mt-0.5 text-rose-500" />
+                <div className="space-y-3">
+                    <p className="font-black text-sm uppercase tracking-tight">
+                        {error === "FORMAT_ERROR" ? "Invalid phone number format" : "Security Alert"}
+                    </p>
+                    {error === "FORMAT_ERROR" ? (
+                        <div className="space-y-4">
+                            <p className="text-xs font-medium leading-relaxed opacity-90">
+                                Please enter your number including your country code (e.g. +49 for Germany).
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase opacity-60">Germany</p>
+                                    <code className="text-[11px] font-bold bg-white/50 dark:bg-black/20 px-2 py-1 rounded-lg">+49 157 3242 1309</code>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase opacity-60">United Kingdom</p>
+                                    <code className="text-[11px] font-bold bg-white/50 dark:bg-black/20 px-2 py-1 rounded-lg">+44 7123 456789</code>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase opacity-60">Bangladesh</p>
+                                    <code className="text-[11px] font-bold bg-white/50 dark:bg-black/20 px-2 py-1 rounded-lg">+880 1712 345678</code>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase opacity-60">France</p>
+                                    <code className="text-[11px] font-bold bg-white/50 dark:bg-black/20 px-2 py-1 rounded-lg">+33 6 12 34 56 78</code>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="font-bold text-sm">{error}</p>
+                    )}
+                </div>
             </div>
         )}
 
