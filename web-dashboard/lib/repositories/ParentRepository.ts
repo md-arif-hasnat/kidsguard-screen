@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp, query, collection, orderBy, limit, getDocs } from "firebase/firestore";
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export interface ParentProfile {
@@ -101,5 +101,16 @@ export class ParentRepository {
   static async updateProfile(uid: string, updates: Partial<ParentProfile>): Promise<void> {
     if (!db) return;
     await setDoc(doc(db, "parents", uid), updates, { merge: true });
+  }
+
+  static async getAllParents(count: number = 100): Promise<ParentProfile[]> {
+    if (!db) return [];
+    const q = query(
+      collection(db, "parents"),
+      orderBy("createdAt", "desc"),
+      limit(count)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => doc.data() as ParentProfile);
   }
 }

@@ -183,14 +183,41 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // --- Platform Admin Portal ---
+
+    function isPlatformAdmin() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data.active == true;
+    }
+
+    function getPlatformAdminRole() {
+      return get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data.role;
+    }
+
+    function isInternalPowerUser() {
+      let role = getPlatformAdminRole();
+      return role == 'SUPER_ADMIN' || role == 'ADMIN' || role == 'DEVELOPER';
+    }
+
+    match /platformAdmins/{uid} {
+      allow read: if isSignedIn();
+    }
+
+    match /supportTickets/{ticketId} {
+      allow read: if isPlatformAdmin() || (isParent() && resource.data.parentUid == request.auth.uid);
+      allow create: if isParent();
+      allow update: if isPlatformAdmin() || (isParent() && resource.data.parentUid == request.auth.uid);
+    }
+
     match /appConfig/{doc} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isPlatformAdmin() && isInternalPowerUser();
     }
 
     match /appReleases/{doc} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isPlatformAdmin() && isInternalPowerUser();
     }
   }
 }

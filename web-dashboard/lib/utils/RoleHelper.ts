@@ -71,12 +71,4 @@ export class RoleHelper {
   static canViewRouteHistory(role: FamilyRole): boolean {
     return role !== FamilyRole.VIEWER;
   }
-
-  static canManageReleaseManager(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER;
-  }
-
-  static canAccessAdminPortal(role: FamilyRole): boolean {
-      return role === FamilyRole.OWNER;
-  }
 }
