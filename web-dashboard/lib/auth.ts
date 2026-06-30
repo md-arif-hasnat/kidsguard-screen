@@ -12,7 +12,8 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
-  sendEmailVerification
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from "firebase/auth";
 
 export const signIn = async (): Promise<User | null> => {
@@ -105,4 +106,14 @@ export const signOut = async () => {
 export const observeAuth = (onUpdate: (user: User | null) => void) => {
   if (!auth) return () => {};
   return onAuthStateChanged(auth, onUpdate);
+};
+
+export const resetPassword = async (email: string) => {
+  if (!auth) return;
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    console.error("Password reset failed:", error);
+    throw error;
+  }
 };
