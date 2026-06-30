@@ -68,11 +68,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
-  const adminItems = [
-    { name: 'System Analytics', href: '/admin/analytics', icon: BarChart3 },
-    { name: 'App Releases', href: '/admin/releases', icon: Zap },
-  ];
-
   const handleSignOut = async () => {
     await signOut();
     localStorage.removeItem("kidsguard_family_id");
@@ -122,33 +117,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </Link>
           );
         })}
-
-        {RoleHelper.canAccessAdminPortal(role) && (
-            <div className="pt-8 pb-2">
-                <p className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Admin Portal</p>
-                {adminItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            onClick={() => { if (onClose) onClose(); }}
-                            className={cn(
-                                "flex items-center justify-between px-4 py-3 rounded-lg transition-colors",
-                                isActive
-                                ? "bg-slate-700 text-white"
-                                : "text-slate-500 hover:bg-slate-800 hover:text-white"
-                            )}
-                        >
-                            <div className="flex items-center gap-3">
-                                <item.icon size={18} />
-                                <span className="font-medium text-sm">{item.name}</span>
-                            </div>
-                        </Link>
-                    );
-                })}
-            </div>
-        )}
       </nav>
 
       <div className="pt-4 border-t border-slate-800">
