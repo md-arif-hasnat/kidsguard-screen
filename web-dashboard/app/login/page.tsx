@@ -11,7 +11,8 @@ import {
   loginWithApple,
   signIn,
   setupRecaptcha,
-  loginWithPhone
+  loginWithPhone,
+  resetPassword
 } from '@/lib/auth';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { FamilyRepository } from '@/lib/repositories/FamilyRepository';
@@ -25,6 +26,8 @@ export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPhoneLogin, setShowPhoneLogin] = useState(false);
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Signing in...');
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +178,32 @@ export default function Login() {
     }
   };
 
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setLoadingMessage("Sending reset link...");
+    try {
+      await resetPassword(email);
+      setResetSuccess(true);
+      setLoading(false);
+    } catch (err: any) {
+      let friendlyMessage = "Failed to send reset email. Please try again.";
+      if (err.code === 'auth/user-not-found') {
+          // generic message for security as requested, but if it exists, it sent.
+          setResetSuccess(true);
+          setLoading(false);
+          return;
+      } else if (err.code === 'auth/invalid-email') {
+          friendlyMessage = "Please enter a valid email address.";
+      } else if (err.code === 'auth/too-many-requests') {
+          friendlyMessage = "Too many requests. Please try again later.";
+      }
+      setError(friendlyMessage);
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-500">
       <div id="recaptcha-container"></div>
@@ -213,7 +242,64 @@ export default function Login() {
             </div>
         )}
 
-        {!showPhoneLogin ? (
+        {showForgotPassword ? (
+          <form className="space-y-6" onSubmit={handleForgotPasswordSubmit}>
+            <div className="text-center mb-6">
+               <h2 className="text-xl font-bold text-slate-900">Reset Password</h2>
+               <p className="text-sm text-slate-500 mt-1 italic">Enter your email to receive a reset link.</p>
+            </div>
+
+            {resetSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-6 rounded-2xl text-center animate-in zoom-in-95 duration-300">
+                  <CheckCircle2 className="mx-auto mb-4" size={40} />
+                  <p className="font-bold">Password reset link sent.</p>
+                  <p className="text-xs mt-2 italic">Please check your inbox (and spam folder).</p>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(false); setResetSuccess(false); }}
+                    className="mt-6 text-primary-600 font-bold uppercase tracking-widest text-[10px] hover:underline"
+                  >
+                    Back to Login
+                  </button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 text-slate-400" size={20} />
+                    <input
+                      type="email"
+                      required
+                      disabled={loading}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-bold text-slate-700"
+                      placeholder="parent@example.com"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Send Reset Link"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => setShowForgotPassword(false)}
+                  className="w-full text-slate-400 font-bold hover:text-slate-600 text-[10px] uppercase tracking-widest"
+                >
+                  Back to Login
+                </button>
+              </>
+            )}
+          </form>
+        ) : !showPhoneLogin ? (
           <>
             <form className="space-y-4" onSubmit={handleEmailSubmit}>
               <div className="space-y-1">
@@ -247,6 +333,18 @@ export default function Login() {
                     placeholder="••••••••"
                   />
                 </div>
+                {!isSignUp && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => { setShowForgotPassword(true); setError(null); }}
+                      className="text-[10px] font-bold text-primary-600 hover:underline uppercase tracking-widest mt-1"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
               </div>
 
               <button
