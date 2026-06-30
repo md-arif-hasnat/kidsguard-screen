@@ -10,7 +10,7 @@ interface InternalLayoutProps {
   children: React.ReactNode;
 }
 
-const InternalLayoutContent: React.FC<InternalLayoutProps> = ({ children }) => {
+const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { admin, loading, isAdmin } = useInternalAdmin();
   const router = useRouter();
@@ -19,6 +19,7 @@ const InternalLayoutContent: React.FC<InternalLayoutProps> = ({ children }) => {
   // Route Guard
   React.useEffect(() => {
     if (!loading && !isAdmin && pathname !== '/internal/login') {
+        console.log("INTERNAL_DEBUG: Guard: Not admin, redirecting to login");
         router.push('/internal/login');
     }
   }, [loading, isAdmin, pathname, router]);
@@ -88,16 +89,6 @@ const InternalLayoutContent: React.FC<InternalLayoutProps> = ({ children }) => {
       </div>
     </div>
   );
-};
-
-const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
-    return (
-        <InternalAdminProvider>
-            <InternalLayoutContent>
-                {children}
-            </InternalLayoutContent>
-        </InternalAdminProvider>
-    );
 };
 
 export default InternalLayout;

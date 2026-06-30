@@ -4,16 +4,13 @@ import React, { useEffect, useState } from 'react';
 import InternalLayout from '@/components/InternalLayout';
 import {
   Rocket,
-  Save,
   Loader2,
   CheckCircle2,
   AlertCircle,
   History,
   ExternalLink,
   ShieldAlert,
-  ArrowUpCircle,
   FileCode,
-  Lock,
   Monitor
 } from 'lucide-react';
 import { ConfigRepository, ReleaseChannel, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
@@ -54,7 +51,6 @@ export default function ReleaseManager() {
     async function loadData() {
       console.log("RELEASE_DEBUG: starting data load");
 
-      // Spinner timeout - terminate loading after 10 seconds even if Firestore hangs
       timeoutId = setTimeout(() => {
         if (loading) {
             console.warn("RELEASE_DEBUG: loading timeout reached");
@@ -84,10 +80,7 @@ export default function ReleaseManager() {
           setWebVersion(active.webVersion || '1.0.0');
           setWebMessage(active.webUpdateMessage || 'New web version available.');
           setWebNotes(Array.isArray(active.webReleaseNotes) ? active.webReleaseNotes.join('\n') : active.webReleaseNotes || '');
-        } else {
-            console.log("RELEASE_DEBUG: No active config found");
         }
-
         setHistory(releases);
         console.log("RELEASE_DEBUG: data load successful");
       } catch (err: any) {
@@ -166,261 +159,290 @@ export default function ReleaseManager() {
     return (
       <InternalLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <Loader2 className="animate-spin text-rose-500" size={48} />
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="animate-spin text-rose-500" size={48} />
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest animate-pulse">Syncing Releases...</p>
+          </div>
         </div>
       </InternalLayout>
     );
   }
 
-  return (
-    <InternalLayout>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white uppercase italic tracking-tight">Release <span className="text-rose-500">Manager</span></h1>
-          <p className="text-slate-500 text-sm md:text-base mt-1">Deploy application updates across all channels.</p>
+  if (error) {
+    return (
+      <InternalLayout>
+        <div className="max-w-2xl mx-auto mt-12 p-8 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] text-center">
+          <AlertCircle size={48} className="text-rose-500 mx-auto mb-4" />
+          <h2 className="text-xl font-black text-white uppercase italic mb-2">Release System Error</h2>
+          <p className="text-slate-400 font-medium mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-rose-600 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest"
+          >
+            Retry Connection
+          </button>
         </div>
-        <div className="flex gap-2">
-            <span className="bg-rose-500/10 text-rose-500 px-3 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-rose-500/20 uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                Live Control
-            </span>
-        </div>
-      </div>
+      </InternalLayout>
+    );
+  }
 
-      {error && (
-        <div className="mb-8 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center gap-3">
-          <AlertCircle size={20} />
-          <p className="font-bold text-xs uppercase tracking-wider">{error}</p>
-        </div>
-      )}
-
-      {status && (
-        <div className={clsx(
-          "mb-8 p-4 rounded-xl flex items-center gap-3 border animate-in slide-in-from-top-2 duration-300",
-          status.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-        )}>
-          {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
-          <p className="font-bold text-xs uppercase tracking-wider">{status.message}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <div className="xl:col-span-2 space-y-6">
-            <section className="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
-                <div className="p-5 md:p-6 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
-                    <h2 className="font-black text-white flex items-center gap-2 text-xs md:text-sm uppercase tracking-widest">
-                        <Rocket size={18} className="text-rose-500" />
-                        Publish New Release
-                    </h2>
-                </div>
-                <form onSubmit={handlePublish} className="p-5 md:p-8 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Version Name</label>
-                            <input
-                                type="text"
-                                value={versionName}
-                                onChange={e => setVersionName(e.target.value)}
-                                placeholder="1.0.0"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Version Code</label>
-                            <input
-                                type="number"
-                                value={versionCode}
-                                onChange={e => setVersionCode(parseInt(e.target.value))}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">APK Download URL</label>
-                            <input
-                                type="url"
-                                value={apkUrl}
-                                onChange={e => setApkUrl(e.target.value)}
-                                placeholder="https://github.com/.../release.apk"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Release Channel</label>
-                            <select
-                                value={channel}
-                                onChange={e => setChannel(e.target.value as any)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold appearance-none text-sm text-white"
-                            >
-                                <option value="stable">Stable (Production)</option>
-                                <option value="beta">Beta (Testing)</option>
-                                <option value="alpha">Alpha (Development)</option>
-                            </select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mandatory Update</label>
-                            <div className="flex items-center gap-4 h-[52px] bg-slate-950 border border-slate-800 rounded-xl px-4">
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                    <input
-                                        type="checkbox"
-                                        checked={mandatory}
-                                        onChange={e => setMandatory(e.target.checked)}
-                                        className="w-5 h-5 accent-rose-500 cursor-pointer bg-slate-900 border-slate-700"
-                                    />
-                                    <span className="text-xs font-bold text-slate-400 group-hover:text-rose-500 transition-colors uppercase tracking-tight">Force Update</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">File Size</label>
-                            <input
-                                type="text"
-                                value={fileSize}
-                                onChange={e => setFileSize(e.target.value)}
-                                placeholder="12.5 MB"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Min Android</label>
-                            <input
-                                type="text"
-                                value={minAndroid}
-                                onChange={e => setMinAndroid(e.target.value)}
-                                placeholder="8.0"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Prompt Message</label>
-                            <input
-                                type="text"
-                                value={message}
-                                onChange={e => setMessage(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Release Notes (One per line)</label>
-                            <textarea
-                                rows={4}
-                                value={notes}
-                                onChange={e => setReleaseNotes(e.target.value)}
-                                placeholder="✓ Added Safe Zone alerts"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm resize-none text-white"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="border-t border-slate-800 pt-8">
-                        <h3 className="text-xs font-black text-white mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
-                            <Monitor size={16} className="text-rose-500" />
-                            Web / PWA Update Configuration
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Version</label>
-                                <input
-                                    type="text"
-                                    value={webVersion}
-                                    onChange={e => setWebVersion(e.target.value)}
-                                    placeholder="1.0.0"
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Update Message</label>
-                                <input
-                                    type="text"
-                                    value={webMessage}
-                                    onChange={e => setWebMessage(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
-                                />
-                            </div>
-                            <div className="space-y-1.5 md:col-span-2">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Release Notes (One per line)</label>
-                                <textarea
-                                    rows={3}
-                                    value={webNotes}
-                                    onChange={e => setWebNotes(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm resize-none text-white"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pt-8 border-t border-slate-800 flex justify-end">
-                        <button
-                            disabled={publishing || !canPublish}
-                            type="submit"
-                            className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-black py-4 px-12 rounded-2xl shadow-xl shadow-rose-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xs uppercase tracking-widest italic"
-                        >
-                            {publishing ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}
-                            Deploy Release
-                        </button>
-                    </div>
-                </form>
-            </section>
+  try {
+    return (
+      <InternalLayout>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-white uppercase italic tracking-tight">Release <span className="text-rose-500">Manager</span></h1>
+            <p className="text-slate-500 text-sm md:text-base mt-1">Deploy application updates across all channels.</p>
+          </div>
+          <div className="flex gap-2">
+              <span className="bg-rose-500/10 text-rose-500 px-3 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-rose-500/20 uppercase tracking-widest">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  Live Control
+              </span>
+          </div>
         </div>
 
-        <div className="space-y-6">
-            <section className="bg-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-2xl border border-slate-800">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest">
-                        <History size={16} className="text-rose-500" />
-                        Audit History
-                    </h3>
-                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{history.length} Saved</span>
-                </div>
+        {status && (
+          <div className={clsx(
+            "mb-8 p-4 rounded-xl flex items-center gap-3 border animate-in slide-in-from-top-2 duration-300",
+            status.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+          )}>
+            {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            <p className="font-bold text-xs uppercase tracking-wider">{status.message}</p>
+          </div>
+        )}
 
-                <div className="space-y-4 max-h-[400px] md:max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {history.length === 0 ? (
-                        <div className="py-8 text-center bg-slate-950/50 rounded-2xl border border-slate-800 border-dashed">
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] italic">No releases published yet</p>
-                        </div>
-                    ) : (
-                        history.map(rel => (
-                            <div key={rel.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-rose-500/50 transition-all group">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-black text-xs">v{rel.latestVersionName}</p>
-                                            <span className={clsx(
-                                                "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
-                                                rel.releaseChannel === 'stable' ? "bg-emerald-500/10 text-emerald-400" : rel.releaseChannel === 'beta' ? "bg-amber-500/10 text-amber-400" : "bg-rose-500/10 text-rose-400"
-                                            )}>
-                                                {rel.releaseChannel}
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        {rel.mandatoryUpdate && <ShieldAlert size={14} className="text-rose-500" />}
-                                        <a href={rel.apkDownloadUrl} target="_blank" className="text-slate-600 hover:text-rose-500 transition-colors">
-                                            <ExternalLink size={14} />
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </section>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="xl:col-span-2 space-y-6">
+              <section className="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                  <div className="p-5 md:p-6 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                      <h2 className="font-black text-white flex items-center gap-2 text-xs md:text-sm uppercase tracking-widest">
+                          <Rocket size={18} className="text-rose-500" />
+                          Publish New Release
+                      </h2>
+                  </div>
+                  <form onSubmit={handlePublish} className="p-5 md:p-8 space-y-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Version Name</label>
+                              <input
+                                  type="text"
+                                  value={versionName}
+                                  onChange={e => setVersionName(e.target.value)}
+                                  placeholder="1.0.0"
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Version Code</label>
+                              <input
+                                  type="number"
+                                  value={versionCode}
+                                  onChange={e => setVersionCode(parseInt(e.target.value))}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5 md:col-span-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">APK Download URL</label>
+                              <input
+                                  type="url"
+                                  value={apkUrl}
+                                  onChange={e => setApkUrl(e.target.value)}
+                                  placeholder="https://github.com/.../release.apk"
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Release Channel</label>
+                              <select
+                                  value={channel}
+                                  onChange={e => setChannel(e.target.value as any)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold appearance-none text-sm text-white"
+                              >
+                                  <option value="stable">Stable (Production)</option>
+                                  <option value="beta">Beta (Testing)</option>
+                                  <option value="alpha">Alpha (Development)</option>
+                              </select>
+                          </div>
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mandatory Update</label>
+                              <div className="flex items-center gap-4 h-[52px] bg-slate-950 border border-slate-800 rounded-xl px-4">
+                                  <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input
+                                          type="checkbox"
+                                          checked={mandatory}
+                                          onChange={e => setMandatory(e.target.checked)}
+                                          className="w-5 h-5 accent-rose-500 cursor-pointer bg-slate-900 border-slate-700"
+                                      />
+                                      <span className="text-xs font-bold text-slate-400 group-hover:text-rose-500 transition-colors uppercase tracking-tight">Force Update</span>
+                                  </label>
+                              </div>
+                          </div>
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">File Size</label>
+                              <input
+                                  type="text"
+                                  value={fileSize}
+                                  onChange={e => setFileSize(e.target.value)}
+                                  placeholder="12.5 MB"
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Min Android</label>
+                              <input
+                                  type="text"
+                                  value={minAndroid}
+                                  onChange={e => setMinAndroid(e.target.value)}
+                                  placeholder="8.0"
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5 md:col-span-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Prompt Message</label>
+                              <input
+                                  type="text"
+                                  value={message}
+                                  onChange={e => setMessage(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5 md:col-span-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Release Notes (One per line)</label>
+                              <textarea
+                                  rows={4}
+                                  value={notes}
+                                  onChange={e => setReleaseNotes(e.target.value)}
+                                  placeholder="✓ Added Safe Zone alerts"
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm resize-none text-white"
+                              />
+                          </div>
+                      </div>
 
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-sm">
-                <h3 className="font-black text-white mb-4 flex items-center gap-2 text-[10px] uppercase tracking-widest">
-                    <FileCode size={18} className="text-rose-500" />
-                    Security Notice
-                </h3>
-                <ul className="space-y-3">
-                    <TipItem label="Auth" text="Only Super Admins can deploy to Stable." />
-                    <TipItem label="Audit" text="Every release is logged with UID." />
-                    <TipItem label="Verify" text="Test in Alpha before Stable deployment." />
-                </ul>
+                      <div className="border-t border-slate-800 pt-8">
+                          <h3 className="text-xs font-black text-white mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
+                              <Monitor size={16} className="text-rose-500" />
+                              Web / PWA Update Configuration
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Version</label>
+                                  <input
+                                      type="text"
+                                      value={webVersion}
+                                      onChange={e => setWebVersion(e.target.value)}
+                                      placeholder="1.0.0"
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-bold text-sm text-white"
+                                  />
+                              </div>
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Update Message</label>
+                                  <input
+                                      type="text"
+                                      value={webMessage}
+                                      onChange={e => setWebMessage(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
+                                  />
+                              </div>
+                              <div className="space-y-1.5 md:col-span-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Web Release Notes (One per line)</label>
+                                  <textarea
+                                      rows={3}
+                                      value={webNotes}
+                                      onChange={e => setWebNotes(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm resize-none text-white"
+                                  />
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="pt-8 border-t border-slate-800 flex justify-end">
+                          <button
+                              disabled={publishing || !canPublish}
+                              type="submit"
+                              className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-black py-4 px-12 rounded-2xl shadow-xl shadow-rose-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xs uppercase tracking-widest italic"
+                          >
+                              {publishing ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}
+                              Deploy Release
+                          </button>
+                      </div>
+                  </form>
+              </section>
+          </div>
+
+          <div className="space-y-6">
+              <section className="bg-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-2xl border border-slate-800">
+                  <div className="flex items-center justify-between mb-6">
+                      <h3 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-widest">
+                          <History size={16} className="text-rose-500" />
+                          Audit History
+                      </h3>
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{history.length} Saved</span>
+                  </div>
+
+                  <div className="space-y-4 max-h-[400px] md:max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                      {history.length === 0 ? (
+                          <div className="py-8 text-center bg-slate-950/50 rounded-2xl border border-slate-800 border-dashed">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] italic">No releases published yet</p>
+                          </div>
+                      ) : (
+                          history.map(rel => {
+                              console.log("RELEASE_UI_DEBUG: rendering release id", rel.id);
+                              return (
+                                  <div key={rel.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-rose-500/50 transition-all group">
+                                      <div className="flex justify-between items-start mb-2">
+                                          <div>
+                                              <div className="flex items-center gap-2">
+                                                  <p className="font-black text-xs">v{rel.latestVersionName || "Unknown"}</p>
+                                                  <span className={clsx(
+                                                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                                                      (rel.releaseChannel || 'stable') === 'stable' ? "bg-emerald-500/10 text-emerald-400" : (rel.releaseChannel || 'stable') === 'beta' ? "bg-amber-500/10 text-amber-400" : "bg-rose-500/10 text-rose-400"
+                                                  )}>
+                                                      {rel.releaseChannel || "stable"}
+                                                  </span>
+                                              </div>
+                                              <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
+                                          </div>
+                                          <div className="flex gap-2">
+                                              {rel.mandatoryUpdate && <ShieldAlert size={14} className="text-rose-500" />}
+                                              <a href={rel.apkDownloadUrl} target="_blank" className="text-slate-600 hover:text-rose-500 transition-colors">
+                                                  <ExternalLink size={14} />
+                                              </a>
+                                          </div>
+                                      </div>
+                                  </div>
+                              );
+                          })
+                      )}
+                  </div>
+              </section>
+
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-sm">
+                  <h3 className="font-black text-white mb-4 flex items-center gap-2 text-[10px] uppercase tracking-widest">
+                      <FileCode size={18} className="text-rose-500" />
+                      Security Notice
+                  </h3>
+                  <ul className="space-y-3">
+                      <TipItem label="Auth" text="Only Super Admins can deploy to Stable." />
+                      <TipItem label="Audit" text="Every release is logged with UID." />
+                      <TipItem label="Verify" text="Test in Alpha before Stable deployment." />
+                  </ul>
+              </div>
+          </div>
+        </div>
+      </InternalLayout>
+    );
+  } catch (renderError: any) {
+    console.error("RELEASE_UI_DEBUG: Critical render crash", renderError);
+    return (
+        <InternalLayout>
+            <div className="p-8 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] text-rose-400">
+                <h3 className="font-black uppercase tracking-widest mb-2">UI Component Crash</h3>
+                <p className="text-sm font-medium">{renderError.message}</p>
             </div>
-        </div>
-      </div>
-    </InternalLayout>
-  );
+        </InternalLayout>
+    );
+  }
 }
 
 function TipItem({ label, text }: { label: string, text: string }) {
