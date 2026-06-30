@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,9 +29,10 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.masterlogo),
+        Icon(
+            imageVector = Icons.Default.Shield,
             contentDescription = "KidsGuard Logo",
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .size(120.dp)
                 .clickable(
