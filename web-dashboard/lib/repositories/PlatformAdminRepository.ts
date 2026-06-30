@@ -49,19 +49,26 @@ export class PlatformAdminRepository {
 
   static async isAdmin(uid: string): Promise<boolean> {
     const profile = await this.getAdminProfile(uid);
-    const role = profile?.role;
-    const active = profile?.active;
     const exists = !!profile;
 
+    // Direct read as requested
+    const role = profile?.role;
+    const active = profile?.active === true;
+
+    const isAllowedRole = role === "SUPER_ADMIN" ||
+                         role === "PLATFORM_ADMIN" ||
+                         role === "DEV_ADMIN";
+
+    const allowed = exists && active && isAllowedRole;
+
     console.log("ADMIN CHECK", {
-        uid,
         role,
         active,
-        exists
+        exists,
+        allowed
     });
 
-    // Requirement: If exists && active === true grant access.
-    return exists && active === true;
+    return allowed;
   }
 
   // Bootstrap function to create first super admin
