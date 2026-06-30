@@ -26,11 +26,13 @@ export interface AppRelease extends UpdateConfig {
 export class ConfigRepository {
   static async getUpdateConfig(): Promise<UpdateConfig | null> {
     if (!db) return null;
+    console.log("RELEASE_DEBUG: loading active config started");
     try {
       const ref = doc(db, "appConfig", "update");
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
+        console.log("RELEASE_DEBUG: active config document received");
         // Handle legacy field mapping if necessary
         return {
             ...data,
@@ -38,23 +40,38 @@ export class ConfigRepository {
             releaseChannel: data.releaseChannel || 'stable'
         } as UpdateConfig;
       }
+      console.log("RELEASE_DEBUG: active config document not found");
       return null;
     } catch (error) {
-      console.error("Error fetching update config:", error);
+      console.error("RELEASE_DEBUG: active config fetch failed", error);
       return null;
     }
   }
 
   static async getRecentReleases(count: number = 5): Promise<AppRelease[]> {
     if (!db) return [];
+    console.log("RELEASE_DEBUG: loading release history started");
     try {
       const ref = collection(db, "appReleases");
-      const q = query(ref, orderBy("versionCode", "desc"), limit(count));
+      // Use latestVersionCode as defined in the interface
+      const q = query(ref, orderBy("latestVersionCode", "desc"), limit(count));
       const snap = await getDocs(q);
-      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppRelease));
+
+      console.log(`RELEASE_DEBUG: snapshot size: ${snap.size}`);
+
+      if (snap.empty) {
+          console.log("RELEASE_DEBUG: no releases found in history");
+          return [];
+      }
+
+      const releases = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppRelease));
+      console.log("RELEASE_DEBUG: documents received", releases.length);
+      return releases;
     } catch (error) {
-      console.error("Error fetching releases:", error);
+      console.error("RELEASE_DEBUG: release history fetch failed", error);
       return [];
+    } finally {
+        console.log("RELEASE_DEBUG: loading finished");
     }
   }
 
