@@ -24,21 +24,32 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     return observeAuth(async (user) => {
+      console.log("INTERNAL_DEBUG: observeAuth triggered", user ? `User: ${user.email} (${user.uid})` : "No user");
       if (!user) {
+        console.log("INTERNAL_DEBUG: Context Auth: No user signed in.");
         setAdmin(null);
         setLoading(false);
         return;
       }
 
       try {
+        console.log(`INTERNAL_DEBUG: Context Auth: User signed in: ${user.email}, UID: ${user.uid}`);
         const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
-        if (profile && profile.active) {
-            setAdmin(profile);
+        if (profile) {
+            console.log("INTERNAL_DEBUG: Context Auth: Found profile:", profile);
+            if (profile.active) {
+                console.log("INTERNAL_DEBUG: Context Auth: Admin profile active. Granting access.");
+                setAdmin(profile);
+            } else {
+                console.warn("INTERNAL_DEBUG: Context Auth: Access denied. Profile marked as INACTIVE.");
+                setAdmin(null);
+            }
         } else {
+            console.warn(`INTERNAL_DEBUG: Context Auth: Access denied. No profile document found for UID: ${user.uid}`);
             setAdmin(null);
         }
       } catch (e) {
-        console.error("InternalAdminContext: Error fetching profile", e);
+        console.error("INTERNAL_DEBUG: Context Auth: Error fetching profile", e);
         setAdmin(null);
       } finally {
         setLoading(false);

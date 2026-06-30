@@ -16,8 +16,10 @@ export default function InternalLogin() {
   useEffect(() => {
     return observeAuth(async (user) => {
       if (user) {
+        console.log(`INTERNAL_DEBUG: Auth state changed. User signed in: ${user.email}, UID: ${user.uid}`);
         const isAdmin = await PlatformAdminRepository.isAdmin(user.uid);
         if (isAdmin) {
+          console.log("INTERNAL_DEBUG: Redirecting to /internal via observeAuth");
           router.push('/internal');
         }
       }
@@ -32,8 +34,10 @@ export default function InternalLogin() {
     try {
       const user = await loginWithEmail(email, password);
       if (user) {
+        console.log(`INTERNAL_DEBUG: Login success for ${user.email}, UID: ${user.uid}`);
         const isAdmin = await PlatformAdminRepository.isAdmin(user.uid);
         if (isAdmin) {
+          console.log("INTERNAL_DEBUG: Redirecting to /internal");
           router.push('/internal');
         } else {
           setError("Access Denied: You do not have platform admin permissions.");
@@ -52,8 +56,10 @@ export default function InternalLogin() {
       try {
           const user = await loginWithGoogle();
           if (user) {
+              console.log(`INTERNAL_DEBUG: Google login success for ${user.email}, UID: ${user.uid}`);
               const isAdmin = await PlatformAdminRepository.isAdmin(user.uid);
               if (isAdmin) {
+                  console.log("INTERNAL_DEBUG: Redirecting to /internal");
                   router.push('/internal');
               } else {
                   setError("Access Denied: Your account is not authorized for internal access.");

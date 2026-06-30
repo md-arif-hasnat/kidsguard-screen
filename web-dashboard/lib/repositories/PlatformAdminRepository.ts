@@ -3,6 +3,8 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 
 export enum PlatformAdminRole {
   SUPER_ADMIN = "SUPER_ADMIN",
+  PLATFORM_ADMIN = "PLATFORM_ADMIN",
+  DEV_ADMIN = "DEV_ADMIN",
   ADMIN = "ADMIN",
   SUPPORT = "SUPPORT",
   DEVELOPER = "DEVELOPER"
@@ -20,15 +22,46 @@ export interface PlatformAdmin {
 
 export class PlatformAdminRepository {
   static async getAdminProfile(uid: string): Promise<PlatformAdmin | null> {
-    if (!db) return null;
-    const ref = doc(db, "platformAdmins", uid);
-    const snap = await getDoc(ref);
-    return snap.exists() ? snap.data() as PlatformAdmin : null;
+    if (!db) {
+        console.warn("INTERNAL_DEBUG: Firestore (db) is not initialized.");
+        return null;
+    }
+    const path = `platformAdmins/${uid}`;
+    console.log(`INTERNAL_DEBUG: Looking up admin profile at: ${path}`);
+
+    try {
+        const ref = doc(db, "platformAdmins", uid);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+            const data = snap.data() as PlatformAdmin;
+            console.log("INTERNAL_DEBUG: Admin document found:", data);
+            return data;
+        } else {
+            console.warn(`INTERNAL_DEBUG: No admin document found at ${path}`);
+            return null;
+        }
+    } catch (error) {
+        console.error(`INTERNAL_DEBUG: Error fetching admin profile at ${path}:`, error);
+        return null;
+    }
   }
 
   static async isAdmin(uid: string): Promise<boolean> {
     const profile = await this.getAdminProfile(uid);
-    return profile?.active === true;
+    const role = profile?.role;
+    const active = profile?.active;
+    const exists = !!profile;
+
+    console.log("ADMIN CHECK", {
+        uid,
+        role,
+        active,
+        exists
+    });
+
+    // Requirement: If exists && active === true grant access.
+    return exists && active === true;
   }
 
   // Bootstrap function to create first super admin
