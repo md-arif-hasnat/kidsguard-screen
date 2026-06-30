@@ -317,7 +317,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = if (com.example.kidsguard.BuildConfig.DEBUG) "v1.0.0 (Debug) - ${android.os.Build.MODEL}" else "v1.0.0",
+                text = if (com.example.kidsguard.BuildConfig.DEBUG) "v${com.example.kidsguard.BuildConfig.VERSION_NAME} (Debug) - ${android.os.Build.MODEL}" else "v${com.example.kidsguard.BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
