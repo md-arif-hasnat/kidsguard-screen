@@ -244,10 +244,11 @@ fun LocationHistoryScreen(
                                     }
                                 }
                                 
-                                if (point.address != null) {
+                                val address = point.address
+                                if (address != null) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = point.address,
+                                        text = address,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold

@@ -1,22 +1,24 @@
 package com.example.kidsguard.update
 
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
 
+@Keep
 data class AppUpdateInfo(
-    val latestVersionCode: Long = 0,
-    val latestVersionName: String = "",
-    val apkDownloadUrl: String = "",
-    val updateMessage: String = "",
-    val forceUpdate: Boolean = false,
-    val mandatoryUpdate: Boolean = false,
-    val releaseChannel: String = "stable",
-    val releasedAt: Timestamp? = null,
-    val fileSize: String = "",
-    val minimumAndroidVersion: String = "",
-    val releaseNotes: List<String> = emptyList(),
-    val webVersion: String = "",
-    val webUpdateMessage: String = "",
-    val webReleaseNotes: List<String> = emptyList()
+    var latestVersionCode: Long = 0,
+    var latestVersionName: String = "",
+    var apkDownloadUrl: String = "",
+    var updateMessage: String = "",
+    var forceUpdate: Boolean = false,
+    var mandatoryUpdate: Boolean = false,
+    var releaseChannel: String = "stable",
+    var releasedAt: Timestamp? = null,
+    var fileSize: String = "",
+    var minimumAndroidVersion: String = "",
+    var releaseNotes: List<String> = emptyList(),
+    var webVersion: String = "",
+    var webUpdateMessage: String = "",
+    var webReleaseNotes: List<String> = emptyList()
 )
 
 data class AppUpdateState(

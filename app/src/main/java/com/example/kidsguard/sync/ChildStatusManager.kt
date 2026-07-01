@@ -3,7 +3,11 @@ package com.example.kidsguard.sync
 import android.content.Context
 import android.os.BatteryManager
 import android.util.Log
-import com.example.kidsguard.BuildConfig
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
+import android.os.Build
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.data.getBatteryLevel
 import com.example.kidsguard.repository.ErrorLogRepository
@@ -32,6 +36,38 @@ class ChildStatusManager(
     private val errorLogger = ErrorLogRepository(context)
     private val checker = LocalSafeZoneChecker(safeZoneRepository, com.example.kidsguard.notifications.LocalNotificationEngine(context), prefHelper)
     private val predictionEngine = PredictionEngine(context, locationRepository, safeZoneRepository, scheduleRepository)
+    private var lastWifiSsid: String? = null
+
+    init {
+        registerNetworkCallback()
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val request = android.net.NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+
+        cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val wifiInfo = capabilities.transportInfo as? WifiInfo
+                    lastWifiSsid = wifiInfo?.ssid?.removeSurrounding("\"")
+                } else {
+                    val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+                    lastWifiSsid = wifiManager.connectionInfo.ssid.removeSurrounding("\"")
+                }
+
+                if (lastWifiSsid == "<unknown ssid>") {
+                    lastWifiSsid = null
+                }
+            }
+
+            override fun onLost(network: Network) {
+                lastWifiSsid = null
+            }
+        })
+    }
 
     companion object {
         private const val TAG = "ChildStatusManager"
@@ -136,8 +172,7 @@ class ChildStatusManager(
         
         return when {
             capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true -> {
-                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-                "WIFI" to wifiManager.connectionInfo.ssid.removeSurrounding("\"")
+                "WIFI" to lastWifiSsid
             }
             capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "MOBILE" to null
             else -> "NONE" to null

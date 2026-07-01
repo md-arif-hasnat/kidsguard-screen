@@ -251,9 +251,10 @@ fun PositionInfoCard(
             
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (location.address != null) {
+            val address = location.address
+            if (address != null) {
                 Text(
-                    text = location.address,
+                    text = address,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

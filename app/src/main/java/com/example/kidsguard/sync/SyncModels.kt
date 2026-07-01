@@ -1,6 +1,6 @@
 package com.example.kidsguard.sync
 
-import java.util.UUID
+import androidx.annotation.Keep
 
 enum class SyncPlatform { ANDROID, IOS }
 enum class SyncRole { PARENT, CHILD }
@@ -21,162 +21,176 @@ enum class CommandType {
     STOP_TRACKING
 }
 
+@Keep
 data class SyncDevice(
-    val deviceId: String,
-    val platform: SyncPlatform,
-    val role: SyncRole,
-    val deviceName: String,
-    val appVersion: String,
-    val lastSeen: Long = System.currentTimeMillis(),
-    val online: Boolean = false
+    var deviceId: String = "",
+    var platform: SyncPlatform = SyncPlatform.ANDROID,
+    var role: SyncRole = SyncRole.CHILD,
+    var deviceName: String = "",
+    var appVersion: String = "",
+    var lastSeen: Long = System.currentTimeMillis(),
+    var online: Boolean = false
 )
 
+@Keep
 data class SyncFamily(
-    val familyId: String = UUID.randomUUID().toString(),
-    val name: String,
-    val ownerId: String,
-    val members: List<String> = emptyList()
+    var familyId: String = "",
+    var name: String = "",
+    var ownerId: String = "",
+    var members: List<String> = emptyList()
 )
 
+@Keep
 data class SyncChildStatus(
-    val childId: String = "",
-    val childName: String = "",
-    val avatarId: String = "avatar_1",
-    val deviceId: String = "",
-    val deviceName: String = "",
-    val batteryPercent: Int,
-    val charging: Boolean,
-    val online: Boolean = true,
-    val trackingEnabled: Boolean,
-    val kidGuardActive: Boolean,
-    val currentZone: String? = null,
-    val currentZoneId: String? = null,
-    val safeZoneStatus: String = "OUTSIDE", // INSIDE / OUTSIDE
-    val lastZoneEvent: String? = null, // ENTER_ZONE / EXIT_ZONE
-    val lastLocation: SyncLocationUpdate? = null,
-    val lastSeen: Long = System.currentTimeMillis(),
-    val lastUpdated: Long = System.currentTimeMillis(),
-    val appVersion: String = "",
-    val androidVersion: String = "",
+    var childId: String = "",
+    var childName: String = "",
+    var avatarId: String = "avatar_1",
+    var deviceId: String = "",
+    var deviceName: String = "",
+    var batteryPercent: Int = 0,
+    var charging: Boolean = false,
+    var online: Boolean = true,
+    var trackingEnabled: Boolean = true,
+    var kidGuardActive: Boolean = false,
+    var currentZone: String? = null,
+    var currentZoneId: String? = null,
+    var safeZoneStatus: String = "OUTSIDE", // INSIDE / OUTSIDE
+    var lastZoneEvent: String? = null, // ENTER_ZONE / EXIT_ZONE
+    var lastLocation: SyncLocationUpdate? = null,
+    var lastSeen: Long = System.currentTimeMillis(),
+    var lastUpdated: Long = System.currentTimeMillis(),
+    var appVersion: String = "",
+    var androidVersion: String = "",
     // Part 1: Device Health
-    val batteryTemp: Float = 0f,
-    val internetType: String = "NONE", // WIFI, MOBILE, NONE
-    val wifiSsid: String? = null,
-    val storageUsedBytes: Long = 0,
-    val storageTotalBytes: Long = 0,
-    val ramUsedBytes: Long = 0,
-    val ramTotalBytes: Long = 0,
-    val gpsEnabled: Boolean = true,
-    val bluetoothEnabled: Boolean = false,
-    val predictions: SyncPredictions? = null
+    var batteryTemp: Float = 0f,
+    var internetType: String = "NONE", // WIFI, MOBILE, NONE
+    var wifiSsid: String? = null,
+    var storageUsedBytes: Long = 0,
+    var storageTotalBytes: Long = 0,
+    var ramUsedBytes: Long = 0,
+    var ramTotalBytes: Long = 0,
+    var gpsEnabled: Boolean = true,
+    var bluetoothEnabled: Boolean = false,
+    var predictions: SyncPredictions? = null
 )
 
+@Keep
 data class SyncPredictions(
-    val batteryRemainingMinutes: Int? = null,
-    val batteryDieAtTimestamp: Long? = null,
-    val offlineRisk: String? = null, // "Low", "Medium", "High"
-    val approachingZoneId: String? = null,
-    val distanceToApproachingZone: Double? = null,
-    val unusualRouteDetected: Boolean = false,
-    val lateArrivalDetected: Boolean = false,
-    val longStopDetected: Boolean = false,
-    val stopLocation: String? = null,
-    val lastPredictionAt: Long = System.currentTimeMillis()
+    var batteryRemainingMinutes: Int? = null,
+    var batteryDieAtTimestamp: Long? = null,
+    var offlineRisk: String? = null, // "Low", "Medium", "High"
+    var approachingZoneId: String? = null,
+    var distanceToApproachingZone: Double? = null,
+    var unusualRouteDetected: Boolean = false,
+    var lateArrivalDetected: Boolean = false,
+    var longStopDetected: Boolean = false,
+    var stopLocation: String? = null,
+    var lastPredictionAt: Long = System.currentTimeMillis()
 )
 
+@Keep
 data class SyncSafetySummary(
-    val date: String, // YYYY-MM-DD
-    val safetyScore: Int,
-    val visitedZones: List<String>,
-    val totalDistanceKm: Double,
-    val alertCount: Int,
-    val recommendation: String
+    var date: String = "", // YYYY-MM-DD
+    var safetyScore: Int = 0,
+    var visitedZones: List<String> = emptyList(),
+    var totalDistanceKm: Double = 0.0,
+    var alertCount: Int = 0,
+    var recommendation: String = ""
 )
 
+@Keep
 data class SyncWeeklyReport(
-    val weekStartDate: String,
-    val averageSafetyScore: Int,
-    val totalDistanceKm: Double,
-    val totalAlerts: Int,
-    val topVisitedZones: List<String>,
-    val safetyTrend: String, // "Improving", "Stable", "Declining"
-    val recommendations: List<String>
+    var weekStartDate: String = "",
+    var averageSafetyScore: Int = 0,
+    var totalDistanceKm: Double = 0.0,
+    var totalAlerts: Int = 0,
+    var topVisitedZones: List<String> = emptyList(),
+    var safetyTrend: String = "Stable", // "Improving", "Stable", "Declining"
+    var recommendations: List<String> = emptyList()
 )
 
+@Keep
 data class SyncLocationUpdate(
-    val childId: String,
-    val latitude: Double,
-    val longitude: Double,
-    val accuracy: Float,
-    val speed: Float,
-    val bearing: Float,
-    val timestamp: Long = System.currentTimeMillis(),
-    val batteryLevel: Int? = null,
-    val source: String = "GPS"
+    var childId: String = "",
+    var latitude: Double = 0.0,
+    var longitude: Double = 0.0,
+    var accuracy: Float = 0f,
+    var speed: Float = 0f,
+    var bearing: Float = 0f,
+    var timestamp: Long = System.currentTimeMillis(),
+    var batteryLevel: Int? = null,
+    var source: String = "GPS"
 )
 
+@Keep
 data class SyncActivityEvent(
-    val id: String = UUID.randomUUID().toString(),
-    val childId: String,
-    val type: String, // ENTER_ZONE, EXIT_ZONE, etc.
-    val title: String,
-    val description: String,
-    val zoneId: String? = null,
-    val zoneName: String? = null,
-    val zoneType: String? = null,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val distanceMeters: Double? = null,
-    val radiusMeters: Double? = null,
-    val timestamp: Long = System.currentTimeMillis(),
-    val severity: String = "info" // info, warning
+    var id: String = "",
+    var childId: String = "",
+    var type: String = "", // ENTER_ZONE, EXIT_ZONE, etc.
+    var title: String = "",
+    var description: String = "",
+    var zoneId: String? = null,
+    var zoneName: String? = null,
+    var zoneType: String? = null,
+    var latitude: Double? = null,
+    var longitude: Double? = null,
+    var distanceMeters: Double? = null,
+    var radiusMeters: Double? = null,
+    var timestamp: Long = System.currentTimeMillis(),
+    var severity: String = "info" // info, warning
 )
 
+@Keep
 data class SyncRemoteCommand(
-    val commandId: String = UUID.randomUUID().toString(),
-    val childId: String = "",
-    val commandType: CommandType = CommandType.REFRESH_LOCATION,
-    val payload: String? = null,
-    val status: CommandStatus = CommandStatus.PENDING,
-    val createdByParentId: String = "",
-    val createdAt: Long = System.currentTimeMillis(),
-    val receivedAt: Long? = null,
-    val executedAt: Long? = null,
-    val expiresAt: Long? = null,
-    val resultMessage: String? = null
+    var commandId: String = "",
+    var childId: String = "",
+    var commandType: CommandType = CommandType.REFRESH_LOCATION,
+    var payload: String? = null,
+    var status: CommandStatus = CommandStatus.PENDING,
+    var createdByParentId: String = "",
+    var createdAt: Long = System.currentTimeMillis(),
+    var receivedAt: Long? = null,
+    var executedAt: Long? = null,
+    var expiresAt: Long? = null,
+    var resultMessage: String? = null
 )
 
+@Keep
 data class SyncNotificationEvent(
-    val id: String = UUID.randomUUID().toString(),
-    val childId: String,
-    val type: String,
-    val title: String,
-    val body: String,
-    val sentAt: Long = System.currentTimeMillis(),
-    val read: Boolean = false
+    var id: String = "",
+    var childId: String = "",
+    var type: String = "",
+    var title: String = "",
+    var body: String = "",
+    var sentAt: Long = System.currentTimeMillis(),
+    var read: Boolean = false
 )
 
+@Keep
 data class SyncAppUsage(
-    val packageName: String,
-    val appName: String,
-    val category: String,
-    val totalTimeMs: Long,
-    val lastUsed: Long,
-    val date: String
+    var packageName: String = "",
+    var appName: String = "",
+    var category: String = "",
+    var totalTimeMs: Long = 0,
+    var lastUsed: Long = 0,
+    var date: String = ""
 )
 
+@Keep
 data class SyncAppLimit(
-    val packageName: String,
-    val dailyLimitMs: Long,
-    val enabled: Boolean = true
+    var packageName: String = "",
+    var dailyLimitMs: Long = 0,
+    var enabled: Boolean = true
 )
 
+@Keep
 data class SyncAppBlockRule(
-    val packageName: String,
-    val isBlocked: Boolean = false
+    var packageName: String = "",
+    var isBlocked: Boolean = false
 )
 
+@Keep
 data class SyncWellbeingSettings(
-    val appLimits: List<SyncAppLimit> = emptyList(),
-    val blockRules: List<SyncAppBlockRule> = emptyList()
+    var appLimits: List<SyncAppLimit> = emptyList(),
+    var blockRules: List<SyncAppBlockRule> = emptyList()
 )
