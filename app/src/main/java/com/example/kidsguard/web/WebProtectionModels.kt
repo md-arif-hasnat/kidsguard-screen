@@ -1,32 +1,37 @@
 package com.example.kidsguard.web
 
+import androidx.annotation.Keep
+
 enum class WebCategory {
     SAFE, EDUCATION, SEARCH, VIDEO, SOCIAL, GAMING, SHOPPING, 
     UNKNOWN, ADULT, GAMBLING, VIOLENCE, DRUGS, PHISHING, SCAM, MALWARE
 }
 
+@Keep
 data class WebRuleSet(
-    val blockedDomains: List<String> = emptyList(),
-    val allowedDomains: List<String> = emptyList(),
-    val blockedCategories: List<WebCategory> = emptyList(),
-    val allowedCategories: List<WebCategory> = emptyList(),
-    val safeSearchEnabled: Boolean = true,
-    val youtubeRestrictedMode: Boolean = true,
-    val adultContentBlockEnabled: Boolean = true
+    var blockedDomains: List<String> = emptyList(),
+    var allowedDomains: List<String> = emptyList(),
+    var blockedCategories: List<WebCategory> = emptyList(),
+    var allowedCategories: List<WebCategory> = emptyList(),
+    var safeSearchEnabled: Boolean = true,
+    var youtubeRestrictedMode: Boolean = true,
+    var adultContentBlockEnabled: Boolean = true
 )
 
+@Keep
 data class WebActivityEvent(
-    val domain: String,
-    val category: WebCategory,
-    val timestamp: Long = System.currentTimeMillis(),
-    val browserApp: String,
-    val status: String // "ALLOWED" or "BLOCKED"
+    var domain: String = "",
+    var category: WebCategory = WebCategory.UNKNOWN,
+    var timestamp: Long = System.currentTimeMillis(),
+    var browserApp: String = "",
+    var status: String = "ALLOWED" // "ALLOWED" or "BLOCKED"
 )
 
+@Keep
 data class WebAccessRequest(
-    val requestId: String,
-    val childId: String,
-    val domain: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val status: String = "PENDING" // "PENDING", "APPROVED", "DENIED"
+    var requestId: String = "",
+    var childId: String = "",
+    var domain: String = "",
+    var timestamp: Long = System.currentTimeMillis(),
+    var status: String = "PENDING" // "PENDING", "APPROVED", "DENIED"
 )

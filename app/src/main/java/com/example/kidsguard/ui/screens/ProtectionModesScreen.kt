@@ -92,8 +92,9 @@ fun ModeCard(mode: ProtectionModeDoc, onToggle: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(mode.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(mode.type, style = MaterialTheme.typography.labelSmall)
-                if (mode.schedule != null) {
-                    Text("${mode.schedule.startTime} - ${mode.schedule.endTime}", style = MaterialTheme.typography.bodySmall)
+                val schedule = mode.schedule
+                if (schedule != null) {
+                    Text("${schedule.startTime} - ${schedule.endTime}", style = MaterialTheme.typography.bodySmall)
                 }
             }
             Switch(checked = mode.enabled, onCheckedChange = { onToggle() })

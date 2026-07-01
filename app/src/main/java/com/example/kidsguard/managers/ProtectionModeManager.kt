@@ -55,9 +55,10 @@ class ProtectionModeManager(context: Context, private val childId: String) {
             if (!mode.enabled) return@filter false
 
             var scheduleMatch = false
-            if (mode.schedule != null) {
-                val dayMatch = mode.schedule.days.contains(currentDay)
-                val timeMatch = currentTime >= mode.schedule.startTime && currentTime <= mode.schedule.endTime
+            val schedule = mode.schedule
+            if (schedule != null) {
+                val dayMatch = schedule.days.contains(currentDay)
+                val timeMatch = currentTime >= schedule.startTime && currentTime <= schedule.endTime
                 scheduleMatch = dayMatch && timeMatch
             }
 

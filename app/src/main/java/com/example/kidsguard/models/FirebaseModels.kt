@@ -1,58 +1,65 @@
 package com.example.kidsguard.models
 
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.ServerTimestamp
+import com.google.firebase.firestore.IgnoreExtraProperties
 
+@Keep
 data class DeviceDoc(
-    val deviceId: String = "",
-    val firebaseUid: String = "",
-    val role: String = "NONE",
-    val deviceName: String = "",
-    val appVersion: String = "",
-    val createdAt: Timestamp? = null,
-    val lastSeen: Timestamp? = null,
-    val fcmToken: String? = null,
-    val fcmTokenUpdatedAt: Timestamp? = null,
-    val pushEnabled: Boolean = true
+    var deviceId: String = "",
+    var firebaseUid: String = "",
+    var role: String = "NONE",
+    var deviceName: String = "",
+    var appVersion: String = "",
+    var createdAt: Timestamp? = null,
+    var lastSeen: Timestamp? = null,
+    var fcmToken: String? = null,
+    var fcmTokenUpdatedAt: Timestamp? = null,
+    var pushEnabled: Boolean = true
 )
 
+@Keep
 data class PairingCodeDoc(
-    val code: String = "",
-    val childId: String = "",
-    val deviceId: String = "",
-    val childName: String = "",
-    val deviceName: String = "",
-    val avatarId: String = "avatar_1",
-    val firebaseUid: String = "",
-    val createdAt: Timestamp? = null,
-    val expiresAt: Timestamp? = null,
-    val used: Boolean = false
+    var code: String = "",
+    var childId: String = "",
+    var deviceId: String = "",
+    var childName: String = "",
+    var deviceName: String = "",
+    var avatarId: String = "avatar_1",
+    var firebaseUid: String = "",
+    var createdAt: Timestamp? = null,
+    var expiresAt: Timestamp? = null,
+    var used: Boolean = false
 )
 
+@Keep
 data class FamilyDoc(
-    val familyId: String = "",
-    val parentDeviceId: String = "",
-    val childDeviceIds: List<String> = emptyList(),
-    val createdAt: Timestamp? = null
+    var familyId: String = "",
+    var parentDeviceId: String = "",
+    var childDeviceIds: List<String> = emptyList(),
+    var createdAt: Timestamp? = null
 )
 
+@Keep
 data class ProtectionModeSchedule(
-    val days: List<Int> = emptyList(),
-    val startTime: String = "",
-    val endTime: String = ""
+    var days: List<Int> = emptyList(),
+    var startTime: String = "",
+    var endTime: String = ""
 )
 
+@Keep
+@IgnoreExtraProperties
 data class ProtectionModeDoc(
-    val id: String = "",
-    val name: String = "",
-    val type: String = "SCHOOL",
-    val enabled: Boolean = false,
-    val schedule: ProtectionModeSchedule? = null,
-    val triggerZoneId: String? = null,
-    val allowedApps: List<String> = emptyList(),
-    val blockedApps: List<String> = emptyList(),
-    val allowedDomains: List<String> = emptyList(),
-    val blockedDomains: List<String> = emptyList(),
-    val screenTimeLimitMinutes: Int? = null,
-    val lockDevice: Boolean = false
+    var id: String = "",
+    var name: String = "",
+    var type: String = "SCHOOL",
+    var enabled: Boolean = false,
+    var schedule: ProtectionModeSchedule? = null,
+    var triggerZoneId: String? = null,
+    var allowedApps: List<String> = emptyList(),
+    var blockedApps: List<String> = emptyList(),
+    var allowedDomains: List<String> = emptyList(),
+    var blockedDomains: List<String> = emptyList(),
+    var screenTimeLimitMinutes: Int? = null,
+    var lockDevice: Boolean = false
 )

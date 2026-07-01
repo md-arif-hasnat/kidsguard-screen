@@ -1,33 +1,37 @@
 package com.example.kidsguard.repository
 
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+@Keep
 data class FamilyMember(
-    val uid: String = "",
-    val email: String? = null,
-    val displayName: String? = null,
-    val role: String = "VIEWER",
-    val joinedAt: Timestamp? = null,
-    val assignedChildren: List<String> = emptyList()
+    var uid: String = "",
+    var email: String? = null,
+    var displayName: String? = null,
+    var role: String = "VIEWER",
+    var joinedAt: Timestamp? = null,
+    var assignedChildren: List<String> = emptyList()
 )
 
+@Keep
 data class FamilySettings(
-    val name: String = "",
-    val timezone: String = "",
-    val country: String = "US",
-    val language: String = "en",
-    val dataRetentionDays: Int = 365
+    var name: String = "",
+    var timezone: String = "",
+    var country: String = "US",
+    var language: String = "en",
+    var dataRetentionDays: Int = 365
 )
 
+@Keep
 data class FamilyData(
-    val familyId: String = "",
-    val ownerId: String = "",
-    val members: List<FamilyMember> = emptyList(),
-    val childDeviceIds: List<String> = emptyList(),
-    val settings: FamilySettings = FamilySettings(),
-    val createdAt: Timestamp? = null
+    var familyId: String = "",
+    var ownerId: String = "",
+    var members: List<FamilyMember> = emptyList(),
+    var childDeviceIds: List<String> = emptyList(),
+    var settings: FamilySettings = FamilySettings(),
+    var createdAt: Timestamp? = null
 )
 
 class FamilyRepository {

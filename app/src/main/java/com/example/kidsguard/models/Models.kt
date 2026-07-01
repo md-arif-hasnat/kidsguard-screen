@@ -1,107 +1,119 @@
 package com.example.kidsguard.models
 
+import androidx.annotation.Keep
 import java.util.UUID
 
 enum class DevicePlatform { ANDROID, IOS }
 enum class UserRole { PARENT, CHILD, NONE }
 
+@Keep
 data class SafeZone(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val type: String = "Custom", // Home, School, Playground, Relative House, Custom
-    val address: String = "",
-    val latitude: Double,
-    val longitude: Double,
-    val radiusMeters: Double,
-    val notifyOnEnter: Boolean = true,
-    val notifyOnExit: Boolean = true,
-    val enabled: Boolean = true
+    var id: String = "",
+    var name: String = "",
+    var type: String = "Custom", // Home, School, Playground, Relative House, Custom
+    var address: String = "",
+    var latitude: Double = 0.0,
+    var longitude: Double = 0.0,
+    var radiusMeters: Double = 100.0,
+    var notifyOnEnter: Boolean = true,
+    var notifyOnExit: Boolean = true,
+    var enabled: Boolean = true
 )
 
+@Keep
 data class ActivityEvent(
-    val id: String = UUID.randomUUID().toString(),
-    val timestamp: Long = System.currentTimeMillis(),
-    val type: String, // e.g., "KID_MODE_ENABLED", "PIN_SUCCESS"
-    val title: String,
-    val description: String = "",
-    val latitude: Double? = null,
-    val longitude: Double? = null
+    var id: String = "",
+    var timestamp: Long = System.currentTimeMillis(),
+    var type: String = "", // e.g., "KID_MODE_ENABLED", "PIN_SUCCESS"
+    var title: String = "",
+    var description: String = "",
+    var latitude: Double? = null,
+    var longitude: Double? = null
 )
 
+@Keep
 data class ParentDevice(
-    val id: String,
-    val platform: DevicePlatform,
-    val name: String
+    var id: String = "",
+    var platform: DevicePlatform = DevicePlatform.ANDROID,
+    var name: String = ""
 )
 
+@Keep
 data class ChildDevice(
-    val id: String,
-    val platform: DevicePlatform,
-    val name: String,
-    val batteryLevel: Int = -1,
-    val isLocked: Boolean = false,
-    val lastActive: Long = System.currentTimeMillis()
+    var id: String = "",
+    var platform: DevicePlatform = DevicePlatform.ANDROID,
+    var name: String = "",
+    var batteryLevel: Int = -1,
+    var isLocked: Boolean = false,
+    var lastActive: Long = System.currentTimeMillis()
 )
 
+@Keep
 data class LocationUpdate(
-    val latitude: Double,
-    val longitude: Double,
-    val timestamp: Long = System.currentTimeMillis(),
-    val accuracy: Float = 0f
+    var latitude: Double = 0.0,
+    var longitude: Double = 0.0,
+    var timestamp: Long = System.currentTimeMillis(),
+    var accuracy: Float = 0f
 )
 
+@Keep
 data class LocationPoint(
-    val latitude: Double,
-    val longitude: Double,
-    val accuracy: Float,
-    val speed: Float,
-    val bearing: Float,
-    val timestamp: Long = System.currentTimeMillis(),
-    val address: String? = null,
-    val city: String? = null,
-    val country: String? = null
+    var latitude: Double = 0.0,
+    var longitude: Double = 0.0,
+    var accuracy: Float = 0f,
+    var speed: Float = 0f,
+    var bearing: Float = 0f,
+    var timestamp: Long = System.currentTimeMillis(),
+    var address: String? = null,
+    var city: String? = null,
+    var country: String? = null
 )
 
+@Keep
 data class PairingCode(
-    val code: String, // Format: KDG-123456
-    val expiresAt: Long
+    var code: String = "", // Format: KDG-123456
+    var expiresAt: Long = 0L
 )
 
+@Keep
 data class DeviceStatus(
-    val isOnline: Boolean,
-    val batteryPercentage: Int,
-    val isKidGuardActive: Boolean,
-    val lastUpdated: Long
+    var isOnline: Boolean = false,
+    var batteryPercentage: Int = 0,
+    var isKidGuardActive: Boolean = false,
+    var lastUpdated: Long = 0L
 )
 
+@Keep
 data class RemoteCommand(
-    val id: String = UUID.randomUUID().toString(),
-    val command: String, // e.g., "LOCK", "UNLOCK", "RING"
-    val targetChildId: String,
-    val timestamp: Long = System.currentTimeMillis()
+    var id: String = "",
+    var command: String = "", // e.g., "LOCK", "UNLOCK", "RING"
+    var targetChildId: String = "",
+    var timestamp: Long = System.currentTimeMillis()
 )
 
 enum class SosStatus { CREATED, ACTIVE, RESOLVED }
 
+@Keep
 data class SosEvent(
-    val id: String = UUID.randomUUID().toString(),
-    val childId: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val accuracy: Float? = null,
-    val batteryPercent: Int? = null,
-    val message: String = "Emergency SOS Triggered",
-    val status: SosStatus = SosStatus.CREATED
+    var id: String = "",
+    var childId: String = "",
+    var timestamp: Long = System.currentTimeMillis(),
+    var latitude: Double? = null,
+    var longitude: Double? = null,
+    var accuracy: Float? = null,
+    var batteryPercent: Int? = null,
+    var message: String = "Emergency SOS Triggered",
+    var status: SosStatus = SosStatus.CREATED
 )
 
+@Keep
 data class RouteSession(
-    val id: String = UUID.randomUUID().toString(),
-    val startTime: Long,
-    val endTime: Long,
-    val totalPoints: Int,
-    val totalDistanceMeters: Double,
-    val averageSpeed: Float,
-    val maxSpeed: Float,
-    val points: List<LocationPoint> = emptyList()
+    var id: String = "",
+    var startTime: Long = 0L,
+    var endTime: Long = 0L,
+    var totalPoints: Int = 0,
+    var totalDistanceMeters: Double = 0.0,
+    var averageSpeed: Float = 0f,
+    var maxSpeed: Float = 0f,
+    var points: List<LocationPoint> = emptyList()
 )

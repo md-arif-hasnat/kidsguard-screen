@@ -1,21 +1,23 @@
 package com.example.kidsguard.repository
 
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+@Keep
 data class ParentProfile(
-    val uid: String = "",
-    val email: String? = null,
-    val phoneNumber: String? = null,
-    val displayName: String? = null,
-    val avatarId: String? = null,
-    val provider: String = "",
-    val familyId: String? = null,
-    val role: String? = null,
-    val region: String? = null,
-    val createdAt: Timestamp? = null,
-    val lastLoginAt: Timestamp? = null
+    var uid: String = "",
+    var email: String? = null,
+    var phoneNumber: String? = null,
+    var displayName: String? = null,
+    var avatarId: String? = null,
+    var provider: String = "",
+    var familyId: String? = null,
+    var role: String? = null,
+    var region: String? = null,
+    var createdAt: Timestamp? = null,
+    var lastLoginAt: Timestamp? = null
 )
 
 class ParentRepository {
