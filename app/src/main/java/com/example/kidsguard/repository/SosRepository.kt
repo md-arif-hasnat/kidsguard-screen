@@ -48,8 +48,8 @@ class SosRepository(private val context: Context) {
         
         // Sync update to Firebase
         if (resolvedEvent != null) {
-            android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
-            syncProvider?.syncSosEvent(resolvedEvent)
+            //android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
+           // syncProvider?.syncSosEvent(resolvedEvent)
         }
     }
 
