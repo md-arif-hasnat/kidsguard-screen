@@ -59,6 +59,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                 DiagnosticRow("Model", android.os.Build.MODEL)
                 DiagnosticRow("Android Version", android.os.Build.VERSION.RELEASE)
                 DiagnosticRow("SDK Level", android.os.Build.VERSION.SDK_INT.toString())
+                DiagnosticRow("Ethernet Support", if (PermissionUtils.hasEthernetSupport(context)) "Available" else "Not Supported")
             }
 
             DiagnosticSection("Configuration Status") {
@@ -95,10 +96,85 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                     onOpenSettings = { openAccessibilitySettings(context) }
                 )
                 PermissionStatusRow(
+                    "Microphone (Speech)", 
+                    PermissionUtils.hasAudioPermission(context),
+                    onOpenSettings = { openAppSettings(context) }
+                )
+                PermissionStatusRow(
+                    "Media Access", 
+                    PermissionUtils.hasMediaPermissions(context),
+                    onOpenSettings = { openAppSettings(context) }
+                )
+                PermissionStatusRow(
+                    "Media Location (EXIF)", 
+                    PermissionUtils.hasMediaLocationPermission(context),
+                    onOpenSettings = { openAppSettings(context) }
+                )
+                PermissionStatusRow(
                     "Battery Optimization", 
                     PermissionUtils.isBatteryOptimizationIgnored(context),
                     onOpenSettings = { openBatteryOptimizationSettings(context) }
                 )
+            }
+
+            DiagnosticSection("Security & Integrity") {
+                DiagnosticRow("Developer Options", if (PermissionUtils.isDeveloperOptionsEnabled(context)) "Enabled" else "Disabled")
+                DiagnosticRow("ADB Debugging", if (PermissionUtils.isAdbEnabled(context)) "Enabled" else "Disabled")
+                DiagnosticRow("USB Connected", if (PermissionUtils.isUsbConnected(context)) "Yes (Data)" else "No")
+                
+                // Detection for the USB Gadget HAL issue
+                val hasUsbGadgetHal = try {
+                    // We don't call the HAL directly to avoid the crash the user mentioned, 
+                    // but we can check if the system service is responsive or present via features.
+                    context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_USB_ACCESSORY)
+                } catch (e: Exception) {
+                    false
+                }
+                DiagnosticRow("USB Gadget Support", if (hasUsbGadgetHal) "Available" else "Not Present/HAL Error")
+
+                // Detection for the SystemServer Resource Issue (ArrayIndexOutOfBoundsException at SystemServer.java:1384)
+                val hasPreloadIssue = try {
+                    val resId = context.resources.getIdentifier("config_defaultPreloadedResources", "array", "android")
+                    if (resId != 0) {
+                        context.resources.getStringArray(resId).isEmpty()
+                    } else {
+                        false
+                    }
+                } catch (e: Exception) {
+                    false
+                }
+                if (hasPreloadIssue) {
+                    DiagnosticRow("System Preload State", "BUG DETECTED (Fix Applied)")
+                } else {
+                    DiagnosticRow("System Preload State", "Healthy")
+                }
+
+                // Detection for the Captions Service Issue (IllegalArgumentException for com.google.android.as)
+                val isCaptionsBugDetected = try {
+                    PermissionUtils.isCaptionsServiceEnabled(context)
+                    false // If it didn't throw, we assume it's fine (or at least the bug didn't trigger here)
+                } catch (e: Exception) {
+                    true
+                }
+                if (isCaptionsBugDetected) {
+                    DiagnosticRow("Captions Component", "BUG DETECTED (Fix Applied)")
+                } else {
+                    DiagnosticRow("Captions Component", "Normal")
+                }
+
+                // Detection for the StorageManager Timeout issue (TimeoutException at StorageUserConnection)
+                // We use produceState to avoid blocking the UI thread during the probe
+                val storageHealthState by produceState<Boolean?>(initialValue = null) {
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        PermissionUtils.isStorageSystemHealthy(context)
+                    }
+                }
+                
+                when (storageHealthState) {
+                    null -> DiagnosticRow("Storage Service", "Checking...")
+                    false -> DiagnosticRow("Storage Service", "STALLED or I/O ERROR")
+                    true -> DiagnosticRow("Storage Service", "Healthy")
+                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))

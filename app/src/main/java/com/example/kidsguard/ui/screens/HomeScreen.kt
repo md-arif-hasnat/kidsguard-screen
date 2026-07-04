@@ -11,7 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphicsncsos.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,6 +28,9 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
+import com.example.kidsguard.R
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,11 +121,10 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = null,
+            Image( painter = painterResource(R.drawable.kidsguard_logo),
+                contentDescription = "KidsGuard Logo",
                 modifier = Modifier
-                    .size(100.dp)
+                    .size(120.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -141,7 +143,7 @@ fun HomeScreen(
                             }
                         }
                     },
-                tint = MaterialTheme.colorScheme.primary
+
             )
             
             Text(

@@ -78,9 +78,9 @@ class ChildStatusManager(
             while (true) {
                 try {
                     updateStatus()
-                } catch (e: Exception) {
-                    errorLogger.addError(TAG, "Periodic status update failed", e)
-                }
+            } catch (t: Throwable) {
+                errorLogger.addError(TAG, "Periodic status update failed", t)
+            }
                 delay(5 * 60 * 1000) // Every 5 minutes
             }
         }
@@ -114,7 +114,12 @@ class ChildStatusManager(
 
                 // Part 1: Device Health Collection
                 val internetInfo = getInternetInfo(context)
-                val storageInfo = getStorageInfo()
+                val storageInfo = try {
+                    getStorageInfo()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Storage info collection failed", t)
+                    0L to 0L
+                }
                 val ramInfo = getRamInfo(context)
 
                 val status = SyncChildStatus(
@@ -148,8 +153,8 @@ class ChildStatusManager(
                 
                 syncProvider.syncChildStatus(finalStatus)
                 Log.d(TAG, "Status update triggered")
-            } catch (e: Exception) {
-                errorLogger.addError(TAG, "Manual status update failed", e)
+            } catch (t: Throwable) {
+                errorLogger.addError(TAG, "Manual status update failed", t)
             }
         }
     }
@@ -166,16 +171,28 @@ class ChildStatusManager(
     }
 
     private fun getInternetInfo(context: Context): Pair<String, String?> {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-        val activeNetwork = cm.activeNetwork
-        val capabilities = cm.getNetworkCapabilities(activeNetwork)
-        
-        return when {
-            capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true -> {
-                "WIFI" to lastWifiSsid
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            ?: return "NONE" to null
+            
+        return try {
+            val activeNetwork = cm.activeNetwork ?: return "NONE" to null
+            val capabilities = cm.getNetworkCapabilities(activeNetwork) ?: return "NONE" to null
+            
+            when {
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> {
+                    "WIFI" to lastWifiSsid
+                }
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> {
+                    "MOBILE" to null
+                }
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> {
+                    "ETHERNET" to null
+                }
+                else -> "OTHER" to null
             }
-            capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "MOBILE" to null
-            else -> "NONE" to null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting internet info", e)
+            "ERROR" to null
         }
     }
 
