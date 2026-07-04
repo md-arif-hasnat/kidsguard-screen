@@ -36,6 +36,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     var accessibilityEnabled by remember { mutableStateOf(PermissionUtils.isAccessibilityServiceEnabled(context)) }
     var usageStatsGranted by remember { mutableStateOf(PermissionUtils.hasUsageStatsPermission(context)) }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var audioGranted by remember { mutableStateOf(PermissionUtils.hasAudioPermission(context)) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -47,6 +48,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
         accessibilityEnabled = PermissionUtils.isAccessibilityServiceEnabled(context)
         usageStatsGranted = PermissionUtils.hasUsageStatsPermission(context)
         overlayGranted = Settings.canDrawOverlays(context)
+        audioGranted = PermissionUtils.hasAudioPermission(context)
     }
 
     // Refresh when app resumes
@@ -176,10 +178,24 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                     context.startActivity(intent)
                 }
             )
+
+            PermissionCard(
+                title = "Microphone Access",
+                description = "Required for voice commands and SOS audio monitoring.",
+                icon = Icons.Default.Mic,
+                status = if (audioGranted) "Ready" else "Missing",
+                isGranted = audioGranted,
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            val allDone = locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled
+            val allDone = locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled && audioGranted
             
             Button(
                 onClick = onBack,

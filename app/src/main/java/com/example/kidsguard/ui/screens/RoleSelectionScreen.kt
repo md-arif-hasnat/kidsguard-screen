@@ -15,6 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.kidsguard.R
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: () -> Unit) {
@@ -29,10 +32,9 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Shield,
+        Image(
+            painter = painterResource(R.drawable.kidsguard_logo),
             contentDescription = "KidsGuard Logo",
-            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .size(120.dp)
                 .clickable(

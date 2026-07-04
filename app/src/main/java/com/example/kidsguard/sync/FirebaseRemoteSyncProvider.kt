@@ -94,12 +94,12 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(update.childId)
             .collection("status")
             .document("current")
-        batch.update(statusRef, "lastLocation", update)
+        batch.set(statusRef, mapOf("lastLocation" to update), com.google.firebase.firestore.SetOptions.merge())
         
         // 4. Update devices collection (Unified device status)
         val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
             .document(update.childId)
-        batch.update(deviceRef, mapOf(
+        batch.set(deviceRef, mapOf(
             "currentLocation" to mapOf(
                 "latitude" to update.latitude,
                 "longitude" to update.longitude,
@@ -107,7 +107,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 "updatedAt" to com.google.firebase.Timestamp.now()
             ),
             "lastSeen" to com.google.firebase.Timestamp.now()
-        ))
+        ), com.google.firebase.firestore.SetOptions.merge())
 
         batch.commit()
             .addOnSuccessListener {
@@ -140,7 +140,10 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone) {
         if (childId.isEmpty()) return
-        
+        if (zone.id.isBlank()) {
+            zone.id = java.util.UUID.randomUUID().toString()
+        }
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection(FirebaseConfig.COL_SAFE_ZONES)

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      FIX: Exception preloading default resources (SystemServer.java:1384)
+      This provides a non-empty array for config_defaultPreloadedResources to prevent
+      ArrayIndexOutOfBoundsException on certain Android 12/13 builds (Emulators/GSI).
+    -->
+    <string-array name="config_defaultPreloadedResources" translatable="false">
+        <item>fixed_internal_resource_preload</item>
+    </string-array>
+</resources>

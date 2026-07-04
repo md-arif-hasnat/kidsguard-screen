@@ -28,6 +28,12 @@ class KidGuardAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val prefHelper = PreferenceHelper(applicationContext)
+
+        // 0. Ensure user is unlocked before proceeding with UI operations
+        val userManager = getSystemService(android.os.UserManager::class.java)
+        if (userManager != null && !userManager.isUserUnlocked) {
+            return
+        }
         
         // 1. Protection Modes Enforcement (Highest Priority)
         val packageName = event.packageName?.toString() ?: return
@@ -77,7 +83,7 @@ class KidGuardAccessibilityService : AccessibilityService() {
         
         // Find the URL bar
         val url = findUrlInNodes(source, packageName)
-        if (url != null && url.isNotEmpty()) {
+        if (!url.isNullOrEmpty()) {
             if (webManager?.checkUrl(url, packageName) == false) {
                 blockWeb(url, packageName)
             }
@@ -105,6 +111,35 @@ class KidGuardAccessibilityService : AccessibilityService() {
         return null
     }
 
+    private var lastLaunchTime = 0L
+    private val launchThrottleMs = 1000L
+
+    private fun safeStartActivity(intent: Intent) {
+        val now = System.currentTimeMillis()
+        if (now - lastLaunchTime < launchThrottleMs) {
+            return
+        }
+        lastLaunchTime = now
+
+        try {
+            if (Build.VERSION.SDK_INT >= 35) {
+                val options = ActivityOptions.makeBasic()
+                options.pendingIntentBackgroundActivityStartMode = ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                startActivity(intent, options.toBundle())
+            } else if (Build.VERSION.SDK_INT >= 34) {
+                val options = ActivityOptions.makeBasic()
+                // setPendingIntentBackgroundActivityStartMode is only for 35+, 
+                // but on 34 we can just use regular startActivity with flags
+                startActivity(intent, options.toBundle())
+            } else {
+                startActivity(intent)
+            }
+        } catch (e: Exception) {
+            // This catches DeadObjectException, ActivityNotFoundException, etc.
+            android.util.Log.e("KidGuardAccess", "Failed to start MainActivity: ${e.message}")
+        }
+    }
+
     private fun blockWeb(url: String, packageName: String) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -114,14 +149,7 @@ class KidGuardAccessibilityService : AccessibilityService() {
             putExtra("blocked_url", url)
             putExtra("browser_package", packageName)
         }
-        
-        if (Build.VERSION.SDK_INT >= 35) {
-            val options = ActivityOptions.makeBasic()
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-            startActivity(intent, options.toBundle())
-        } else {
-            startActivity(intent)
-        }
+        safeStartActivity(intent)
     }
 
     private fun handleGlobalLock(event: AccessibilityEvent) {
@@ -141,20 +169,7 @@ class KidGuardAccessibilityService : AccessibilityService() {
             putExtra("action", "BLOCK_SCREEN")
             putExtra("blocked_package", packageName)
         }
-        
-        if (Build.VERSION.SDK_INT >= 34) {
-            try {
-                val options = ActivityOptions.makeBasic()
-                if (Build.VERSION.SDK_INT >= 35) {
-                    options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                }
-                startActivity(intent, options.toBundle())
-            } catch (e: Exception) {
-                startActivity(intent)
-            }
-        } else {
-            startActivity(intent)
-        }
+        safeStartActivity(intent)
     }
 
     private fun bringOurAppToFront() {
@@ -163,14 +178,7 @@ class KidGuardAccessibilityService : AccessibilityService() {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         }
-        
-        if (Build.VERSION.SDK_INT >= 35) {
-            val options = ActivityOptions.makeBasic()
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-            startActivity(intent, options.toBundle())
-        } else {
-            startActivity(intent)
-        }
+        safeStartActivity(intent)
     }
 
     override fun onInterrupt() {}

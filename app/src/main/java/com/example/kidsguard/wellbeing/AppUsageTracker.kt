@@ -13,38 +13,43 @@ class AppUsageTracker(private val context: Context) {
     private val packageManager = context.packageManager
 
     fun getDailyUsage(): List<AppUsageInfo> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        
-        val startTime = calendar.timeInMillis
-        val endTime = System.currentTimeMillis()
-
-        val stats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
-        
-        return stats.mapNotNull { (packageName, usageStats) ->
-            if (usageStats.totalTimeInForeground <= 0) return@mapNotNull null
+        return try {
+            val calendar = Calendar.getInstance()
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
             
-            val appInfo = try {
-                packageManager.getApplicationInfo(packageName, 0)
-            } catch (e: PackageManager.NameNotFoundException) {
-                null
-            } ?: return@mapNotNull null
+            val startTime = calendar.timeInMillis
+            val endTime = System.currentTimeMillis()
 
-            val appName = packageManager.getApplicationLabel(appInfo).toString()
-            val category = classifyApp(appInfo)
+            val stats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
+            
+            stats.mapNotNull { (packageName, usageStats) ->
+                if (usageStats.totalTimeInForeground <= 0) return@mapNotNull null
+                
+                val appInfo = try {
+                    packageManager.getApplicationInfo(packageName, 0)
+                } catch (e: PackageManager.NameNotFoundException) {
+                    null
+                } ?: return@mapNotNull null
 
-            AppUsageInfo(
-                packageName = packageName,
-                appName = appName,
-                category = category,
-                totalTimeVisibleMs = usageStats.totalTimeInForeground,
-                launchCount = 0, // launchCount is not available in aggregateStats easily without queryEvents
-                lastTimeUsed = usageStats.lastTimeUsed,
-                firstTimeUsed = usageStats.firstTimeStamp
-            )
+                val appName = packageManager.getApplicationLabel(appInfo).toString()
+                val category = classifyApp(appInfo)
+
+                AppUsageInfo(
+                    packageName = packageName,
+                    appName = appName,
+                    category = category,
+                    totalTimeVisibleMs = usageStats.totalTimeInForeground,
+                    launchCount = 0, // launchCount is not available in aggregateStats easily without queryEvents
+                    lastTimeUsed = usageStats.lastTimeUsed,
+                    firstTimeUsed = usageStats.firstTimeStamp
+                )
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("AppUsageTracker", "Failed to query usage stats", t)
+            emptyList()
         }
     }
 

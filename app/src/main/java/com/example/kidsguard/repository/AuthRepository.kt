@@ -39,7 +39,15 @@ class AuthRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Firebase Anonymous Sign-in Exception", e)
-            errorLogger.addError(TAG, "Firebase Auth failed", e)
+            
+            // Handle specific "Restricted to administrators" or "Operation not allowed" errors
+            val message = e.message ?: ""
+            if (message.contains("restricted to administrators", ignoreCase = true) || 
+                message.contains("operation-not-allowed", ignoreCase = true)) {
+                Log.e(TAG, "FIX REQUIRED: Ensure 'Anonymous' Sign-in provider is ENABLED in Firebase Console.")
+            }
+            
+            errorLogger.addError(TAG, "Firebase Auth failed: ${e.message}", e)
             false
         }
     }
