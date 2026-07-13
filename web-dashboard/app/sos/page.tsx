@@ -8,13 +8,37 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { Loader2, ShieldAlert } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 export default function SosPage() {
+    return (
+        <Suspense fallback={
+            <DashboardLayout>
+                <div className="flex items-center justify-center py-20">
+                    <Loader2 className="animate-spin text-primary-600" size={48} />
+                </div>
+            </DashboardLayout>
+        }>
+            <SosPageContent />
+        </Suspense>
+    );
+}
+
+function SosPageContent() {
   const { profile, family, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
   const [childId, setChildId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const targetEventId = searchParams.get('eventId');
+  const queryChildId = searchParams.get('childId');
 
   useEffect(() => {
+    if (queryChildId) {
+        setChildId(queryChildId);
+        return;
+    }
+
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
     setChildId(savedChildId);
 
@@ -37,7 +61,17 @@ export default function SosPage() {
     return () => unsubscribe();
   }, [childId, profileLoading, isChildAccessible]);
 
-  const displaySos = isFirebaseConfigured ? sosEvents : MOCK_SOS;
+  const displaySos = React.useMemo(() => {
+    let list = isFirebaseConfigured ? [...sosEvents] : [...MOCK_SOS];
+    if (targetEventId) {
+        list = list.sort((a, b) => {
+            if (a.id === targetEventId) return -1;
+            if (b.id === targetEventId) return 1;
+            return 0;
+        });
+    }
+    return list;
+  }, [sosEvents, targetEventId, isFirebaseConfigured]);
 
   if (profileLoading) {
       return (
@@ -87,8 +121,13 @@ export default function SosPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:gap-6">
+        {targetEventId && displaySos.length > 0 && !displaySos.find(s => s.id === targetEventId) && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-800 text-sm font-medium">
+                The specific SOS incident (ID: {targetEventId}) was not found in recent records.
+            </div>
+        )}
         {displaySos.length > 0 ? displaySos.map((sos: any) => (
-          <div key={sos.id} className={`bg-white rounded-2xl border-2 ${sos.resolved || sos.status === 'RESOLVED' ? 'border-slate-200' : 'border-red-500 animate-pulse'} p-5 md:p-8 flex flex-col lg:flex-row lg:items-center justify-between shadow-sm gap-6`}>
+          <div key={sos.id} className={`bg-white rounded-2xl border-2 ${sos.id === targetEventId ? 'border-primary-500 shadow-lg scale-[1.02] z-10' : (sos.resolved || sos.status === 'RESOLVED' ? 'border-slate-200' : 'border-red-500 animate-pulse')} p-5 md:p-8 flex flex-col lg:flex-row lg:items-center justify-between shadow-sm gap-6 transition-all`}>
             <div className="flex gap-4 md:gap-6 items-start md:items-center">
               <div className={`w-12 h-12 md:w-16 md:h-16 shrink-0 ${sos.resolved || sos.status === 'RESOLVED' ? 'bg-slate-100 text-slate-400' : 'bg-red-100 text-red-600'} rounded-full flex items-center justify-center`}>
                 <AlertTriangle size={24} className="md:w-8 md:h-8" />
