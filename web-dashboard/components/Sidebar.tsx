@@ -141,14 +141,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Mobile Sidebar Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] lg:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1010] lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Mobile Sidebar Drawer */}
       <aside className={cn(
-        "fixed left-0 top-0 h-screen w-72 bg-slate-900 text-white p-6 flex flex-col z-[70] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl",
+        "fixed left-0 top-0 h-screen w-72 bg-slate-900 text-white p-6 flex flex-col z-[1020] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {SidebarContent}

@@ -106,6 +106,7 @@ class LocationRepository(
             val shouldSync = forceSync || lastSyncedLocation == null || distanceSinceLast > 30 || (now - lastSyncTime > 300000)
 
             // Sync to Firebase if Child role and Firebase active
+            android.util.Log.d("LocationRepository", "shouldSync=$shouldSync, role=${prefHelper.userRole}, childId=${prefHelper.childId}")
             if (shouldSync && prefHelper.userRole == "CHILD" && prefHelper.childId.isNotEmpty()) {
                 val battery = com.example.kidsguard.data.getBatteryLevel(context)
                 val update = com.example.kidsguard.sync.SyncLocationUpdate(

@@ -87,18 +87,19 @@ export class NotificationRepository {
 
       if (token) {
         const deviceId = window.navigator.userAgent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 50);
-        const deviceRef = doc(db, "parents", uid, "devices", deviceId);
+        // New Path: users/{uid}/notificationTokens/{tokenId}
+        const deviceRef = doc(db, "users", uid, "notificationTokens", deviceId);
 
+        const now = serverTimestamp();
         await setDoc(deviceRef, {
-          deviceId,
           token,
-          platform: 'Web',
-          deviceName,
-          lastSeen: serverTimestamp(),
-          appVersion: '1.0.0'
+          platform: 'ios-pwa',
+          enabled: true,
+          createdAt: now,
+          updatedAt: now
         }, { merge: true });
 
-        console.log("Web FCM token registered:", token);
+        console.log("Web FCM token registered (ios-pwa):", token);
       }
     } catch (error) {
       console.error("Error registering device for FCM:", error);
@@ -108,8 +109,9 @@ export class NotificationRepository {
   static listenToNotifications(uid: string, onUpdate: (notifications: NotificationHistoryItem[]) => void) {
     if (!db || !uid) return () => {};
 
-    const ref = collection(db, "parents", uid, "notifications");
-    const q = query(ref, orderBy("createdAt", "desc"), limit(50));
+    // New Path: Root notifications collection filtered by userId
+    const ref = collection(db, "notifications");
+    const q = query(ref, where("userId", "==", uid), orderBy("createdAt", "desc"), limit(50));
 
     return onSnapshot(q, (snapshot) => {
       const notifications = snapshot.docs.map(doc => ({
@@ -126,8 +128,8 @@ export class NotificationRepository {
   static listenToUnreadCount(uid: string, onUpdate: (count: number) => void) {
     if (!db || !uid) return () => {};
 
-    const ref = collection(db, "parents", uid, "notifications");
-    const q = query(ref, where("read", "==", false));
+    const ref = collection(db, "notifications");
+    const q = query(ref, where("userId", "==", uid), where("read", "==", false));
 
     return onSnapshot(q, (snapshot) => {
       onUpdate(snapshot.size);
@@ -136,14 +138,14 @@ export class NotificationRepository {
 
   static async markAsRead(uid: string, notificationId: string): Promise<void> {
     if (!db) return;
-    const ref = doc(db, "parents", uid, "notifications", notificationId);
+    const ref = doc(db, "notifications", notificationId);
     await updateDoc(ref, { read: true });
   }
 
   static async markAllAsRead(uid: string): Promise<void> {
     if (!db) return;
-    const ref = collection(db, "parents", uid, "notifications");
-    const q = query(ref, where("read", "==", false));
+    const ref = collection(db, "notifications");
+    const q = query(ref, where("userId", "==", uid), where("read", "==", false));
     const snap = await getDocs(q);
 
     const batch = writeBatch(db);

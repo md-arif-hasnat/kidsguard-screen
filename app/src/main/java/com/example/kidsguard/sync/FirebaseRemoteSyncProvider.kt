@@ -123,7 +123,15 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
-        if (event.childId.isEmpty()) return
+        Log.d(TAG, "syncActivity: id='${event.id}', type='${event.type}', childId='${event.childId}'")
+        if (event.childId.isEmpty()) {
+            Log.e(TAG, "syncActivity: FAILED - childId is empty")
+            return
+        }
+        if (event.id.isEmpty()) {
+            Log.e(TAG, "syncActivity: FAILED - event.id is empty. Firestore requires a non-empty document path.")
+            return
+        }
 
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(event.childId)
@@ -132,11 +140,28 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .set(event)
             .addOnSuccessListener {
                 _lastSyncTimestamp.value = System.currentTimeMillis()
-                Log.d(TAG, "Activity event synced successfully to ${FirebaseConfig.COL_ACTIVITY}")
+                Log.d(TAG, "Activity event synced successfully: ${event.type}")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to sync activity event", e)
                 errorLogger.addError(TAG, "Failed to sync activity event", e)
+            }
+    }
+
+    override fun syncNotification(event: SyncNotificationEvent) {
+        if (event.childId.isEmpty() || event.id.isEmpty()) return
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(event.childId)
+            .collection(FirebaseConfig.COL_NOTIFICATIONS)
+            .document(event.id)
+            .set(event)
+            .addOnSuccessListener {
+                Log.d(TAG, "Notification event synced successfully: ${event.type}")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to sync notification event", e)
+                errorLogger.addError(TAG, "Failed to sync notification event", e)
             }
     }
 
@@ -178,6 +203,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncSosEvent(event: SosEvent) {
+        Log.d(TAG, "syncSosEvent: id='${event.id}', childId='${event.childId}'")
         if (event.childId.isBlank() || event.id.isBlank()) {
             Log.e(TAG, "SOS sync skipped: childId or eventId is blank")
             return

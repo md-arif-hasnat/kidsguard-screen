@@ -63,6 +63,7 @@ class LocalSafeZoneChecker(
         distance: Double,
         type: String
     ) {
+        android.util.Log.d("SafeZoneChecker", "triggerZoneEvent: type=$type, zone=${zone.name}")
         val title = if (type == "ENTER_ZONE") {
             if (zone.type == "Home" || zone.type == "School") "Arrived at ${zone.type}" else "Entered ${zone.name}"
         } else {

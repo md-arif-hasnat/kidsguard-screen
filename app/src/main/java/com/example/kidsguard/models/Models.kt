@@ -103,7 +103,14 @@ data class SosEvent(
     var accuracy: Float? = null,
     var batteryPercent: Int? = null,
     var message: String = "Emergency SOS Triggered",
-    var status: SosStatus = SosStatus.CREATED
+    var status: SosStatus = SosStatus.CREATED,
+    var resolvedAt: Long? = null,
+    var address: String? = null,
+    var street: String? = null,
+    var houseNumber: String? = null,
+    var postalCode: String? = null,
+    var city: String? = null,
+    var country: String? = null
 )
 
 @Keep

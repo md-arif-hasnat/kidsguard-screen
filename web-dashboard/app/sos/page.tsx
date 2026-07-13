@@ -100,13 +100,36 @@ export default function SosPage() {
                 <p className="text-xs md:text-sm text-slate-500 font-medium">
                     {typeof sos.timestamp === 'number' ? new Date(sos.timestamp).toLocaleString() : sos.time}
                 </p>
-                {(sos.location || (sos.latitude !== undefined && sos.latitude !== null)) && (
-                  <div className="flex items-center gap-1 mt-2 text-primary-600 font-bold text-xs md:text-sm">
-                    <MapPin size={14} />
-                    <span className="truncate">{sos.location || `${sos.latitude?.toFixed(4)}, ${sos.longitude?.toFixed(4)}`}</span>
+                {(sos.address || sos.location || (sos.latitude !== undefined && sos.latitude !== null)) && (
+                  <div className="flex items-start gap-1 mt-2 text-primary-600 font-bold text-xs md:text-sm">
+                    <MapPin size={14} className="mt-1 shrink-0" />
+                    <span className="whitespace-pre-line">{sos.address || sos.location || `${sos.latitude?.toFixed(4)}, ${sos.longitude?.toFixed(4)}`}</span>
                   </div>
                 )}
-                {sos.message && <p className="mt-2 text-slate-700 text-sm">{sos.message}</p>}
+                {sos.message && <p className="mt-2 text-slate-700 text-sm italic">&quot;{sos.message}&quot;</p>}
+
+                {sos.latitude && sos.longitude && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <a
+                      href={`https://www.google.com/maps/search/?api\u003d1\u0026query\u003d${sos.latitude},${sos.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg font-bold text-[10px] hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
+                    >
+                      <img src="https://www.google.com/s2/favicons?domain\u003dmaps.google.com" className="w-3 h-3" />
+                      Google Maps
+                    </a>
+                    <a
+                      href={`http://maps.apple.com/?q\u003d${sos.latitude},${sos.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-[10px] hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+                    >
+                      <img src="https://www.google.com/s2/favicons?domain\u003dapple.com" className="w-3 h-3" />
+                      Apple Maps
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 pt-4 lg:pt-0 border-t lg:border-none border-slate-50">

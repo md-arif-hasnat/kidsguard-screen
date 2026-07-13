@@ -80,6 +80,16 @@ fun ChildSetupScreen(
                                     prefHelper.userRole = "CHILD"
                                     prefHelper.isSetupCompleted = true
                                     
+                                    repository.setSyncProvider(
+                                        syncProvider,
+                                        prefHelper.childId,
+                                        prefHelper.familyId
+                                    )
+                                    Log.d(
+                                        "SafeZoneRepo",
+                                        "Repository initialized after pairing: childId=${prefHelper.childId}, familyId=${prefHelper.familyId}"
+                                    )
+                                    
                                     Log.i("ChildSetup", "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD")
                                     isPaired = true
                                     

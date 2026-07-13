@@ -99,6 +99,10 @@ class SafeZoneRepository {
     }
 
     fun addEvent(event: ActivityEvent, detailed: SyncActivityEvent? = null) {
+        if (event.id.isBlank()) {
+            event.id = java.util.UUID.randomUUID().toString()
+        }
+        android.util.Log.d("SafeZoneRepo", "addEvent: type=${event.type}, id=${event.id}")
         _activityEvents.value = listOf(event) + _activityEvents.value
         
         // Sync to Firebase if provider available
@@ -112,6 +116,9 @@ class SafeZoneRepository {
                 description = event.description,
                 timestamp = event.timestamp
             )
+            if (syncEvent.id.isBlank()) {
+                syncEvent.id = event.id
+            }
             syncProvider?.syncActivity(syncEvent)
         }
     }
