@@ -75,22 +75,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     if (onClose) onClose();
   };
 
-  const SidebarContent = (
-    <div className="h-full flex flex-col">
-      <div className="flex flex-col mb-10 px-2">
+  const SidebarContent = (isMobile?: boolean) => (
+    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      <div className={cn(
+        "flex items-center justify-between shrink-0",
+        isMobile ? "px-6 py-4 h-20" : "mb-10 px-2"
+      )}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => { router.push('/'); if (onClose) onClose(); }}>
           <img src="/sidebar-logo.png" alt="KidsGuard" className="h-10 w-auto" />
-          <div className="hidden">
-            <h1 className="text-xl font-black tracking-tighter text-white">KidsGuard</h1>
-            <p className="text-[7px] font-black text-primary-400 uppercase tracking-[0.2em] -mt-0.5">Protect • Guide • Grow</p>
-          </div>
         </div>
-        <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors absolute top-4 right-4">
-          <X size={24} />
-        </button>
+        {isMobile && (
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white transition-colors">
+            <X size={24} />
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className={cn(
+        "flex-1 space-y-1 overflow-y-auto min-h-0 custom-scrollbar",
+        isMobile ? "px-6" : ""
+      )}>
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -119,7 +123,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         })}
       </nav>
 
-      <div className="pt-4 border-t border-slate-800">
+      <div className={cn(
+        "shrink-0 border-t border-slate-800",
+        isMobile ? "px-6 pb-6 pt-4" : "pt-4"
+      )}>
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-400 hover:text-white transition-colors"
@@ -135,7 +142,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     <>
       {/* Desktop Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white p-4 hidden lg:flex flex-col z-50">
-        {SidebarContent}
+        {SidebarContent(false)}
       </aside>
 
       {/* Mobile Sidebar Overlay */}
@@ -148,10 +155,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       {/* Mobile Sidebar Drawer */}
       <aside className={cn(
-        "fixed left-0 top-0 h-screen w-72 bg-slate-900 text-white p-6 flex flex-col z-[1020] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl",
+        "fixed left-0 top-0 h-[100dvh] w-[min(85vw,320px)] bg-slate-900 text-white flex flex-col z-[1020] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        {SidebarContent}
+        {SidebarContent(true)}
       </aside>
     </>
   );
