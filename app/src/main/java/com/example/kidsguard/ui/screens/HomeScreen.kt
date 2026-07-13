@@ -350,7 +350,7 @@ fun HomeScreen(
                             val location = locationRepository.getCurrentLocation()
                             val battery = com.example.kidsguard.data.getBatteryLevel(context)
                             val event = com.example.kidsguard.models.SosEvent(
-                                childId = prefHelper.pairingCode,
+                                childId = prefHelper.childId,
                                 latitude = location?.latitude,
                                 longitude = location?.longitude,
                                 accuracy = location?.accuracy,

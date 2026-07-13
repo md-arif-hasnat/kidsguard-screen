@@ -87,6 +87,7 @@ class ChildStatusManager(
     }
 
     fun updateStatus() {
+        Log.d(TAG, "updateStatus: role=${prefHelper.userRole}, childId=${prefHelper.childId}")
         if (prefHelper.userRole != "CHILD") return
         val childId = prefHelper.childId
         if (childId.isEmpty()) return

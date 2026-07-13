@@ -21,19 +21,20 @@ class ParentNotificationManager(private val context: Context) {
         try {
             val token = FirebaseMessaging.getInstance().token.await()
             val deviceId = prefs.deviceId
+            val now = Timestamp.now()
             
             val deviceData = mapOf(
-                "deviceId" to deviceId,
                 "token" to token,
-                "platform" to "Android",
-                "deviceName" to prefs.deviceName,
-                "lastSeen" to Timestamp.now(),
-                "appVersion" to "1.0.0"
+                "platform" to "android",
+                "enabled" to true,
+                "createdAt" to now,
+                "updatedAt" to now
             )
 
-            db.collection(FirebaseConfig.COL_PARENTS)
+            // New Path: users/{parentUid}/notificationTokens/{tokenId}
+            db.collection("users")
                 .document(uid)
-                .collection(FirebaseConfig.COL_DEVICES)
+                .collection("notificationTokens")
                 .document(deviceId)
                 .set(deviceData, com.google.firebase.firestore.SetOptions.merge())
                 .await()

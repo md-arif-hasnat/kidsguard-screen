@@ -2,6 +2,8 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import com.example.kidsguard.models.SosEvent
+import com.example.kidsguard.sync.SyncActivityEvent
+import com.example.kidsguard.sync.SyncNotificationEvent
 import com.example.kidsguard.models.SosStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +25,10 @@ class SosRepository(private val context: Context) {
     }
 
     fun triggerSos(event: SosEvent) {
+        android.util.Log.d("SosRepository", "triggerSos: childId=${event.childId}")
         if (event.id.isBlank()) {
             event.id = java.util.UUID.randomUUID().toString()
+            android.util.Log.d("SosRepository", "triggerSos: generated new id=${event.id}")
         }
         val updatedEvent = event.copy(status = SosStatus.ACTIVE)
         val currentList = _sosHistory.value.toMutableList()
@@ -36,11 +40,36 @@ class SosRepository(private val context: Context) {
         // Sync to Firebase
         android.util.Log.d("SosRepository", "Syncing SOS event to Firebase")
         syncProvider?.syncSosEvent(updatedEvent)
+
+        // Fan-out: Activity History
+        syncProvider?.syncActivity(SyncActivityEvent(
+            id = updatedEvent.id,
+            childId = updatedEvent.childId,
+            type = "SOS",
+            title = "Emergency SOS Triggered",
+            description = updatedEvent.message,
+            latitude = updatedEvent.latitude,
+            longitude = updatedEvent.longitude,
+            timestamp = updatedEvent.timestamp,
+            severity = "critical"
+        ))
+
+        // Fan-out: Notification Record
+        syncProvider?.syncNotification(SyncNotificationEvent(
+            id = updatedEvent.id,
+            childId = updatedEvent.childId,
+            type = "SOS",
+            title = "🆘 SOS ACTIVATED",
+            body = updatedEvent.message,
+            sentAt = updatedEvent.timestamp,
+            read = false
+        ))
     }
 
     fun resolveSos(id: String) {
+        val now = System.currentTimeMillis()
         val currentList = _sosHistory.value.map {
-            if (it.id == id) it.copy(status = SosStatus.RESOLVED) else it
+            if (it.id == id) it.copy(status = SosStatus.RESOLVED, resolvedAt = now) else it
         }
         _sosHistory.value = currentList
         val resolvedEvent = currentList.find { it.id == id }
@@ -51,8 +80,19 @@ class SosRepository(private val context: Context) {
         
         // Sync update to Firebase
         if (resolvedEvent != null) {
-            //android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
-           // syncProvider?.syncSosEvent(resolvedEvent)
+            android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
+            syncProvider?.syncSosEvent(resolvedEvent)
+
+            // Fan-out resolution to Activity History
+            syncProvider?.syncActivity(SyncActivityEvent(
+                id = "${resolvedEvent.id}_resolved",
+                childId = resolvedEvent.childId,
+                type = "SOS_RESOLVED",
+                title = "SOS Resolved",
+                description = "The emergency signal was marked as resolved.",
+                timestamp = now,
+                severity = "info"
+            ))
         }
     }
 
@@ -79,6 +119,7 @@ class SosRepository(private val context: Context) {
                 put("battery", event.batteryPercent ?: JSONObject.NULL)
                 put("message", event.message)
                 put("status", event.status.name)
+                put("resolvedAt", event.resolvedAt ?: JSONObject.NULL)
             }
             jsonArray.put(obj)
         }
@@ -101,7 +142,8 @@ class SosRepository(private val context: Context) {
                     accuracy = if (obj.isNull("accuracy")) null else obj.getDouble("accuracy").toFloat(),
                     batteryPercent = if (obj.isNull("battery")) null else obj.getInt("battery"),
                     message = obj.getString("message"),
-                    status = SosStatus.valueOf(obj.getString("status"))
+                    status = SosStatus.valueOf(obj.getString("status")),
+                    resolvedAt = if (obj.isNull("resolvedAt")) null else obj.getLong("resolvedAt")
                 ))
             }
         } catch (e: Exception) {

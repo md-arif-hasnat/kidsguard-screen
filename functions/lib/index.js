@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosChanged = exports.onActivityCreated = void 0;
+exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -43,28 +43,103 @@ exports.onActivityCreated = functions.firestore
         });
     }
 });
-exports.onSosChanged = functions.firestore
+exports.onSosCreated = functions.firestore
     .document('children/{childId}/sosEvents/{eventId}')
-    .onWrite(async (change, context) => {
-    const { childId } = context.params;
-    const data = change.after.data();
+    .onCreate(async (snapshot, context) => {
+    const { childId, eventId } = context.params;
+    const data = snapshot.data();
     if (!data)
         return;
-    if (data.status === 'ACTIVE') {
-        await broadcastToParents(childId, {
-            title: '🆘 SOS ACTIVATED',
-            body: data.message || 'Emergency signal received!',
-            type: 'SOS',
-            childId: childId,
-            clickAction: `/map`
-        });
+    const childSnap = await db.collection('children').doc(childId).get();
+    const childName = childSnap.data()?.name || 'Your child';
+    await db.collection('children').doc(childId).collection('activities').doc(eventId).set({
+        id: eventId,
+        childId: childId,
+        type: 'SOS',
+        title: 'Emergency SOS Triggered',
+        description: data.message || 'Manual trigger from device',
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
+        timestamp: data.timestamp || Date.now(),
+        severity: 'critical'
+    }, { merge: true });
+    await broadcastToParents(childId, {
+        title: 'Emergency SOS',
+        body: `${childName} may need help`,
+        type: 'SOS',
+        childId: childId,
+        eventId: eventId,
+        clickAction: `/sos`
+    });
+    if (data.latitude && data.longitude) {
+        try {
+            const apiKey = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyAjBIvgF7Bbq92FeO68QsB3xkeEDieTbXU';
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${data.latitude},${data.longitude}&key=${apiKey}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            if (result.status === 'OK' && result.results.length > 0) {
+                const addressObj = result.results[0];
+                const components = addressObj.address_components;
+                let street = '';
+                let houseNumber = '';
+                let city = '';
+                let postalCode = '';
+                let country = '';
+                components.forEach((c) => {
+                    if (c.types.includes('route'))
+                        street = c.long_name;
+                    if (c.types.includes('street_number'))
+                        houseNumber = c.long_name;
+                    if (c.types.includes('locality'))
+                        city = c.long_name;
+                    if (c.types.includes('postal_code'))
+                        postalCode = c.long_name;
+                    if (c.types.includes('country'))
+                        country = c.long_name;
+                });
+                const displayAddress = street
+                    ? `${street}${houseNumber ? ' ' + houseNumber : ''}\n${postalCode}${city ? ' ' + city : ''}`
+                    : addressObj.formatted_address;
+                await snapshot.ref.update({
+                    address: displayAddress,
+                    street,
+                    houseNumber,
+                    postalCode,
+                    city,
+                    country,
+                    geocodedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        }
+        catch (error) {
+            console.error("Reverse geocoding failed", error);
+        }
     }
-    else if (data.status === 'RESOLVED') {
-        await broadcastToParents(childId, {
-            title: '✅ SOS Resolved',
-            body: 'Emergency situation has been marked as resolved.',
-            type: 'SOS',
+});
+exports.onSosResolved = functions.firestore
+    .document('children/{childId}/sosEvents/{eventId}')
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const { childId, eventId } = context.params;
+    if (before.status !== 'RESOLVED' && after.status === 'RESOLVED') {
+        const now = Date.now();
+        const resolutionId = `${eventId}_resolved`;
+        await db.collection('children').doc(childId).collection('activities').doc(resolutionId).set({
+            id: resolutionId,
             childId: childId,
+            type: 'SOS_RESOLVED',
+            title: 'SOS Resolved',
+            description: 'The emergency signal was marked as resolved.',
+            timestamp: now,
+            severity: 'info'
+        }, { merge: true });
+        await broadcastToParents(childId, {
+            title: 'SOS Resolved',
+            body: 'Emergency situation has been marked as resolved.',
+            type: 'SOS_RESOLVED',
+            childId: childId,
+            eventId: eventId,
             clickAction: `/dashboard/${childId}`
         });
     }
@@ -212,12 +287,14 @@ async function broadcastToParents(childId, payload) {
         console.warn(`No family found for child ${childId}`);
         return;
     }
-    const family = familyQuery.docs[0].data();
+    const familyDoc = familyQuery.docs[0];
+    const familyId = familyDoc.id;
+    const family = familyDoc.data();
     const members = family.members || [];
     const parentUids = members
-        .filter(m => m.role === 'OWNER' || m.role === 'PARENT')
+        .filter(m => m.role === 'OWNER' || m.role === 'PARENT' || m.role === 'GUARDIAN')
         .map(m => m.uid);
-    const promises = parentUids.map(uid => notifyParent(uid, payload));
+    const promises = parentUids.map(uid => notifyParent(uid, { ...payload, familyId }));
     await Promise.all(promises);
 }
 async function notifyParent(uid, payload) {
@@ -226,6 +303,7 @@ async function notifyParent(uid, payload) {
     const typeMap = {
         'SAFE_ZONE': 'safeZone',
         'SOS': 'sos',
+        'SOS_RESOLVED': 'sos',
         'BATTERY': 'battery',
         'DEVICE': 'deviceStatus',
         'PAIRING': 'pairing'
@@ -235,17 +313,30 @@ async function notifyParent(uid, payload) {
         console.log(`Parent ${uid} has disabled ${payload.type} notifications.`);
         return;
     }
-    const notificationId = db.collection('parents').doc(uid).collection('notifications').doc().id;
-    await db.collection('parents').doc(uid).collection('notifications').doc(notificationId).set({
+    const notificationId = payload.eventId ? `${payload.eventId}_${uid}` : db.collection('notifications').doc().id;
+    const notificationDoc = {
         id: notificationId,
-        ...payload,
+        userId: uid,
+        familyId: payload.familyId || '',
+        childId: payload.childId,
+        eventId: payload.eventId || '',
+        type: payload.type,
+        title: payload.title,
+        body: payload.body,
+        message: payload.body,
+        read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false
-    });
-    const devicesSnap = await db.collection('parents').doc(uid).collection('devices').get();
+        clickAction: payload.clickAction,
+        route: payload.clickAction
+    };
+    await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
+    const devicesSnap = await db.collection('users').doc(uid).collection('notificationTokens').get();
     if (devicesSnap.empty)
         return;
-    const tokens = devicesSnap.docs.map(doc => doc.data().token).filter(t => !!t);
+    const tokens = devicesSnap.docs
+        .filter(doc => doc.data().enabled !== false)
+        .map(doc => doc.data().token)
+        .filter(t => !!t);
     if (tokens.length === 0)
         return;
     const messagingPayload = {
@@ -257,6 +348,7 @@ async function notifyParent(uid, payload) {
         data: {
             type: payload.type,
             childId: payload.childId,
+            eventId: payload.eventId || '',
             clickAction: payload.clickAction
         },
         webpush: {
@@ -265,7 +357,7 @@ async function notifyParent(uid, payload) {
             }
         },
         android: {
-            priority: payload.type === 'SOS' ? 'high' : 'normal',
+            priority: (payload.type === 'SOS') ? 'high' : 'normal',
             notification: {
                 clickAction: 'FLUTTER_NOTIFICATION_CLICK'
             }

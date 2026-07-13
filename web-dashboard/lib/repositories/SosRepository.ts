@@ -11,6 +11,12 @@ export interface SosEvent {
   message: string;
   status: string;
   batteryPercent: number | null;
+  address?: string;
+  street?: string;
+  houseNumber?: string;
+  postalCode?: string;
+  city?: string;
+  country?: string;
 }
 
 export class SosRepository {

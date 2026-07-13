@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import PWAInstallBanner from './PWAInstallBanner';
 import PWAUpdateBanner from './PWAUpdateBanner';
+import NotificationPrompt from './NotificationPrompt';
 import { Bell, User, Search, Settings, Menu } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
@@ -46,10 +47,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col lg:ml-64 w-full">
-        <PWAInstallBanner />
-        <PWAUpdateBanner />
-        {/* Top Header */}
-        <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
+        {/* Top Header - Fixed on mobile, sticky on desktop */}
+        <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 z-[1000] pt-[env(safe-area-inset-top)] box-content lg:sticky lg:top-0 lg:z-30 lg:pt-0 lg:box-border transition-all">
           <div className="flex items-center gap-4">
             <button
                 onClick={() => setIsSidebarOpen(true)}
@@ -97,9 +96,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        <main className="p-4 md:p-8">
-          {children}
-        </main>
+        {/* Content adjustment for fixed mobile navbar */}
+        <div className="flex-1 flex flex-col pt-[calc(5rem+env(safe-area-inset-top))] lg:pt-0">
+          <NotificationPrompt />
+          <PWAInstallBanner />
+          <PWAUpdateBanner />
+          <main className="p-4 md:p-8">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -29,31 +29,122 @@ export const onActivityCreated = functions.firestore
     });
 
 /**
- * Triggered when an SOS event is created or updated.
+ * Triggered when an SOS event is created.
  */
-export const onSosChanged = functions.firestore
+export const onSosCreated = functions.firestore
     .document('children/{childId}/sosEvents/{eventId}')
-    .onWrite(async (change, context) => {
-        const { childId } = context.params;
-        const data = change.after.data();
+    .onCreate(async (snapshot, context) => {
+        const { childId, eventId } = context.params;
+        const data = snapshot.data();
 
         if (!data) return;
 
-        // Only notify on active SOS
-        if (data.status === 'ACTIVE') {
-            await broadcastToParents(childId, {
-                title: '🆘 SOS ACTIVATED',
-                body: data.message || 'Emergency signal received!',
-                type: 'SOS',
+        // Resolve child name
+        const childSnap = await db.collection('children').doc(childId).get();
+        const childName = childSnap.data()?.name || 'Your child';
+
+        // 1. Create exactly one activity/history record for the SOS trigger
+        await db.collection('children').doc(childId).collection('activities').doc(eventId).set({
+            id: eventId,
+            childId: childId,
+            type: 'SOS',
+            title: 'Emergency SOS Triggered',
+            description: data.message || 'Manual trigger from device',
+            latitude: data.latitude || null,
+            longitude: data.longitude || null,
+            timestamp: data.timestamp || Date.now(),
+            severity: 'critical'
+        }, { merge: true });
+
+        // 2. Broadcast high-priority notification to parents
+        await broadcastToParents(childId, {
+            title: 'Emergency SOS',
+            body: `${childName} may need help`,
+            type: 'SOS',
+            childId: childId,
+            eventId: eventId,
+            clickAction: `/sos`
+        });
+
+        // 3. Reverse Geocoding (Asynchronous/Background)
+        if (data.latitude && data.longitude) {
+            try {
+                const apiKey = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyAjBIvgF7Bbq92FeO68QsB3xkeEDieTbXU';
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${data.latitude},${data.longitude}&key=${apiKey}`;
+
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (result.status === 'OK' && result.results.length > 0) {
+                    const addressObj = result.results[0];
+                    const components = addressObj.address_components;
+
+                    let street = '';
+                    let houseNumber = '';
+                    let city = '';
+                    let postalCode = '';
+                    let country = '';
+
+                    components.forEach((c: any) => {
+                        if (c.types.includes('route')) street = c.long_name;
+                        if (c.types.includes('street_number')) houseNumber = c.long_name;
+                        if (c.types.includes('locality')) city = c.long_name;
+                        if (c.types.includes('postal_code')) postalCode = c.long_name;
+                        if (c.types.includes('country')) country = c.long_name;
+                    });
+
+                    const displayAddress = street
+                        ? `${street}${houseNumber ? ' ' + houseNumber : ''}\n${postalCode}${city ? ' ' + city : ''}`
+                        : addressObj.formatted_address;
+
+                    await snapshot.ref.update({
+                        address: displayAddress,
+                        street,
+                        houseNumber,
+                        postalCode,
+                        city,
+                        country,
+                        geocodedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            } catch (error) {
+                console.error("Reverse geocoding failed", error);
+            }
+        }
+    });
+
+/**
+ * Optional: Triggered when an SOS event is resolved.
+ */
+export const onSosResolved = functions.firestore
+    .document('children/{childId}/sosEvents/{eventId}')
+    .onUpdate(async (change, context) => {
+        const before = change.before.data();
+        const after = change.after.data();
+        const { childId, eventId } = context.params;
+
+        if (before.status !== 'RESOLVED' && after.status === 'RESOLVED') {
+            const now = Date.now();
+
+            // 1. Create SOS_RESOLVED activity record
+            const resolutionId = `${eventId}_resolved`;
+            await db.collection('children').doc(childId).collection('activities').doc(resolutionId).set({
+                id: resolutionId,
                 childId: childId,
-                clickAction: `/map` // Center on map
-            });
-        } else if (data.status === 'RESOLVED') {
+                type: 'SOS_RESOLVED',
+                title: 'SOS Resolved',
+                description: 'The emergency signal was marked as resolved.',
+                timestamp: now,
+                severity: 'info'
+            }, { merge: true });
+
+            // 2. Broadcast resolution notification (optional)
             await broadcastToParents(childId, {
-                title: '✅ SOS Resolved',
+                title: 'SOS Resolved',
                 body: 'Emergency situation has been marked as resolved.',
-                type: 'SOS',
+                type: 'SOS_RESOLVED',
                 childId: childId,
+                eventId: eventId,
                 clickAction: `/dashboard/${childId}`
             });
         }
@@ -232,9 +323,13 @@ class EmailService {
 interface NotificationPayload {
     title: string;
     body: string;
-    type: 'SAFE_ZONE' | 'SOS' | 'BATTERY' | 'DEVICE' | 'PAIRING';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING';
     childId: string;
     clickAction: string;
+    eventId?: string;
+    familyId?: string;
+    message?: string; // For explicit required field mapping
+    route?: string;   // For explicit required field mapping
 }
 
 /**
@@ -252,14 +347,16 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
         return;
     }
 
-    const family = familyQuery.docs[0].data();
+    const familyDoc = familyQuery.docs[0];
+    const familyId = familyDoc.id;
+    const family = familyDoc.data();
     const members = family.members as any[] || [];
     const parentUids = members
-        .filter(m => m.role === 'OWNER' || m.role === 'PARENT')
+        .filter(m => m.role === 'OWNER' || m.role === 'PARENT' || m.role === 'GUARDIAN')
         .map(m => m.uid);
 
     // 2. Notify each parent
-    const promises = parentUids.map(uid => notifyParent(uid, payload));
+    const promises = parentUids.map(uid => notifyParent(uid, { ...payload, familyId }));
     await Promise.all(promises);
 }
 
@@ -274,6 +371,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     const typeMap: Record<string, string> = {
         'SAFE_ZONE': 'safeZone',
         'SOS': 'sos',
+        'SOS_RESOLVED': 'sos',
         'BATTERY': 'battery',
         'DEVICE': 'deviceStatus',
         'PAIRING': 'pairing'
@@ -286,19 +384,39 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     }
 
     // 2. Record notification in history
-    const notificationId = db.collection('parents').doc(uid).collection('notifications').doc().id;
-    await db.collection('parents').doc(uid).collection('notifications').doc(notificationId).set({
+    // Use a deterministic notification ID based on eventId and parent user ID to prevent duplicates.
+    // New Path: notifications/{deterministicId}
+    const notificationId = payload.eventId ? `${payload.eventId}_${uid}` : db.collection('notifications').doc().id;
+
+    const notificationDoc = {
         id: notificationId,
-        ...payload,
+        userId: uid,
+        familyId: payload.familyId || '',
+        childId: payload.childId,
+        eventId: payload.eventId || '',
+        type: payload.type,
+        title: payload.title,
+        body: payload.body,
+        message: payload.body,
+        read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false
-    });
+        clickAction: payload.clickAction,
+        route: payload.clickAction
+    };
+
+    await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
 
     // 3. Send FCM to all registered devices
-    const devicesSnap = await db.collection('parents').doc(uid).collection('devices').get();
+    // New Path: users/{uid}/notificationTokens
+    const devicesSnap = await db.collection('users').doc(uid).collection('notificationTokens').get();
     if (devicesSnap.empty) return;
 
-    const tokens = devicesSnap.docs.map(doc => doc.data().token).filter(t => !!t);
+    // Filter for enabled tokens
+    const tokens = devicesSnap.docs
+        .filter(doc => doc.data().enabled !== false)
+        .map(doc => doc.data().token)
+        .filter(t => !!t);
+
     if (tokens.length === 0) return;
 
     const messagingPayload: admin.messaging.MulticastMessage = {
@@ -310,6 +428,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         data: {
             type: payload.type,
             childId: payload.childId,
+            eventId: payload.eventId || '',
             clickAction: payload.clickAction
         },
         webpush: {
@@ -318,9 +437,9 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
             }
         },
         android: {
-            priority: payload.type === 'SOS' ? 'high' : 'normal',
+            priority: (payload.type === 'SOS') ? 'high' : 'normal',
             notification: {
-                clickAction: 'FLUTTER_NOTIFICATION_CLICK' // For future Flutter if used, or just handled by standard intent
+                clickAction: 'FLUTTER_NOTIFICATION_CLICK'
             }
         }
     };

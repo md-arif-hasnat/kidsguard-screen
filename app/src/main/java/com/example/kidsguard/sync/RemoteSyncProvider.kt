@@ -9,6 +9,7 @@ interface RemoteSyncProvider {
     fun syncChildStatus(status: SyncChildStatus)
     fun syncLocation(update: SyncLocationUpdate)
     fun syncActivity(event: SyncActivityEvent)
+    fun syncNotification(event: SyncNotificationEvent)
     fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone)
     fun deleteSafeZone(childId: String, zoneId: String)
     fun syncSosEvent(event: com.example.kidsguard.models.SosEvent)
@@ -69,6 +70,10 @@ class LocalMockSyncProvider : RemoteSyncProvider {
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    override fun syncNotification(event: SyncNotificationEvent) {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 

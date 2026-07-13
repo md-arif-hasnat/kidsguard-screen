@@ -122,10 +122,10 @@ export default function Home() {
         name: s.childName,
         childId: MOCK_CHILDREN[0].id // Link mock SOS to first mock child
       }))
-    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE").map(e => ({
+    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE" || e.status === "TRIGGERED").map(e => ({
         ...e,
         name: childrenStatus[e.childId]?.childName || "Unknown Child",
-        location: e.latitude ? `${e.latitude.toFixed(4)}, ${e.longitude?.toFixed(4)}` : "Unknown Location"
+        location: e.address ? e.address : (e.latitude ? `${e.latitude.toFixed(4)}, ${e.longitude?.toFixed(4)}` : "Unknown Location")
       }));
 
   //const isLive = isFirebaseConfigured && !!user && !!family;
