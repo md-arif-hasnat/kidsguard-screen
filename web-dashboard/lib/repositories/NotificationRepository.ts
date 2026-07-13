@@ -117,6 +117,9 @@ export class NotificationRepository {
         ...doc.data()
       } as NotificationHistoryItem));
       onUpdate(notifications);
+    }, (error) => {
+      console.error("Error listening to notifications:", error);
+      onUpdate([]);
     });
   }
 

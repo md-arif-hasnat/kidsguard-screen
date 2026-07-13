@@ -84,6 +84,9 @@ export class AuditRepository {
     );
     return onSnapshot(q, (snapshot) => {
       onUpdate(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog)));
+    }, (error) => {
+      console.error("Error listening to family logs:", error);
+      onUpdate([]);
     });
   }
 
