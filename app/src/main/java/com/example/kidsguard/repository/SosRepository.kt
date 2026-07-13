@@ -23,6 +23,9 @@ class SosRepository(private val context: Context) {
     }
 
     fun triggerSos(event: SosEvent) {
+        if (event.id.isBlank()) {
+            event.id = java.util.UUID.randomUUID().toString()
+        }
         val updatedEvent = event.copy(status = SosStatus.ACTIVE)
         val currentList = _sosHistory.value.toMutableList()
         currentList.add(0, updatedEvent)

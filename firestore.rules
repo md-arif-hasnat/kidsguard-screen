@@ -25,26 +25,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/families/$(familyId)).data;
     }
 
-    function getUserMember(familyId) {
-      return getFamilyData(familyId).members.filter(m => m.uid == request.auth.uid)[0];
-    }
-
-    function getUserRole(familyId) {
-      return getUserMember(familyId).role;
-    }
-
     function isOwner(familyId) {
-      return getUserRole(familyId) == 'OWNER';
+      return isParent() && getFamilyData(familyId).members.any(m => m.uid == request.auth.uid && m.role == 'OWNER');
     }
 
     function isParentOrAbove(familyId) {
-      let role = getUserRole(familyId);
-      return role == 'OWNER' || role == 'PARENT';
+      return isParent() && getFamilyData(familyId).members.any(m => m.uid == request.auth.uid && (m.role == 'OWNER' || m.role == 'PARENT'));
     }
 
     function isGuardianOrAbove(familyId) {
-      let role = getUserRole(familyId);
-      return role == 'OWNER' || role == 'PARENT' || role == 'GUARDIAN';
+      return isParent() && getFamilyData(familyId).members.any(m => m.uid == request.auth.uid && (m.role == 'OWNER' || m.role == 'PARENT' || m.role == 'GUARDIAN'));
     }
 
     function isChildInFamily(childId) {

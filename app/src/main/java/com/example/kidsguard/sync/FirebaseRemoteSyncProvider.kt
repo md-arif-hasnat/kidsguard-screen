@@ -1,7 +1,9 @@
 package com.example.kidsguard.sync
 
 import android.util.Log
+import com.example.kidsguard.models.SosEvent
 import com.example.kidsguard.repository.ErrorLogRepository
+
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
@@ -175,20 +177,30 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent) {
-        if (event.childId.isEmpty()) return
-        
+    override fun syncSosEvent(event: SosEvent) {
+        if (event.childId.isBlank() || event.id.isBlank()) {
+            Log.e(TAG, "SOS sync skipped: childId or eventId is blank")
+            return
+        }
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(event.childId)
             .collection("sosEvents")
             .document(event.id)
             .set(event)
             .addOnSuccessListener {
-                Log.d(TAG, "SOS event synced successfully")
+                Log.d(
+                    TAG,
+                    "SOS synced childId=${event.childId}, eventId=${event.id}"
+                )
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to sync SOS event", e)
-                errorLogger.addError(TAG, "Failed to sync SOS event", e)
+                errorLogger.addError(
+                    TAG,
+                    "Failed to sync SOS event",
+                    e
+                )
             }
     }
 

@@ -68,6 +68,9 @@ export class SupportRepository {
     );
     return onSnapshot(q, (snap) => {
       onUpdate(snap.docs.map(doc => doc.data() as SupportTicket));
+    }, (error) => {
+      console.error("Error listening to parent tickets:", error);
+      onUpdate([]);
     });
   }
 
@@ -79,6 +82,9 @@ export class SupportRepository {
     );
     return onSnapshot(q, (snap) => {
       onUpdate(snap.docs.map(doc => doc.data() as SupportTicket));
+    }, (error) => {
+      console.error("Error listening to all tickets:", error);
+      onUpdate([]);
     });
   }
 
