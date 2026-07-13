@@ -1,6 +1,6 @@
 
 import { db } from "../firebase";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
 
 export interface SosEvent {
   id: string;
@@ -41,5 +41,11 @@ export class SosRepository {
       console.error("Error listening to SOS events:", error);
       onUpdate([]);
     });
+  }
+
+  static async updateSosAddress(childId: string, eventId: string, addressData: Partial<SosEvent>) {
+    if (!db || !childId || !eventId) return;
+    const ref = doc(db, "children", childId, "sosEvents", eventId);
+    await updateDoc(ref, addressData);
   }
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
 import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
-import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone } from 'lucide-react';
+import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone, MapPin } from 'lucide-react';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
@@ -93,6 +93,58 @@ export default function Home() {
     };
   }, [family]);
 
+  // Handle SOS Geocoding
+  useEffect(() => {
+    if (showMocks || !isFirebaseConfigured) return;
+
+    const eventsToGeocode = Object.values(childrenSos).flat()
+        .filter(e => (e.status === "ACTIVE" || e.status === "TRIGGERED") && !e.address && e.latitude && e.longitude);
+
+    eventsToGeocode.forEach(async (event) => {
+        try {
+            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+            if (!apiKey) return;
+
+            const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${event.latitude},${event.longitude}&key=${apiKey}`);
+            const data = await response.json();
+
+            if (data.status === 'OK' && data.results.length > 0) {
+                const result = data.results[0];
+                const components = result.address_components;
+
+                let street = '';
+                let houseNumber = '';
+                let city = '';
+                let postalCode = '';
+                let country = '';
+
+                components.forEach((c: any) => {
+                    if (c.types.includes('route')) street = c.long_name;
+                    if (c.types.includes('street_number')) houseNumber = c.long_name;
+                    if (c.types.includes('locality')) city = c.long_name;
+                    if (c.types.includes('postal_code')) postalCode = c.long_name;
+                    if (c.types.includes('country')) country = c.long_name;
+                });
+
+                const displayAddress = street
+                    ? `${street}${houseNumber ? ' ' + houseNumber : ''}\n${postalCode}${city ? ' ' + city : ''}`
+                    : result.formatted_address;
+
+                await SosRepository.updateSosAddress(event.childId, event.id, {
+                    address: displayAddress,
+                    street,
+                    houseNumber,
+                    city,
+                    postalCode,
+                    country
+                });
+            }
+        } catch (err) {
+            console.error("SOS Geocoding failed:", err);
+        }
+    });
+  }, [childrenSos]);
+
   const handlePairChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!family || !pairingCode) return;
@@ -122,11 +174,20 @@ export default function Home() {
         name: s.childName,
         childId: MOCK_CHILDREN[0].id // Link mock SOS to first mock child
       }))
-    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE" || e.status === "TRIGGERED").map(e => ({
-        ...e,
-        name: childrenStatus[e.childId]?.childName || "Unknown Child",
-        location: e.address ? e.address : (e.latitude ? `${e.latitude.toFixed(4)}, ${e.longitude?.toFixed(4)}` : "Unknown Location")
-      }));
+    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE" || e.status === "TRIGGERED").map(e => {
+        let displayLocation = "Locating address...";
+        if (e.address) {
+            displayLocation = e.address;
+        } else if (e.street) {
+            displayLocation = `${e.street}${e.houseNumber ? ' ' + e.houseNumber : ''}\n${e.postalCode || ''}${e.city ? ' ' + e.city : ''}`;
+        }
+
+        return {
+            ...e,
+            name: childrenStatus[e.childId]?.childName || "Unknown Child",
+            location: displayLocation
+        };
+      });
 
   //const isLive = isFirebaseConfigured && !!user && !!family;
   const isLive = isFirebaseConfigured && Boolean(profile) && Boolean(family);
@@ -243,15 +304,19 @@ export default function Home() {
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h2 className="text-red-900 font-bold text-base md:text-lg">ACTIVE SOS ALERT</h2>
-              <p className="text-red-700 font-medium text-sm md:text-base">
-                {activeSosEvents[0].name} triggered an SOS at {activeSosEvents[0].location}
+              <h2 className="text-red-900 font-bold text-base md:text-lg uppercase tracking-tighter italic">Active SOS Alert</h2>
+              <p className="text-red-700 font-bold text-sm md:text-base">
+                {activeSosEvents[0].name} triggered an emergency SOS
               </p>
+              <div className="flex items-start gap-1 mt-1 text-red-800 text-xs md:text-sm font-medium">
+                 <MapPin size={14} className="mt-0.5 shrink-0" />
+                 <span className="whitespace-pre-line">{activeSosEvents[0].location}</span>
+              </div>
             </div>
           </div>
           <button
-            onClick={() => router.push(`/dashboard/${activeSosEvents[0].childId}`)}
-            className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors"
+            onClick={() => router.push(`/sos?childId=${activeSosEvents[0].childId}&eventId=${activeSosEvents[0].id}`)}
+            className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-200 transition-all active:scale-95"
           >
             View Details
           </button>
