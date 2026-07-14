@@ -28,6 +28,7 @@ export default function SosPage() {
 function SosPageContent() {
   const { profile, family, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
+  const [selectedSos, setSelectedSos] = useState<SosEvent | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const targetEventId = searchParams.get('eventId');
@@ -175,7 +176,13 @@ function SosPageContent() {
               <span className={`${sos.resolved || sos.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} px-4 py-1.5 rounded-full font-bold text-[10px] md:text-xs uppercase`}>
                 {sos.resolved || sos.status === 'RESOLVED' ? 'Resolved' : 'Active'}
               </span>
-              <button className="bg-slate-900 hover:bg-slate-800 text-white px-5 md:px-6 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors whitespace-nowrap">View Incident</button>
+              <button
+              type="button"
+              onClick={() => setSelectedSos(sos)}
+              className="bg-slate-900 hover:bg-slate-800 text-white px-5 md:px-6 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors whitespace-nowrap"
+              >
+              View Incident
+              </button>
             </div>
           </div>
         )) : (
@@ -188,6 +195,153 @@ function SosPageContent() {
             </div>
         )}
       </div>
+      {selectedSos && (
+       <div
+       className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4"
+       onClick={() => setSelectedSos(null)}
+       >
+       <div
+       className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl md:p-8"
+       onClick={(event) => event.stopPropagation()}
+       >
+       <button
+       type="button"
+       onClick={() => setSelectedSos(null)}
+       className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-600 hover:bg-slate-200"
+       aria-label="Close incident details"
+       >
+       ×
+       </button>
+
+       <div className="pr-12">
+       <p className="text-sm font-bold uppercase tracking-wide text-red-600">
+       Emergency SOS Incident
+       </p>
+
+       <h2 className="mt-1 text-2xl font-bold text-slate-900">
+       Emergency Trigger
+       </h2>
+       </div>
+
+       <div className="mt-5 flex items-center gap-3">
+       <span
+       className={`rounded-full px-4 py-2 text-sm font-bold ${
+       selectedSos.status === "RESOLVED"
+       ? "bg-green-100 text-green-700"
+       : "bg-red-100 text-red-700"
+       }`}
+       >
+       {selectedSos.status === "RESOLVED" ? "RESOLVED" : "ACTIVE"}
+       </span>
+       </div>
+
+       <div className="mt-6 grid gap-4 md:grid-cols-2">
+       <div className="rounded-2xl border border-slate-200 p-4">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       Child ID
+       </p>
+       <p className="mt-1 break-all font-semibold text-slate-900">
+       {selectedSos.childId}
+       </p>
+       </div>
+
+       <div className="rounded-2xl border border-slate-200 p-4">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       Battery
+       </p>
+       <p className="mt-1 font-semibold text-slate-900">
+       {selectedSos.batteryPercent != null
+       ? `${selectedSos.batteryPercent}%`
+       : "Not available"}
+       </p>
+       </div>
+
+       <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       Address
+       </p>
+
+       <p className="mt-1 font-semibold text-slate-900">
+       {[selectedSos.street, selectedSos.houseNumber]
+       .filter(Boolean)
+       .join(" ") || "Address unavailable"}
+       </p>
+
+       <p className="text-slate-600">
+       {[selectedSos.postalCode, selectedSos.city]
+       .filter(Boolean)
+       .join(" ")}
+       </p>
+
+       {selectedSos.country && (
+       <p className="text-slate-600">{selectedSos.country}</p>
+       )}
+       </div>
+
+       <div className="rounded-2xl border border-slate-200 p-4">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       Coordinates
+       </p>
+       <p className="mt-1 text-sm font-semibold text-slate-900">
+       {selectedSos.latitude ?? "—"}, {selectedSos.longitude ?? "—"}
+       </p>
+       </div>
+
+       <div className="rounded-2xl border border-slate-200 p-4">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       GPS Accuracy
+       </p>
+       <p className="mt-1 font-semibold text-slate-900">
+       {selectedSos.accuracy != null
+       ? `${selectedSos.accuracy} m`
+       : "Not available"}
+       </p>
+       </div>
+
+       <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">
+       <p className="text-xs font-semibold uppercase text-slate-500">
+       Message
+       </p>
+       <p className="mt-1 font-semibold text-slate-900">
+       {selectedSos.message || "Emergency SOS Triggered"}
+       </p>
+       </div>
+       </div>
+
+       {selectedSos.latitude != null &&
+       selectedSos.longitude != null && (
+       <div className="mt-6 grid gap-3 sm:grid-cols-2">
+       <a
+       href={`https://www.google.com/maps/search/?api=1&query=${selectedSos.latitude},${selectedSos.longitude}`}
+       target="_blank"
+       rel="noopener noreferrer"
+       className="flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700"
+       >
+       Open Google Maps
+       </a>
+
+       <a
+       href={`https://maps.apple.com/?ll=${selectedSos.latitude},${selectedSos.longitude}`}
+       target="_blank"
+       rel="noopener noreferrer"
+       className="flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 font-bold text-white hover:bg-slate-800"
+       >
+       Open Apple Maps
+       </a>
+       </div>
+       )}
+
+       <button
+       type="button"
+       onClick={() => setSelectedSos(null)}
+       className="mt-4 w-full rounded-xl border border-slate-300 px-5 py-3 font-bold text-slate-700 hover:bg-slate-50"
+       >
+       Close
+       </button>
+       </div>
+       </div>
+      )}
+
     </DashboardLayout>
   );
 }
