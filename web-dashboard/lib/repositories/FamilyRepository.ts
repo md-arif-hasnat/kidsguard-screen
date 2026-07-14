@@ -326,6 +326,32 @@ export class FamilyRepository {
     });
   }
 
+  static async removeChildFromFamily(familyId: string, childId: string): Promise<void> {
+    if (!db || !familyId || !childId) return;
+    const familyRef = doc(db, "families", familyId);
+    const snap = await getDoc(familyRef);
+    if (!snap.exists()) return;
+
+    const data = snap.data() as FamilyData;
+    const updatedChildren = (data.childDeviceIds || []).filter(id => id !== childId);
+
+    await updateDoc(familyRef, { childDeviceIds: updatedChildren });
+
+    // Also update the child doc to remove the familyId link
+    const childRef = doc(db, "children", childId);
+    await updateDoc(childRef, { familyId: null, updatedAt: serverTimestamp() });
+
+    await AuditRepository.log({
+      actorUid: "current_user",
+      actorEmail: "admin",
+      familyId,
+      action: AuditAction.CHILD_REMOVED,
+      targetType: 'CHILD',
+      targetId: childId,
+      severity: AuditSeverity.WARNING
+    });
+  }
+
   static async updateFamilySettings(familyId: string, settings: Partial<FamilySettings>): Promise<void> {
     if (!db) return;
     const familyRef = doc(db, "families", familyId);

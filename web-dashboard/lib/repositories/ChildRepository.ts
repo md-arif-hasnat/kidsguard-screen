@@ -90,4 +90,38 @@ export class ChildRepository {
       const ref = doc(db, "children", childId);
       await updateDoc(ref, { familyId, updatedAt: serverTimestamp() });
   }
+
+  static async renameChild(childId: string, newName: string): Promise<void> {
+    if (!db || !childId) return;
+    const childRef = doc(db, "children", childId);
+    const statusRef = doc(db, "children", childId, "status", "current");
+
+    await updateDoc(childRef, { name: newName, updatedAt: serverTimestamp() });
+    try {
+        await updateDoc(statusRef, { childName: newName });
+    } catch (e) {
+        console.warn("Status doc might not exist yet:", e);
+    }
+  }
+
+  static async updateChild(childId: string, data: { name?: string, avatarId?: string }): Promise<void> {
+    if (!db || !childId) return;
+    const childRef = doc(db, "children", childId);
+    const statusRef = doc(db, "children", childId, "status", "current");
+
+    const updates: any = { ...data, updatedAt: serverTimestamp() };
+    await updateDoc(childRef, updates);
+
+    const statusUpdates: any = {};
+    if (data.name) statusUpdates.childName = data.name;
+    if (data.avatarId) statusUpdates.avatarId = data.avatarId;
+
+    if (Object.keys(statusUpdates).length > 0) {
+        try {
+            await updateDoc(statusRef, statusUpdates);
+        } catch (e) {
+            console.warn("Status doc might not exist yet:", e);
+        }
+    }
+  }
 }
