@@ -101,7 +101,7 @@ fun StatusBadge(status: SosStatus) {
         color = when(status) {
             SosStatus.ACTIVE -> Color.Red
             SosStatus.RESOLVED -> Color.Green
-            SosStatus.CREATED -> Color.Gray
+            SosStatus.TRIGGERED -> Color.Gray
         }.copy(alpha = 0.2f),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
     ) {
@@ -112,7 +112,7 @@ fun StatusBadge(status: SosStatus) {
             color = when(status) {
                 SosStatus.ACTIVE -> Color.Red
                 SosStatus.RESOLVED -> Color.Green
-                SosStatus.CREATED -> Color.Gray
+                SosStatus.TRIGGERED -> Color.Gray
             },
             fontWeight = FontWeight.Bold
         )
