@@ -4,7 +4,10 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { AlertTriangle, MapPin, CloudOff } from 'lucide-react';
 import { MOCK_SOS } from '@/lib/mockData';
-import { isFirebaseConfigured } from '@/lib/firebase';
+// import { isFirebaseConfigured } from '@/lib/firebase';
+
+import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { Loader2, ShieldAlert } from 'lucide-react';
@@ -68,9 +71,65 @@ function SosPageContent() {
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
   const [selectedSos, setSelectedSos] = useState<SosEvent | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
+  const [selectedChild, setSelectedChild] = useState<{
+  name: string;
+  avatarId?: string;
+  deviceId?: string;
+  } | null>(null);
+
+  const [childLoading, setChildLoading] = useState(false);
   const searchParams = useSearchParams();
   const targetEventId = searchParams.get('eventId');
   const queryChildId = searchParams.get('childId');
+
+  useEffect(() => {
+  const loadSelectedChild = async () => {
+  const selectedChildId = selectedSos?.childId;
+
+  if (!selectedChildId || !isFirebaseConfigured || !db) {
+  setSelectedChild(null);
+  return;
+  }
+
+  try {
+  setChildLoading(true);
+
+  const childRef = doc(db, "children", selectedChildId);
+  const childSnapshot = await getDoc(childRef);
+
+  if (!childSnapshot.exists()) {
+  console.warn("SOS child document not found:", selectedChildId);
+  setSelectedChild(null);
+  return;
+  }
+
+  const childData = childSnapshot.data();
+
+  setSelectedChild({
+  name:
+  typeof childData.name === "string" && childData.name.trim()
+  ? childData.name
+  : "Unknown Child",
+  avatarId:
+  typeof childData.avatarId === "string"
+  ? childData.avatarId
+  : undefined,
+  deviceId:
+  typeof childData.deviceId === "string"
+  ? childData.deviceId
+  : undefined,
+  });
+  } catch (error) {
+  console.error("Failed to load SOS child information:", error);
+  setSelectedChild(null);
+  } finally {
+  setChildLoading(false);
+  }
+  };
+
+  void loadSelectedChild();
+  }, [selectedSos?.childId]);
+
 
   useEffect(() => {
     if (queryChildId) {
@@ -295,10 +354,17 @@ function SosPageContent() {
        <div className="mt-6 grid gap-4 md:grid-cols-2">
        <div className="rounded-2xl border border-slate-200 p-4">
        <p className="text-xs font-semibold uppercase text-slate-500">
-       Child ID
+       Child
        </p>
-       <p className="mt-1 break-all font-semibold text-slate-900">
-       {selectedSos.childId}
+
+       <p className="mt-1 text-lg font-bold text-slate-900">
+       {childLoading
+       ? "Loading..."
+       : selectedChild?.name || "Unknown Child"}
+       </p>
+
+       <p className="mt-1 break-all text-xs text-slate-500">
+       ID: {selectedSos.childId}
        </p>
        </div>
 
