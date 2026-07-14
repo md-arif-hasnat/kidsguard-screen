@@ -13,6 +13,8 @@ export interface SosEvent {
   status: string;
   active: boolean;
   batteryPercent: number | null;
+  createdAt?: unknown;
+  resolvedAt?: unknown;
   address?: string;
   street?: string;
   houseNumber?: string;

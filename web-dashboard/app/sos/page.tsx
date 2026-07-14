@@ -25,6 +25,44 @@ export default function SosPage() {
     );
 }
 
+function formatSosDate(value: unknown): string {
+if (!value) return "Not available";
+
+let date: Date;
+
+if (typeof value === "number") {
+date = new Date(value);
+} else if (value instanceof Date) {
+date = value;
+} else if (
+typeof value === "object" &&
+value !== null &&
+"toDate" in value &&
+typeof (value as { toDate: () => Date }).toDate === "function"
+) {
+date = (value as { toDate: () => Date }).toDate();
+} else if (
+typeof value === "object" &&
+value !== null &&
+"seconds" in value
+) {
+date = new Date(
+Number((value as { seconds: number }).seconds) * 1000
+);
+} else {
+return "Not available";
+}
+
+if (Number.isNaN(date.getTime())) {
+return "Not available";
+}
+
+return new Intl.DateTimeFormat("en-GB", {
+dateStyle: "medium",
+timeStyle: "short",
+}).format(date);
+}
+
 function SosPageContent() {
   const { profile, family, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
@@ -214,18 +252,13 @@ function SosPageContent() {
        </button>
 
        <div className="pr-12">
+       <div className="flex flex-wrap items-center gap-3">
        <p className="text-sm font-bold uppercase tracking-wide text-red-600">
        Emergency SOS Incident
        </p>
 
-       <h2 className="mt-1 text-2xl font-bold text-slate-900">
-       Emergency Trigger
-       </h2>
-       </div>
-
-       <div className="mt-5 flex items-center gap-3">
        <span
-       className={`rounded-full px-4 py-2 text-sm font-bold ${
+       className={`rounded-full px-3 py-1 text-xs font-bold ${
        selectedSos.status === "RESOLVED"
        ? "bg-green-100 text-green-700"
        : "bg-red-100 text-red-700"
@@ -233,6 +266,30 @@ function SosPageContent() {
        >
        {selectedSos.status === "RESOLVED" ? "RESOLVED" : "ACTIVE"}
        </span>
+       </div>
+
+       <h2 className="mt-2 text-2xl font-bold text-slate-900">
+       Emergency SOS
+       </h2>
+
+       <p className="mt-2 text-sm text-slate-600">
+       Triggered:{" "}
+       <span className="font-semibold text-slate-900">
+       {formatSosDate(
+       selectedSos.createdAt ?? selectedSos.timestamp
+       )}
+       </span>
+       </p>
+
+       {selectedSos.status === "RESOLVED" &&
+       selectedSos.resolvedAt && (
+       <p className="mt-1 text-sm text-slate-600">
+       Resolved:{" "}
+       <span className="font-semibold text-green-700">
+       {formatSosDate(selectedSos.resolvedAt)}
+       </span>
+       </p>
+       )}
        </div>
 
        <div className="mt-6 grid gap-4 md:grid-cols-2">
