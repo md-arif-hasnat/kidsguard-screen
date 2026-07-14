@@ -10,6 +10,7 @@ export interface SosEvent {
   longitude: number | null;
   message: string;
   status: string;
+  active: boolean;
   batteryPercent: number | null;
   address?: string;
   street?: string;
