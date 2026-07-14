@@ -76,11 +76,12 @@ function SosPageContent() {
   avatarId?: string;
   deviceId?: string;
   } | null>(null);
-
+  const [childNames, setChildNames] = useState<Record<string, string>>({});
   const [childLoading, setChildLoading] = useState(false);
   const searchParams = useSearchParams();
   const targetEventId = searchParams.get('eventId');
   const queryChildId = searchParams.get('childId');
+
 
   useEffect(() => {
   const loadSelectedChild = async () => {
@@ -171,6 +172,52 @@ function SosPageContent() {
     return list;
   }, [sosEvents, targetEventId, isFirebaseConfigured]);
 
+useEffect(() => {
+  const loadChildNames = async () => {
+  if (!isFirebaseConfigured || !db || displaySos.length === 0) return;
+
+  const uniqueChildIds = Array.from(new Set(
+  displaySos
+  .map((sos: any) => sos.childId)
+  .filter((id): id is string => Boolean(id))
+  ));
+
+  const missingIds = uniqueChildIds.filter((id) => !childNames[id]);
+
+  if (missingIds.length === 0) return;
+
+  try {
+  const entries = await Promise.all(
+  missingIds.map(async (id) => {
+  const snapshot = await getDoc(doc(db!, "children", id));
+
+  if (!snapshot.exists()) {
+  return [id, "Unknown Child"] as const;
+  }
+
+  const data = snapshot.data();
+
+  const name =
+  typeof data.name === "string" && data.name.trim()
+  ? data.name
+  : "Unknown Child";
+
+  return [id, name] as const;
+  })
+  );
+
+  setChildNames((previous) => ({
+  ...previous,
+  ...Object.fromEntries(entries),
+  }));
+  } catch (error) {
+  console.error("Failed to load SOS child names:", error);
+  }
+  };
+
+  void loadChildNames();
+  }, [displaySos, childNames]);
+
   if (profileLoading) {
       return (
           <DashboardLayout>
@@ -231,9 +278,15 @@ function SosPageContent() {
                 <AlertTriangle size={24} className="md:w-8 md:h-8" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-lg md:text-xl font-bold text-slate-900 truncate">
-                    {sos.childName || "Emergency Trigger"}
-                </h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                       {childId
+                       ? childNames[childId] || "Loading child..."
+                       : "Unknown Child"}
+                       </h3>
+
+                       <p className="mt-1 text-sm font-semibold text-red-600">
+                       Emergency SOS Triggered
+                       </p>
                 <p className="text-xs md:text-sm text-slate-500 font-medium">
                     {typeof sos.timestamp === 'number' ? new Date(sos.timestamp).toLocaleString() : sos.time}
                 </p>
@@ -425,9 +478,16 @@ function SosPageContent() {
        <p className="text-xs font-semibold uppercase text-slate-500">
        Message
        </p>
-       <p className="mt-1 font-semibold text-slate-900">
-       {selectedSos.message || "Emergency SOS Triggered"}
+       <h3 className="text-lg font-bold text-slate-900">
+       {childId
+       ? childNames[childId] || "Loading child..."
+       : "Unknown Child"}
+       </h3>
+
+       <p className="mt-1 text-sm font-semibold text-red-600">
+       Emergency SOS Triggered
        </p>
+
        </div>
        </div>
 
