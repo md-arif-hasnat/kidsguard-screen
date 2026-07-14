@@ -2,8 +2,9 @@ package com.example.kidsguard.sync
 
 import android.util.Log
 import com.example.kidsguard.models.SosEvent
+import com.example.kidsguard.models.SosStatus
 import com.example.kidsguard.repository.ErrorLogRepository
-
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
@@ -202,31 +203,59 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun syncSosEvent(event: SosEvent) {
-        Log.d(TAG, "syncSosEvent: id='${event.id}', childId='${event.childId}'")
+    override fun syncSosEvent(event: SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)?) {
         if (event.childId.isBlank() || event.id.isBlank()) {
             Log.e(TAG, "SOS sync skipped: childId or eventId is blank")
+            onComplete?.invoke(false, null)
             return
+        }
+
+        val updateMap = mutableMapOf<String, Any?>(
+            "id" to event.id,
+            "childId" to event.childId,
+            "timestamp" to event.timestamp,
+            "latitude" to event.latitude,
+            "longitude" to event.longitude,
+            "accuracy" to event.accuracy,
+            "batteryPercent" to event.batteryPercent,
+            "message" to event.message,
+            "status" to event.status.name,
+            "resolvedAt" to event.resolvedAt,
+            "active" to event.active,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+
+        // Add creation timestamp only for new events
+        if (event.status != SosStatus.RESOLVED) {
+            updateMap["createdAt"] = FieldValue.serverTimestamp()
+            updateMap["active"] = true
+            updateMap["status"] = "ACTIVE"
+        } else {
+            updateMap["resolvedAt"] = FieldValue.serverTimestamp()
+            updateMap["active"] = false
+            updateMap["status"] = "RESOLVED"
         }
 
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(event.childId)
             .collection("sosEvents")
             .document(event.id)
-            .set(event)
+            .set(updateMap, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
                 Log.d(
                     TAG,
-                    "SOS synced childId=${event.childId}, eventId=${event.id}"
+                    "resolve success path=children/${event.childId}/sosEvents/${event.id}"
                 )
+                onComplete?.invoke(true, null)
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to sync SOS event", e)
+                Log.e(TAG, "resolve failure exception=${e.message}", e)
                 errorLogger.addError(
                     TAG,
                     "Failed to sync SOS event",
                     e
                 )
+                onComplete?.invoke(false, e)
             }
     }
 

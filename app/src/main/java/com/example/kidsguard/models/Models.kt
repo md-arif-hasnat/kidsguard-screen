@@ -91,7 +91,7 @@ data class RemoteCommand(
     var timestamp: Long = System.currentTimeMillis()
 )
 
-enum class SosStatus { CREATED, ACTIVE, RESOLVED }
+enum class SosStatus { ACTIVE, TRIGGERED, RESOLVED }
 
 @Keep
 data class SosEvent(
@@ -103,8 +103,9 @@ data class SosEvent(
     var accuracy: Float? = null,
     var batteryPercent: Int? = null,
     var message: String = "Emergency SOS Triggered",
-    var status: SosStatus = SosStatus.CREATED,
+    var status: SosStatus = SosStatus.TRIGGERED,
     var resolvedAt: Long? = null,
+    var active: Boolean = true,
     var address: String? = null,
     var street: String? = null,
     var houseNumber: String? = null,

@@ -8,6 +8,7 @@ export interface SosEvent {
   timestamp: number;
   latitude: number | null;
   longitude: number | null;
+  accuracy?: number | null;
   message: string;
   status: string;
   active: boolean;

@@ -12,6 +12,7 @@ import org.json.JSONObject
 
 class SosRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("sos_prefs", Context.MODE_PRIVATE)
+    private val prefHelper = com.example.kidsguard.data.PreferenceHelper(context)
     private var syncProvider: com.example.kidsguard.sync.RemoteSyncProvider? = null
 
     private val _sosHistory = MutableStateFlow<List<SosEvent>>(loadHistory())
@@ -35,11 +36,18 @@ class SosRepository(private val context: Context) {
         currentList.add(0, updatedEvent)
         _sosHistory.value = currentList
         _activeSos.value = updatedEvent
+        prefHelper.activeSosId = updatedEvent.id
         saveHistory(currentList)
         
         // Sync to Firebase
-        android.util.Log.d("SosRepository", "Syncing SOS event to Firebase")
-        syncProvider?.syncSosEvent(updatedEvent)
+        android.util.Log.d("SosRepository", "SOS created childId=${updatedEvent.childId} eventId=${updatedEvent.id}")
+        syncProvider?.syncSosEvent(updatedEvent) { success, exception ->
+            if (success) {
+                // Done
+            } else {
+                android.util.Log.e("SosRepository", "SOS sync failed", exception)
+            }
+        }
 
         // Fan-out: Activity History
         syncProvider?.syncActivity(SyncActivityEvent(
@@ -67,43 +75,97 @@ class SosRepository(private val context: Context) {
     }
 
     fun resolveSos(id: String) {
-        val now = System.currentTimeMillis()
-        val currentList = _sosHistory.value.map {
-            if (it.id == id) it.copy(status = SosStatus.RESOLVED, resolvedAt = now) else it
+        val eventId = id.ifBlank {
+            prefHelper.activeSosId.orEmpty()
         }
-        _sosHistory.value = currentList
-        val resolvedEvent = currentList.find { it.id == id }
-        if (_activeSos.value?.id == id) {
-            _activeSos.value = null
-        }
-        saveHistory(currentList)
-        
-        // Sync update to Firebase
-        if (resolvedEvent != null) {
-            android.util.Log.d("SosRepository", "Syncing SOS resolution to Firebase")
-            syncProvider?.syncSosEvent(resolvedEvent)
 
-            // Fan-out resolution to Activity History
-            syncProvider?.syncActivity(SyncActivityEvent(
-                id = "${resolvedEvent.id}_resolved",
-                childId = resolvedEvent.childId,
-                type = "SOS_RESOLVED",
-                title = "SOS Resolved",
-                description = "The emergency signal was marked as resolved.",
-                timestamp = now,
-                severity = "info"
-            ))
+        val childId = prefHelper.childId
+
+        if (eventId.isBlank()) {
+            android.util.Log.e(
+                "SosRepository",
+                "RESOLVE STOPPED: eventId is blank"
+            )
+            return
         }
+
+        if (childId.isBlank()) {
+            android.util.Log.e(
+                "SosRepository",
+                "RESOLVE STOPPED: childId is blank"
+            )
+            return
+        }
+
+        android.util.Log.d(
+            "SosRepository",
+            "DIRECT RESOLVE START childId=$childId eventId=$eventId"
+        )
+
+        val documentRef =
+            com.google.firebase.firestore.FirebaseFirestore
+                .getInstance()
+                .collection("children")
+                .document(childId)
+                .collection("sosEvents")
+                .document(eventId)
+
+        val updates = mapOf<String, Any>(
+            "status" to "RESOLVED",
+            "active" to false,
+            "resolvedAt" to
+                    com.google.firebase.firestore.FieldValue.serverTimestamp(),
+            "updatedAt" to
+                    com.google.firebase.firestore.FieldValue.serverTimestamp()
+        )
+
+        documentRef.update(updates)
+            .addOnSuccessListener {
+                android.util.Log.d(
+                    "SosRepository",
+                    "DIRECT RESOLVE SUCCESS path=children/$childId/sosEvents/$eventId"
+                )
+
+                val resolvedEvent =
+                    _activeSos.value?.takeIf { it.id == eventId }
+                        ?: _sosHistory.value.find { it.id == eventId }
+
+                if (resolvedEvent != null) {
+                    val updatedEvent = resolvedEvent.copy(
+                        status = SosStatus.RESOLVED,
+                        resolvedAt = System.currentTimeMillis(),
+                        active = false
+                    )
+
+                    _sosHistory.value = _sosHistory.value.map {
+                        if (it.id == eventId) updatedEvent else it
+                    }
+
+                    saveHistory(_sosHistory.value)
+                }
+
+                _activeSos.value = null
+                prefHelper.activeSosId = null
+            }
+            .addOnFailureListener { exception ->
+                android.util.Log.e(
+                    "SosRepository",
+                    "DIRECT RESOLVE FAILED path=children/$childId/sosEvents/$eventId",
+                    exception
+                )
+            }
     }
 
     fun clearSosHistory() {
         _sosHistory.value = emptyList()
         _activeSos.value = null
+        prefHelper.activeSosId = null
         prefs.edit().clear().apply()
     }
 
     private fun determineActiveSos(): SosEvent? {
-        return _sosHistory.value.firstOrNull { it.status == SosStatus.ACTIVE }
+        val activeId = prefHelper.activeSosId
+        return _sosHistory.value.firstOrNull { it.status == SosStatus.ACTIVE || it.id == activeId }
     }
 
     private fun saveHistory(history: List<SosEvent>) {
@@ -120,6 +182,7 @@ class SosRepository(private val context: Context) {
                 put("message", event.message)
                 put("status", event.status.name)
                 put("resolvedAt", event.resolvedAt ?: JSONObject.NULL)
+                put("active", event.active)
             }
             jsonArray.put(obj)
         }
@@ -143,7 +206,8 @@ class SosRepository(private val context: Context) {
                     batteryPercent = if (obj.isNull("battery")) null else obj.getInt("battery"),
                     message = obj.getString("message"),
                     status = SosStatus.valueOf(obj.getString("status")),
-                    resolvedAt = if (obj.isNull("resolvedAt")) null else obj.getLong("resolvedAt")
+                    resolvedAt = if (obj.isNull("resolvedAt")) null else obj.getLong("resolvedAt"),
+                    active = obj.optBoolean("active", true)
                 ))
             }
         } catch (e: Exception) {

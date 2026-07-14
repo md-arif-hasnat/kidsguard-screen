@@ -12,7 +12,7 @@ interface RemoteSyncProvider {
     fun syncNotification(event: SyncNotificationEvent)
     fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone)
     fun deleteSafeZone(childId: String, zoneId: String)
-    fun syncSosEvent(event: com.example.kidsguard.models.SosEvent)
+    fun syncSosEvent(event: com.example.kidsguard.models.SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)? = null)
     fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
     fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String? = null)
@@ -85,8 +85,9 @@ class LocalMockSyncProvider : RemoteSyncProvider {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
-    override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent) {
+    override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)?) {
         _lastSyncTimestamp.value = System.currentTimeMillis()
+        onComplete?.invoke(true, null)
     }
 
     override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {

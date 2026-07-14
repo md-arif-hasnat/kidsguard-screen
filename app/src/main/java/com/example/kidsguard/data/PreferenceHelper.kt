@@ -135,6 +135,10 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getBoolean("sos_notifications", true)
         set(value) = prefs.edit().putBoolean("sos_notifications", value).apply()
 
+    var activeSosId: String?
+        get() = prefs.getString("active_sos_id", null)
+        set(value) = prefs.edit().putString("active_sos_id", value).apply()
+
     var lastSeenVersionCode: Int
         get() = prefs.getInt("last_seen_version_code", 0)
         set(value) = prefs.edit().putInt("last_seen_version_code", value).apply()
