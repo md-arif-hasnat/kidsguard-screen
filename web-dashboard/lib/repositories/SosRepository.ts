@@ -52,4 +52,46 @@ export class SosRepository {
     const ref = doc(db, "children", childId, "sosEvents", eventId);
     await updateDoc(ref, addressData);
   }
+
+  static listenToFamilySosEvents(childIds: string[], onUpdate: (events: SosEvent[]) => void) {
+    if (!db || !childIds || childIds.length === 0) {
+      onUpdate([]);
+      return () => {};
+    }
+
+    const eventMap = new Map<string, SosEvent>();
+    const unsubscribes: (() => void)[] = [];
+
+    childIds.forEach(childId => {
+      const sosRef = collection(db!, "children", childId, "sosEvents");
+      const q = query(sosRef, orderBy("timestamp", "desc"), limit(20));
+
+      const unsub = onSnapshot(q, (snapshot) => {
+        // Remove old events for this child to ensure fresh data from this snapshot
+        eventMap.forEach((event, id) => {
+          if (event.childId === childId) {
+            eventMap.delete(id);
+          }
+        });
+
+        snapshot.docs.forEach(doc => {
+          eventMap.set(doc.id, {
+            id: doc.id,
+            ...doc.data()
+          } as SosEvent);
+        });
+
+        const sortedEvents = Array.from(eventMap.values())
+          .sort((a, b) => b.timestamp - a.timestamp);
+
+        onUpdate(sortedEvents);
+      }, (error) => {
+        console.error(`Error listening to SOS events for child ${childId}:`, error);
+      });
+
+      unsubscribes.push(unsub);
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }
 }
