@@ -336,7 +336,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         
         Log.i(TAG, "Updating command $commandId status to $status")
         val updates = mutableMapOf<String, Any>(
-            "status" to status
+            "status" to status.name
         )
         
         val now = System.currentTimeMillis()

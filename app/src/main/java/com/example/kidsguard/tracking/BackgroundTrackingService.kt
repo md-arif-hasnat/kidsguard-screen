@@ -39,6 +39,7 @@ class BackgroundTrackingService : Service() {
     private lateinit var commandHandler: RemoteCommandHandler
     private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
     private var forceNextLocationSync = false
+    private var lastListenedChildId: String? = null
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -111,10 +112,12 @@ class BackgroundTrackingService : Service() {
     }
 
     private fun setupCommandListener() {
-        val childId = prefHelper.childId
-        if (childId.isNotEmpty()) {
-            syncProvider.listenForRemoteCommands(childId) { command ->
-                Log.i(TAG, "Remote command received in service: ${command.commandType}")
+        val currentChildId = prefHelper.childId
+        if (currentChildId.isNotEmpty() && currentChildId != lastListenedChildId) {
+            Log.d(TAG, "Starting remote command listener with childId: $currentChildId")
+            lastListenedChildId = currentChildId
+            syncProvider.listenForRemoteCommands(currentChildId) { command ->
+                Log.i(TAG, "Remote command received: ${command.commandType} (ID: ${command.commandId})")
                 commandHandler.handleCommand(command)
             }
         }
@@ -133,6 +136,7 @@ class BackgroundTrackingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service started")
+        setupCommandListener()
         startForeground(NOTIFICATION_ID, createNotification())
         startLocationUpdates()
         

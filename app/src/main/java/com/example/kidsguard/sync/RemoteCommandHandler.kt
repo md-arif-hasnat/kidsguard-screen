@@ -106,6 +106,7 @@ class RemoteCommandHandler(
                 }
             }
             _lastExecutionResult.value = "SUCCESS: ${command.commandType}"
+            Log.d(TAG, "Command completed successfully: ${command.commandId}")
             syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.SUCCESS)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to execute command", e)

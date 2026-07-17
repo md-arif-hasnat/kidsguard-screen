@@ -1,6 +1,6 @@
 
 import { db } from "../firebase";
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export interface SosEvent {
   id: string;
@@ -21,6 +21,9 @@ export interface SosEvent {
   postalCode?: string;
   city?: string;
   country?: string;
+  resolvedBy?: string;
+  resolvedByUid?: string;
+  updatedAt?: any;
 }
 
 export class SosRepository {
@@ -51,6 +54,19 @@ export class SosRepository {
     if (!db || !childId || !eventId) return;
     const ref = doc(db, "children", childId, "sosEvents", eventId);
     await updateDoc(ref, addressData);
+  }
+
+  static async resolveSos(childId: string, eventId: string, resolvedByUid: string) {
+    if (!db || !childId || !eventId) return;
+    const ref = doc(db, "children", childId, "sosEvents", eventId);
+    await updateDoc(ref, {
+      status: "RESOLVED",
+      active: false,
+      resolvedBy: "PARENT",
+      resolvedByUid: resolvedByUid,
+      resolvedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
   }
 
   static listenToFamilySosEvents(childIds: string[], onUpdate: (events: SosEvent[]) => void) {

@@ -57,7 +57,7 @@ fun ChildSetupScreen(
     // Listen for pairing completion
     DisposableEffect(code) {
         var listener: ListenerRegistration? = null
-        if (code.isNotEmpty() && !code.startsWith("MOCK-")) {
+        if (code.isNotEmpty() && !code.startsWith("MOCK-") && code.any { it.isDigit() }) {
             val db = FirebaseFirestore.getInstance()
             listener = db.collection("pairingCodes").document(code)
                 .addSnapshotListener { snapshot, e ->
@@ -253,7 +253,7 @@ fun ChildSetupScreen(
                 ) {
                     Text("Continue to Permissions")
                 }
-            } else if (code.isEmpty() || code.startsWith("KDG-")) { // Keep legacy check or allow regenerate
+            } else if (code.isEmpty() || code.startsWith("KDG-") || code.startsWith("MOCK-")) { // Allow regenerate if mock
                 Button(
                     onClick = {
                         if (isNameValid) {
@@ -267,10 +267,7 @@ fun ChildSetupScreen(
                                     // Enable sync immediately using the stable childId, NOT the pairing code
                                     repository.setSyncProvider(syncProvider, prefHelper.childId)
                                 } else {
-                                    // Fallback to mock if Firebase fails
-                                    val mockCode = "MOCK-${(100000..999999).random()}"
-                                    code = mockCode
-                                    prefHelper.pairingCode = mockCode
+                                    saveError = "Failed to create pairing code in the cloud. Please check your internet connection and try again."
                                 }
                                 isGenerating = false
                             }
@@ -304,6 +301,8 @@ fun ChildSetupScreen(
                                 if (newCode != null) {
                                     code = newCode
                                     prefHelper.pairingCode = newCode
+                                } else {
+                                    saveError = "Failed to regenerate pairing code. Please try again."
                                 }
                                 isGenerating = false
                             }

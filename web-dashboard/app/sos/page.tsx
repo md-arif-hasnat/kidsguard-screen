@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { AlertTriangle, MapPin, CloudOff, Loader2, ShieldAlert, Map as MapIcon } from 'lucide-react';
+import { AlertTriangle, MapPin, CloudOff, Loader2, ShieldAlert, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import { MOCK_SOS } from '@/lib/mockData';
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -68,6 +68,7 @@ function SosPageContent() {
   const [selectedSos, setSelectedSos] = useState<SosEvent | null>(null);
   const [childNames, setChildNames] = useState<Record<string, string>>({});
   const [childLoading, setChildLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const targetEventId = searchParams.get('eventId');
   const queryChildId = searchParams.get('childId');
@@ -170,6 +171,28 @@ function SosPageContent() {
     loadChildNames();
   }, [displaySos, childNames]);
 
+  const handleResolveSos = async (e: React.MouseEvent, sos: SosEvent) => {
+    e.stopPropagation();
+    if (!profile?.uid) return;
+
+    if (!window.confirm("Are you sure you want to mark this SOS as resolved?")) {
+      return;
+    }
+
+    try {
+      setResolvingId(sos.id);
+      await SosRepository.resolveSos(sos.childId, sos.id, profile.uid);
+      if (selectedSos?.id === sos.id) {
+        setSelectedSos(prev => prev ? { ...prev, status: "RESOLVED", active: false } : null);
+      }
+    } catch (error) {
+      console.error("Failed to resolve SOS:", error);
+      alert("Failed to resolve SOS. Please try again.");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
   if (profileLoading) {
     return (
       <DashboardLayout>
@@ -259,6 +282,19 @@ function SosPageContent() {
               <span className={`${sos.resolved || sos.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} px-4 py-1.5 rounded-full font-bold text-[10px] md:text-xs uppercase`}>
                 {sos.resolved || sos.status === 'RESOLVED' ? 'Resolved' : 'Active'}
               </span>
+
+              {!(sos.resolved || sos.status === 'RESOLVED') && (
+                <button
+                  type="button"
+                  disabled={resolvingId === sos.id}
+                  onClick={(e) => handleResolveSos(e, sos)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-5 md:px-6 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors whitespace-nowrap"
+                >
+                  {resolvingId === sos.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  Resolve SOS
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setSelectedSos(sos)}
@@ -409,6 +445,22 @@ function SosPageContent() {
                   Apple Maps
                 </a>
               </div>
+            )}
+
+            {selectedSos.status === "ACTIVE" && (
+              <button
+                type="button"
+                disabled={resolvingId === selectedSos.id}
+                onClick={(e) => handleResolveSos(e, selectedSos)}
+                className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-5 py-4 font-black uppercase tracking-widest text-xs text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {resolvingId === selectedSos.id ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={18} />
+                )}
+                Mark Incident as Resolved
+              </button>
             )}
 
             <button
