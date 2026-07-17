@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
     private lateinit var locationProvider: LocalLocationProvider
+    private var unpairListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var blockedPackageName = mutableStateOf<String?>(null)
     private var blockedUrl = mutableStateOf<String?>(null)
@@ -227,6 +228,7 @@ class MainActivity : ComponentActivity() {
         currentScreenState.value = initialScreen
 
         enableEdgeToEdge()
+        setupUnpairListener()
         setContent {
             KidsGuardTheme(darkTheme = true) {
                 Surface(
@@ -242,6 +244,7 @@ class MainActivity : ComponentActivity() {
                             
                             if (prefHelper.userRole == "CHILD") {
                                 childStatusManager.updateStatus()
+                                setupUnpairListener()
                             }
 
                             // Force portrait in Locked screen for real device realism
@@ -288,6 +291,57 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         intent?.let { handleIntent(it) }
+    }
+
+    private fun setupUnpairListener() {
+        if (prefHelper.userRole == "CHILD") {
+            val childId = prefHelper.childId
+            if (childId.isNotEmpty()) {
+                Log.d("MainActivity", "Setting up unpair listener for child: $childId")
+                unpairListener?.remove()
+                unpairListener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("children")
+                    .document(childId)
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            Log.w("MainActivity", "Unpair listener error", e)
+                            return@addSnapshotListener
+                        }
+                        // Only trigger if document exists but has no familyId
+                        // (If document is deleted, we might also want to unpair)
+                        if (snapshot != null) {
+                            val familyId = snapshot.getString("familyId")
+                            if (snapshot.exists() && familyId == null) {
+                                Log.i("MainActivity", "Unpair detected! Child removed from family.")
+                                handleUnpair()
+                            }
+                        }
+                    }
+            }
+        }
+    }
+
+    private fun handleUnpair() {
+        unpairListener?.remove()
+        unpairListener = null
+        
+        // Stop tracking and sync
+        trackingManager.stopTracking()
+        childStatusManager.stopPeriodicSync()
+        
+        // Clear local state
+        prefHelper.clearPairing()
+        
+        // Return to Role Selection
+        currentScreenState.value = Screen.RoleSelection
+        
+        // Show message
+        android.widget.Toast.makeText(this, "This device was removed by the parent. Pair it again to continue.", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    override fun onDestroy() {
+        unpairListener?.remove()
+        super.onDestroy()
     }
 
     private fun handleIntent(intent: android.content.Intent) {

@@ -326,7 +326,7 @@ export class FamilyRepository {
     });
   }
 
-  static async removeChildFromFamily(familyId: string, childId: string): Promise<void> {
+  static async removeChildFromFamily(familyId: string, childId: string, parentUid: string = "current_user", parentEmail: string = "parent@kidsguard.app"): Promise<void> {
     if (!db || !familyId || !childId) return;
     const familyRef = doc(db, "families", familyId);
     const snap = await getDoc(familyRef);
@@ -339,11 +339,14 @@ export class FamilyRepository {
 
     // Also update the child doc to remove the familyId link
     const childRef = doc(db, "children", childId);
-    await updateDoc(childRef, { familyId: null, updatedAt: serverTimestamp() });
+    await updateDoc(childRef, {
+        familyId: null,
+        updatedAt: serverTimestamp()
+    });
 
     await AuditRepository.log({
-      actorUid: "current_user",
-      actorEmail: "admin",
+      actorUid: parentUid,
+      actorEmail: parentEmail,
       familyId,
       action: AuditAction.CHILD_REMOVED,
       targetType: 'CHILD',

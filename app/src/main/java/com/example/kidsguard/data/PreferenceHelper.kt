@@ -150,6 +150,19 @@ class PreferenceHelper(context: Context) {
     var isSetupCompleted: Boolean
         get() = prefs.getBoolean("setup_completed", false)
         set(value) = prefs.edit().putBoolean("setup_completed", value).apply()
+
+    fun clearPairing() {
+        prefs.edit()
+            .remove("family_id")
+            .remove("child_id")
+            .remove("pairing_code")
+            .remove("paired_child_id")
+            .remove("setup_completed")
+            .remove("user_role")
+            .remove("is_locked")
+            .apply()
+        android.util.Log.i("PreferenceHelper", "Local pairing data cleared.")
+    }
 }
 
 object RemoteStatusService {

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { FamilyRepository } from '@/lib/repositories/FamilyRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 
 interface RemoveChildDialogProps {
   familyId: string;
@@ -15,13 +16,14 @@ interface RemoveChildDialogProps {
 export default function RemoveChildDialog({ familyId, childId, childName, onClose, onSuccess }: RemoveChildDialogProps) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { profile } = useParentProfile();
 
   const handleRemove = async () => {
     setRemoving(true);
     setError(null);
 
     try {
-      await FamilyRepository.removeChildFromFamily(familyId, childId);
+      await FamilyRepository.removeChildFromFamily(familyId, childId, profile?.uid, profile?.email || "parent@kidsguard.app");
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -44,12 +46,9 @@ export default function RemoveChildDialog({ familyId, childId, childName, onClos
                 <AlertTriangle size={40} className="text-rose-500" />
             </div>
 
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Remove Child?</h2>
-            <p className="text-slate-500 text-sm mt-3 font-medium leading-relaxed">
-                This will disconnect <span className="font-bold text-slate-700">{childName}</span> from your family vault.
-            </p>
-            <p className="text-slate-400 text-xs mt-4 italic">
-                Note: This will NOT delete the application from the child&apos;s phone.
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Remove {childName}?</h2>
+            <p className="text-slate-500 text-sm mt-3 font-medium leading-relaxed px-4">
+                This device will be disconnected from your family. The child app will return to setup and must be paired again before monitoring can continue.
             </p>
 
             {error && (
@@ -65,14 +64,14 @@ export default function RemoveChildDialog({ familyId, childId, childName, onClos
                     className="w-full px-6 py-4 bg-rose-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                     {removing ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                    Remove Permanently
+                    Remove Device
                 </button>
                 <button
                     onClick={onClose}
                     disabled={removing}
                     className="w-full px-6 py-4 bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-slate-200 transition-all active:scale-95"
                 >
-                    Keep Child
+                    Cancel
                 </button>
             </div>
         </div>

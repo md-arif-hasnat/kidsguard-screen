@@ -71,6 +71,8 @@ import WebAccessRequestsPanel from '@/components/web/WebAccessRequestsPanel';
 import RemoteControlPanel from '@/components/RemoteControlPanel';
 import ChildAvatar from '@/components/ChildAvatar';
 import ProtectionModePanel from '@/components/modes/ProtectionModePanel';
+import RemoveChildDialog from '@/components/RemoveChildDialog';
+import { useRouter } from 'next/navigation';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -107,6 +109,8 @@ export default function ChildDashboard() {
   const [deviations, setDeviations] = useState<RouteDeviation[]>([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const router = useRouter();
 
   // Phase AD: Wellbeing State
   const [appUsage, setAppUsage] = useState<any[]>([]);
@@ -319,6 +323,15 @@ export default function ChildDashboard() {
 
   return (
     <DashboardLayout>
+      {showRemoveDialog && family && (
+        <RemoveChildDialog
+          familyId={family.familyId}
+          childId={childId}
+          childName={displayData.name}
+          onClose={() => setShowRemoveDialog(false)}
+          onSuccess={() => router.push('/')}
+        />
+      )}
       {showAvatarPicker && (
         <AvatarPicker
           type="child"
@@ -465,6 +478,20 @@ export default function ChildDashboard() {
                         <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
                     </div>
                     )}
+                </section>
+
+                <section className="bg-rose-50 rounded-2xl p-6 md:p-8 border border-rose-100">
+                    <h2 className="text-xl font-black text-rose-800 mb-2">Danger Zone</h2>
+                    <p className="text-rose-600 text-sm font-medium mb-6">
+                        Remove this device from your family. Monitoring will stop immediately and the child app will return to setup.
+                    </p>
+                    <button
+                        onClick={() => setShowRemoveDialog(true)}
+                        className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all flex items-center gap-2 text-sm"
+                    >
+                        <ShieldAlert size={18} />
+                        Remove Device
+                    </button>
                 </section>
                 </div>
 

@@ -1,19 +1,114 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
+    // --- HELPER FUNCTIONS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if the user is the owner of this device record
+    // Handles cases where deviceId (UUID) might differ from Firebase UID
+    function isDeviceOwner(deviceId) {
+      return isSignedIn() && (
+        request.auth.uid == deviceId ||
+        (exists(/databases/$(database)/documents/devices/$(deviceId)) && get(/databases/$(database)/documents/devices/$(deviceId)).data.firebaseUid == request.auth.uid)
+      );
+    }
+
+    // Check if user belongs to the family (either parent or child)
+    function isFamilyMember(familyId) {
+        let family = get(/databases/$(database)/documents/families/$(familyId)).data;
+        return isSignedIn() && (request.auth.uid == family.parentDeviceId || request.auth.uid in family.childDeviceIds);
+    }
+
+    // --- COLLECTION RULES ---
+
+    // Devices: Mapping Firebase UID to device metadata
+    match /devices/{deviceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        request.auth.uid == deviceId ||
+        (resource == null && request.resource.data.firebaseUid == request.auth.uid) ||
+        (resource != null && resource.data.firebaseUid == request.auth.uid)
+      );
+    }
+
+    // Parents: Profile data
+    match /parents/{parentId} {
+      allow read, write: if isSignedIn() && request.auth.uid == parentId;
+    }
+
+    // Families: Root of the relational structure
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn(); // Parent can update during pairing
+      allow delete: if false;
+    }
+
+    // Children: Status and settings
+    match /children/{childId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        request.auth.uid == childId ||
+        (resource != null && isFamilyMember(resource.data.familyId)) ||
+        (resource == null)
+      );
+
+      match /status/current {
+        allow read: if isSignedIn();
+        // Allow write if the user is the child (by UID) OR if they own the device associated with this child record.
+        allow write: if isSignedIn() && (
+            request.auth.uid == childId ||
+            (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
+        );
+      }
+
+      match /locations/{locationId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+      }
+
+      match /remoteCommands/{commandId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+      }
+
+      match /sosEvents/{eventId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+      }
+    }
+
+    // Pairing Codes: Temporary short-lived tokens
+    // Used to link a child device to a parent account.
+    // Schema: { code: string, childId: string, deviceId: string, childName: string, expiresAt: timestamp, used: bool }
+    match /pairingCodes/{code} {
+      // Allow creation by anyone (to avoid race conditions during anonymous sign-in).
+      // We validate the data to prevent abuse.
+      allow create: if
+        request.resource.data.code == code &&
+        request.resource.data.childId is string &&
+        request.resource.data.deviceId is string &&
+        request.resource.data.childName is string;
+
+      // Allow reading (get only) by anyone who knows the code.
+      allow get: if true;
+
+      // Allow update and delete to handle pairing completion and code invalidation.
+      allow update, delete: if true;
+
+      allow list: if false; // Prevent scanning for active codes
+    }
+
+    // Default: Deny all
     match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 7, 20);
+      allow read, write: if false;
     }
   }
 }

@@ -73,8 +73,11 @@ class ChildStatusManager(
         private const val TAG = "ChildStatusManager"
     }
 
+    private var syncJob: kotlinx.coroutines.Job? = null
+
     fun startPeriodicSync() {
-        scope.launch {
+        syncJob?.cancel()
+        syncJob = scope.launch {
             while (true) {
                 try {
                     updateStatus()
@@ -84,6 +87,12 @@ class ChildStatusManager(
                 delay(5 * 60 * 1000) // Every 5 minutes
             }
         }
+    }
+
+    fun stopPeriodicSync() {
+        syncJob?.cancel()
+        syncJob = null
+        Log.d(TAG, "Periodic sync stopped")
     }
 
     fun updateStatus() {

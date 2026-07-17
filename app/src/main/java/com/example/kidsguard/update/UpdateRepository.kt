@@ -3,10 +3,13 @@ package com.example.kidsguard.update
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
@@ -61,6 +64,11 @@ class UpdateRepository(private val context: Context) {
     }
 
     suspend fun checkForUpdates() {
+        if (!isNetworkAvailable()) {
+            Log.d(TAG, "Skipping update check: Device is offline")
+            return
+        }
+
         Log.d(TAG, "Checking for updates from Firestore...")
         try {
             val doc = db.document(CONFIG_PATH).get().await()
@@ -99,8 +107,35 @@ class UpdateRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to check for updates", e)
+            val isOffline = isOfflineException(e)
+            if (isOffline) {
+                Log.i(TAG, "Update check skipped: Firestore is offline (${e.message})")
+            } else {
+                Log.e(TAG, "Failed to check for updates", e)
+            }
         }
+    }
+
+    private fun isOfflineException(e: Throwable): Boolean {
+        if (e is FirebaseFirestoreException) {
+            return e.code == FirebaseFirestoreException.Code.UNAVAILABLE ||
+                    e.message?.contains("offline", ignoreCase = true) == true
+        }
+        val message = e.message ?: ""
+        if (message.contains("offline", ignoreCase = true) || 
+            message.contains("UNAVAILABLE", ignoreCase = true)) {
+            return true
+        }
+        return e.cause?.let { isOfflineException(it) } ?: false
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val network = cm?.activeNetwork
+        val capabilities = cm?.getNetworkCapabilities(network)
+        val hasInternet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        val isValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        return hasInternet && isValidated
     }
 
     fun dismissWhatsNew() {
