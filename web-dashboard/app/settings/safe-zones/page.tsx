@@ -208,9 +208,16 @@ export default function SafeZonesPage() {
     }
   };
 
-  const canManageZones = RoleHelper.canManageSafeZones(role);
+  const normalizedRole = String(
+    role || profile?.role || ""
+  ).toUpperCase();
 
-  if (isFirebaseConfigured && selectedChildId && !isChildAccessible(selectedChildId)) {
+  const canManageZones =
+    normalizedRole === "OWNER" ||
+    normalizedRole === "ADMIN" ||
+    normalizedRole === "PARENT";
+
+  if (isFirebaseConfigured && selectedChildId && !isChildAccessible(selectedChildId) && normalizedRole !== "OWNER") {
       return (
           <DashboardLayout>
               <div className="flex flex-col items-center justify-center py-32 text-center">

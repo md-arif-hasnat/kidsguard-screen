@@ -67,6 +67,50 @@ export default function NotificationsPage() {
     }
   };
 
+  function getNotificationTarget(notification: NotificationHistoryItem) {
+    const childId =
+      notification.childId ||
+      (notification as any).targetId ||
+      (notification as any).data?.childId;
+
+    const sosId =
+      (notification as any).sosId ||
+      (notification as any).alertId ||
+      (notification as any).incidentId ||
+      (notification as any).data?.sosId ||
+      (notification as any).data?.alertId;
+
+    const type = String(
+      notification.type ||
+      (notification as any).eventType ||
+      (notification as any).data?.type ||
+      ""
+    ).toUpperCase();
+
+    if (
+      type.includes("SOS") &&
+      childId &&
+      sosId
+    ) {
+      return `/sos?childId=${encodeURIComponent(childId)}&sosId=${encodeURIComponent(sosId)}`;
+    }
+
+    if (
+      type.includes("CHILD_PAIRED") &&
+      childId
+    ) {
+      return `/dashboard/${encodeURIComponent(childId)}`;
+    }
+
+    if (childId) {
+      // Standard fallback for any child-related notification
+      return `/dashboard/${encodeURIComponent(childId)}`;
+    }
+
+    // Default fallbacks
+    return notification.clickAction || "/";
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -122,7 +166,7 @@ export default function NotificationsPage() {
 
                <div className="mt-3 flex items-center gap-4">
                     <Link
-                        href={item.clickAction || '/'}
+                        href={getNotificationTarget(item)}
                         className="text-[10px] md:text-[11px] font-black text-primary-600 uppercase tracking-widest flex items-center gap-1 hover:underline"
                     >
                         View Details

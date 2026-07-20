@@ -24,11 +24,52 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   // Customize notification here
   const notificationTitle = payload.notification.title;
+
+  const data = payload.data || {};
+  const targetUrl = data.url || data.clickAction || data.route || "/";
+
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/shield.png',
-    data: payload.data
+    icon: '/logo.png',
+    badge: '/symbol.png',
+    data: {
+      ...data,
+      url: targetUrl
+    }
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const targetUrl =
+    data.url ||
+    data.clickUrl ||
+    data.route ||
+    "/";
+
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
+  event.waitUntil(
+    clients.matchAll({
+      type: "window",
+      includeUncontrolled: true
+    }).then(async (windowClients) => {
+      for (const client of windowClients) {
+        if ("focus" in client) {
+          // If the URL matches an existing client, just focus it and navigate
+          // Otherwise, we navigate the first available client to the target URL
+          await client.navigate(absoluteUrl);
+          return client.focus();
+        }
+      }
+
+      if (clients.openWindow) {
+        return clients.openWindow(absoluteUrl);
+      }
+    })
+  );
 });
