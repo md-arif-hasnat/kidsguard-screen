@@ -16,6 +16,14 @@ export interface ChildStatus {
   currentZoneId?: string | null;
   safeZoneStatus?: 'INSIDE' | 'OUTSIDE';
   lastZoneEvent?: string;
+  lastLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    timestamp: number;
+    speed?: number;
+    bearing?: number;
+  };
   deviceName?: string;
   appVersion?: string;
   androidVersion?: string;

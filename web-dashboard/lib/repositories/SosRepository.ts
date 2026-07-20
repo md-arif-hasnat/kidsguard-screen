@@ -4,18 +4,24 @@ import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, serverTi
 
 export interface SosEvent {
   id: string;
+  alertId?: string; // Standardized
   childId: string;
+  familyId?: string;
+  childName?: string;
   timestamp: number;
   latitude: number | null;
   longitude: number | null;
-  accuracy?: number | null;
+  locationAccuracy?: number | null; // Standardized
+  accuracy?: number | null; // Legacy
   message: string;
   status: string;
   active: boolean;
   batteryPercent: number | null;
   createdAt?: number | null;
   resolvedAt?: number | null;
+  locationTimestamp?: number | null;
   address?: string;
+  // ... rest
   street?: string;
   houseNumber?: string;
   postalCode?: string;
@@ -36,13 +42,20 @@ export class SosRepository {
     // Let's assume a similar structure or use the one from ARCHITECTURE.md
 
     const sosRef = collection(db, "children", childId, "sosEvents");
-    const q = query(sosRef, orderBy("timestamp", "desc"), limit(10));
+    // Use a simpler query first to avoid index issues if timestamp is missing or index not ready
+    const q = query(sosRef, limit(20));
 
     return onSnapshot(q, (snapshot) => {
-      const events = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as SosEvent));
+      const events = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const timestamp = data.timestamp || data.createdAt || Date.now();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp
+        } as SosEvent;
+      }).sort((a, b) => b.timestamp - a.timestamp);
+
       onUpdate(events);
     }, (error) => {
       console.error("Error listening to SOS events:", error);
@@ -80,9 +93,14 @@ export class SosRepository {
 
     childIds.forEach(childId => {
       const sosRef = collection(db!, "children", childId, "sosEvents");
-      const q = query(sosRef, orderBy("timestamp", "desc"), limit(20));
+      // Removing explicit orderBy on Firestore side to avoid missing index failures
+      const q = query(sosRef, limit(50));
+
+      console.log(`WEB SosSync: Listening to path: children/${childId}/sosEvents`);
 
       const unsub = onSnapshot(q, (snapshot) => {
+        console.log(`WEB SosSync: Received update for child ${childId}. Docs: ${snapshot.size}`);
+
         // Remove old events for this child to ensure fresh data from this snapshot
         eventMap.forEach((event, id) => {
           if (event.childId === childId) {
@@ -91,9 +109,13 @@ export class SosRepository {
         });
 
         snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          // Canonical logic: Ensure timestamp exists for sorting, fallback to createdAt
+          const timestamp = data.timestamp || data.createdAt || Date.now();
           eventMap.set(doc.id, {
             id: doc.id,
-            ...doc.data()
+            ...data,
+            timestamp // Normalize the timestamp field
           } as SosEvent);
         });
 

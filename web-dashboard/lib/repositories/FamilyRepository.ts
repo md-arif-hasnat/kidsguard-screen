@@ -381,7 +381,7 @@ export class FamilyRepository {
     await updateDoc(familyRef, { emergencyContacts: updatedContacts });
   }
 
-  static async pairChild(familyId: string, pairingCode: string): Promise<boolean> {
+  static async pairChild(familyId: string, pairingCode: string, parentName: string = "Parent"): Promise<boolean> {
     if (!db) return false;
 
     console.log(`WEB: Searching for pair code: ${pairingCode}`);
@@ -442,10 +442,13 @@ export class FamilyRepository {
     };
     await setDoc(childRef, childUpdate, { merge: true });
 
-    // 4. Mark code as used and store familyId for the child to pick up
+    // 4. Mark code as used and store familyId/parentName for the child to pick up
+    console.log("DEBUG parent name", parentName)
     await updateDoc(codeRef, {
         used: true,
-        familyId: familyId
+        familyId: familyId,
+        parentName: parentName,
+        pairedAt: serverTimestamp()
     });
 
     await AuditRepository.log({

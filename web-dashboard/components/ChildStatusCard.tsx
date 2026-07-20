@@ -14,6 +14,7 @@ import { useParentProfile } from '@/lib/context/ParentProfileContext';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
+
 }
 
 interface ChildStatusCardProps {
@@ -161,7 +162,19 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
               </div>
               <div className="flex items-center gap-2">
                 <MapPin size={18} className="text-slate-600" />
-                <span className="text-sm font-semibold truncate">{displayChild.currentZone}</span>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold truncate">{displayChild.currentZone}</span>
+                    {status?.lastLocation?.timestamp && (
+                        <span className="text-[9px] text-slate-400 font-medium whitespace-nowrap">
+                            {(() => {
+                                const diff = Date.now() - status.lastLocation.timestamp;
+                                if (diff < 60000) return "Live / Recently updated";
+                                if (diff < 300000) return "Updated few mins ago";
+                                return `Updated ${Math.round(diff / 60000)}m ago`;
+                            })()}
+                        </span>
+                    )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {displayChild.status === 'LOCKED' ? (

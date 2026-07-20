@@ -2,7 +2,6 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import android.util.Log
-import com.example.kidsguard.BuildConfig
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.DeviceDoc
 import com.example.kidsguard.models.FamilyDoc
@@ -39,14 +38,18 @@ class AuthRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Firebase Anonymous Sign-in Exception", e)
-            
+
             // Handle specific "Restricted to administrators" or "Operation not allowed" errors
             val message = e.message ?: ""
-            if (message.contains("restricted to administrators", ignoreCase = true) || 
-                message.contains("operation-not-allowed", ignoreCase = true)) {
-                Log.e(TAG, "FIX REQUIRED: Ensure 'Anonymous' Sign-in provider is ENABLED in Firebase Console.")
+            if (message.contains("restricted to administrators", ignoreCase = true) ||
+                message.contains("operation-not-allowed", ignoreCase = true)
+            ) {
+                Log.e(
+                    TAG,
+                    "FIX REQUIRED: Ensure 'Anonymous' Sign-in provider is ENABLED in Firebase Console."
+                )
             }
-            
+
             errorLogger.addError(TAG, "Firebase Auth failed: ${e.message}", e)
             false
         }
@@ -79,16 +82,19 @@ class AuthRepository(private val context: Context) {
             Log.w(TAG, "Device registration skipped: Firebase not configured")
             return false
         }
-        
+
         val uid = auth.currentUser?.uid
         if (uid == null) {
-            Log.e(TAG, "Device registration failed: No current user UID. Ensure anonymous sign-in is enabled.")
+            Log.e(
+                TAG,
+                "Device registration failed: No current user UID. Ensure anonymous sign-in is enabled."
+            )
             return false
         }
-        
+
         val deviceId = prefs.deviceId
         Log.d(TAG, "Registering device $deviceId for UID $uid")
-        
+
         // Fetch FCM token
         var fcmToken: String? = null
         try {
@@ -102,8 +108,8 @@ class AuthRepository(private val context: Context) {
             firebaseUid = uid,
             role = prefs.userRole,
             deviceName = prefs.deviceName,
-            appVersion = "0.3.0-dev", 
-            createdAt = Timestamp.now(), 
+            appVersion = "0.3.0-dev",
+            createdAt = Timestamp.now(),
             lastSeen = Timestamp.now(),
             fcmToken = fcmToken,
             fcmTokenUpdatedAt = if (fcmToken != null) Timestamp.now() else null
@@ -118,23 +124,26 @@ class AuthRepository(private val context: Context) {
                 .document(deviceId)
                 .set(deviceDoc, com.google.firebase.firestore.SetOptions.merge())
                 .await()
-            
+
             // 2. Parent-specific devices collection for FCM
             if (prefs.userRole == "PARENT") {
-                val parentDevicePath = "${FirebaseConfig.COL_PARENTS}/$uid/${FirebaseConfig.COL_DEVICES}/$deviceId"
+                val parentDevicePath =
+                    "${FirebaseConfig.COL_PARENTS}/$uid/${FirebaseConfig.COL_DEVICES}/$deviceId"
                 Log.d(TAG, "Writing parent-specific device doc to: $parentDevicePath")
                 db.collection(FirebaseConfig.COL_PARENTS)
                     .document(uid)
                     .collection(FirebaseConfig.COL_DEVICES)
                     .document(deviceId)
-                    .set(mapOf(
-                        "deviceId" to deviceId,
-                        "token" to fcmToken,
-                        "platform" to "Android",
-                        "deviceName" to prefs.deviceName,
-                        "lastSeen" to Timestamp.now(),
-                        "appVersion" to "1.0.0"
-                    ), com.google.firebase.firestore.SetOptions.merge())
+                    .set(
+                        mapOf(
+                            "deviceId" to deviceId,
+                            "token" to fcmToken,
+                            "platform" to "Android",
+                            "deviceName" to prefs.deviceName,
+                            "lastSeen" to Timestamp.now(),
+                            "appVersion" to "1.0.0"
+                        ), com.google.firebase.firestore.SetOptions.merge()
+                    )
                     .await()
             }
 
@@ -142,8 +151,14 @@ class AuthRepository(private val context: Context) {
             prefs.lastFirestoreWrite = System.currentTimeMillis()
             return true
         } catch (e: Exception) {
-            val firebaseErrorCode = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name ?: "UNKNOWN"
-            Log.e(TAG, "Firestore device registration failed. Error: $firebaseErrorCode - ${e.message}", e)
+            val firebaseErrorCode =
+                (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name
+                    ?: "UNKNOWN"
+            Log.e(
+                TAG,
+                "Firestore device registration failed. Error: $firebaseErrorCode - ${e.message}",
+                e
+            )
             errorLogger.addError(TAG, "Device registration failed", e)
             return false
         }
@@ -184,7 +199,7 @@ class AuthRepository(private val context: Context) {
                 Log.w(TAG, "Failed to delete old pairing code $oldCode", e)
             }
         }
-        
+
         val code = (100000..999999).random().toString()
         val expiry = Calendar.getInstance().apply {
             add(Calendar.MINUTE, 15)
@@ -214,19 +229,24 @@ class AuthRepository(private val context: Context) {
         }
 
         val path = "${FirebaseConfig.COL_PAIRING_CODES}/$code"
-        Log.d(TAG, "Writing pairing code to Firestore path: $path with payload keys: ${pairingDoc.javaClass.declaredFields.map { it.name }}")
+        Log.d(
+            TAG,
+            "Writing pairing code to Firestore path: $path with payload keys: ${pairingDoc.javaClass.declaredFields.map { it.name }}"
+        )
 
         return try {
             db.collection(FirebaseConfig.COL_PAIRING_CODES)
                 .document(code)
                 .set(pairingDoc)
                 .await()
-            
+
             Log.i(TAG, "Pairing code write SUCCESS: $path")
             prefs.lastFirestoreWrite = System.currentTimeMillis()
             code
         } catch (e: Exception) {
-            val firebaseErrorCode = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name ?: "UNKNOWN"
+            val firebaseErrorCode =
+                (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name
+                    ?: "UNKNOWN"
             Log.e("PairingCode", "Pairing code write FAILURE")
             Log.e("PairingCode", "Path: $path")
             Log.e("PairingCode", "Auth Status: Signed In (UID: $uid)")
@@ -244,7 +264,10 @@ class AuthRepository(private val context: Context) {
         // Ensure device is registered first to satisfy Firestore Rules (isDeviceOwner)
         val registrationSuccess = registerDevice()
         if (!registrationSuccess) {
-            Log.w(TAG, "Device registration failed before status sync. This might cause PERMISSION_DENIED.")
+            Log.w(
+                TAG,
+                "Device registration failed before status sync. This might cause PERMISSION_DENIED."
+            )
         }
 
         val status = com.example.kidsguard.sync.SyncChildStatus(
@@ -262,7 +285,7 @@ class AuthRepository(private val context: Context) {
             appVersion = "1.0.0",
             androidVersion = android.os.Build.VERSION.RELEASE
         )
-        
+
         val statusPath = "${FirebaseConfig.COL_CHILDREN}/$childId/status/current"
         Log.d(TAG, "Syncing initial status to: $statusPath")
 
@@ -275,8 +298,13 @@ class AuthRepository(private val context: Context) {
                 .await()
             Log.i(TAG, "Initial status sync SUCCESS for $childId")
         } catch (e: Exception) {
-            val firebaseErrorCode = (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name ?: "UNKNOWN"
-            Log.e(TAG, "Failed to sync initial status for $childId at $statusPath. Error: $firebaseErrorCode - ${e.message}")
+            val firebaseErrorCode =
+                (e as? com.google.firebase.firestore.FirebaseFirestoreException)?.code?.name
+                    ?: "UNKNOWN"
+            Log.e(
+                TAG,
+                "Failed to sync initial status for $childId at $statusPath. Error: $firebaseErrorCode - ${e.message}"
+            )
             // Rethrow to allow generatePairingCode to catch it if desired, 
             // but currently we just log it in generatePairingCode's caller.
             throw e
@@ -285,30 +313,63 @@ class AuthRepository(private val context: Context) {
 
     suspend fun validateAndPair(code: String): Boolean {
         if (!FirebaseConfig.isFirebaseConfigured(context)) return false
-        
+
         Log.d(TAG, "ANDROID: Validating pair code: $code")
         return try {
             val docRef = db.collection(FirebaseConfig.COL_PAIRING_CODES).document(code)
             val doc = docRef.get().await()
-            
+
             if (doc.exists()) {
                 val pairingData = doc.toObject(PairingCodeDoc::class.java)
-                if (pairingData != null && 
+                if (pairingData != null &&
                     !pairingData.used &&
-                    pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true) {
-                    
+                    pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true
+                ) {
+
                     Log.i(TAG, "ANDROID: Valid pair code found for child: ${pairingData.childId}")
                     // Create or update family
-                    createOrUpdateFamily(pairingData.deviceId)
-                    // Mark as used
-                    docRef.update("used", true).await()
+                    val familyId = createOrUpdateFamily(pairingData.deviceId)
+
+                    // Mark as used and update with family info so the child device can finalize setup
+                    val familySnapshot = com.google.firebase.firestore.FirebaseFirestore
+                        .getInstance()
+                        .collection("families")
+                        .document(familyId)
+                        .get()
+                        .await()
+
+                    val members = familySnapshot.get("members") as? List<*>
+
+                    val actualParentName = members
+                        ?.mapNotNull { it as? Map<*, *> }
+                        ?.firstOrNull {
+                            (it["role"] as? String)?.equals("OWNER", ignoreCase = true) == true
+                        }
+                        ?.get("displayName")
+                        ?.toString()
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "Parent"
+
+                    prefs.parentName = actualParentName
+
+                    val updates = mapOf(
+                        "used" to true,
+                        "familyId" to familyId,
+                        "parentName" to actualParentName,
+                        "pairedAt" to com.google.firebase.Timestamp.now()
+                    )
+                    Log.d("Pair_Debug", updates.toString())
+                    docRef.update(updates).await()
                     true
                 } else {
                     Log.w(TAG, "ANDROID: Pair code $code is invalid, used, or expired")
                     false
                 }
             } else {
-                Log.w(TAG, "ANDROID: Pair code $code NOT FOUND in Firestore at ${FirebaseConfig.COL_PAIRING_CODES}/$code")
+                Log.w(
+                    TAG,
+                    "ANDROID: Pair code $code NOT FOUND in Firestore at ${FirebaseConfig.COL_PAIRING_CODES}/$code"
+                )
                 false
             }
         } catch (e: Exception) {
@@ -318,14 +379,14 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    private suspend fun createOrUpdateFamily(childDeviceId: String) {
+    private suspend fun createOrUpdateFamily(childDeviceId: String): String {
         val existingFamilyId = prefs.familyId
         val familyId = existingFamilyId ?: java.util.UUID.randomUUID().toString()
-        
+
         try {
             val familyRef = db.collection(FirebaseConfig.COL_FAMILIES).document(familyId)
             val doc = familyRef.get().await()
-            
+
             if (doc.exists()) {
                 val family = doc.toObject(FamilyDoc::class.java)
                 val updatedChildren = family?.childDeviceIds?.toMutableList() ?: mutableListOf()
@@ -342,7 +403,7 @@ class AuthRepository(private val context: Context) {
                 )
                 familyRef.set(familyDoc).await()
             }
-            
+
             prefs.familyId = familyId
             // Also set as current child if none selected
             if (prefs.pairedChildId == null) {
@@ -352,5 +413,6 @@ class AuthRepository(private val context: Context) {
         } catch (e: Exception) {
             errorLogger.addError(TAG, "Failed to create/update family", e)
         }
+        return familyId
     }
 }

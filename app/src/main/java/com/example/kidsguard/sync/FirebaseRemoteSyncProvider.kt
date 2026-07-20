@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,10 +22,11 @@ import java.util.Locale
  * PRODUCTION READY: Remote sync provider powered by Firebase.
  * Handles Firestore real-time updates and FCM.
  */
-class FirebaseRemoteSyncProvider(private val context: android.content.Context) : RemoteSyncProvider {
+class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
+    RemoteSyncProvider {
     private val db = FirebaseFirestore.getInstance()
     private val errorLogger = ErrorLogRepository(context)
-    
+
     private val _isConnected = MutableStateFlow(false)
     override val isConnected: StateFlow<Boolean> = _isConnected
 
@@ -35,6 +37,15 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     companion object {
         private const val TAG = "FirebaseRemoteSync"
+    }
+
+    private fun readMillis(value: Any?): Long? {
+        return when (value) {
+            is com.google.firebase.Timestamp -> value.toDate().time
+            is java.util.Date -> value.time
+            is Number -> value.toLong()
+            else -> null
+        }
     }
 
     override fun connect() {
@@ -51,7 +62,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun syncChildStatus(status: SyncChildStatus) {
         if (status.childId.isEmpty()) return
-        
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(status.childId)
             .collection("status")
@@ -73,11 +84,17 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             return
         }
 
-        Log.d(TAG, "GPS Acquired: lat=${update.latitude}, lng=${update.longitude}, accuracy=${update.accuracy}")
-        Log.i(TAG, "Uploading to Firestore: children/${update.childId}/locations/latest and devices/${update.childId}")
+        Log.d(
+            TAG,
+            "GPS Acquired: lat=${update.latitude}, lng=${update.longitude}, accuracy=${update.accuracy}"
+        )
+        Log.i(
+            TAG,
+            "Uploading to Firestore: children/${update.childId}/locations/latest and devices/${update.childId}"
+        )
 
         val batch = db.batch()
-        
+
         // 1. Save to locations history
         val historyRef = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(update.childId)
@@ -97,20 +114,26 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(update.childId)
             .collection("status")
             .document("current")
-        batch.set(statusRef, mapOf("lastLocation" to update), com.google.firebase.firestore.SetOptions.merge())
-        
+        batch.set(
+            statusRef,
+            mapOf("lastLocation" to update),
+            com.google.firebase.firestore.SetOptions.merge()
+        )
+
         // 4. Update devices collection (Unified device status)
         val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
             .document(update.childId)
-        batch.set(deviceRef, mapOf(
-            "currentLocation" to mapOf(
-                "latitude" to update.latitude,
-                "longitude" to update.longitude,
-                "accuracy" to update.accuracy,
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            ),
-            "lastSeen" to com.google.firebase.Timestamp.now()
-        ), com.google.firebase.firestore.SetOptions.merge())
+        batch.set(
+            deviceRef, mapOf(
+                "currentLocation" to mapOf(
+                    "latitude" to update.latitude,
+                    "longitude" to update.longitude,
+                    "accuracy" to update.accuracy,
+                    "updatedAt" to com.google.firebase.Timestamp.now()
+                ),
+                "lastSeen" to com.google.firebase.Timestamp.now()
+            ), com.google.firebase.firestore.SetOptions.merge()
+        )
 
         batch.commit()
             .addOnSuccessListener {
@@ -124,13 +147,19 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     }
 
     override fun syncActivity(event: SyncActivityEvent) {
-        Log.d(TAG, "syncActivity: id='${event.id}', type='${event.type}', childId='${event.childId}'")
+        Log.d(
+            TAG,
+            "syncActivity: id='${event.id}', type='${event.type}', childId='${event.childId}'"
+        )
         if (event.childId.isEmpty()) {
             Log.e(TAG, "syncActivity: FAILED - childId is empty")
             return
         }
         if (event.id.isEmpty()) {
-            Log.e(TAG, "syncActivity: FAILED - event.id is empty. Firestore requires a non-empty document path.")
+            Log.e(
+                TAG,
+                "syncActivity: FAILED - event.id is empty. Firestore requires a non-empty document path."
+            )
             return
         }
 
@@ -188,7 +217,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun deleteSafeZone(childId: String, zoneId: String) {
         if (childId.isEmpty() || zoneId.isEmpty()) return
-        
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection(FirebaseConfig.COL_SAFE_ZONES)
@@ -205,7 +234,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun syncSosEvent(event: SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)?) {
         if (event.childId.isBlank() || event.id.isBlank()) {
-            Log.e(TAG, "SOS sync skipped: childId or eventId is blank")
+            Log.e("SosSync", "SOS sync skipped: childId or eventId is blank")
             onComplete?.invoke(false, null)
             return
         }
@@ -236,6 +265,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             updateMap["status"] = "RESOLVED"
         }
 
+        val path = "children/${event.childId}/sosEvents/${event.id}"
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(event.childId)
             .collection("sosEvents")
@@ -243,15 +273,15 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .set(updateMap, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
                 Log.d(
-                    TAG,
-                    "resolve success path=children/${event.childId}/sosEvents/${event.id}"
+                    "SosSync",
+                    "resolve success path=$path"
                 )
                 onComplete?.invoke(true, null)
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "resolve failure exception=${e.message}", e)
+                Log.e("SosSync", "resolve failure exception=${e.message}", e)
                 errorLogger.addError(
-                    TAG,
+                    "SosSync",
                     "Failed to sync SOS event",
                     e
                 )
@@ -259,20 +289,165 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
+    override fun syncSosAlert(
+        alert: com.example.kidsguard.models.SosAlert,
+        onComplete: ((Boolean, Throwable?) -> Unit)?
+    ) {
+        if (alert.childId.isBlank() || alert.alertId.isBlank()) {
+            Log.e("SosSync", "syncSosAlert: childId or alertId is blank")
+            onComplete?.invoke(false, null)
+            return
+        }
+
+        val path = "children/${alert.childId}/sosEvents/${alert.alertId}"
+        Log.d("SosSync", "syncSosAlert: path=$path, status=${alert.status}")
+
+        db.document(path)
+            .set(alert, com.google.firebase.firestore.SetOptions.merge())
+            .addOnSuccessListener {
+                Log.i("SosSync", "syncSosAlert SUCCESS: $path")
+                onComplete?.invoke(true, null)
+            }
+            .addOnFailureListener { e ->
+                Log.e("SosSync", "syncSosAlert FAILURE: $path", e)
+                onComplete?.invoke(false, e)
+            }
+    }
+
+    override fun getSosAlert(
+        familyId: String,
+        alertId: String
+    ): Flow<com.example.kidsguard.models.SosAlert?> {
+        // This is tricky because we need the childId now. 
+        // However, the caller usually knows the childId or it's stored in prefHelper.
+        // Let's change the interface or implement a workaround.
+        return flowOf(null)
+    }
+
+    override fun getSosAlertForChild(
+        childId: String,
+        alertId: String
+    ): Flow<com.example.kidsguard.models.SosAlert?> = callbackFlow {
+        if (childId.isBlank() || alertId.isBlank()) {
+            trySend(null)
+            return@callbackFlow
+        }
+
+        val path = "children/$childId/sosEvents/$alertId"
+        Log.d("SosSync", "getSosAlert: Listening to $path")
+
+        val listener = db.document(path)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SosSync", "getSosAlert listener error: $path", e)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val data = snapshot.data
+
+                    val alert = com.example.kidsguard.models.SosAlert(
+                        alertId = data?.get("alertId") as? String ?: snapshot.id,
+                        familyId = data?.get("familyId") as? String ?: "",
+                        childId = data?.get("childId") as? String ?: childId,
+                        childName = data?.get("childName") as? String ?: "",
+                        status = data?.get("status") as? String ?: "ACTIVE",
+
+                        createdAt = readMillis(data?.get("createdAt"))
+                            ?: readMillis(data?.get("timestamp"))
+                            ?: System.currentTimeMillis(),
+
+                        timestamp = readMillis(data?.get("timestamp"))
+                            ?: readMillis(data?.get("createdAt"))
+                            ?: System.currentTimeMillis(),
+
+                        resolvedAt = readMillis(data?.get("resolvedAt")),
+                        resolvedBy = data?.get("resolvedBy") as? String,
+
+                        latitude = (data?.get("latitude") as? Number)?.toDouble(),
+                        longitude = (data?.get("longitude") as? Number)?.toDouble(),
+                        address = data?.get("address") as? String,
+
+                        locationAccuracy = (data?.get("locationAccuracy") as? Number)?.toFloat(),
+                        locationTimestamp = readMillis(data?.get("locationTimestamp")),
+
+                        batteryPercent = (data?.get("batteryPercent") as? Number)?.toInt(),
+                        active = data?.get("active") as? Boolean
+                            ?: ((data?.get("status") as? String) != "RESOLVED"),
+
+                        message = data?.get("message") as? String
+                            ?: data?.get("childMessage") as? String
+                            ?: "Emergency SOS Triggered"
+                    )
+                    Log.d("SosSync", "getSosAlert: RECEIVED UPDATE status=${alert?.status}")
+                    trySend(alert)
+                } else {
+                    Log.d("SosSync", "getSosAlert: Snapshot null or not exists: $path")
+                    trySend(null)
+                }
+            }
+
+        awaitClose {
+            Log.d("SosSync", "getSosAlert: Closing listener for $path")
+            listener.remove()
+        }
+    }
+
+    override fun getActiveSosAlerts(familyId: String): Flow<List<com.example.kidsguard.models.SosAlert>> =
+        callbackFlow {
+            if (familyId.isBlank()) {
+                trySend(emptyList())
+                return@callbackFlow
+            }
+
+            // Canonical SOS center logic: Parent listens to all children's active alerts
+            // using a collection group query on 'sosEvents' documents with familyId filter.
+            val query = db.collectionGroup("sosEvents")
+                .whereEqualTo("familyId", familyId)
+                .whereEqualTo("status", "ACTIVE")
+
+            val listener = query.addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e("SosSync", "getActiveSosAlerts listener error", e)
+                    trySend(emptyList()) // Unblock flow on error
+                    return@addSnapshotListener
+                }
+
+                if (snapshots != null) {
+                    try {
+                        val alerts =
+                            snapshots.toObjects(com.example.kidsguard.models.SosAlert::class.java)
+                        Log.d(
+                            "SosSync",
+                            "Parent listener received updated status from cloud: count=${alerts.size}"
+                        )
+                        trySend(alerts)
+                    } catch (err: Exception) {
+                        Log.e("SosSync", "Error parsing SOS alerts", err)
+                        trySend(emptyList())
+                    }
+                } else {
+                    trySend(emptyList())
+                }
+            }
+
+            awaitClose { listener.remove() }
+        }
+
     override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {
         if (summary.childId.isEmpty()) {
             Log.w(TAG, "DailySummary sync skipped: childId is empty")
             return
         }
-        
+
         Log.d(TAG, "Syncing DailySummary to Firebase for child ${summary.childId}")
-        
+
         val summaryId = summary.id
         val summaryRef = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(summary.childId)
             .collection("dailySummaries")
             .document(summaryId)
-            
+
         val latestRef = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(summary.childId)
             .collection("dailySummaries")
@@ -294,11 +469,15 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit) {
         if (childId.isEmpty()) {
-            Log.w(TAG, "listenForRemoteCommands: childId is empty")
+            Log.w("RemoteCommand", "listenForRemoteCommands: childId is empty")
             return
         }
-        
-        Log.i(TAG, "Starting remote command listener for child: $childId")
+
+        val path = "children/$childId/remoteCommands"
+        Log.i(
+            "RemoteCommand",
+            "Starting remote command listener for child: $childId at path: $path"
+        )
         commandListener?.remove()
         commandListener = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
@@ -306,21 +485,27 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .whereEqualTo("status", "PENDING")
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
-                    Log.e(TAG, "Remote command listen failed.", e)
-                    errorLogger.addError(TAG, "Remote command listen failed", e)
+                    Log.e("RemoteCommand", "Remote command listen failed for $path", e)
+                    errorLogger.addError("RemoteCommand", "Remote command listen failed", e)
                     return@addSnapshotListener
                 }
 
                 if (snapshots != null) {
                     if (snapshots.isEmpty) {
-                        Log.v(TAG, "No pending commands for $childId")
+                        Log.v("RemoteCommand", "No pending commands for $childId")
                     } else {
-                        Log.i(TAG, "Received ${snapshots.size()} pending commands")
+                        Log.i(
+                            "RemoteCommand",
+                            "Received ${snapshots.size()} pending commands from $path"
+                        )
                     }
                     for (doc in snapshots.documents) {
                         val command = doc.toObject(SyncRemoteCommand::class.java)
                         if (command != null) {
-                            Log.d(TAG, "Processing pending command: ${command.commandId} type: ${command.commandType}")
+                            Log.d(
+                                "RemoteCommand",
+                                "Processing pending command: ${command.commandId} type: ${command.commandType}"
+                            )
                             onCommand(command)
                         }
                     }
@@ -328,24 +513,32 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String?) {
+    override fun updateCommandStatus(
+        childId: String,
+        commandId: String,
+        status: CommandStatus,
+        resultMessage: String?
+    ) {
         if (childId.isEmpty() || commandId.isEmpty()) {
-            Log.w(TAG, "updateCommandStatus: invalid IDs. child: $childId cmd: $commandId")
+            Log.w(
+                "RemoteCommand",
+                "updateCommandStatus: invalid IDs. child: $childId cmd: $commandId"
+            )
             return
         }
-        
-        Log.i(TAG, "Updating command $commandId status to $status")
+
+        Log.i("RemoteCommand", "Updating command $commandId status to $status for child $childId")
         val updates = mutableMapOf<String, Any>(
             "status" to status.name
         )
-        
+
         val now = System.currentTimeMillis()
         when (status) {
             CommandStatus.EXECUTING -> updates["receivedAt"] = now
             CommandStatus.SUCCESS, CommandStatus.FAILED -> updates["executedAt"] = now
             else -> {}
         }
-        
+
         resultMessage?.let { updates["resultMessage"] = it }
 
         db.collection(FirebaseConfig.COL_CHILDREN)
@@ -354,14 +547,14 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(commandId)
             .update(updates)
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to update command status", e)
-                errorLogger.addError(TAG, "Failed to update command status", e)
+                Log.e("RemoteCommand", "Failed to update command status for $commandId", e)
+                errorLogger.addError("RemoteCommand", "Failed to update command status", e)
             }
     }
 
     override fun sendCommand(command: SyncRemoteCommand) {
         if (command.childId.isEmpty()) return
-        
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(command.childId)
             .collection(FirebaseConfig.COL_REMOTE_COMMANDS)
@@ -390,15 +583,16 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                     Log.e(TAG, "Error listening for family members", e)
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshot != null && snapshot.exists()) {
-                    val family = snapshot.toObject(com.example.kidsguard.models.FamilyDoc::class.java)
+                    val family =
+                        snapshot.toObject(com.example.kidsguard.models.FamilyDoc::class.java)
                     trySend(family?.childDeviceIds ?: emptyList())
                 } else {
                     trySend(emptyList())
                 }
             }
-            
+
         awaitClose { registration.remove() }
     }
 
@@ -416,17 +610,23 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 if (e != null) {
                     Log.e(TAG, "Error listening for child status", e)
                     errorLogger.addError(TAG, "Child status listen failed", e)
+                    trySend(null) // Unblock flow on error
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshot != null && snapshot.exists()) {
-                    val status = snapshot.toObject(SyncChildStatus::class.java)
-                    trySend(status)
+                    try {
+                        val status = snapshot.toObject(SyncChildStatus::class.java)
+                        trySend(status)
+                    } catch (err: Exception) {
+                        Log.e(TAG, "Error parsing child status", err)
+                        trySend(null)
+                    }
                 } else {
                     trySend(null)
                 }
             }
-            
+
         awaitClose { registration.remove() }
     }
 
@@ -445,17 +645,24 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 if (e != null) {
                     Log.e(TAG, "Error listening for latest activity", e)
                     errorLogger.addError(TAG, "Latest activity listen failed", e)
+                    trySend(null) // Unblock flow on error
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshots != null && !snapshots.isEmpty) {
-                    val event = snapshots.documents.first().toObject(SyncActivityEvent::class.java)
-                    trySend(event)
+                    try {
+                        val event =
+                            snapshots.documents.first().toObject(SyncActivityEvent::class.java)
+                        trySend(event)
+                    } catch (err: Exception) {
+                        Log.e(TAG, "Error parsing latest activity", err)
+                        trySend(null)
+                    }
                 } else {
                     trySend(null)
                 }
             }
-            
+
         awaitClose { registration.remove() }
     }
 
@@ -475,47 +682,53 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                     Log.e(TAG, "Error listening for activity history", e)
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshots != null) {
-                    val events = snapshots.documents.mapNotNull { it.toObject(SyncActivityEvent::class.java) }
+                    val events =
+                        snapshots.documents.mapNotNull { it.toObject(SyncActivityEvent::class.java) }
                     trySend(events)
                 } else {
                     trySend(emptyList())
                 }
             }
-            
+
         awaitClose { registration.remove() }
     }
 
-    override fun getLocationHistory(childId: String): Flow<List<SyncLocationUpdate>> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(emptyList())
-            return@callbackFlow
+    override fun getLocationHistory(childId: String): Flow<List<SyncLocationUpdate>> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(emptyList())
+                return@callbackFlow
+            }
+
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("locations")
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(100)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for location history", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null) {
+                        val locations =
+                            snapshots.documents.mapNotNull { it.toObject(SyncLocationUpdate::class.java) }
+                        trySend(locations)
+                    } else {
+                        trySend(emptyList())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
 
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("locations")
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(100)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for location history", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshots != null) {
-                    val locations = snapshots.documents.mapNotNull { it.toObject(SyncLocationUpdate::class.java) }
-                    trySend(locations)
-                } else {
-                    trySend(emptyList())
-                }
-            }
-            
-        awaitClose { registration.remove() }
-    }
-
-    override fun getDailySummary(childId: String, date: Long): Flow<com.example.kidsguard.ai.DailySummary?> = callbackFlow {
+    override fun getDailySummary(
+        childId: String,
+        date: Long
+    ): Flow<com.example.kidsguard.ai.DailySummary?> = callbackFlow {
         if (childId.isEmpty()) {
             trySend(null)
             return@callbackFlow
@@ -541,76 +754,81 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                     Log.e(TAG, "Error listening for daily summary", e)
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshots != null && !snapshots.isEmpty) {
-                    val summary = snapshots.documents.first().toObject(com.example.kidsguard.ai.DailySummary::class.java)
+                    val summary = snapshots.documents.first()
+                        .toObject(com.example.kidsguard.ai.DailySummary::class.java)
                     trySend(summary)
                 } else {
                     trySend(null)
                 }
             }
-            
+
         awaitClose { registration.remove() }
     }
 
-    override fun getSafeZones(familyId: String): Flow<List<com.example.kidsguard.models.SafeZone>> = callbackFlow {
-        if (familyId.isEmpty()) {
-            trySend(emptyList())
-            return@callbackFlow
+    override fun getSafeZones(familyId: String): Flow<List<com.example.kidsguard.models.SafeZone>> =
+        callbackFlow {
+            if (familyId.isEmpty()) {
+                trySend(emptyList())
+                return@callbackFlow
+            }
+
+            val registration = db.collection(FirebaseConfig.COL_FAMILIES)
+                .document(familyId)
+                .collection(FirebaseConfig.COL_SAFE_ZONES)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for family safe zones", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null) {
+                        val zones =
+                            snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
+                        trySend(zones)
+                    } else {
+                        trySend(emptyList())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
 
-        val registration = db.collection(FirebaseConfig.COL_FAMILIES)
-            .document(familyId)
-            .collection(FirebaseConfig.COL_SAFE_ZONES)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for family safe zones", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshots != null) {
-                    val zones = snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
-                    trySend(zones)
-                } else {
-                    trySend(emptyList())
-                }
+    override fun getSafeZonesForChild(childId: String): Flow<List<com.example.kidsguard.models.SafeZone>> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(emptyList())
+                return@callbackFlow
             }
-            
-        awaitClose { registration.remove() }
-    }
 
-    override fun getSafeZonesForChild(childId: String): Flow<List<com.example.kidsguard.models.SafeZone>> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(emptyList())
-            return@callbackFlow
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection(FirebaseConfig.COL_SAFE_ZONES)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for child safe zones", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null) {
+                        val zones =
+                            snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
+                        trySend(zones)
+                    } else {
+                        trySend(emptyList())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
-
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection(FirebaseConfig.COL_SAFE_ZONES)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for child safe zones", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshots != null) {
-                    val zones = snapshots.documents.mapNotNull { it.toObject(com.example.kidsguard.models.SafeZone::class.java) }
-                    trySend(zones)
-                } else {
-                    trySend(emptyList())
-                }
-            }
-            
-        awaitClose { registration.remove() }
-    }
 
     override fun syncAppUsage(childId: String, usage: List<SyncAppUsage>) {
         if (childId.isEmpty() || usage.isEmpty()) return
-        
+
         val date = usage.first().date
         val batch = db.batch()
-        
+
         usage.forEach { app ->
             val ref = db.collection(FirebaseConfig.COL_CHILDREN)
                 .document(childId)
@@ -620,41 +838,42 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                 .document(app.packageName.replace(".", "_"))
             batch.set(ref, app)
         }
-        
+
         batch.commit().addOnSuccessListener {
             Log.d(TAG, "App usage synced successfully for $date")
         }
     }
 
-    override fun getWellbeingSettings(childId: String): Flow<SyncWellbeingSettings?> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(null)
-            return@callbackFlow
-        }
-
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("settings")
-            .document("wellbeing")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for wellbeing settings", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshot != null && snapshot.exists()) {
-                    trySend(snapshot.toObject(SyncWellbeingSettings::class.java))
-                } else {
-                    trySend(SyncWellbeingSettings())
-                }
+    override fun getWellbeingSettings(childId: String): Flow<SyncWellbeingSettings?> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(null)
+                return@callbackFlow
             }
-            
-        awaitClose { registration.remove() }
-    }
+
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("settings")
+                .document("wellbeing")
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for wellbeing settings", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null && snapshot.exists()) {
+                        trySend(snapshot.toObject(SyncWellbeingSettings::class.java))
+                    } else {
+                        trySend(SyncWellbeingSettings())
+                    }
+                }
+
+            awaitClose { registration.remove() }
+        }
 
     override fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings) {
         if (childId.isEmpty()) return
-        
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection("settings")
@@ -665,64 +884,71 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             }
     }
 
-    override fun getAppUsageHistory(childId: String, date: String): Flow<List<SyncAppUsage>> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(emptyList())
-            return@callbackFlow
+    override fun getAppUsageHistory(childId: String, date: String): Flow<List<SyncAppUsage>> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(emptyList())
+                return@callbackFlow
+            }
+
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("appUsage")
+                .document(date)
+                .collection("apps")
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for app usage history", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null) {
+                        val apps =
+                            snapshots.documents.mapNotNull { it.toObject(SyncAppUsage::class.java) }
+                        trySend(apps)
+                    } else {
+                        trySend(emptyList())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
 
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("appUsage")
-            .document(date)
-            .collection("apps")
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for app usage history", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshots != null) {
-                    val apps = snapshots.documents.mapNotNull { it.toObject(SyncAppUsage::class.java) }
-                    trySend(apps)
-                } else {
-                    trySend(emptyList())
-                }
+    override fun getWebRules(childId: String): Flow<com.example.kidsguard.web.WebRuleSet?> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(null)
+                return@callbackFlow
             }
-            
-        awaitClose { registration.remove() }
-    }
 
-    override fun getWebRules(childId: String): Flow<com.example.kidsguard.web.WebRuleSet?> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(null)
-            return@callbackFlow
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("webRules")
+                .document("current")
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for web rules", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null && snapshot.exists()) {
+                        trySend(snapshot.toObject(com.example.kidsguard.web.WebRuleSet::class.java))
+                    } else {
+                        trySend(com.example.kidsguard.web.WebRuleSet())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
 
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("webRules")
-            .document("current")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for web rules", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshot != null && snapshot.exists()) {
-                    trySend(snapshot.toObject(com.example.kidsguard.web.WebRuleSet::class.java))
-                } else {
-                    trySend(com.example.kidsguard.web.WebRuleSet())
-                }
-            }
-            
-        awaitClose { registration.remove() }
-    }
-
-    override fun syncWebActivity(childId: String, activity: com.example.kidsguard.web.WebActivityEvent) {
+    override fun syncWebActivity(
+        childId: String,
+        activity: com.example.kidsguard.web.WebActivityEvent
+    ) {
         if (childId.isEmpty()) return
-        
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(activity.timestamp))
+
+        val date =
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(activity.timestamp))
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection("webActivity")
@@ -734,7 +960,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
     override fun createWebAccessRequest(request: com.example.kidsguard.web.WebAccessRequest) {
         if (request.childId.isEmpty()) return
-        
+
         db.collection(FirebaseConfig.COL_CHILDREN)
             .document(request.childId)
             .collection("accessRequests")
@@ -742,52 +968,56 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .set(request)
     }
 
-    override fun getWebAccessRequests(childId: String): Flow<List<com.example.kidsguard.web.WebAccessRequest>> = callbackFlow {
-        if (childId.isEmpty()) {
-            trySend(emptyList())
-            return@callbackFlow
+    override fun getWebAccessRequests(childId: String): Flow<List<com.example.kidsguard.web.WebAccessRequest>> =
+        callbackFlow {
+            if (childId.isEmpty()) {
+                trySend(emptyList())
+                return@callbackFlow
+            }
+
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("accessRequests")
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e(TAG, "Error listening for access requests", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null) {
+                        trySend(snapshots.toObjects(com.example.kidsguard.web.WebAccessRequest::class.java))
+                    } else {
+                        trySend(emptyList())
+                    }
+                }
+
+            awaitClose { registration.remove() }
         }
 
-        val registration = db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("accessRequests")
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e(TAG, "Error listening for access requests", e)
-                    return@addSnapshotListener
-                }
-                
-                if (snapshots != null) {
-                    trySend(snapshots.toObjects(com.example.kidsguard.web.WebAccessRequest::class.java))
-                } else {
-                    trySend(emptyList())
-                }
-            }
-            
-        awaitClose { registration.remove() }
-    }
-    
     // Future placeholders for Messaging
     fun registerFcmToken(uid: String, token: String, role: String) {
         if (uid.isEmpty() || token.isEmpty()) return
-        
-        val deviceId = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-            .getString("device_id", java.util.UUID.randomUUID().toString()) ?: ""
-            
+
+        val deviceId =
+            context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                .getString("device_id", java.util.UUID.randomUUID().toString()) ?: ""
+
         if (role == "PARENT") {
             db.collection(FirebaseConfig.COL_PARENTS)
                 .document(uid)
                 .collection(FirebaseConfig.COL_DEVICES)
                 .document(deviceId)
-                .set(mapOf(
-                    "deviceId" to deviceId,
-                    "token" to token,
-                    "platform" to "Android",
-                    "deviceName" to android.os.Build.MODEL,
-                    "lastSeen" to com.google.firebase.Timestamp.now(),
-                    "appVersion" to "1.0.0"
-                ), com.google.firebase.firestore.SetOptions.merge())
+                .set(
+                    mapOf(
+                        "deviceId" to deviceId,
+                        "token" to token,
+                        "platform" to "Android",
+                        "deviceName" to android.os.Build.MODEL,
+                        "lastSeen" to com.google.firebase.Timestamp.now(),
+                        "appVersion" to "1.0.0"
+                    ), com.google.firebase.firestore.SetOptions.merge()
+                )
                 .addOnSuccessListener {
                     Log.d(TAG, "Parent FCM token registered successfully")
                 }

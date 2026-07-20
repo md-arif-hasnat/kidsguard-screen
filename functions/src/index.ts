@@ -52,18 +52,23 @@ export const onSosCreated = functions.firestore
             description: data.message || 'Manual trigger from device',
             latitude: data.latitude || null,
             longitude: data.longitude || null,
-            timestamp: data.timestamp || Date.now(),
+            accuracy: data.locationAccuracy || data.accuracy || null,
+            timestamp: data.createdAt || data.timestamp || Date.now(),
             severity: 'critical'
         }, { merge: true });
 
         // 2. Broadcast high-priority notification to parents
+        const notificationBody = data.message && data.message !== 'Emergency SOS Triggered'
+            ? `${data.message}. Current location received.`
+            : `${childName} may need help. Current location received.`;
+
         await broadcastToParents(childId, {
-            title: 'Emergency SOS',
-            body: `${childName} may need help`,
+            title: `Emergency SOS from ${childName}`,
+            body: notificationBody,
             type: 'SOS',
             childId: childId,
             eventId: eventId,
-            clickAction: `/sos`
+            clickAction: `/sos?childId=${childId}&eventId=${eventId}`
         });
 
         // 3. Reverse Geocoding (Asynchronous/Background)

@@ -153,7 +153,8 @@ export default function Home() {
     setPairingError(null);
 
     try {
-      const success = await FamilyRepository.pairChild(family.familyId, pairingCode);
+      const parentName = profile?.displayName || "Parent";
+      const success = await FamilyRepository.pairChild(family.familyId, pairingCode, parentName);
       if (success) {
         setPairingCode('');
         setShowPairingForm(false);

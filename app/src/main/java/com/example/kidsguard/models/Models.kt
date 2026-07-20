@@ -94,6 +94,27 @@ data class RemoteCommand(
 enum class SosStatus { ACTIVE, TRIGGERED, RESOLVED }
 
 @Keep
+data class SosAlert(
+    var alertId: String = "",
+    var familyId: String = "",
+    var childId: String = "",
+    var childName: String = "",
+    var status: String = "ACTIVE", // ACTIVE, RESOLVED
+    var createdAt: Long = System.currentTimeMillis(),
+    var timestamp: Long = System.currentTimeMillis(), // For web query compatibility
+    var resolvedAt: Long? = null,
+    var resolvedBy: String? = null, // PARENT, CHILD
+    var latitude: Double? = null,
+    var longitude: Double? = null,
+    var address: String? = null,
+    var locationAccuracy: Float? = null,
+    var locationTimestamp: Long? = null,
+    var batteryPercent: Int? = null,
+    var active: Boolean = true,
+    var message: String = "Emergency SOS Triggered"
+)
+
+@Keep
 data class SosEvent(
     var id: String = "",
     var childId: String = "",
