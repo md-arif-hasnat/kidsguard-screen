@@ -70,7 +70,7 @@ function SosPageContent() {
   const [childLoading, setChildLoading] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const searchParams = useSearchParams();
-  const targetEventId = searchParams.get('eventId');
+  const targetEventId = searchParams.get('eventId') || searchParams.get('sosId') || searchParams.get('alertId');
   const queryChildId = searchParams.get('childId');
   const [childId, setChildId] = useState<string | null>(null);
 
@@ -187,6 +187,18 @@ function SosPageContent() {
     loadChildNames();
   }, [displaySos, childNames]);
 
+  const closeIncidentModal = () => {
+    setSelectedSos(null);
+    // Clear deep link params to prevent modal from auto-reopening if state refreshes
+    if (typeof window !== 'undefined' && window.history.replaceState) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('eventId');
+        url.searchParams.delete('sosId');
+        url.searchParams.delete('alertId');
+        window.history.replaceState({}, '', url.toString());
+    }
+  };
+
   const handleResolveSos = async (e: React.MouseEvent, sos: SosEvent) => {
     e.stopPropagation();
     if (!profile?.uid) return;
@@ -198,9 +210,19 @@ function SosPageContent() {
     try {
       setResolvingId(sos.id);
       await SosRepository.resolveSos(sos.childId, sos.id, profile.uid);
-      if (selectedSos?.id === sos.id) {
-        setSelectedSos(prev => prev ? { ...prev, status: "RESOLVED", active: false } : null);
-      }
+
+      // Update local state to reflect RESOLVED status immediately
+      setSelectedSos((current) =>
+        current?.id === sos.id
+          ? {
+              ...current,
+              status: "RESOLVED",
+              active: false,
+              resolvedAt: Date.now(),
+              resolvedBy: "PARENT"
+            }
+          : current
+      );
     } catch (error) {
       console.error("Failed to resolve SOS:", error);
       alert("Failed to resolve SOS. Please try again.");
@@ -397,7 +419,7 @@ function SosPageContent() {
       {selectedSos && (
         <div
           className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setSelectedSos(null)}
+          onClick={closeIncidentModal}
         >
           <div
             className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl md:p-8 animate-in fade-in zoom-in duration-200"
@@ -405,7 +427,7 @@ function SosPageContent() {
           >
             <button
               type="button"
-              onClick={() => setSelectedSos(null)}
+              onClick={closeIncidentModal}
               className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-600 hover:bg-slate-200 transition-colors"
               aria-label="Close incident details"
             >
@@ -544,7 +566,7 @@ function SosPageContent() {
 
             <button
               type="button"
-              onClick={() => setSelectedSos(null)}
+              onClick={closeIncidentModal}
               className="mt-6 w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 font-black uppercase tracking-widest text-xs text-slate-500 hover:bg-slate-50 transition-all"
             >
               Back to Center
