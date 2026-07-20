@@ -305,31 +305,83 @@ function SosPageContent() {
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-between sm:justify-end gap-3 pt-4 lg:pt-0 border-t lg:border-none border-slate-50">
-              <span className={`${sos.resolved || sos.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} px-4 py-1.5 rounded-full font-bold text-[10px] md:text-xs uppercase`}>
-                {sos.resolved || sos.status === 'RESOLVED' ? 'Resolved' : 'Active'}
-              </span>
+            <div className="flex flex-col gap-3 border-t border-slate-50 pt-4 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:pt-0 lg:border-t-0">
 
-              {!(sos.resolved || sos.status === 'RESOLVED') && (
-                <button
-                  type="button"
-                  disabled={resolvingId === sos.id}
-                  onClick={(e) => handleResolveSos(e, sos)}
-                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-5 md:px-6 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors whitespace-nowrap"
-                >
-                  {resolvingId === sos.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  Resolve SOS
-                </button>
-              )}
+            <span
+            className={`w-fit rounded-full px-4 py-2 text-[10px] font-bold uppercase md:text-xs ${
+            sos.resolved || sos.status === "RESOLVED"
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+            }`}
+            >
+            {sos.resolved || sos.status === "RESOLVED"
+            ? "Resolved"
+            : "Active"}
+            </span>
 
-              <button
-                type="button"
-                onClick={() => setSelectedSos(sos)}
-                className="bg-slate-900 hover:bg-slate-800 text-white px-5 md:px-6 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors whitespace-nowrap"
-              >
-                View Incident
-              </button>
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto">
+
+            {!(sos.resolved || sos.status === "RESOLVED") && (
+            <button
+            type="button"
+            disabled={resolvingId === sos.id}
+            onClick={(e) => handleResolveSos(e, sos)}
+            className="
+            flex
+            w-full
+            min-w-0
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            bg-emerald-600
+            px-5
+            py-3
+            text-xs
+            font-bold
+            text-white
+            transition-colors
+            hover:bg-emerald-700
+            disabled:bg-emerald-400
+            md:px-6
+            md:text-sm
+            "
+            >
+            {resolvingId === sos.id ? (
+            <Loader2 size={16} className="animate-spin" />
+            ) : (
+            <CheckCircle2 size={16} />
+            )}
+
+            Resolve SOS
+            </button>
+            )}
+
+            <button
+            type="button"
+            onClick={() => setSelectedSos(sos)}
+            className="
+            w-full
+            min-w-0
+            rounded-xl
+            bg-slate-900
+            px-5
+            py-3
+            text-xs
+            font-bold
+            text-white
+            transition-colors
+            hover:bg-slate-800
+            md:px-6
+            md:text-sm
+            "
+            >
+            View Incident
+            </button>
+
             </div>
+            </div>
+
           </div>
         )) : (
           <div className="bg-white rounded-3xl border border-slate-200 p-10 md:p-20 flex flex-col items-center text-center">

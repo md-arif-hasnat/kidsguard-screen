@@ -283,7 +283,17 @@ export default function Home() {
                     value={pairingCode}
                     onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
                     placeholder="Enter 6-digit code"
-                    className="w-full text-center text-2xl font-black tracking-widest py-4 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-50 outline-none uppercase"
+                    className="w-full min-w-0
+                               px-3 sm:px-5
+                               py-4
+                               text-center
+                               text-lg sm:text-2xl
+                               font-black
+                               tracking-normal sm:tracking-widest
+                               placeholder:text-base sm:placeholder:text-xl
+                               placeholder:tracking-normal sm:placeholder:tracking-widest
+                               rounded-2xl
+                               border-2"
                     maxLength={6}
                 />
                 {pairingError && <p className="text-rose-600 text-xs font-bold">{pairingError}</p>}
