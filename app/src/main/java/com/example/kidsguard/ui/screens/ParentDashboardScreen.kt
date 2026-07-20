@@ -88,7 +88,7 @@ fun ParentDashboardScreen(
     val deviations by knownRouteRepository.deviationEvents.collectAsState()
     val activeDeviations = deviations.filter { !it.resolved }
 
-    val activeSos by sosRepository.activeSos.collectAsState()
+    val activeSosAlert by sosRepository.activeSosAlert.collectAsState()
     val selectedChildId by selectedChildIdFlow.collectAsState()
     
     val dashboardRepository = remember {
@@ -177,7 +177,7 @@ fun ParentDashboardScreen(
                         activeDeviations = activeDeviations,
                         onOpenKnownRoutes = onOpenKnownRoutes,
                         onOpenRouteDeviations = onOpenRouteDeviations,
-                        activeSos = activeSos,
+                        activeSos = activeSosAlert,
                         onResolveSos = { sosRepository.resolveSos(it) },
                         onViewSosHistory = onOpenSosHistory,
                         onOpenLiveMap = onOpenLiveMap,
@@ -251,7 +251,7 @@ fun DashboardContent(
     activeDeviations: List<com.example.kidsguard.routeintelligence.RouteDeviationEvent>,
     onOpenKnownRoutes: () -> Unit,
     onOpenRouteDeviations: () -> Unit,
-    activeSos: com.example.kidsguard.models.SosEvent?,
+    activeSos: com.example.kidsguard.models.SosAlert?,
     onResolveSos: (String) -> Unit,
     onViewSosHistory: () -> Unit,
     onOpenLiveMap: () -> Unit,
@@ -277,7 +277,7 @@ fun DashboardContent(
     ) {
         ChildSelectorCard(onOpenChildList, syncProvider, prefHelper, selectedChildId)
 
-        if (activeSos != null) {
+        if (activeSos != null && activeSos.status == "ACTIVE") {
             SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
         }
 
@@ -462,7 +462,7 @@ fun OnlineStatusBadge(isOnline: Boolean) {
 
 @Composable
 fun SosAlertCard(
-    event: com.example.kidsguard.models.SosEvent,
+    event: com.example.kidsguard.models.SosAlert,
     onResolve: (String) -> Unit,
     onViewHistory: () -> Unit
 ) {
@@ -477,9 +477,10 @@ fun SosAlertCard(
                 Text("ACTIVE SOS ALERT", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Text("A child has triggered an emergency alert.", style = MaterialTheme.typography.bodyMedium)
+            Text("${event.childName} has triggered an emergency alert.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             
-            if (event.latitude != null) {
+            Text("Address: ${event.address ?: "Address unavailable"}", style = MaterialTheme.typography.bodySmall)
+            if (event.latitude != null && event.longitude != null) {
                 Text("Location: ${"%.5f".format(event.latitude)}, ${"%.5f".format(event.longitude)}", style = MaterialTheme.typography.bodySmall)
             }
             Text("Battery: ${event.batteryPercent ?: "Unknown"}%", style = MaterialTheme.typography.bodySmall)
@@ -487,7 +488,7 @@ fun SosAlertCard(
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { onResolve(event.id) },
+                    onClick = { onResolve(event.alertId) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {

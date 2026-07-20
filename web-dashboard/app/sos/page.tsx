@@ -88,15 +88,31 @@ function SosPageContent() {
     }
   }, [family, queryChildId]);
 
-  // Listen to ALL children SOS events in the family if no specific childId is selected
-  // Actually, the requirement said "SOS Alert Center must show SOS events from ALL children"
+  // Listen to ALL children SOS events in the family
   useEffect(() => {
-    if (!isFirebaseConfigured || !family?.childDeviceIds || family.childDeviceIds.length === 0) return;
+    if (!isFirebaseConfigured || !family?.childDeviceIds || family.childDeviceIds.length === 0) {
+        console.warn("WEB SosSync: Listener skipped (no children or firebase not configured)");
+        return;
+    }
 
-    // The component logic should ideally use a family-wide listener
-    const unsubscribe = SosRepository.listenToFamilySosEvents(family.childDeviceIds, setSosEvents);
+    console.log(`WEB SosSync: Starting family listeners for children:`, family.childDeviceIds);
+
+    // Canonical SOS Center logic: Listen to ALL family children's sosEvents sub-collections
+    const unsubscribe = SosRepository.listenToFamilySosEvents(family.childDeviceIds, (events) => {
+        console.log(`WEB SosSync: Received ${events.length} total SOS events from family.`);
+        setSosEvents(events);
+
+        // Auto-open target incident if eventId is in URL and events are loaded
+        if (targetEventId && events.length > 0 && !selectedSos) {
+            const target = events.find(e => e.id === targetEventId);
+            if (target) {
+                console.log("WEB SosSync: Auto-opening targeted incident:", targetEventId);
+                setSelectedSos(target);
+            }
+        }
+    });
     return () => unsubscribe();
-  }, [family?.childDeviceIds]);
+  }, [family?.childDeviceIds, targetEventId, selectedSos]);
 
   // Handle deep link (auto-open modal)
   useEffect(() => {
@@ -249,10 +265,21 @@ function SosPageContent() {
                 {(sos.address || sos.location || (sos.latitude !== undefined && sos.latitude !== null)) && (
                   <div className="flex items-start gap-1 mt-2 text-primary-600 font-bold text-xs md:text-sm">
                     <MapPin size={14} className="mt-1 shrink-0" />
-                    <span className="whitespace-pre-line">{sos.address || sos.location || `${sos.latitude?.toFixed(4)}, ${sos.longitude?.toFixed(4)}`}</span>
+                    <div className="flex flex-col">
+                        <span className="whitespace-pre-line">{sos.address || sos.location || `${sos.latitude?.toFixed(4)}, ${sos.longitude?.toFixed(4)}`}</span>
+                        {(sos.locationAccuracy != null || sos.accuracy != null) && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                                ±{(sos.locationAccuracy ?? sos.accuracy).toFixed(0)}m accuracy • {sos.locationSource || 'Recently updated'}
+                            </span>
+                        )}
+                    </div>
                   </div>
                 )}
-                {sos.message && <p className="mt-2 text-slate-700 text-sm italic">&quot;{sos.message}&quot;</p>}
+                {sos.message && (
+                    <div className="mt-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl shadow-sm">
+                        <p className="text-slate-800 text-sm font-semibold leading-relaxed italic">&quot;{sos.message}&quot;</p>
+                    </div>
+                )}
 
                 {sos.latitude && sos.longitude && (
                   <div className="flex flex-wrap gap-2 mt-4">

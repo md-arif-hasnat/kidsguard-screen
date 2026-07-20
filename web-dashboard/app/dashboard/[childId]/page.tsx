@@ -405,7 +405,24 @@ export default function ChildDashboard() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                 <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
                 <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
-                <StatCard label="Current Zone" value={displayData.currentZone} icon={MapPin} color="text-green-500" />
+                <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-wider mb-1 md:mb-2">Current Zone</div>
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2 md:gap-3">
+                            <MapPin className="w-5 h-5 md:w-6 md:h-6 text-green-500" />
+                            <span className="text-lg md:text-2xl font-bold text-slate-700 truncate">{displayData.currentZone}</span>
+                        </div>
+                        {status?.lastLocation?.timestamp && (
+                            <p className="text-[10px] text-slate-400 font-medium ml-7 md:ml-9">
+                                {(() => {
+                                    const diff = Date.now() - status.lastLocation.timestamp;
+                                    if (diff < 60000) return "Live Location";
+                                    return `Updated ${Math.round(diff / 60000)}m ago`;
+                                })()}
+                            </p>
+                        )}
+                    </div>
+                </div>
                 <StatCard label="Security" value={displayData.status} icon={displayData.status === 'LOCKED' ? Lock : Unlock} color={displayData.status === 'LOCKED' ? "text-red-500" : "text-green-500"} />
             </div>
 

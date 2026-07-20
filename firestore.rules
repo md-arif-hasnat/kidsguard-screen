@@ -85,6 +85,11 @@ service cloud.firestore {
       }
     }
 
+    // Collection Group rule for SOS Alerts (Parent Dashboard Overview)
+    match /{path=**}/sosEvents/{eventId} {
+      allow read: if isSignedIn();
+    }
+
     // Pairing Codes: Temporary short-lived tokens
     // Used to link a child device to a parent account.
     // Schema: { code: string, childId: string, deviceId: string, childName: string, expiresAt: timestamp, used: bool }

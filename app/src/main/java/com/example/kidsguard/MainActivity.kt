@@ -245,7 +245,13 @@ class MainActivity : ComponentActivity() {
                             if (prefHelper.userRole == "CHILD") {
                                 childStatusManager.updateStatus()
                                 setupUnpairListener()
+                                // Restart tracking service to ensure it picks up new IDs and starts listener
+                                trackingManager.startTracking()
+                                Log.i("PairingSync", "Background service started/restarted for child: ${prefHelper.childId}")
                             }
+                            
+                            // Re-init SOS listener on screen change to catch role/pairing changes
+                            sosRepository.refreshActiveAlertListener()
 
                             // Force portrait in Locked screen for real device realism
                             requestedOrientation = if (screen == Screen.Locked) {
@@ -296,8 +302,11 @@ class MainActivity : ComponentActivity() {
     private fun setupUnpairListener() {
         if (prefHelper.userRole == "CHILD") {
             val childId = prefHelper.childId
+            // Only trigger unpair if we were actually paired
+            val currentlyPaired = prefHelper.pairedChildId != null
+            
             if (childId.isNotEmpty()) {
-                Log.d("MainActivity", "Setting up unpair listener for child: $childId")
+                Log.d("MainActivity", "Setting up unpair listener for child: $childId (currentlyPaired=$currentlyPaired)")
                 unpairListener?.remove()
                 unpairListener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                     .collection("children")
@@ -307,11 +316,10 @@ class MainActivity : ComponentActivity() {
                             Log.w("MainActivity", "Unpair listener error", e)
                             return@addSnapshotListener
                         }
-                        // Only trigger if document exists but has no familyId
-                        // (If document is deleted, we might also want to unpair)
-                        if (snapshot != null) {
-                            val familyId = snapshot.getString("familyId")
-                            if (snapshot.exists() && familyId == null) {
+                        if (snapshot != null && snapshot.exists()) {
+                            val cloudFamilyId = snapshot.getString("familyId")
+                            // Trigger unpair ONLY if we were paired and now familyId is gone from cloud
+                            if (cloudFamilyId == null && currentlyPaired) {
                                 Log.i("MainActivity", "Unpair detected! Child removed from family.")
                                 handleUnpair()
                             }

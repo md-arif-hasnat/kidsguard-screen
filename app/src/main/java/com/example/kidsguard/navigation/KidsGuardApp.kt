@@ -138,6 +138,13 @@ fun KidsGuardApp(
         when (screen) {
             Screen.RoleSelection -> RoleSelectionScreen(
                 onRoleSelected = { role: String ->
+                    if (role == "CHILD" && prefHelper.pairedChildId == null) {
+                        // Reset identity for fresh pairing if not already paired
+                        prefHelper.removedByParent = false
+                        prefHelper.childId = java.util.UUID.randomUUID().toString()
+                        android.util.Log.i("KidsGuardApp", "Generated fresh childId for new setup: ${prefHelper.childId}")
+                    }
+
                     prefHelper.userRole = role
                     val nextScreen = when(role) {
                         "PARENT" -> {

@@ -13,6 +13,10 @@ interface RemoteSyncProvider {
     fun syncSafeZone(childId: String, zone: com.example.kidsguard.models.SafeZone)
     fun deleteSafeZone(childId: String, zoneId: String)
     fun syncSosEvent(event: com.example.kidsguard.models.SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)? = null)
+    fun syncSosAlert(alert: com.example.kidsguard.models.SosAlert, onComplete: ((Boolean, Throwable?) -> Unit)? = null)
+    fun getSosAlert(familyId: String, alertId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.SosAlert?>
+    fun getSosAlertForChild(childId: String, alertId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.SosAlert?>
+    fun getActiveSosAlerts(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SosAlert>>
     fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary)
     fun listenForRemoteCommands(childId: String, onCommand: (SyncRemoteCommand) -> Unit)
     fun updateCommandStatus(childId: String, commandId: String, status: CommandStatus, resultMessage: String? = null)
@@ -88,6 +92,23 @@ class LocalMockSyncProvider : RemoteSyncProvider {
     override fun syncSosEvent(event: com.example.kidsguard.models.SosEvent, onComplete: ((Boolean, Throwable?) -> Unit)?) {
         _lastSyncTimestamp.value = System.currentTimeMillis()
         onComplete?.invoke(true, null)
+    }
+
+    override fun syncSosAlert(alert: com.example.kidsguard.models.SosAlert, onComplete: ((Boolean, Throwable?) -> Unit)?) {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+        onComplete?.invoke(true, null)
+    }
+
+    override fun getSosAlert(familyId: String, alertId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.SosAlert?> {
+        return kotlinx.coroutines.flow.flowOf(null)
+    }
+
+    override fun getSosAlertForChild(childId: String, alertId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.SosAlert?> {
+        return kotlinx.coroutines.flow.flowOf(null)
+    }
+
+    override fun getActiveSosAlerts(familyId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.models.SosAlert>> {
+        return kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     override fun syncDailySummary(summary: com.example.kidsguard.ai.DailySummary) {

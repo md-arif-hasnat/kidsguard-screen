@@ -1,10 +1,20 @@
 package com.example.kidsguard.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -13,8 +23,27 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,19 +56,17 @@ import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import android.util.Log
-import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChildSetupScreen(
-    prefHelper: PreferenceHelper, 
+    prefHelper: PreferenceHelper,
     authRepository: AuthRepository,
     repository: SafeZoneRepository,
     syncProvider: RemoteSyncProvider,
-    onSetupComplete: () -> Unit, 
+    onSetupComplete: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -74,12 +101,21 @@ fun ChildSetupScreen(
                                 try {
                                     val familyId = snapshot.getString("familyId")
                                     val childId = snapshot.getString("childId")
-                                    
+                                    val parentName = snapshot.getString("parentName")
+                                    Log.d(
+                                        "Pairing",
+                                        "Firebase parent name=${parentName}"
+                                    )
+                                    val pairedAt = snapshot.getTimestamp("pairedAt")?.toDate()?.time
+                                        ?: System.currentTimeMillis()
+
                                     prefHelper.familyId = familyId
                                     prefHelper.pairedChildId = childId
+                                    prefHelper.parentName = parentName
+                                    prefHelper.pairedAt = pairedAt
                                     prefHelper.userRole = "CHILD"
                                     prefHelper.isSetupCompleted = true
-                                    
+
                                     repository.setSyncProvider(
                                         syncProvider,
                                         prefHelper.childId,
@@ -89,13 +125,19 @@ fun ChildSetupScreen(
                                         "SafeZoneRepo",
                                         "Repository initialized after pairing: childId=${prefHelper.childId}, familyId=${prefHelper.familyId}"
                                     )
-                                    
-                                    Log.i("ChildSetup", "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD")
+
+                                    Log.i(
+                                        "ChildSetup",
+                                        "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD"
+                                    )
                                     isPaired = true
-                                    
+
                                     // Automatic navigation after success
                                     delay(2000)
-                                    Log.i("ChildSetup", "Navigating to next screen after successful pairing")
+                                    Log.i(
+                                        "ChildSetup",
+                                        "Navigating to next screen after successful pairing"
+                                    )
                                     onSetupComplete()
                                 } catch (err: Exception) {
                                     Log.e("ChildSetup", "Failed to save pairing data", err)
@@ -169,13 +211,16 @@ fun ChildSetupScreen(
                     Surface(
                         modifier = Modifier
                             .size(56.dp)
-                            .clickable { 
+                            .clickable {
                                 avatarId = id
                                 prefHelper.avatarId = id
                             },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                        border = if (isSelected) BorderStroke(
+                            2.dp,
+                            MaterialTheme.colorScheme.primary
+                        ) else null
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
@@ -188,7 +233,7 @@ fun ChildSetupScreen(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
@@ -248,7 +293,9 @@ fun ChildSetupScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
                     onClick = onSetupComplete,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("Continue to Permissions")
@@ -267,17 +314,23 @@ fun ChildSetupScreen(
                                     // Enable sync immediately using the stable childId, NOT the pairing code
                                     repository.setSyncProvider(syncProvider, prefHelper.childId)
                                 } else {
-                                    saveError = "Failed to create pairing code in the cloud. Please check your internet connection and try again."
+                                    saveError =
+                                        "Failed to create pairing code in the cloud. Please check your internet connection and try again."
                                 }
                                 isGenerating = false
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                     enabled = isNameValid && !isGenerating
                 ) {
                     if (isGenerating) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White
+                        )
                     } else {
                         Text("Generate Pairing Code")
                     }
@@ -302,7 +355,8 @@ fun ChildSetupScreen(
                                     code = newCode
                                     prefHelper.pairingCode = newCode
                                 } else {
-                                    saveError = "Failed to regenerate pairing code. Please try again."
+                                    saveError =
+                                        "Failed to regenerate pairing code. Please try again."
                                 }
                                 isGenerating = false
                             }
@@ -313,7 +367,7 @@ fun ChildSetupScreen(
                     Text("Regenerate Code")
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // QR Placeholder
                 Box(
                     modifier = Modifier
@@ -323,13 +377,13 @@ fun ChildSetupScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                imageVector = Icons.Default.QrCode,
-                contentDescription = null,
-                modifier = Modifier.size(150.dp),
-                tint = Color.Black
-            )
+                        imageVector = Icons.Default.QrCode,
+                        contentDescription = null,
+                        modifier = Modifier.size(150.dp),
+                        tint = Color.Black
+                    )
                 }
-                
+
                 Spacer(modifier = Modifier.height(32.dp))
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 Text(
