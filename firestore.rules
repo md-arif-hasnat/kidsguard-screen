@@ -103,6 +103,17 @@ service cloud.firestore {
           request.auth.uid == childId ||
           (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
         );
+
+        match /apps/{appId} {
+          allow read: if isSignedIn() && (
+            request.auth.uid == childId ||
+            isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+          );
+          allow write: if isSignedIn() && (
+            request.auth.uid == childId ||
+            (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
+          );
+        }
       }
     }
 
