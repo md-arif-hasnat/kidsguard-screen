@@ -91,6 +91,16 @@ data class RemoteCommand(
     var timestamp: Long = System.currentTimeMillis()
 )
 
+@Keep
+data class InstalledApp(
+    var packageName: String = "",
+    var appName: String = "",
+    var installedAt: Long = System.currentTimeMillis(),
+    var firstInstallTime: Long = 0L,
+    var versionName: String = "",
+    var versionCode: Long = 0L
+)
+
 enum class SosStatus { ACTIVE, TRIGGERED, RESOLVED }
 
 @Keep

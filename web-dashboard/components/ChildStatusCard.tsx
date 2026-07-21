@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Battery, BatteryCharging, Signal, MapPin, Lock, Unlock, MoreVertical, Edit2, Trash2, ShieldAlert, BarChart3 } from 'lucide-react';
+import { Battery, BatteryCharging, Signal, MapPin, Lock, Unlock, MoreVertical, Edit2, Trash2, ShieldAlert, BarChart3, AppWindow } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -232,6 +232,17 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
                     >
                         <BarChart3 size={16} />
                         View App Activity
+                    </Link>
+                    <Link
+                        href={`/children/${displayChild.id}/installed-apps`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                    >
+                        <AppWindow size={16} />
+                        View Installed Apps
                     </Link>
                     <div className="my-1 border-t border-slate-50" />
                     <button
