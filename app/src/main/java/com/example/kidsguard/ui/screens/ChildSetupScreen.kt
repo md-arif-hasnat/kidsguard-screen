@@ -126,11 +126,11 @@ fun ChildSetupScreen(
                                         "Repository initialized after pairing: childId=${prefHelper.childId}, familyId=${prefHelper.familyId}"
                                     )
 
-                                    Log.i(
-                                        "ChildSetup",
-                                        "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD"
-                                    )
+                                    Log.i("ChildSetup", "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD")
                                     isPaired = true
+                                    
+                                    // Start periodic usage sync
+                                    com.example.kidsguard.sync.AppUsageSyncWorker.schedule(context)
 
                                     // Automatic navigation after success
                                     delay(2000)

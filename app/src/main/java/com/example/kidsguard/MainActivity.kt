@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository
     private lateinit var protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository
     private lateinit var childStatusManager: ChildStatusManager
+    private lateinit var lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager
     private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity() {
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
+        lockScheduleManager = com.example.kidsguard.managers.LockScheduleManager(this, prefHelper)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
 
         // Initialize synchronization for repositories
@@ -154,7 +156,8 @@ class MainActivity : ComponentActivity() {
                 } else {
                     vibrator.vibrate(5000)
                 }
-            }
+            },
+            lockScheduleManager = lockScheduleManager
         )
         
         trackingManager.initialize()
@@ -162,6 +165,7 @@ class MainActivity : ComponentActivity() {
 
         if (prefHelper.userRole == "CHILD") {
             trackingManager.startTracking() // Ensure service is running for commands
+            com.example.kidsguard.sync.AppUsageSyncWorker.schedule(this)
         }
 
         // Check for updates on startup
@@ -174,6 +178,23 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 trackingManager.isTrackingEnabled.collect {
                     childStatusManager.updateStatus()
+                }
+            }
+            
+            // Realtime Lock Schedule Listener
+            (syncProvider as? com.example.kidsguard.sync.FirebaseRemoteSyncProvider)?.let { provider ->
+                lifecycleScope.launch {
+                    provider.listenToLockSchedule(prefHelper.childId).collect { schedule ->
+                        lockScheduleManager.updateSchedule(schedule)
+                    }
+                }
+            }
+
+            // Periodic schedule check (every minute)
+            lifecycleScope.launch {
+                while(true) {
+                    lockScheduleManager.checkAndApply(null)
+                    kotlinx.coroutines.delay(60000)
                 }
             }
         }

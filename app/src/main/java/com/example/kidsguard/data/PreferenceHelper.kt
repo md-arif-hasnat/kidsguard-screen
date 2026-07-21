@@ -163,6 +163,18 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getLong("paired_at", 0L)
         set(value) = prefs.edit().putLong("paired_at", value).apply()
 
+    var lockReason: com.example.kidsguard.models.LockReason
+        get() = com.example.kidsguard.models.LockReason.valueOf(prefs.getString("lock_reason", "NONE") ?: "NONE")
+        set(value) = prefs.edit().putString("lock_reason", value.name).apply()
+
+    var scheduleUnlockOverrideUntil: Long
+        get() = prefs.getLong("schedule_unlock_override_until", 0L)
+        set(value) = prefs.edit().putLong("schedule_unlock_override_until", value).apply()
+
+    var lockScheduleJson: String?
+        get() = prefs.getString("lock_schedule_json", null)
+        set(value) = prefs.edit().putString("lock_schedule_json", value).apply()
+
     fun clearPairing() {
         prefs.edit()
             .remove("family_id")

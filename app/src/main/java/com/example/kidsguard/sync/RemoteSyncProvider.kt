@@ -32,6 +32,7 @@ interface RemoteSyncProvider {
     
     // Wellbeing sync
     fun syncAppUsage(childId: String, usage: List<SyncAppUsage>)
+    suspend fun syncDailyAppUsage(usage: com.example.kidsguard.models.DailyAppUsage): Result<Unit>
     fun getWellbeingSettings(childId: String): kotlinx.coroutines.flow.Flow<SyncWellbeingSettings?>
     fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings)
     fun getAppUsageHistory(childId: String, date: String): kotlinx.coroutines.flow.Flow<List<SyncAppUsage>>
@@ -41,6 +42,7 @@ interface RemoteSyncProvider {
     fun syncWebActivity(childId: String, activity: com.example.kidsguard.web.WebActivityEvent)
     fun createWebAccessRequest(request: com.example.kidsguard.web.WebAccessRequest)
     fun getWebAccessRequests(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.web.WebAccessRequest>>
+    fun listenToLockSchedule(childId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.LockSchedule?>
 
     val isConnected: StateFlow<Boolean>
     val lastSyncTimestamp: StateFlow<Long>
@@ -224,6 +226,11 @@ class LocalMockSyncProvider : RemoteSyncProvider {
         _lastSyncTimestamp.value = System.currentTimeMillis()
     }
 
+    override suspend fun syncDailyAppUsage(usage: com.example.kidsguard.models.DailyAppUsage): Result<Unit> {
+        _lastSyncTimestamp.value = System.currentTimeMillis()
+        return Result.success(Unit)
+    }
+
     override fun getWellbeingSettings(childId: String): kotlinx.coroutines.flow.Flow<SyncWellbeingSettings?> {
         return kotlinx.coroutines.flow.flowOf(SyncWellbeingSettings())
     }
@@ -250,6 +257,10 @@ class LocalMockSyncProvider : RemoteSyncProvider {
 
     override fun getWebAccessRequests(childId: String): kotlinx.coroutines.flow.Flow<List<com.example.kidsguard.web.WebAccessRequest>> {
         return kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    override fun listenToLockSchedule(childId: String): kotlinx.coroutines.flow.Flow<com.example.kidsguard.models.LockSchedule?> {
+        return kotlinx.coroutines.flow.flowOf(null)
     }
 
     // Testing helper to simulate a remote command

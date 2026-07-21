@@ -63,6 +63,7 @@ import { Siren } from 'lucide-react';
 import ScreenTimeStats from '@/components/wellbeing/ScreenTimeStats';
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
 import WellbeingControls, { AppLimit, BlockRule } from '@/components/wellbeing/WellbeingControls';
+import LockSchedulePanel from '@/components/wellbeing/LockSchedulePanel';
 
 import { WebProtectionRepository, WebRuleSet, WebActivityEvent, WebAccessRequest } from '@/lib/repositories/WebProtectionRepository';
 import WebActivityPanel from '@/components/web/WebActivityPanel';
@@ -631,12 +632,16 @@ export default function ChildDashboard() {
               />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  <AppUsagePanel usage={appUsage.length > 0 ? appUsage : [
-                      { packageName: 'com.google.android.youtube', appName: 'YouTube', category: 'Video', totalTimeMs: 4200000, lastUsed: Date.now() },
-                      { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok', category: 'Social', totalTimeMs: 2800000, lastUsed: Date.now() },
-                      { packageName: 'com.whatsapp', appName: 'WhatsApp', category: 'Messaging', totalTimeMs: 1500000, lastUsed: Date.now() },
-                      { packageName: 'com.android.chrome', appName: 'Chrome', category: 'Browser', totalTimeMs: 900000, lastUsed: Date.now() }
-                  ]} />
+                  <div className="space-y-12">
+                    <AppUsagePanel usage={appUsage.length > 0 ? appUsage : [
+                        { packageName: 'com.google.android.youtube', appName: 'YouTube', category: 'Video', totalTimeMs: 4200000, lastUsed: Date.now() },
+                        { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok', category: 'Social', totalTimeMs: 2800000, lastUsed: Date.now() },
+                        { packageName: 'com.whatsapp', appName: 'WhatsApp', category: 'Messaging', totalTimeMs: 1500000, lastUsed: Date.now() },
+                        { packageName: 'com.android.chrome', appName: 'Chrome', category: 'Browser', totalTimeMs: 900000, lastUsed: Date.now() }
+                    ]} />
+
+                    <LockSchedulePanel childId={childId} canEdit={canManageWellbeing} />
+                  </div>
 
                   {canManageWellbeing ? (
                     <WellbeingControls

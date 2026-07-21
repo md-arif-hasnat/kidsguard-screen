@@ -83,6 +83,27 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow update: if isSignedIn();
       }
+
+      match /settings/lockSchedule {
+        allow read: if isSignedIn() && (
+          request.auth.uid == childId ||
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+        allow write: if isSignedIn() && (
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+      }
+
+      match /appUsage/{date} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == childId ||
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+        allow write: if isSignedIn() && (
+          request.auth.uid == childId ||
+          (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
+        );
+      }
     }
 
     // Collection Group rule for SOS Alerts (Parent Dashboard Overview)
