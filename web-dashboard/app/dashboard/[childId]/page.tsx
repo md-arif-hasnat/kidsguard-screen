@@ -74,6 +74,7 @@ import ChildAvatar from '@/components/ChildAvatar';
 import ProtectionModePanel from '@/components/modes/ProtectionModePanel';
 import RemoveChildDialog from '@/components/RemoveChildDialog';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -393,6 +394,40 @@ export default function ChildDashboard() {
       <div className="max-w-full overflow-x-auto no-scrollbar mb-8 -mx-4 px-4 md:mx-0 md:px-0">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl w-fit min-w-full md:min-w-0">
               <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={LayoutDashboard} label="Overview" />
+              <Link
+                href="/map"
+                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
+              >
+                  <MapPin size={18} />
+                  Location
+              </Link>
+              <Link
+                href={`/children/${childId}/activity`}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
+              >
+                  <BarChart3 size={18} />
+                  App Activity
+              </Link>
+              <Link
+                href="/settings/safe-zones"
+                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
+              >
+                  <Shield size={18} />
+                  Safe Zones
+              </Link>
+              <Link
+                href="/history"
+                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
+              >
+                  <History size={18} />
+                  History
+              </Link>
+
+              <div className="w-px h-6 bg-slate-200 mx-2" />
+
               <TabButton active={activeTab === 'intelligence'} onClick={() => setActiveTab('intelligence')} icon={Brain} label="Intelligence" />
               <TabButton active={activeTab === 'wellbeing'} onClick={() => setActiveTab('wellbeing')} icon={ClockIcon} label="Wellbeing" />
               <TabButton active={activeTab === 'internet'} onClick={() => setActiveTab('internet')} icon={GlobeIcon} label="Internet" />
