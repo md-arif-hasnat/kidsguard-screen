@@ -113,6 +113,30 @@ export default function InstalledAppsPage() {
   }, [highlightPkg, apps]);
 
   const appList = useMemo(() => {
+    const isAppsEmpty = apps.length === 0;
+    const usagePackages = Object.keys(usage);
+
+    if (isAppsEmpty && usagePackages.length > 0) {
+      // Fallback to usage-derived data
+      return usagePackages.map(pkg => {
+        const appUsage = usage[pkg];
+        const sanitizedPkg = pkg.replace(/\./g, "_");
+        const control = controls[sanitizedPkg] || { blocked: false, dailyLimitMinutes: null };
+
+        return {
+          packageName: pkg,
+          appName: appUsage.appName || pkg,
+          installedAt: appUsage.lastUsed,
+          firstInstallTime: appUsage.lastUsed,
+          versionName: "N/A",
+          versionCode: 0,
+          control,
+          usage: appUsage,
+          isDerived: true
+        } as (InstalledApp & { control: AppControl, usage: AppUsageItem, isDerived: boolean });
+      });
+    }
+
     return apps.map(app => {
       const sanitizedPkg = app.packageName.replace(/\./g, "_");
       const control = controls[sanitizedPkg] || { blocked: false, dailyLimitMinutes: null };
@@ -121,7 +145,8 @@ export default function InstalledAppsPage() {
       return {
         ...app,
         control,
-        usage: appUsage
+        usage: appUsage,
+        isDerived: false
       };
     });
   }, [apps, controls, usage]);
@@ -329,7 +354,12 @@ export default function InstalledAppsPage() {
                         <h3 className="font-black text-slate-800 truncate group-hover:text-primary-900 transition-colors leading-tight">
                             {app.appName}
                         </h3>
-                        <p className="text-[10px] font-medium text-slate-400 truncate">{app.packageName}</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-medium text-slate-400 truncate">{app.packageName}</p>
+                            {app.isDerived && (
+                                <span className="px-1.5 py-0.5 bg-yellow-50 text-yellow-600 text-[8px] font-bold uppercase rounded border border-yellow-100 whitespace-nowrap">Usage-derived</span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <StatusBadge control={app.control} usage={app.usage} />

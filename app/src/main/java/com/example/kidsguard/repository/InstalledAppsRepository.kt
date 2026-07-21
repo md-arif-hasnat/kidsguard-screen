@@ -2,12 +2,14 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.util.Log
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.InstalledApp
 import com.example.kidsguard.sync.FirebaseConfig
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 
 class InstalledAppsRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("installed_apps_cache", Context.MODE_PRIVATE)
@@ -19,26 +21,92 @@ class InstalledAppsRepository(private val context: Context) {
         private const val TAG = "AppInstallMonitor"
     }
 
-    /**
-     * Scans all installed apps and updates the local cache without notifying.
-     * Use this during initialization to avoid notifying for existing apps.
-     */
-    fun initialScan() {
-        val installedPackages = pm.getInstalledPackages(0)
-        val editor = prefs.edit()
-        installedPackages.forEach { pkg ->
-            editor.putBoolean(pkg.packageName, true)
-        }
-        editor.apply()
-        Log.i(TAG, "Initial scan completed. Cached ${installedPackages.size} packages.")
+    private fun getChildId(): String? {
+        val cid = prefHelper.childId
+        if (cid.isNotBlank()) return cid
+
+        val pcid = prefHelper.pairedChildId
+        if (pcid != null && pcid.isNotBlank()) return pcid
+
+        return null
     }
 
     /**
-     * Checks if a package is new and handles syncing/notification if it is.
+     * Scans all installed apps and updates Firestore.
+     * Use this during initialization to populate the installedApps collection.
+     */
+    fun initialScan() {
+        val childId = getChildId() ?: run {
+            Log.e(TAG, "Initial scan aborted: childId is missing")
+            return
+        }
+
+        val installedPackages = try {
+            pm.getInstalledPackages(0)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get installed packages", e)
+            return
+        }
+
+        var uploaded = 0
+        var skipped = 0
+        var failed = 0
+
+        Log.i(TAG, "Starting initial scan for child: $childId. Found ${installedPackages.size} total packages.")
+
+        installedPackages.forEach { pkg ->
+            val packageName = pkg.packageName
+            
+            // Ignore KidsGuard itself
+            if (packageName == context.packageName) {
+                skipped++
+                return@forEach
+            }
+            
+            try {
+                val appInfo = pkg.applicationInfo ?: return@forEach
+
+                // Ignore system apps
+                if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
+                    skipped++
+                    return@forEach
+                }
+
+                val appName = pm.getApplicationLabel(appInfo).toString()
+                val installedApp = InstalledApp(
+                    packageName = packageName,
+                    appName = appName,
+                    installedAt = System.currentTimeMillis(),
+                    firstInstallTime = pkg.firstInstallTime,
+                    versionName = pkg.versionName ?: "1.0",
+                    versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        pkg.longVersionCode
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pkg.versionCode.toLong()
+                    }
+                )
+
+                syncAppInstall(installedApp, createNotification = false)
+                uploaded++
+                
+                // Add to local cache to prevent future new-install notifications for these old apps
+                prefs.edit().putBoolean(packageName, true).apply()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to process $packageName during initial scan", e)
+                failed++
+            }
+        }
+        Log.i(TAG, "Initial scan completed. Uploaded: $uploaded, Skipped: $skipped, Failed: $failed")
+    }
+
+    /**
+     * Checks if a package is new and handles syncing/notification.
      */
     fun handlePackageAdded(packageName: String) {
         if (packageName == context.packageName) return
-        if (prefs.contains(packageName)) return
+
+        val isNewInstall = !prefs.contains(packageName)
 
         try {
             val info = pm.getPackageInfo(packageName, 0)
@@ -46,15 +114,6 @@ class InstalledAppsRepository(private val context: Context) {
 
             // Ignore system apps
             if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
-                return
-            }
-
-            // Ignore common manufacturer/system prefixes
-            val ignorePrefixes = listOf(
-                "com.android.", "com.google.android.", "com.huawei.",
-                "com.samsung.", "com.sec.android.", "com.oppo.", "com.vivo.", "com.xiaomi."
-            )
-            if (ignorePrefixes.any { packageName.startsWith(it) }) {
                 return
             }
 
@@ -73,9 +132,9 @@ class InstalledAppsRepository(private val context: Context) {
                 }
             )
 
-            syncAppInstall(installedApp)
-
-            // Add to cache
+            syncAppInstall(installedApp, createNotification = isNewInstall)
+            
+            // Mark as known in cache
             prefs.edit().putBoolean(packageName, true).apply()
 
         } catch (e: Exception) {
@@ -84,93 +143,35 @@ class InstalledAppsRepository(private val context: Context) {
     }
 
     fun handlePackageRemoved(packageName: String) {
-        prefs.edit()
-            .remove(packageName)
-            .apply()
-
-        Log.i(
-            TAG,
-            "Removed package from install cache: $packageName"
-        )
+        prefs.edit().remove(packageName).apply()
+        Log.i(TAG, "Removed package from install cache: $packageName")
+        
+        // Optional: Mark as uninstalled in Firestore if needed in future
     }
 
-    private fun syncAppInstall(app: InstalledApp) {
+    private fun syncAppInstall(app: InstalledApp, createNotification: Boolean) {
+        val childId = getChildId() ?: return
 
-        val childId: String? =
-            prefHelper.childId
-                .takeIf { it.isNotBlank() }
-                ?: prefHelper.pairedChildId
-                    ?.takeIf { it.isNotBlank() }
-
-        if (childId == null) {
-            Log.e(
-                TAG,
-                "App install sync aborted: childId is missing"
-            )
-            return
-        }
-
-        Log.d(
-            TAG,
-            "Syncing installed app: childId=$childId, package=${app.packageName}"
-        )
-
-        Log.i(
-            TAG,
-            "New app detected: ${app.appName} (${app.packageName})"
-        )
-
-// Firestore path:
-// children/{childId}/installedApps/{packageName}
-        val appRef = db
-            .collection(FirebaseConfig.COL_CHILDREN)
+        val appRef = db.collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection("installedApps")
             .document(app.packageName)
 
-        Log.d(
-            TAG,
-            "Writing installed app to: ${appRef.path}"
-        )
-
-        appRef
-            .set(app)
+        appRef.set(app, SetOptions.merge())
             .addOnSuccessListener {
-
-                Log.i(
-                    TAG,
-                    "App record synced successfully: " +
-                            "${app.appName} (${app.packageName})"
-                )
-
-                createInstallNotification(
-                    childId = childId,
-                    app = app
-                )
+                Log.i(TAG, "App metadata synced: ${app.packageName} (notify=$createNotification)")
+                if (createNotification) {
+                    createInstallNotification(childId, app)
+                }
             }
             .addOnFailureListener { error ->
-
-                Log.e(
-                    TAG,
-                    "Failed to sync installed app: path=${appRef.path}",
-                    error
-                )
+                Log.e(TAG, "Failed to sync app record: ${app.packageName}", error)
             }
     }
 
-
-    private fun createInstallNotification(
-        childId: String,
-        app: InstalledApp
-    ) {
-
-        val familyId = prefHelper.familyId
-            ?.takeIf { it.isNotBlank() }
-            ?: ""
-
-        val childName = prefHelper.childName
-            .takeIf { it.isNotBlank() }
-            ?: "Child"
+    private fun createInstallNotification(childId: String, app: InstalledApp) {
+        val familyId = prefHelper.familyId ?: ""
+        val childName = prefHelper.childName.ifBlank { "Your child" }
 
         val notification = hashMapOf<String, Any>(
             "type" to "APP_INSTALLED",
@@ -181,40 +182,20 @@ class InstalledAppsRepository(private val context: Context) {
             "createdAt" to FieldValue.serverTimestamp(),
             "read" to false,
             "familyId" to familyId,
-            "clickAction" to
-                    "/children/$childId/installed-apps?pkg=${app.packageName}"
+            "clickAction" to "/children/$childId/installed-apps?pkg=${app.packageName}"
         )
 
-        val firebaseUid = prefHelper.firebaseUid
-
-        if (!firebaseUid.isNullOrBlank()) {
-            notification["userId"] = firebaseUid
+        prefHelper.firebaseUid?.let { uid ->
+            if (uid.isNotBlank()) notification["userId"] = uid
         }
 
-        db
-            .collection(FirebaseConfig.COL_NOTIFICATIONS)
+        db.collection(FirebaseConfig.COL_NOTIFICATIONS)
             .add(notification)
-            .addOnSuccessListener { documentReference ->
-
-                Log.i(
-                    TAG,
-                    "Install notification created: " +
-                            "id=${documentReference.id}, " +
-                            "package=${app.packageName}"
-                )
+            .addOnSuccessListener { doc ->
+                Log.i(TAG, "Install notification created: ${doc.id}")
             }
-            .addOnFailureListener { error ->
-
-                Log.e(
-                    TAG,
-                    "Install notification creation failed: " +
-                            app.packageName,
-                    error
-                )
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to create install notification", e)
             }
     }
-
-    // 2. Create notification record
-
-
 }

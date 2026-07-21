@@ -171,5 +171,6 @@ enum class LockReason {
     NONE,
     REMOTE,
     SCHEDULE,
-    APP_LIMIT
+    APP_LIMIT,
+    APP_BLOCK
 }

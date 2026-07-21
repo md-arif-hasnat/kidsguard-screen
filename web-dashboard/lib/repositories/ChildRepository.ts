@@ -116,6 +116,7 @@ export class ChildRepository {
     const { setDoc } = await import("firebase/firestore");
     if (!db || !childId) return;
     const ref = doc(db, "children", childId, "settings", "lockSchedule");
+    console.log(`[LockScheduleSync] Writing to Firestore path: ${ref.path}`);
     await setDoc(ref, {
       ...schedule,
       updatedAt: serverTimestamp(),

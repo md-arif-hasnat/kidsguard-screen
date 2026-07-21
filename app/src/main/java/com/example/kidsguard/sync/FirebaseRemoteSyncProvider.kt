@@ -1028,18 +1028,42 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         }
         val ref = db.collection(FirebaseConfig.COL_CHILDREN).document(childId)
             .collection("settings").document("lockSchedule")
+        
+        Log.i("LockScheduleSync", "Attaching listener to: ${ref.path}")
+        
         val listener = ref.addSnapshotListener { snap, e ->
             if (e != null) {
                 Log.e("LockScheduleSync", "Error listening to lock schedule", e)
                 return@addSnapshotListener
             }
             if (snap != null && snap.exists()) {
-                trySend(snap.toObject(com.example.kidsguard.models.LockSchedule::class.java))
+                val data = snap.data
+                try {
+                    val daysRaw = data?.get("days") as? List<*>
+                    val daysList = daysRaw?.mapNotNull { (it as? Number)?.toInt() } ?: emptyList()
+                    
+                    val schedule = com.example.kidsguard.models.LockSchedule(
+                        enabled = data?.get("enabled") as? Boolean ?: false,
+                        startMinutes = (data?.get("startMinutes") as? Number)?.toInt() ?: 0,
+                        endMinutes = (data?.get("endMinutes") as? Number)?.toInt() ?: 0,
+                        days = daysList,
+                        timezone = data?.get("timezone") as? String ?: "",
+                        updatedAt = readMillis(data?.get("updatedAt")) ?: 0L
+                    )
+                    Log.d("LockScheduleSync", "Parsed schedule: $schedule")
+                    trySend(schedule)
+                } catch (err: Exception) {
+                    Log.e("LockScheduleSync", "Failed to parse lock schedule", err)
+                }
             } else {
+                Log.d("LockScheduleSync", "Lock schedule document missing")
                 trySend(null)
             }
         }
-        awaitClose { listener.remove() }
+        awaitClose { 
+            Log.i("LockScheduleSync", "Removing listener for lock schedule")
+            listener.remove() 
+        }
     }
 
     // Future placeholders for Messaging

@@ -108,7 +108,12 @@ class MainActivity : ComponentActivity() {
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
-        lockScheduleManager = com.example.kidsguard.managers.LockScheduleManager(this, prefHelper)
+        lockScheduleManager = com.example.kidsguard.managers.LockScheduleManager(
+            this, 
+            prefHelper,
+            onLockRequested = { currentScreenState.value = Screen.Locked },
+            onUnlockRequested = { currentScreenState.value = Screen.Home }
+        )
         wellbeingManager = com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
 
