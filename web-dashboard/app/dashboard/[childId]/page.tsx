@@ -33,7 +33,8 @@ import {
   Shield,
   BarChart3,
   TrendingUp,
-  Globe as GlobeIcon
+  Globe as GlobeIcon,
+  AppWindow
 } from 'lucide-react';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
@@ -408,6 +409,13 @@ export default function ChildDashboard() {
               >
                   <BarChart3 size={18} />
                   App Activity
+              </Link>
+              <Link
+                href={`/children/${childId}/installed-apps`}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
+              >
+                  <AppWindow size={18} />
+                  Installed Apps
               </Link>
               <Link
                 href="/settings/safe-zones"

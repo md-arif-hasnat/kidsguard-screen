@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
         if (prefHelper.userRole == "CHILD") {
             trackingManager.startTracking() // Ensure service is running for commands
             com.example.kidsguard.sync.AppUsageSyncWorker.schedule(this)
+            com.example.kidsguard.repository.InstalledAppsRepository(this).initialScan()
         }
 
         // Check for updates on startup

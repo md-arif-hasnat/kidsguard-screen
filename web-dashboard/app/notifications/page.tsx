@@ -51,6 +51,7 @@ export default function NotificationsPage() {
       case 'BATTERY': return <Battery className="text-orange-500" />;
       case 'DEVICE': return <Smartphone className="text-blue-500" />;
       case 'PAIRING': return <ShieldCheck className="text-primary-500" />;
+      case 'APP_INSTALLED': return <Zap className="text-purple-500" />;
       default: return <Bell className="text-slate-400" />;
     }
   };
@@ -100,6 +101,11 @@ export default function NotificationsPage() {
       childId
     ) {
       return `/dashboard/${encodeURIComponent(childId)}`;
+    }
+
+    if (type === "APP_INSTALLED" && childId) {
+      const pkg = (notification as any).packageName || (notification as any).data?.packageName || "";
+      return `/children/${encodeURIComponent(childId)}/installed-apps?pkg=${encodeURIComponent(pkg)}`;
     }
 
     if (childId) {
