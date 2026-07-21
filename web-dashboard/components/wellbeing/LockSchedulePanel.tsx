@@ -27,6 +27,8 @@ export default function LockSchedulePanel({ childId, canEdit }: LockSchedulePane
     const [schedule, setSchedule] = useState<LockSchedule | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Form state
     const [enabled, setEnabled] = useState(false);
@@ -61,17 +63,35 @@ export default function LockSchedulePanel({ childId, canEdit }: LockSchedulePane
     };
 
     const handleSave = async () => {
+        if (!childId) {
+            setSaveError("Invalid Child ID");
+            return;
+        }
+
         setSaving(true);
+        setSaveError(null);
+        setSaveSuccess(false);
+
+        const path = `children/${childId}/settings/lockSchedule`;
+        const payload = {
+            enabled,
+            startMinutes: timeToMinutes(startTime),
+            endMinutes: timeToMinutes(endTime),
+            days: selectedDays,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+
+        console.log("LOCK_SCHEDULE_SAVE_PATH", path);
+        console.log("LOCK_SCHEDULE_SAVE_PAYLOAD", payload);
+
         try {
-            await ChildRepository.setLockSchedule(childId, {
-                enabled,
-                startMinutes: timeToMinutes(startTime),
-                endMinutes: timeToMinutes(endTime),
-                days: selectedDays,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            });
-        } catch (e) {
-            alert("Failed to save schedule");
+            await ChildRepository.setLockSchedule(childId, payload);
+            console.log("LOCK_SCHEDULE_SAVE_SUCCESS");
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 3000);
+        } catch (e: any) {
+            console.error("LOCK_SCHEDULE_SAVE_FAILED", e);
+            setSaveError(e.message || "Failed to save schedule");
         } finally {
             setSaving(false);
         }
@@ -208,11 +228,33 @@ export default function LockSchedulePanel({ childId, canEdit }: LockSchedulePane
                     <button
                         disabled={!canEdit || saving}
                         onClick={handleSave}
-                        className="mt-8 w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
+                        className={cn(
+                            "mt-8 w-full font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs",
+                            saveSuccess ? "bg-emerald-600 text-white" : "bg-slate-900 hover:bg-slate-800 text-white"
+                        )}
                     >
-                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                        Save Schedule
+                        {saving ? (
+                            <>
+                                <Loader2 className="animate-spin" size={16} />
+                                Saving...
+                            </>
+                        ) : saveSuccess ? (
+                            <>
+                                <ShieldCheck size={16} />
+                                Saved
+                            </>
+                        ) : (
+                            <>
+                                <Save size={16} />
+                                Save Schedule
+                            </>
+                        )}
                     </button>
+                    {saveError && (
+                        <p className="mt-4 text-center text-xs font-bold text-rose-500 animate-in fade-in slide-in-from-top-1">
+                            {saveError}
+                        </p>
+                    )}
                 </div>
             </div>
         </section>

@@ -9,13 +9,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
 
-class LockScheduleManager(private val context: Context, private val prefHelper: PreferenceHelper) {
+class LockScheduleManager(
+    private val context: Context, 
+    private val prefHelper: PreferenceHelper,
+    private val onLockRequested: (() -> Unit)? = null,
+    private val onUnlockRequested: (() -> Unit)? = null
+) {
 
     fun updateSchedule(schedule: LockSchedule?) {
-        Log.d("LockScheduleSync", "schedule received: $schedule")
+        Log.d("LockScheduleSync", "Snapshot received: $schedule")
         if (schedule == null) {
+            Log.d("LockScheduleSync", "Schedule doc missing, using defaults (disabled)")
             prefHelper.lockScheduleJson = null
-            checkAndApply(null)
+            evaluateNow()
             return
         }
         
@@ -30,14 +36,20 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
         }
         
         prefHelper.lockScheduleJson = obj.toString()
-        checkAndApply(schedule)
+        evaluateNow()
+    }
+
+    fun evaluateNow() {
+        val currentSchedule = getSavedSchedule()
+        checkAndApply(currentSchedule)
     }
 
     fun checkAndApply(schedule: LockSchedule?) {
         val currentSchedule = schedule ?: getSavedSchedule()
 
         if (currentSchedule == null || !currentSchedule.enabled) {
-            Log.d("LockScheduleSync", "schedule disabled")
+            Log.d("LockScheduleSync", "Schedule disabled or null")
+            prefHelper.scheduleUnlockOverrideUntil = 0L
             if (prefHelper.lockReason == LockReason.SCHEDULE) {
                 unlockDevice()
             }
@@ -45,16 +57,22 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
         }
 
         val isActive = isInsideSchedule(currentSchedule)
-        Log.d("LockScheduleSync", "enabled=true start=${currentSchedule.startMinutes} end=${currentSchedule.endMinutes} current window active=$isActive")
+        val now = System.currentTimeMillis()
+        
+        Log.d("LockScheduleSync", "Re-evaluating: enabled=true start=${currentSchedule.startMinutes} end=${currentSchedule.endMinutes} current window active=$isActive")
 
         if (isActive) {
-            if (System.currentTimeMillis() < prefHelper.scheduleUnlockOverrideUntil) {
-                Log.d("LockScheduleSync", "schedule relock skipped due to override until ${prefHelper.scheduleUnlockOverrideUntil}")
+            if (now < prefHelper.scheduleUnlockOverrideUntil) {
+                Log.d("LockScheduleSync", "Active window but UNLOCK OVERRIDE is active until ${prefHelper.scheduleUnlockOverrideUntil}")
+                if (prefHelper.lockReason == LockReason.SCHEDULE) {
+                    unlockDevice()
+                }
                 return
             }
             lockDevice()
         } else {
-            // Outside schedule, clear override and reason if it was schedule
+            // Outside schedule window
+            Log.d("LockScheduleSync", "Outside schedule window, clearing override if any")
             prefHelper.scheduleUnlockOverrideUntil = 0L
             if (prefHelper.lockReason == LockReason.SCHEDULE) {
                 unlockDevice()
@@ -86,9 +104,9 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
 
     private fun isInsideSchedule(schedule: LockSchedule): Boolean {
         val now = Calendar.getInstance()
-        // Calendar.DAY_OF_WEEK: SUNDAY=1, MONDAY=2, ... SATURDAY=7
-        // Requirement: 1 = Monday ... 7 = Sunday
-        val dayOfWeek = when (now.get(Calendar.DAY_OF_WEEK)) {
+        
+        // Mapping: 1 = Monday ... 7 = Sunday
+        val currentDay = when (now.get(Calendar.DAY_OF_WEEK)) {
             Calendar.MONDAY -> 1
             Calendar.TUESDAY -> 2
             Calendar.WEDNESDAY -> 3
@@ -98,17 +116,33 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
             Calendar.SUNDAY -> 7
             else -> 1
         }
-
-        if (!schedule.days.contains(dayOfWeek)) return false
-
+        
+        val yesterdayDay = if (currentDay == 1) 7 else currentDay - 1
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         
-        return if (schedule.startMinutes <= schedule.endMinutes) {
-            currentMinutes >= schedule.startMinutes && currentMinutes < schedule.endMinutes
-        } else {
-            // Overnight
-            currentMinutes >= schedule.startMinutes || currentMinutes < schedule.endMinutes
+        val start = schedule.startMinutes
+        val end = schedule.endMinutes
+        
+        // 1. Check if we are in today's scheduled window (starting today)
+        if (schedule.days.contains(currentDay)) {
+            if (start <= end) {
+                // Same-day window
+                if (currentMinutes in start until end) return true
+            } else {
+                // Overnight window starting today
+                if (currentMinutes >= start) return true
+            }
         }
+        
+        // 2. Check if we are in yesterday's scheduled window (tail end of overnight)
+        if (schedule.days.contains(yesterdayDay)) {
+            if (start > end) {
+                // It was an overnight window
+                if (currentMinutes < end) return true
+            }
+        }
+        
+        return false
     }
 
     private fun lockDevice() {
@@ -116,8 +150,7 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
             Log.i("LockScheduleSync", "Applying SCHEDULE lock")
             prefHelper.isLocked = true
             prefHelper.lockReason = LockReason.SCHEDULE
-            // In a real app, this would trigger an intent to the LockActivity or update a state that the LockEngine observes.
-            // Based on previous contexts, prefHelper.isLocked being true should be enough if the LockActivity/Service is watching it.
+            onLockRequested?.invoke()
         }
     }
 
@@ -126,6 +159,7 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
             Log.i("LockScheduleSync", "Clearing SCHEDULE lock")
             prefHelper.isLocked = false
             prefHelper.lockReason = LockReason.NONE
+            onUnlockRequested?.invoke()
         }
     }
 
@@ -146,17 +180,16 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
             if (currentSchedule.startMinutes > currentSchedule.endMinutes && currentMinutes >= currentSchedule.startMinutes) {
                 // If it's overnight and we are currently before midnight
                 endCalendar.add(Calendar.DAY_OF_MONTH, 1)
-            } else if (currentSchedule.startMinutes > currentSchedule.endMinutes && currentMinutes < currentSchedule.endMinutes) {
-                 // If it's overnight and we are currently after midnight, endCalendar is already today morning
             }
 
             prefHelper.scheduleUnlockOverrideUntil = endCalendar.timeInMillis
-            Log.i("LockScheduleSync", "parent unlock override until=${endCalendar.timeInMillis}")
+            Log.i("LockScheduleSync", "Parent manual UNLOCK during active schedule. Override until=${endCalendar.timeInMillis}")
         }
         
         if (prefHelper.lockReason == LockReason.SCHEDULE || prefHelper.lockReason == LockReason.REMOTE) {
             prefHelper.isLocked = false
             prefHelper.lockReason = LockReason.NONE
+            onUnlockRequested?.invoke()
         }
     }
     
@@ -164,5 +197,6 @@ class LockScheduleManager(private val context: Context, private val prefHelper: 
         prefHelper.isLocked = true
         prefHelper.lockReason = LockReason.REMOTE
         prefHelper.scheduleUnlockOverrideUntil = 0L // Clear override if manually locked
+        onLockRequested?.invoke()
     }
 }
