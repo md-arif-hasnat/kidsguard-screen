@@ -26,7 +26,8 @@ class RemoteCommandHandler(
     private val onRefreshLocationRequested: () -> Unit,
     private val onShowMessageRequested: (String) -> Unit,
     private val onRingRequested: () -> Unit,
-    private val onVibrateRequested: () -> Unit
+    private val onVibrateRequested: () -> Unit,
+    private val lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager? = null
 ) {
     private val TAG = "RemoteCommandHandler"
 
@@ -57,12 +58,14 @@ class RemoteCommandHandler(
             when (command.commandType) {
                 CommandType.LOCK_NOW, CommandType.LOCK_DEVICE -> {
                     prefHelper.isLocked = true
+                    lockScheduleManager?.handleManualLock()
                     onLockRequested()
                     logActivity("REMOTE_LOCK", "Remote Lock Executed", "Parent locked the device")
                     showToast("Remote LOCK executed")
                 }
                 CommandType.UNLOCK_NOW, CommandType.UNLOCK_DEVICE -> {
                     prefHelper.isLocked = false
+                    lockScheduleManager?.handleManualUnlock()
                     onUnlockRequested()
                     logActivity("REMOTE_UNLOCK", "Remote Unlock Executed", "Parent unlocked the device")
                     showToast("Remote UNLOCK executed")

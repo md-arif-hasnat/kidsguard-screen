@@ -63,6 +63,16 @@ export interface SyncSafetySummary {
   recommendation: string;
 }
 
+export interface LockSchedule {
+  enabled: boolean;
+  startMinutes: number;
+  endMinutes: number;
+  days: number[]; // 1=Mon, 7=Sun
+  timezone: string;
+  updatedAt: any;
+  updatedBy: string;
+}
+
 export class ChildRepository {
   static listenToChildStatus(childId: string, onUpdate: (status: ChildStatus | null) => void) {
     if (!db || !childId) return () => {};
@@ -78,6 +88,39 @@ export class ChildRepository {
       console.error("Error listening to child status:", error);
       onUpdate(null);
     });
+  }
+
+  static listenToLockSchedule(childId: string, onUpdate: (schedule: LockSchedule | null) => void) {
+    if (!db || !childId) return () => {};
+    const ref = doc(db, "children", childId, "settings", "lockSchedule");
+    return onSnapshot(ref, (snap) => {
+      if (snap.exists()) onUpdate(snap.data() as LockSchedule);
+      else onUpdate(null);
+    }, (err) => {
+      console.error("Error listening to lock schedule:", err);
+      onUpdate(null);
+    });
+  }
+
+  static async updateLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>): Promise<void> {
+    if (!db || !childId) return;
+    const ref = doc(db, "children", childId, "settings", "lockSchedule");
+    await updateDoc(ref, {
+      ...schedule,
+      updatedAt: serverTimestamp(),
+      updatedBy: "PARENT"
+    });
+  }
+
+  static async setLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>): Promise<void> {
+    const { setDoc } = await import("firebase/firestore");
+    if (!db || !childId) return;
+    const ref = doc(db, "children", childId, "settings", "lockSchedule");
+    await setDoc(ref, {
+      ...schedule,
+      updatedAt: serverTimestamp(),
+      updatedBy: "PARENT"
+    }, { merge: true });
   }
 
   static async updateAvatar(childId: string, avatarId: string): Promise<void> {

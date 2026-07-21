@@ -146,3 +146,20 @@ data class RouteSession(
     var maxSpeed: Float = 0f,
     var points: List<LocationPoint> = emptyList()
 )
+
+@Keep
+data class LockSchedule(
+    val enabled: Boolean = false,
+    val startMinutes: Int = 0,
+    val endMinutes: Int = 0,
+    val days: List<Int> = emptyList(),
+    val timezone: String = "",
+    val updatedAt: Long = 0L
+)
+
+enum class LockReason {
+    NONE,
+    REMOTE,
+    SCHEDULE,
+    APP_LIMIT
+}

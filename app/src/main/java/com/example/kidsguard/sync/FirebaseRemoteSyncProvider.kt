@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -844,6 +845,31 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         }
     }
 
+    override suspend fun syncDailyAppUsage(usage: com.example.kidsguard.models.DailyAppUsage): Result<Unit> {
+        if (usage.childId.isBlank()) {
+            return Result.failure(IllegalArgumentException("childId is blank"))
+        }
+
+        return try {
+            val path = "${FirebaseConfig.COL_CHILDREN}/${usage.childId}/appUsage/${usage.date}"
+            Log.d("AppUsageSync", "Uploading usage to Firestore: $path")
+            
+            db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(usage.childId)
+                .collection("appUsage")
+                .document(usage.date)
+                .set(usage, com.google.firebase.firestore.SetOptions.merge())
+                .await()
+                
+            Log.i("AppUsageSync", "Upload success: $path")
+            _lastSyncTimestamp.value = System.currentTimeMillis()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AppUsageSync", "Upload failed: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     override fun getWellbeingSettings(childId: String): Flow<SyncWellbeingSettings?> =
         callbackFlow {
             if (childId.isEmpty()) {
@@ -994,6 +1020,27 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
             awaitClose { registration.remove() }
         }
+
+    override fun listenToLockSchedule(childId: String): Flow<com.example.kidsguard.models.LockSchedule?> = callbackFlow {
+        if (childId.isBlank()) {
+            trySend(null)
+            return@callbackFlow
+        }
+        val ref = db.collection(FirebaseConfig.COL_CHILDREN).document(childId)
+            .collection("settings").document("lockSchedule")
+        val listener = ref.addSnapshotListener { snap, e ->
+            if (e != null) {
+                Log.e("LockScheduleSync", "Error listening to lock schedule", e)
+                return@addSnapshotListener
+            }
+            if (snap != null && snap.exists()) {
+                trySend(snap.toObject(com.example.kidsguard.models.LockSchedule::class.java))
+            } else {
+                trySend(null)
+            }
+        }
+        awaitClose { listener.remove() }
+    }
 
     // Future placeholders for Messaging
     fun registerFcmToken(uid: String, token: String, role: String) {

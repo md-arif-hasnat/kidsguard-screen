@@ -245,6 +245,27 @@ fun DeveloperMenuScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             DeveloperActionItem(
+                title = "Sync App Usage Now",
+                description = "Collect and upload today's app usage statistics to Firestore.",
+                onClick = {
+                    scope.launch {
+                        val repository = com.example.kidsguard.repository.AppUsageRepository(context)
+                        val usage = repository.getTodayUsage()
+                        if (usage != null) {
+                            val result = syncProvider.syncDailyAppUsage(usage)
+                            if (result.isSuccess) {
+                                android.widget.Toast.makeText(context, "Usage synced: ${usage.apps.size} apps", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "Sync failed: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            android.widget.Toast.makeText(context, "No usage data or permission missing", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+
+            DeveloperActionItem(
                 title = "Reset Role Selection",
                 description = "Resets user role to NONE and clears pairing data.",
                 onClick = { showConfirmDialog = "RESET_ROLE" }

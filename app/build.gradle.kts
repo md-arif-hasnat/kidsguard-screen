@@ -67,6 +67,8 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
     implementation(libs.google.maps.compose)
+    implementation(libs.androidx.work)
+    implementation(libs.gson)
 
     // Firebase
     implementation(platform(libs.firebase.bom))

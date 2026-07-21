@@ -155,6 +155,12 @@ fun HomeScreen(
         }
     }
 
+    // Application status states
+    val isTrackingActive = true // Tracking service is always active if child
+    val isAppUsageScheduled by com.example.kidsguard.sync.AppUsageSyncWorker.isScheduled(context).collectAsState(initial = false)
+    val isUsagePermissionGranted = remember(allGranted) { PermissionUtils.hasUsageStatsPermission(context) }
+    val isAppUsageActive = isAppUsageScheduled && isUsagePermissionGranted && prefHelper.familyId != null
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -518,6 +524,11 @@ fun HomeScreen(
                         active = !prefHelper.isLocked
                     )
                     StatusItem(label = "Tracking Service", value = "ACTIVE", active = true)
+                    StatusItem(
+                        label = "App Usage Sync",
+                        value = if (isAppUsageActive) "ACTIVE" else "INACTIVE",
+                        active = isAppUsageActive
+                    )
                     if (prefHelper.isScheduleEnabled) {
                         StatusItem(
                             label = "Schedule",
