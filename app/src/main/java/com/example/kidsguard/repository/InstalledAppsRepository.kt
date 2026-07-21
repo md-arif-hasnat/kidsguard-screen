@@ -2,13 +2,12 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.util.Log
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.InstalledApp
 import com.example.kidsguard.sync.FirebaseConfig
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 
 class InstalledAppsRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("installed_apps_cache", Context.MODE_PRIVATE)
@@ -52,7 +51,7 @@ class InstalledAppsRepository(private val context: Context) {
 
             // Ignore common manufacturer/system prefixes
             val ignorePrefixes = listOf(
-                "com.android.", "com.google.android.", "com.huawei.", 
+                "com.android.", "com.google.android.", "com.huawei.",
                 "com.samsung.", "com.sec.android.", "com.oppo.", "com.vivo.", "com.xiaomi."
             )
             if (ignorePrefixes.any { packageName.startsWith(it) }) {
@@ -75,49 +74,147 @@ class InstalledAppsRepository(private val context: Context) {
             )
 
             syncAppInstall(installedApp)
-            
+
             // Add to cache
             prefs.edit().putBoolean(packageName, true).apply()
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error handling package added: $packageName", e)
         }
     }
 
+    fun handlePackageRemoved(packageName: String) {
+        prefs.edit()
+            .remove(packageName)
+            .apply()
+
+        Log.i(
+            TAG,
+            "Removed package from install cache: $packageName"
+        )
+    }
+
     private fun syncAppInstall(app: InstalledApp) {
-        val childId = prefHelper.childId
-        if (childId.isEmpty()) return
 
-        Log.i(TAG, "New app detected: ${app.appName} (${app.packageName})")
+        val childId: String? =
+            prefHelper.childId
+                .takeIf { it.isNotBlank() }
+                ?: prefHelper.pairedChildId
+                    ?.takeIf { it.isNotBlank() }
 
-        // 1. Save to children/{childId}/installedApps/{packageName}
-        db.collection(FirebaseConfig.COL_CHILDREN)
+        if (childId == null) {
+            Log.e(
+                TAG,
+                "App install sync aborted: childId is missing"
+            )
+            return
+        }
+
+        Log.d(
+            TAG,
+            "Syncing installed app: childId=$childId, package=${app.packageName}"
+        )
+
+        Log.i(
+            TAG,
+            "New app detected: ${app.appName} (${app.packageName})"
+        )
+
+// Firestore path:
+// children/{childId}/installedApps/{packageName}
+        val appRef = db
+            .collection(FirebaseConfig.COL_CHILDREN)
             .document(childId)
             .collection("installedApps")
             .document(app.packageName)
+
+        Log.d(
+            TAG,
+            "Writing installed app to: ${appRef.path}"
+        )
+
+        appRef
             .set(app)
             .addOnSuccessListener {
-                Log.d(TAG, "App record synced: ${app.packageName}")
-            }
 
-        // 2. Create notification record
-        val notification = mapOf(
+                Log.i(
+                    TAG,
+                    "App record synced successfully: " +
+                            "${app.appName} (${app.packageName})"
+                )
+
+                createInstallNotification(
+                    childId = childId,
+                    app = app
+                )
+            }
+            .addOnFailureListener { error ->
+
+                Log.e(
+                    TAG,
+                    "Failed to sync installed app: path=${appRef.path}",
+                    error
+                )
+            }
+    }
+
+
+    private fun createInstallNotification(
+        childId: String,
+        app: InstalledApp
+    ) {
+
+        val familyId = prefHelper.familyId
+            ?.takeIf { it.isNotBlank() }
+            ?: ""
+
+        val childName = prefHelper.childName
+            .takeIf { it.isNotBlank() }
+            ?: "Child"
+
+        val notification = hashMapOf<String, Any>(
             "type" to "APP_INSTALLED",
             "childId" to childId,
-            "childName" to prefHelper.childName,
+            "childName" to childName,
             "appName" to app.appName,
             "packageName" to app.packageName,
             "createdAt" to FieldValue.serverTimestamp(),
             "read" to false,
-            "userId" to (prefHelper.firebaseUid ?: ""), // Assuming parent UID is stored or resolved via familyId
-            "familyId" to (prefHelper.familyId ?: ""),
-            "clickAction" to "/children/$childId/installed-apps?pkg=${app.packageName}"
+            "familyId" to familyId,
+            "clickAction" to
+                    "/children/$childId/installed-apps?pkg=${app.packageName}"
         )
 
-        db.collection(FirebaseConfig.COL_NOTIFICATIONS)
+        val firebaseUid = prefHelper.firebaseUid
+
+        if (!firebaseUid.isNullOrBlank()) {
+            notification["userId"] = firebaseUid
+        }
+
+        db
+            .collection(FirebaseConfig.COL_NOTIFICATIONS)
             .add(notification)
-            .addOnSuccessListener {
-                Log.d(TAG, "Install notification created")
+            .addOnSuccessListener { documentReference ->
+
+                Log.i(
+                    TAG,
+                    "Install notification created: " +
+                            "id=${documentReference.id}, " +
+                            "package=${app.packageName}"
+                )
+            }
+            .addOnFailureListener { error ->
+
+                Log.e(
+                    TAG,
+                    "Install notification creation failed: " +
+                            app.packageName,
+                    error
+                )
             }
     }
+
+    // 2. Create notification record
+
+
 }

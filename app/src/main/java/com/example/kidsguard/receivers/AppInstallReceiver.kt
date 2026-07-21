@@ -7,15 +7,47 @@ import android.util.Log
 import com.example.kidsguard.repository.InstalledAppsRepository
 
 class AppInstallReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_PACKAGE_ADDED) {
-            val packageName = intent.data?.encodedSchemeSpecificPart
-            val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
 
-            if (packageName != null && !replacing) {
-                Log.i("AppInstallReceiver", "Package added: $packageName")
-                InstalledAppsRepository(context).handlePackageAdded(packageName)
+    override fun onReceive(context: Context, intent: Intent) {
+        val packageName =
+            intent.data?.schemeSpecificPart?.takeIf { it.isNotBlank() }
+                ?: return
+
+        val replacing =
+            intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+
+        when (intent.action) {
+
+            Intent.ACTION_PACKAGE_ADDED -> {
+                if (replacing) return
+
+                Log.i(
+                    "AppInstallMonitor",
+                    "New package added: $packageName"
+                )
+
+                InstalledAppsRepository(context.applicationContext)
+                    .handlePackageAdded(packageName)
+            }
+
+            Intent.ACTION_PACKAGE_REMOVED -> {
+                if (replacing) return
+
+                Log.i(
+                    "AppInstallMonitor",
+                    "Package removed: $packageName"
+                )
+
+                InstalledAppsRepository(context.applicationContext)
+                    .handlePackageRemoved(packageName)
             }
         }
     }
+
+
+    companion object {
+        private const val TAG = "AppInstallReceiver"
+    }
 }
+
+

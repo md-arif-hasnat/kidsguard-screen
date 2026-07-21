@@ -5,6 +5,13 @@ enum class AppCategory {
     MESSAGING, BROWSER, SHOPPING, FINANCE, SYSTEM, OTHER
 }
 
+enum class AppBlockReason {
+    NONE,
+    STATIC_BLOCK,
+    LIMIT_REACHED,
+    SCHEDULE
+}
+
 data class AppUsageInfo(
     val packageName: String,
     val appName: String,

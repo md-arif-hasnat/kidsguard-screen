@@ -115,6 +115,41 @@ service cloud.firestore {
           );
         }
       }
+
+      match /installedApps/{packageName} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == childId ||
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+        allow write: if isSignedIn() && (
+          request.auth.uid == childId ||
+          (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
+        );
+      }
+
+      match /appControls/{packageName} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == childId ||
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+        allow write: if isSignedIn() && (
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+      }
+
+      match /appAccessRequests/{requestId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == childId ||
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+        allow create: if isSignedIn() && (
+          request.auth.uid == childId ||
+          (exists(/databases/$(database)/documents/devices/$(childId)) && get(/databases/$(database)/documents/devices/$(childId)).data.firebaseUid == request.auth.uid)
+        );
+        allow update: if isSignedIn() && (
+          isFamilyMember(get(/databases/$(database)/documents/children/$(childId)).data.familyId)
+        );
+      }
     }
 
     // Collection Group rule for SOS Alerts (Parent Dashboard Overview)
