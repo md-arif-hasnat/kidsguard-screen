@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository
     private lateinit var childStatusManager: ChildStatusManager
     private lateinit var lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager
+    private lateinit var wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager
     private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private var unpairListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var currentScreenState = mutableStateOf(Screen.Home)
     private var blockedPackageName = mutableStateOf<String?>(null)
+    private var blockedReason = mutableStateOf<String?>(null)
     private var blockedUrl = mutableStateOf<String?>(null)
     private var remoteMessage = mutableStateOf<String?>(null)
     private var remoteCommandMode = mutableStateOf(com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE)
@@ -107,6 +109,7 @@ class MainActivity : ComponentActivity() {
         routeRepository = RouteRepository(locationRepository)
         dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
         lockScheduleManager = com.example.kidsguard.managers.LockScheduleManager(this, prefHelper)
+        wellbeingManager = com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
 
         // Initialize synchronization for repositories
@@ -298,12 +301,14 @@ class MainActivity : ComponentActivity() {
                         authRepository = authRepository,
                         protectionModeRepository = protectionModeRepository,
                         remoteCommandRepository = remoteCommandRepository,
+                        wellbeingManager = wellbeingManager,
                         onParentLoginSuccess = {
                             lifecycleScope.launch {
                                 parentNotificationManager.registerParentDevice()
                             }
                         },
                         blockedPackage = blockedPackageName.value,
+                        blockedReason = blockedReason.value,
                         blockedUrl = blockedUrl.value,
                         onRequestWebAccess = { url ->
                             webManager.requestAccess(url)
@@ -378,7 +383,9 @@ class MainActivity : ComponentActivity() {
         val action = intent.getStringExtra("action")
         if (action == "BLOCK_SCREEN") {
             val pkg = intent.getStringExtra("blocked_package")
+            val reason = intent.getStringExtra("block_reason")
             blockedPackageName.value = pkg
+            blockedReason.value = reason
             currentScreenState.value = Screen.AppBlocked
         } else if (action == "WEB_BLOCKED") {
             val url = intent.getStringExtra("blocked_url")

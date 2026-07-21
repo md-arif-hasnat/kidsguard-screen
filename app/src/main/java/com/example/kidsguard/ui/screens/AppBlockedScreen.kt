@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,8 +18,12 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AppBlockedScreen(
     packageName: String?,
-    onBackToHome: () -> Unit
+    reason: String?,
+    onBackToHome: () -> Unit,
+    onRequestAccess: (String, String) -> Unit
 ) {
+    val isLimit = reason == "LIMIT_REACHED"
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -31,26 +36,29 @@ fun AppBlockedScreen(
             modifier = Modifier.padding(32.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Block,
+                imageVector = if (isLimit) Icons.Default.Timer else Icons.Default.Block,
                 contentDescription = null,
-                tint = Color.Red,
+                tint = if (isLimit) Color.Yellow else Color.Red,
                 modifier = Modifier.size(100.dp)
             )
             
             Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = "APP BLOCKED",
+                text = if (isLimit) "DAILY LIMIT REACHED" else "APP BLOCKED",
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp
+                letterSpacing = 2.sp,
+                textAlign = TextAlign.Center
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = "This application has been blocked by your parent.",
+                text = if (isLimit) 
+                    "You have reached your daily time limit for this application." 
+                    else "This application has been blocked by your parent.",
                 color = Color.Gray,
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp,
@@ -60,7 +68,7 @@ fun AppBlockedScreen(
             if (packageName != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "ID: $packageName",
+                    text = packageName,
                     color = Color.DarkGray,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -71,12 +79,28 @@ fun AppBlockedScreen(
             
             Button(
                 onClick = onBackToHome,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isLimit) Color.DarkGray else Color.Red),
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
                 Text(
-                    text = "BACK TO HOME",
+                    text = "GO HOME",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = { packageName?.let { onRequestAccess(it, reason ?: "BLOCKED") } },
+                shape = MaterialTheme.shapes.large,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray),
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Text(
+                    text = if (isLimit) "REQUEST MORE TIME" else "REQUEST ACCESS",
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )

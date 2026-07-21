@@ -1,11 +1,19 @@
 package com.example.kidsguard.wellbeing
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import com.example.kidsguard.admin.KidsGuardAdminReceiver
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.repository.AppControlRepository
+import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncAppUsage
 import com.example.kidsguard.sync.SyncWellbeingSettings
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -13,12 +21,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
-import android.os.Build
-import android.os.UserManager
-import androidx.annotation.RequiresApi
-import com.example.kidsguard.admin.KidsGuardAdminReceiver
+import android.content.Intent
+import android.content.pm.PackageManager
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,6 +35,8 @@ class WellbeingManager(
     private val tracker = AppUsageTracker(context)
     private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     private val adminComponent = ComponentName(context, KidsGuardAdminReceiver::class.java)
+    private val appControlRepository = AppControlRepository(context)
+    private val db = FirebaseFirestore.getInstance()
 
     private val _settings = MutableStateFlow(WellbeingSettings())
     val settings: StateFlow<WellbeingSettings> = _settings
@@ -40,6 +46,7 @@ class WellbeingManager(
     }
 
     init {
+        appControlRepository.startListening()
         startSettingsListener()
         startUsageSync()
         applySystemRestrictions()
@@ -48,16 +55,10 @@ class WellbeingManager(
     private fun applySystemRestrictions() {
         if (dpm.isAdminActive(adminComponent)) {
             try {
-                // Android 15+: Prevent creating Private Space to bypass parental controls
-                if (Build.VERSION.SDK_INT >= 35) { // Android 15
-                    // UserManager.DISALLOW_ADD_PRIVATE_PROFILE is "no_add_private_profile"
+                if (Build.VERSION.SDK_INT >= 35) {
                     dpm.addUserRestriction(adminComponent, "no_add_private_profile")
                     Log.i(TAG, "Restriction applied: no_add_private_profile")
                 }
-                
-                // Prevent uninstalling KidsGuard if it's a device admin
-                // Note: Standard Admin cannot set itself as uninstall protected easily 
-                // but we can monitor it.
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply system restrictions", e)
             }
@@ -120,38 +121,108 @@ class WellbeingManager(
         usage.forEach { app ->
             val limit = currentLimits.find { it.packageName == app.packageName && it.enabled }
             if (limit != null && app.totalTimeVisibleMs >= limit.dailyLimitMs) {
-                // Limit reached!
-                // Trigger notification or local block
                 Log.w(TAG, "Limit reached for ${app.appName}: ${app.totalTimeVisibleMs}ms >= ${limit.dailyLimitMs}ms")
             }
         }
     }
 
-    fun isAppBlocked(packageName: String): Boolean {
-        // Emergency apps never blocked
-        if (isEmergencyApp(packageName)) return false
+    fun getAppBlockReason(packageName: String): AppBlockReason {
+        if (isEmergencyApp(packageName)) return AppBlockReason.NONE
         
+        val control = appControlRepository.getControl(packageName)
+        if (control != null) {
+            if (control.blocked) {
+                Log.i("AppBlock", "Blocking $packageName: Static block from appControls")
+                return AppBlockReason.STATIC_BLOCK
+            }
+            
+            if (control.dailyLimitMinutes != null) {
+                val usage = tracker.getDailyUsage().find { it.packageName == packageName }
+                val usageMins = (usage?.totalTimeVisibleMs ?: 0L) / 60000
+                if (usageMins >= control.dailyLimitMinutes!!) {
+                    Log.i("AppLimit", "Blocking $packageName: Limit reached (${usageMins}m >= ${control.dailyLimitMinutes}m)")
+                    return AppBlockReason.LIMIT_REACHED
+                }
+            }
+        }
+
         val currentSettings = _settings.value
-        
-        // 1. Static Block Rules
         if (currentSettings.blockRules.any { it.packageName == packageName && it.isBlocked }) {
-            return true
+            return AppBlockReason.STATIC_BLOCK
         }
         
-        // 2. Daily Limits
         val usage = tracker.getDailyUsage()
         val appUsage = usage.find { it.packageName == packageName }
-        val limit = currentSettings.appLimits.find { it.packageName == packageName && it.enabled }
-        if (appUsage != null && limit != null && appUsage.totalTimeVisibleMs >= limit.dailyLimitMs) {
-            return true
+        val legacyLimit = currentSettings.appLimits.find { it.packageName == packageName && it.enabled }
+        if (appUsage != null && legacyLimit != null && appUsage.totalTimeVisibleMs >= legacyLimit.dailyLimitMs) {
+            return AppBlockReason.LIMIT_REACHED
         }
 
-        // 3. Schedules
         if (isInsideBlockedSchedule(packageName, currentSettings)) {
-            return true
+            return AppBlockReason.SCHEDULE
         }
 
-        return false
+        return AppBlockReason.NONE
+    }
+
+    fun isAppBlocked(packageName: String): Boolean {
+        return getAppBlockReason(packageName) != AppBlockReason.NONE
+    }
+
+    fun getAppName(packageName: String): String {
+        val control = appControlRepository.getControl(packageName)
+        if (control != null && control.appName.isNotEmpty()) {
+            return control.appName
+        }
+
+        return try {
+            val pm = context.packageManager
+            val info = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(info).toString()
+        } catch (e: Exception) {
+            packageName
+        }
+    }
+
+    fun requestAccess(packageName: String, reason: String) {
+        val childId = prefHelper.childId
+        if (childId.isEmpty()) return
+
+        val appName = getAppName(packageName)
+        Log.i("RequestAccess", "Requesting access for $packageName ($reason)")
+        
+        val requestId = UUID.randomUUID().toString()
+        val request = mapOf(
+            "childId" to childId,
+            "childName" to prefHelper.childName,
+            "packageName" to packageName,
+            "appName" to appName,
+            "reason" to reason,
+            "status" to "PENDING",
+            "requestedAt" to FieldValue.serverTimestamp()
+        )
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("appAccessRequests")
+            .document(requestId)
+            .set(request)
+
+        val notification = mapOf(
+            "type" to "APP_ACCESS_REQUEST",
+            "childId" to childId,
+            "childName" to prefHelper.childName,
+            "appName" to appName,
+            "packageName" to packageName,
+            "reason" to reason,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "read" to false,
+            "familyId" to (prefHelper.familyId ?: ""),
+            "clickAction" to "/children/$childId/installed-apps?pkg=$packageName"
+        )
+
+        db.collection(FirebaseConfig.COL_NOTIFICATIONS)
+            .add(notification)
     }
 
     private fun isInsideBlockedSchedule(packageName: String, settings: WellbeingSettings): Boolean {
@@ -159,13 +230,9 @@ class WellbeingManager(
         val currentDay = now.get(Calendar.DAY_OF_WEEK)
         val currentTime = String.format("%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
         
-        // We could classify app on the fly or use cached category
-        // For now, let's just check package-based schedules if any
-        
         settings.globalSchedules.filter { it.enabled && it.daysOfWeek.contains(currentDay) }.forEach { schedule ->
             if (currentTime >= schedule.startTime && currentTime <= schedule.endTime) {
                 if (schedule.blockedPackages.contains(packageName)) return true
-                // We'd also check categories here
             }
         }
         
@@ -174,14 +241,27 @@ class WellbeingManager(
 
     private fun isEmergencyApp(packageName: String): Boolean {
         val emergency = listOf(
-            context.packageName, // Our own app
+            context.packageName,
             "com.android.phone",
             "com.android.server.telecom",
             "com.android.contacts",
             "com.android.settings",
             "com.android.camera",
-            "com.google.android.apps.maps"
+            "com.google.android.apps.maps",
+            "com.android.systemui",
+            "com.google.android.packageinstaller",
+            "com.android.packageinstaller"
         )
-        return emergency.contains(packageName)
+        // Also don't block launchers
+        if (isLauncher(packageName)) return true
+        
+        return emergency.contains(packageName) || packageName.startsWith("com.android.settings")
+    }
+
+    private fun isLauncher(packageName: String): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN)
+        intent.addCategory(Intent.CATEGORY_HOME)
+        val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        return resolveInfo?.activityInfo?.packageName == packageName
     }
 }

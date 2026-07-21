@@ -37,8 +37,10 @@ fun KidsGuardApp(
     authRepository: AuthRepository,
     protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository,
     remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository,
+    wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager,
     onParentLoginSuccess: () -> Unit = {},
     blockedPackage: String? = null,
+    blockedReason: String? = null,
     blockedUrl: String? = null,
     onRequestWebAccess: (String) -> Unit = {},
     remoteMessage: String? = null,
@@ -467,7 +469,12 @@ fun KidsGuardApp(
             )
             Screen.AppBlocked -> AppBlockedScreen(
                 packageName = blockedPackage,
-                onBackToHome = { onScreenChange(Screen.Home) }
+                reason = blockedReason,
+                onBackToHome = { onScreenChange(Screen.Home) },
+                onRequestAccess = { pkg, reason ->
+                    wellbeingManager.requestAccess(pkg, reason)
+                    android.widget.Toast.makeText(context, "Access request sent to parent.", android.widget.Toast.LENGTH_SHORT).show()
+                }
             )
             Screen.WebBlocked -> WebBlockedScreen(
                 url = blockedUrl,

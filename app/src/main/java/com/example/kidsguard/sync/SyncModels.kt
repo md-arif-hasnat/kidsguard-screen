@@ -190,6 +190,15 @@ data class SyncAppBlockRule(
 )
 
 @Keep
+data class SyncAppControl(
+    var packageName: String = "",
+    var appName: String = "",
+    var blocked: Boolean = false,
+    var dailyLimitMinutes: Int? = null,
+    var updatedAt: Long? = null
+)
+
+@Keep
 data class SyncWellbeingSettings(
     var appLimits: List<SyncAppLimit> = emptyList(),
     var blockRules: List<SyncAppBlockRule> = emptyList()

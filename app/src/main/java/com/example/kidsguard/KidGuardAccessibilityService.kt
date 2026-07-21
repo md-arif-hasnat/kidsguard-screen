@@ -11,6 +11,8 @@ import com.example.kidsguard.web.WebProtectionManager
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
 import com.example.kidsguard.managers.ProtectionModeManager
 
+import com.example.kidsguard.wellbeing.AppBlockReason
+
 class KidGuardAccessibilityService : AccessibilityService() {
 
     private var wellbeingManager: WellbeingManager? = null
@@ -61,8 +63,11 @@ class KidGuardAccessibilityService : AccessibilityService() {
         // 3. Individual App Blocking
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
-            if (packageName != applicationContext.packageName && wellbeingManager?.isAppBlocked(packageName) == true) {
-                blockApp(packageName)
+            if (packageName != applicationContext.packageName) {
+                val reason = wellbeingManager?.getAppBlockReason(packageName) ?: AppBlockReason.NONE
+                if (reason != AppBlockReason.NONE) {
+                    blockApp(packageName, reason)
+                }
             }
         }
     }
@@ -161,13 +166,14 @@ class KidGuardAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun blockApp(packageName: String) {
+    private fun blockApp(packageName: String, reason: AppBlockReason = AppBlockReason.STATIC_BLOCK) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra("action", "BLOCK_SCREEN")
             putExtra("blocked_package", packageName)
+            putExtra("block_reason", reason.name)
         }
         safeStartActivity(intent)
     }
