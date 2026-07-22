@@ -8,24 +8,28 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.example.kidsguard.ai.DailySummaryRepository
+import com.example.kidsguard.ai.LocalRuleBasedSummaryProvider
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.navigation.KidsGuardApp
 import com.example.kidsguard.navigation.Screen
+import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.RouteRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.repository.SosRepository
 import com.example.kidsguard.routeintelligence.KnownRouteRepository
-import com.example.kidsguard.ai.DailySummaryRepository
-import com.example.kidsguard.ai.LocalRuleBasedSummaryProvider
 import com.example.kidsguard.sync.ChildStatusManager
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
@@ -35,10 +39,8 @@ import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
-import com.example.kidsguard.update.UpdateRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
-import com.example.kidsguard.location.LocalLocationProvider
-import com.example.kidsguard.notifications.LocalNotificationEngine
+import com.example.kidsguard.update.UpdateRepository
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +75,8 @@ class MainActivity : ComponentActivity() {
     private var blockedReason = mutableStateOf<String?>(null)
     private var blockedUrl = mutableStateOf<String?>(null)
     private var remoteMessage = mutableStateOf<String?>(null)
-    private var remoteCommandMode = mutableStateOf(com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE)
+    private var remoteCommandMode =
+        mutableStateOf(com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE)
     private var volumeUpTapCount = 0
     private var firstVolumeUpTapTime = 0L
 
@@ -88,13 +91,15 @@ class MainActivity : ComponentActivity() {
         notificationEngine = LocalNotificationEngine(this, errorLogRepository)
         locationProvider = LocalLocationProvider(this)
         reverseGeocoder = com.example.kidsguard.geocoding.ReverseGeocoder(this, errorLogRepository)
-        
+
         trackingRepository = TrackingRepository(this)
         updateRepository = UpdateRepository(this)
-        trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
+        trackingManager =
+            BackgroundTrackingManager(LocalTrackingScheduler(this), trackingRepository)
         authRepository = AuthRepository(this)
         protectionModeRepository = com.example.kidsguard.repository.ProtectionModeRepository()
-        parentNotificationManager = com.example.kidsguard.notifications.ParentNotificationManager(this)
+        parentNotificationManager =
+            com.example.kidsguard.notifications.ParentNotificationManager(this)
 
         syncProvider = if (FirebaseConfig.shouldUseFirebase(this)) {
             FirebaseRemoteSyncProvider(this)
@@ -102,19 +107,36 @@ class MainActivity : ComponentActivity() {
             LocalMockSyncProvider()
         }
 
-        remoteCommandRepository = com.example.kidsguard.repository.RemoteCommandRepository(syncProvider)
+        remoteCommandRepository =
+            com.example.kidsguard.repository.RemoteCommandRepository(syncProvider)
 
-        locationRepository = LocationRepository(this, repository, knownRouteRepository, reverseGeocoder, errorLogRepository, syncProvider)
+        locationRepository = LocationRepository(
+            this,
+            repository,
+            knownRouteRepository,
+            reverseGeocoder,
+            errorLogRepository,
+            syncProvider
+        )
         sosRepository = SosRepository(this)
         routeRepository = RouteRepository(locationRepository)
-        dailySummaryRepository = DailySummaryRepository(this, locationRepository, repository, routeRepository, sosRepository, LocalRuleBasedSummaryProvider(), errorLogRepository)
+        dailySummaryRepository = DailySummaryRepository(
+            this,
+            locationRepository,
+            repository,
+            routeRepository,
+            sosRepository,
+            LocalRuleBasedSummaryProvider(),
+            errorLogRepository
+        )
         lockScheduleManager = com.example.kidsguard.managers.LockScheduleManager(
-            this, 
+            this,
             prefHelper,
             onLockRequested = { currentScreenState.value = Screen.Locked },
             onUnlockRequested = { currentScreenState.value = Screen.Home }
         )
-        wellbeingManager = com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
+        wellbeingManager =
+            com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
 
         // Initialize synchronization for repositories
@@ -125,7 +147,14 @@ class MainActivity : ComponentActivity() {
             dailySummaryRepository.setSyncProvider(syncProvider)
         }
 
-        childStatusManager = ChildStatusManager(this, prefHelper, syncProvider, trackingRepository, repository, locationRepository)
+        childStatusManager = ChildStatusManager(
+            this,
+            prefHelper,
+            syncProvider,
+            trackingRepository,
+            repository,
+            locationRepository
+        )
 
         commandHandler = RemoteCommandHandler(
             androidContext = this,
@@ -158,16 +187,22 @@ class MainActivity : ComponentActivity() {
                 currentScreenState.value = Screen.RemoteCommand
             },
             onVibrateRequested = {
-                val vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                val vibrator =
+                    getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(5000, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    vibrator.vibrate(
+                        android.os.VibrationEffect.createOneShot(
+                            5000,
+                            android.os.VibrationEffect.DEFAULT_AMPLITUDE
+                        )
+                    )
                 } else {
                     vibrator.vibrate(5000)
                 }
             },
             lockScheduleManager = lockScheduleManager
         )
-        
+
         trackingManager.initialize()
         syncProvider.connect()
 
@@ -181,7 +216,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             updateRepository.checkForUpdates()
         }
-        
+
         if (prefHelper.userRole == "CHILD") {
             childStatusManager.startPeriodicSync()
             lifecycleScope.launch {
@@ -189,7 +224,7 @@ class MainActivity : ComponentActivity() {
                     childStatusManager.updateStatus()
                 }
             }
-            
+
             // Realtime Lock Schedule Listener
             (syncProvider as? com.example.kidsguard.sync.FirebaseRemoteSyncProvider)?.let { provider ->
                 lifecycleScope.launch {
@@ -199,9 +234,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+
             // Periodic schedule check (every minute)
             lifecycleScope.launch {
-                while(true) {
+                while (true) {
                     lockScheduleManager.checkAndApply(null)
                     kotlinx.coroutines.delay(60000)
                 }
@@ -211,7 +247,7 @@ class MainActivity : ComponentActivity() {
         // Initialize Firebase Auth and Register Device
         val isConfigured = FirebaseConfig.isFirebaseConfigured(this)
         Log.d("MainActivity", "Firebase configuration status: $isConfigured")
-        
+
         if (isConfigured) {
             lifecycleScope.launch {
                 val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
@@ -229,7 +265,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        
+
         // Determining initial screen
         handleIntent(intent)
         val initialScreen = if (currentScreenState.value == Screen.AppBlocked) {
@@ -243,15 +279,25 @@ class MainActivity : ComponentActivity() {
                     if (prefHelper.pairedChildId == null) {
                         Screen.ChildSetup
                     } else {
-                        val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(this) &&
-                            com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(this) &&
-                            com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(this) &&
-                            com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(this) &&
-                            com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(this)
-                        
+                        val hasAllPermissions =
+                            com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(this) &&
+                                    com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(
+                                        this
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(
+                                        this
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(
+                                        this
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
+                                        this
+                                    )
+
                         if (!hasAllPermissions) Screen.PermissionChecklist else Screen.Home
                     }
                 }
+
                 else -> Screen.Home
             }
         }
@@ -271,15 +317,18 @@ class MainActivity : ComponentActivity() {
                             Log.d("KidsGuard", "Screen changing to: $screen")
                             currentScreenState.value = screen
                             prefHelper.isLocked = (screen == Screen.Locked)
-                            
+
                             if (prefHelper.userRole == "CHILD") {
                                 childStatusManager.updateStatus()
                                 setupUnpairListener()
                                 // Restart tracking service to ensure it picks up new IDs and starts listener
                                 trackingManager.startTracking()
-                                Log.i("PairingSync", "Background service started/restarted for child: ${prefHelper.childId}")
+                                Log.i(
+                                    "PairingSync",
+                                    "Background service started/restarted for child: ${prefHelper.childId}"
+                                )
                             }
-                            
+
                             // Re-init SOS listener on screen change to catch role/pairing changes
                             sosRepository.refreshActiveAlertListener()
 
@@ -336,9 +385,12 @@ class MainActivity : ComponentActivity() {
             val childId = prefHelper.childId
             // Only trigger unpair if we were actually paired
             val currentlyPaired = prefHelper.pairedChildId != null
-            
+
             if (childId.isNotEmpty()) {
-                Log.d("MainActivity", "Setting up unpair listener for child: $childId (currentlyPaired=$currentlyPaired)")
+                Log.d(
+                    "MainActivity",
+                    "Setting up unpair listener for child: $childId (currentlyPaired=$currentlyPaired)"
+                )
                 unpairListener?.remove()
                 unpairListener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                     .collection("children")
@@ -364,19 +416,23 @@ class MainActivity : ComponentActivity() {
     private fun handleUnpair() {
         unpairListener?.remove()
         unpairListener = null
-        
+
         // Stop tracking and sync
         trackingManager.stopTracking()
         childStatusManager.stopPeriodicSync()
-        
+
         // Clear local state
         prefHelper.clearPairing()
-        
+
         // Return to Role Selection
         currentScreenState.value = Screen.RoleSelection
-        
+
         // Show message
-        android.widget.Toast.makeText(this, "This device was removed by the parent. Pair it again to continue.", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(
+            this,
+            "This device was removed by the parent. Pair it again to continue.",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
     }
 
     override fun onDestroy() {
@@ -400,18 +456,21 @@ class MainActivity : ComponentActivity() {
             val cmdAction = intent.getStringExtra("command_action")
             val payload = intent.getStringExtra("payload")
             Log.i("MainActivity", "Handling remote command intent: $cmdAction")
-            
+
             when (cmdAction) {
                 "LOCK" -> currentScreenState.value = Screen.Locked
                 "UNLOCK" -> currentScreenState.value = Screen.Home
                 "SHOW_MESSAGE" -> {
                     remoteMessage.value = payload
-                    remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
+                    remoteCommandMode.value =
+                        com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
                     currentScreenState.value = Screen.RemoteCommand
                 }
+
                 "RING" -> {
                     notificationEngine.triggerSiren()
-                    remoteCommandMode.value = com.example.kidsguard.ui.screens.RemoteCommandMode.RINGING
+                    remoteCommandMode.value =
+                        com.example.kidsguard.ui.screens.RemoteCommandMode.RINGING
                     currentScreenState.value = Screen.RemoteCommand
                 }
             }
@@ -419,9 +478,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (currentScreenState.value == Screen.Locked && 
-            keyCode == KeyEvent.KEYCODE_VOLUME_UP && 
-            prefHelper.isVolumeUnlockEnabled) {
+        if (currentScreenState.value == Screen.Locked &&
+            keyCode == KeyEvent.KEYCODE_VOLUME_UP &&
+            prefHelper.isVolumeUnlockEnabled
+        ) {
             val now = System.currentTimeMillis()
             if (volumeUpTapCount == 0 || now - firstVolumeUpTapTime > 5000) {
                 volumeUpTapCount = 1
@@ -430,7 +490,13 @@ class MainActivity : ComponentActivity() {
                 volumeUpTapCount++
                 if (volumeUpTapCount >= 4) {
                     Log.i("KidsGuard", "Emergency Volume Unlock triggered")
-                    repository.addEvent(ActivityEvent(type = "VOLUME_UNLOCK", title = "Volume Unlock", description = "Emergency exit triggered"))
+                    repository.addEvent(
+                        ActivityEvent(
+                            type = "VOLUME_UNLOCK",
+                            title = "Volume Unlock",
+                            description = "Emergency exit triggered"
+                        )
+                    )
                     currentScreenState.value = Screen.Home
                     prefHelper.isLocked = false
                     volumeUpTapCount = 0
