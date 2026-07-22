@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, onSnapshot, collection, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot,setDoc, collection, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export interface ChildStatus {
   childId: string;
@@ -112,17 +112,49 @@ export class ChildRepository {
     });
   }
 
-  static async setLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>): Promise<void> {
-    const { setDoc } = await import("firebase/firestore");
-    if (!db || !childId) return;
-    const ref = doc(db, "children", childId, "settings", "lockSchedule");
-    console.log(`[LockScheduleSync] Writing to Firestore path: ${ref.path}`);
-    await setDoc(ref, {
-      ...schedule,
-      updatedAt: serverTimestamp(),
-      updatedBy: "PARENT"
-    }, { merge: true });
-  }
+static async setLockSchedule(
+childId: string,
+schedule: {
+enabled: boolean;
+startMinutes: number;
+endMinutes: number;
+days: number[];
+timezone: string;
+}
+): Promise<void> {
+if (!childId?.trim()) {
+throw new Error("Missing childId");
+}
+
+const scheduleRef = doc(
+db,
+"children",
+childId,
+"settings",
+"lockSchedule"
+);
+
+const payload = {
+enabled: Boolean(schedule.enabled),
+startMinutes: Number(schedule.startMinutes),
+endMinutes: Number(schedule.endMinutes),
+days: Array.isArray(schedule.days) ? schedule.days : [],
+timezone: schedule.timezone || "Europe/Berlin",
+updatedAt: serverTimestamp(),
+updatedBy: "PARENT",
+};
+
+console.log("REPO_PATH", scheduleRef.path);
+console.log("REPO_PAYLOAD", payload);
+
+try {
+await setDoc(scheduleRef, payload, { merge: true });
+console.log("REPO_WRITE_SUCCESS");
+} catch (error) {
+console.error("REPO_WRITE_FAILED", error);
+throw error;
+}
+}
 
   static async updateAvatar(childId: string, avatarId: string): Promise<void> {
     if (!db) return;
