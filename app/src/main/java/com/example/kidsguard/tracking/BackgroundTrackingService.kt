@@ -1,16 +1,20 @@
 package com.example.kidsguard.tracking
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.kidsguard.R
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
@@ -50,6 +54,21 @@ class BackgroundTrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
+        Log.d(TAG, "BackgroundTrackingService: onCreate")
+        createNotificationChannel()
+        
+        // Call startForeground() immediately to prevent ForegroundServiceDidNotStartInTimeException
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
+            Log.d(TAG, "BackgroundTrackingService: startForeground called")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground", e)
+        }
+
         super.onCreate()
         val appContext = applicationContext
         prefHelper = PreferenceHelper(appContext)
@@ -135,10 +154,26 @@ class BackgroundTrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "Service started")
+        Log.d(TAG, "BackgroundTrackingService: onStartCommand")
+        
+        // Ensure foreground is started (safety call in case onCreate was skipped for some reason)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
+
+        // Permission check
+        val fineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        if (fineLocation != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "BackgroundTrackingService: missing location permission")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         setupCommandListener()
-        startForeground(NOTIFICATION_ID, createNotification())
         startLocationUpdates()
+        Log.d(TAG, "BackgroundTrackingService: location updates started")
         
         trackingRepository.updateState(TrackingState.RUNNING)
         
@@ -241,7 +276,7 @@ class BackgroundTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service destroyed")
+        Log.d(TAG, "BackgroundTrackingService: stopped safely")
         fusedLocationClient.removeLocationUpdates(locationCallback)
         
         trackingRepository.updateState(TrackingState.STOPPED)
@@ -266,12 +301,26 @@ class BackgroundTrackingService : Service() {
     }
 
     private fun createNotification(): Notification {
+        val intent = Intent(this, com.example.kidsguard.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("KidsGuard Active")
-            .setContentText("Location tracking is running in the background")
+            .setContentText("Location protection is running")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
+            .setContentIntent(pendingIntent)
             .build()
     }
 }
