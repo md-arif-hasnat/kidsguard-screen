@@ -126,13 +126,21 @@ if (!childId?.trim()) {
 throw new Error("Missing childId");
 }
 
+const firestore = db;
+
+if (!firestore) {
+throw new Error("Firestore is not initialized");
+}
+
 const scheduleRef = doc(
-db,
+firestore,
 "children",
 childId,
 "settings",
 "lockSchedule"
 );
+
+
 
 const payload = {
 enabled: Boolean(schedule.enabled),
