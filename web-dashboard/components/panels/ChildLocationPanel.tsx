@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import LiveMap from '@/components/LiveMap';
-import { MapPin, Battery, Zap, CloudOff, Info } from 'lucide-react';
+import { MapPin, Battery, Zap, CloudOff, Info, Clock, Gauge, Navigation, History, ChevronRight } from 'lucide-react';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -15,16 +15,21 @@ import ChildAvatar from '@/components/ChildAvatar';
 
 interface ChildLocationPanelProps {
   childId: string;
+  onViewHistory?: () => void;
 }
 
-export default function ChildLocationPanel({ childId }: ChildLocationPanelProps) {
+export default function ChildLocationPanel({ childId, onViewHistory }: ChildLocationPanelProps) {
   const { profile } = useParentProfile();
   const [childStatus, setChildStatus] = useState<ChildStatus | null>(null);
   const [currentChildLocation, setCurrentChildLocation] = useState<LocationPoint | null>(null);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
   const [routeHistory, setRouteHistory] = useState<LocationPoint[]>([]);
+  const [recentHistory, setRecentHistory] = useState<LocationPoint[]>([]);
   const [deviations, setDeviations] = useState<RouteDeviation[]>([]);
   const [followChild, setFollowChild] = useState(true);
+
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   // Listen to status of child
   useEffect(() => {
@@ -37,7 +42,10 @@ export default function ChildLocationPanel({ childId }: ChildLocationPanelProps)
     if (!isFirebaseConfigured || !childId) return;
 
     const unsubLocation = LocationRepository.listenToLatestLocation(childId, setCurrentChildLocation);
-    const unsubHistory = LocationRepository.listenToLocationHistory(childId, setRouteHistory);
+    const unsubHistory = LocationRepository.listenToLocationHistory(childId, (history) => {
+        setRouteHistory(history);
+        setRecentHistory(history.slice(0, 10));
+    });
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
 
     const familyId = profile?.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
@@ -50,6 +58,19 @@ export default function ChildLocationPanel({ childId }: ChildLocationPanelProps)
       unsubZones();
     };
   }, [childId, profile?.familyId]);
+
+  const handleCardClick = (index: number) => {
+    setHighlightedIndex(index);
+    setFollowChild(false); // Stop following live location to show the historical point
+  };
+
+  const handleMarkerClick = (index: number) => {
+    setHighlightedIndex(index);
+    const card = cardRefs.current[index];
+    if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
 
   const mockActiveChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
 
@@ -109,6 +130,8 @@ export default function ChildLocationPanel({ childId }: ChildLocationPanelProps)
                 routeHistory={displayRoute}
                 deviations={displayDeviations}
                 followChild={followChild}
+                highlightedPointIndex={highlightedIndex}
+                onHistoryPointClick={handleMarkerClick}
             />
 
             {/* Float Info Panel */}
@@ -193,6 +216,82 @@ export default function ChildLocationPanel({ childId }: ChildLocationPanelProps)
           </div>
         </div>
       </div>
+
+      {/* Location History Section */}
+      <section className="space-y-6">
+          <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <History className="text-primary-600" size={24} />
+                  Recent Location History
+              </h2>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Last 10 Records</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {recentHistory.map((point, idx) => (
+                  <div
+                    key={`card-${idx}-${point.timestamp}`}
+                    ref={el => { cardRefs.current[idx] = el; }}
+                    onClick={() => handleCardClick(idx)}
+                    className={clsx(
+                        "bg-white p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md",
+                        highlightedIndex === idx ? "border-primary-500 ring-2 ring-primary-50 shadow-sm scale-[1.02]" : "border-slate-100 shadow-sm"
+                    )}
+                  >
+                      <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600">
+                                  <Clock size={16} />
+                              </div>
+                              <span className="font-bold text-slate-900">{new Date(point.timestamp).toLocaleTimeString()}</span>
+                          </div>
+                          <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-black text-slate-500 uppercase border border-slate-100">
+                              ±{Math.round(point.accuracy)}m
+                          </div>
+                      </div>
+
+                      {point.address && (
+                          <p className="text-sm font-bold text-slate-700 mb-1 line-clamp-2">{point.address}</p>
+                      )}
+                      {(point.city || point.country) && (
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">{[point.city, point.country].filter(Boolean).join(', ')}</p>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Latitude</p>
+                              <p className="text-xs font-bold text-slate-600">{point.latitude.toFixed(6)}</p>
+                          </div>
+                          <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Longitude</p>
+                              <p className="text-xs font-bold text-slate-600">{point.longitude.toFixed(6)}</p>
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                          <div className="flex items-center gap-2">
+                              <Gauge size={14} className="text-emerald-500" />
+                              <span className="text-xs font-bold text-slate-700">{Math.round(point.speed * 3.6)} km/h</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400">
+                              <Navigation size={14} className="text-orange-400" style={{ transform: `rotate(${point.bearing}deg)` }} />
+                              <span className="text-[10px] font-black uppercase">{Math.round(point.bearing)}°</span>
+                          </div>
+                      </div>
+                  </div>
+              ))}
+          </div>
+
+          <div className="flex justify-center pt-4">
+              <button
+                onClick={onViewHistory}
+                className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2 group"
+              >
+                  View Full History
+                  <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+          </div>
+      </section>
     </div>
   );
 }
