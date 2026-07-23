@@ -223,7 +223,7 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
                         Edit Child
                     </button>
                     <Link
-                        href={`/children/${displayChild.id}/activity`}
+                        href={`/dashboard/${displayChild.id}?tab=app-activity`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowMenu(false);
@@ -234,7 +234,7 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
                         View App Activity
                     </Link>
                     <Link
-                        href={`/children/${displayChild.id}/installed-apps`}
+                        href={`/dashboard/${displayChild.id}?tab=installed-apps`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowMenu(false);

@@ -54,14 +54,44 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     return () => unsubAuth();
   }, []);
 
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const savedChildId = localStorage.getItem("kidsguard_selected_child");
+    setSelectedChildId(savedChildId);
+
+    // Listen for storage changes in case child is changed elsewhere
+    const handleStorage = () => {
+      setSelectedChildId(localStorage.getItem("kidsguard_selected_child"));
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const navItems = [
     { name: 'Family Overview', href: '/', icon: Users },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
-    { name: 'Live Map', href: '/map', icon: MapIcon },
-    { name: 'Safe Zones', href: '/settings/safe-zones', icon: MapPin },
-    { name: 'Activity Feed', href: '/activity', icon: Activity },
+    {
+      name: 'Live Map',
+      href: selectedChildId ? `/dashboard/${selectedChildId}?tab=location` : '/map',
+      icon: MapIcon
+    },
+    {
+      name: 'Safe Zones',
+      href: selectedChildId ? `/dashboard/${selectedChildId}?tab=safe-zones` : '/settings/safe-zones',
+      icon: MapPin
+    },
+    {
+      name: 'App Activity',
+      href: selectedChildId ? `/dashboard/${selectedChildId}?tab=app-activity` : '/activity',
+      icon: BarChart3
+    },
     { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
-    { name: 'History', href: '/history', icon: History },
+    {
+      name: 'History',
+      href: selectedChildId ? `/dashboard/${selectedChildId}?tab=history` : '/history',
+      icon: History
+    },
     { name: 'Family', href: '/settings/family', icon: Users },
     { name: 'Security', href: '/settings/security', icon: Shield },
     { name: 'Support \u0026 Beta', href: '/support', icon: ShieldAlert },

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import LiveMap from '@/components/LiveMap';
 import { MOCK_CHILDREN, MOCK_ACTIVITY, MOCK_SUMMARY, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
@@ -12,6 +12,7 @@ import {
   Unlock,
   ShieldCheck as ShieldCheckIcon,
   Activity,
+  ChevronLeft,
   ChevronRight,
   History,
   Zap,
@@ -74,8 +75,14 @@ import RemoteControlPanel from '@/components/RemoteControlPanel';
 import ChildAvatar from '@/components/ChildAvatar';
 import ProtectionModePanel from '@/components/modes/ProtectionModePanel';
 import RemoveChildDialog from '@/components/RemoveChildDialog';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+// New Panel Imports
+import ChildLocationPanel from '@/components/panels/ChildLocationPanel';
+import AppActivityPanel from '@/components/panels/AppActivityPanel';
+import InstalledAppsPanel from '@/components/panels/InstalledAppsPanel';
+import SafeZonesPanel from '@/components/panels/SafeZonesPanel';
+import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -93,15 +100,78 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
-type Tab = 'overview' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
+type Tab = 'overview' | 'location' | 'app-activity' | 'installed-apps' | 'safe-zones' | 'history' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
 
 export default function ChildDashboard() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const childId = params.childId as string;
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  // Sync tab with URL
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as Tab;
+    const validTabs: Tab[] = ['overview', 'location', 'app-activity', 'installed-apps', 'safe-zones', 'history', 'intelligence', 'wellbeing', 'internet', 'health', 'modes'];
+    if (tabParam && validTabs.includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else if (!tabParam) {
+      setActiveTab('overview');
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.set('tab', tab);
+    router.push(`?${newParams.toString()}`, { scroll: false });
+  };
+
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
+
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const checkScroll = () => {
+    if (tabsRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
+      setShowLeftArrow(scrollLeft > 10);
+      setShowRightArrow(scrollLeft + clientWidth < scrollWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    if (tabs) {
+      checkScroll();
+      tabs.addEventListener('scroll', checkScroll);
+      const observer = new ResizeObserver(checkScroll);
+      observer.observe(tabs);
+      return () => {
+        tabs.removeEventListener('scroll', checkScroll);
+        observer.disconnect();
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    // Re-check scroll after a short delay to allow tab render/resize
+    const timer = setTimeout(checkScroll, 100);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabsRef.current) {
+      const scrollAmount = 300;
+      tabsRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
   // ... rest of state
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
@@ -113,7 +183,6 @@ export default function ChildDashboard() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
-  const router = useRouter();
 
   // Phase AD: Wellbeing State
   const [appUsage, setAppUsage] = useState<any[]>([]);
@@ -392,56 +461,48 @@ export default function ChildDashboard() {
       </header>
 
       {/* Tab Switcher */}
-      <div className="max-w-full overflow-x-auto no-scrollbar mb-8 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl w-fit min-w-full md:min-w-0">
-              <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={LayoutDashboard} label="Overview" />
-              <Link
-                href="/map"
-                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
-              >
-                  <MapPin size={18} />
-                  Location
-              </Link>
-              <Link
-                href={`/children/${childId}/activity`}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
-              >
-                  <BarChart3 size={18} />
-                  App Activity
-              </Link>
-              <Link
-                href={`/children/${childId}/installed-apps`}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
-              >
-                  <AppWindow size={18} />
-                  Installed Apps
-              </Link>
-              <Link
-                href="/settings/safe-zones"
-                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
-              >
-                  <Shield size={18} />
-                  Safe Zones
-              </Link>
-              <Link
-                href="/history"
-                onClick={() => localStorage.setItem("kidsguard_selected_child", childId)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap shrink-0 text-slate-500 hover:text-slate-700"
-              >
-                  <History size={18} />
-                  History
-              </Link>
+      <div className="relative mb-8 -mx-4 px-4 md:mx-0 md:px-0 group">
+          {showLeftArrow && (
+              <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center bg-gradient-to-r from-white via-white/80 to-transparent pr-12 pointer-events-none">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); scrollTabs('left'); }}
+                    className="p-1.5 bg-white border border-slate-200 rounded-full shadow-lg text-slate-600 hover:text-primary-600 transition-all pointer-events-auto ml-1"
+                  >
+                      <ChevronLeft size={20} />
+                  </button>
+              </div>
+          )}
 
-              <div className="w-px h-6 bg-slate-200 mx-2" />
+          <div
+            ref={tabsRef}
+            className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth"
+          >
+              <TabButton active={activeTab === 'overview'} onClick={() => handleTabChange('overview')} icon={LayoutDashboard} label="Overview" />
+              <TabButton active={activeTab === 'location'} onClick={() => handleTabChange('location')} icon={MapPin} label="Location" />
+              <TabButton active={activeTab === 'app-activity'} onClick={() => handleTabChange('app-activity')} icon={BarChart3} label="App Activity" />
+              <TabButton active={activeTab === 'installed-apps'} onClick={() => handleTabChange('installed-apps')} icon={AppWindow} label="Installed Apps" />
+              <TabButton active={activeTab === 'safe-zones'} onClick={() => handleTabChange('safe-zones')} icon={Shield} label="Safe Zones" />
+              <TabButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={History} label="History" />
 
-              <TabButton active={activeTab === 'intelligence'} onClick={() => setActiveTab('intelligence')} icon={Brain} label="Intelligence" />
-              <TabButton active={activeTab === 'wellbeing'} onClick={() => setActiveTab('wellbeing')} icon={ClockIcon} label="Wellbeing" />
-              <TabButton active={activeTab === 'internet'} onClick={() => setActiveTab('internet')} icon={GlobeIcon} label="Internet" />
-              <TabButton active={activeTab === 'modes'} onClick={() => setActiveTab('modes')} icon={Shield} label="Modes" />
-              <TabButton active={activeTab === 'health'} onClick={() => setActiveTab('health')} icon={Smartphone} label="Device Health" />
+              <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
+
+              <TabButton active={activeTab === 'intelligence'} onClick={() => handleTabChange('intelligence')} icon={Brain} label="Intelligence" />
+              <TabButton active={activeTab === 'wellbeing'} onClick={() => handleTabChange('wellbeing')} icon={ClockIcon} label="Wellbeing" />
+              <TabButton active={activeTab === 'internet'} onClick={() => handleTabChange('internet')} icon={GlobeIcon} label="Internet" />
+              <TabButton active={activeTab === 'modes'} onClick={() => handleTabChange('modes')} icon={Shield} label="Modes" />
+              <TabButton active={activeTab === 'health'} onClick={() => handleTabChange('health')} icon={Smartphone} label="Device Health" />
           </div>
+
+          {showRightArrow && (
+              <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center bg-gradient-to-l from-white via-white/80 to-transparent pl-12 pointer-events-none">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); scrollTabs('right'); }}
+                    className="p-1.5 bg-white border border-slate-200 rounded-full shadow-lg text-slate-600 hover:text-primary-600 transition-all pointer-events-auto mr-1"
+                  >
+                      <ChevronRight size={20} />
+                  </button>
+              </div>
+          )}
       </div>
 
       {activeTab === 'overview' && (
@@ -587,6 +648,26 @@ export default function ChildDashboard() {
                 </div>
             </div>
         </>
+      )}
+
+      {activeTab === 'location' && (
+          <ChildLocationPanel childId={childId} />
+      )}
+
+      {activeTab === 'app-activity' && (
+          <AppActivityPanel childId={childId} />
+      )}
+
+      {activeTab === 'installed-apps' && (
+          <InstalledAppsPanel childId={childId} />
+      )}
+
+      {activeTab === 'safe-zones' && (
+          <SafeZonesPanel childId={childId} />
+      )}
+
+      {activeTab === 'history' && (
+          <ChildHistoryPanel childId={childId} />
       )}
 
       {activeTab === 'intelligence' && (
