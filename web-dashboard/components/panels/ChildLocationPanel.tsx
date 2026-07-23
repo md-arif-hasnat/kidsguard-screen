@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import LiveMap from '@/components/LiveMap';
 import { MapPin, Battery, Zap, CloudOff, Info, Clock, Gauge, Navigation, History, ChevronRight } from 'lucide-react';
+import { formatDuration, formatLastUsed, formatAddress } from '@/lib/utils/FormatUtils';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { MOCK_CHILDREN, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -243,19 +244,22 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
                               <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600">
                                   <Clock size={16} />
                               </div>
-                              <span className="font-bold text-slate-900">{new Date(point.timestamp).toLocaleTimeString()}</span>
+                              <span className="font-bold text-slate-900">{point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Unknown'}</span>
                           </div>
                           <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-black text-slate-500 uppercase border border-slate-100">
                               ±{Math.round(point.accuracy)}m
                           </div>
                       </div>
 
-                      {point.address && (
-                          <p className="text-sm font-bold text-slate-700 mb-1 line-clamp-2">{point.address}</p>
-                      )}
-                      {(point.city || point.country) && (
-                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">{[point.city, point.country].filter(Boolean).join(', ')}</p>
-                      )}
+                      {(() => {
+                          const { street, area } = formatAddress(point);
+                          return (
+                              <div className="mb-4">
+                                  <p className="text-sm font-bold text-slate-700 line-clamp-2 leading-snug">{street}</p>
+                                  {area && <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{area}</p>}
+                              </div>
+                          );
+                      })()}
 
                       <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>

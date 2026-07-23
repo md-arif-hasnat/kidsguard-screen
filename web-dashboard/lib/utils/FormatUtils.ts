@@ -53,3 +53,15 @@ export function formatLastUsed(timestamp: number): string {
 
   return `${date.toLocaleDateString()} ${timeStr}`;
 }
+
+/**
+ * Formats location address from stored fields
+ */
+export function formatAddress(point: any): { street: string, area: string } {
+  if (!point) return { street: "Address unavailable", area: "" };
+
+  const street = point.address?.trim() || point.formattedAddress?.trim() || point.fullAddress?.trim() || "Address unavailable";
+  const area = [point.city, point.country].filter(Boolean).join(", ");
+
+  return { street, area };
+}

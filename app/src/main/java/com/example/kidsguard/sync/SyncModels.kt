@@ -119,7 +119,10 @@ data class SyncLocationUpdate(
     var bearing: Float = 0f,
     var timestamp: Long = System.currentTimeMillis(),
     var batteryLevel: Int? = null,
-    var source: String = "GPS"
+    var source: String = "GPS",
+    var address: String? = null,
+    var city: String? = null,
+    var country: String? = null
 )
 
 @Keep

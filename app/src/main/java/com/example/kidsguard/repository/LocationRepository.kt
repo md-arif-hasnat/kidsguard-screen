@@ -117,7 +117,10 @@ class LocationRepository(
                     speed = pointWithAddress.speed,
                     bearing = pointWithAddress.bearing,
                     timestamp = pointWithAddress.timestamp,
-                    batteryLevel = battery
+                    batteryLevel = battery,
+                    address = pointWithAddress.address,
+                    city = pointWithAddress.city,
+                    country = pointWithAddress.country
                 )
                 
                 android.util.Log.i("LocationRepository", "Syncing GPS to Firebase for child: ${prefHelper.childId}")
