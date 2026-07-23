@@ -42,6 +42,7 @@ export class LocationRepository {
     return onSnapshot(deviceRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        console.log("RAW_LATEST_LOCATION_DOC", snapshot.id, data);
         if (data.currentLocation) {
             onUpdate({
                 latitude: data.currentLocation.latitude,
@@ -49,7 +50,13 @@ export class LocationRepository {
                 accuracy: data.currentLocation.accuracy,
                 timestamp: data.currentLocation.updatedAt?.toMillis() || Date.now(),
                 speed: data.currentLocation.speed || 0,
-                bearing: data.currentLocation.bearing || 0
+                bearing: data.currentLocation.bearing || 0,
+                fullAddress: data.currentLocation.fullAddress || data.currentLocation.address,
+                street: data.currentLocation.street,
+                city: data.currentLocation.city,
+                state: data.currentLocation.state,
+                country: data.currentLocation.country,
+                postalCode: data.currentLocation.postalCode
             } as LocationPoint);
             return;
         }
@@ -83,7 +90,14 @@ export class LocationRepository {
     return onSnapshot(q, (snapshot) => {
       const history = snapshot.docs
         .filter(doc => doc.id !== "latest")
-        .map(doc => doc.data() as LocationPoint);
+        .map(doc => {
+            const data = doc.data();
+            console.log("RAW_LOCATION_HISTORY_DOC", doc.id, data);
+            return {
+                ...data,
+                fullAddress: data.fullAddress ?? data.address ?? null
+            } as LocationPoint;
+        });
       onUpdate(history);
     }, (error) => {
       console.error("Error listening to location history:", error);
@@ -111,7 +125,14 @@ export class LocationRepository {
     return onSnapshot(q, (snapshot) => {
       const history = snapshot.docs
         .filter(doc => doc.id !== "latest")
-        .map(doc => doc.data() as LocationPoint);
+        .map(doc => {
+            const data = doc.data();
+            console.log("RAW_LOCATION_HISTORY_DOC", doc.id, data);
+            return {
+                ...data,
+                fullAddress: data.fullAddress ?? data.address ?? null
+            } as LocationPoint;
+        });
       onUpdate(history);
     }, (error) => {
       console.error("Error listening to filtered location history:", error);
