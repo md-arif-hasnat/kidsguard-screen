@@ -255,7 +255,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
                           const { street, area } = formatAddress(point);
                           return (
                               <div className="mb-4">
-                                  <p className="text-sm font-bold text-slate-700 line-clamp-2 leading-snug">{street}</p>
+                                  <p className="text-sm font-bold text-slate-700 break-words leading-snug">{street}</p>
                                   {area && <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{area}</p>}
                               </div>
                           );

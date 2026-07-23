@@ -64,9 +64,13 @@ data class LocationPoint(
     var speed: Float = 0f,
     var bearing: Float = 0f,
     var timestamp: Long = System.currentTimeMillis(),
-    var address: String? = null,
+    var fullAddress: String? = null,
+    var street: String? = null,
     var city: String? = null,
-    var country: String? = null
+    var state: String? = null,
+    var country: String? = null,
+    var postalCode: String? = null,
+    var address: String? = null // Keeping for compatibility during transition
 )
 
 @Keep

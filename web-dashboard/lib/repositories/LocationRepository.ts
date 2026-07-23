@@ -10,9 +10,13 @@ export interface LocationPoint {
   timestamp: number;
   batteryLevel?: number;
   source?: string;
-  address?: string;
+  fullAddress?: string;
+  street?: string;
   city?: string;
+  state?: string;
   country?: string;
+  postalCode?: string;
+  address?: string; // Legacy field
 }
 
 export interface RouteSummary {

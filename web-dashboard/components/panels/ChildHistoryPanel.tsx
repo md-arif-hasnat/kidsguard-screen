@@ -352,8 +352,8 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
                                             <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">{point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Unknown'}</span>
                                             <span className="text-[9px] font-bold text-slate-400">±{Math.round(point.accuracy)}m</span>
                                         </div>
-                                        <p className="text-xs font-bold text-slate-700 truncate">{street}</p>
-                                        {area && <p className="text-[9px] text-slate-400 uppercase">{area}</p>}
+                                        <p className="text-xs font-bold text-slate-700 break-words leading-snug">{street}</p>
+                                        {area && <p className="text-[9px] text-slate-400 uppercase mt-0.5">{area}</p>}
 
                                         <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-200/50">
                                             <div className="flex items-center gap-1.5">
