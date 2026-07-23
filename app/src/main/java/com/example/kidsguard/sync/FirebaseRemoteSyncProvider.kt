@@ -85,14 +85,8 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             return
         }
 
-        Log.d(
-            TAG,
-            "GPS Acquired: lat=${update.latitude}, lng=${update.longitude}, accuracy=${update.accuracy}"
-        )
-        Log.i(
-            TAG,
-            "Uploading to Firestore: children/${update.childId}/locations/latest and devices/${update.childId}"
-        )
+        Log.d("LocationUpload", "resolving full address")
+        Log.i("LocationUpload", "resolved fullAddress=${update.fullAddress ?: "N/A"}")
 
         val batch = db.batch()
 
@@ -101,6 +95,11 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(update.childId)
             .collection("locations")
             .document()
+        
+        Log.d("LocationUpload", "PATH=${historyRef.path}")
+        Log.d("LocationUpload", "PAYLOAD=$update")
+        Log.d("LocationUpload", "FULL_ADDRESS=${update.fullAddress}")
+        
         batch.set(historyRef, update)
 
         // 2. Update latest location in children collection
@@ -124,21 +123,33 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         // 4. Update devices collection (Unified device status)
         val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
             .document(update.childId)
+        
+        val currentLocationPayload = mutableMapOf(
+            "latitude" to update.latitude,
+            "longitude" to update.longitude,
+            "accuracy" to update.accuracy,
+            "updatedAt" to com.google.firebase.Timestamp.now()
+        )
+        
+        update.fullAddress?.let { currentLocationPayload["fullAddress"] = it }
+        update.street?.let { currentLocationPayload["street"] = it }
+        update.city?.let { currentLocationPayload["city"] = it }
+        update.state?.let { currentLocationPayload["state"] = it }
+        update.country?.let { currentLocationPayload["country"] = it }
+        update.postalCode?.let { currentLocationPayload["postalCode"] = it }
+
         batch.set(
             deviceRef, mapOf(
-                "currentLocation" to mapOf(
-                    "latitude" to update.latitude,
-                    "longitude" to update.longitude,
-                    "accuracy" to update.accuracy,
-                    "updatedAt" to com.google.firebase.Timestamp.now()
-                ),
+                "currentLocation" to currentLocationPayload,
                 "lastSeen" to com.google.firebase.Timestamp.now()
             ), com.google.firebase.firestore.SetOptions.merge()
         )
 
+        Log.i("LocationUpload", "writing location with fullAddress")
         batch.commit()
             .addOnSuccessListener {
                 _lastSyncTimestamp.value = System.currentTimeMillis()
+                Log.i("LocationUpload", "upload success")
                 Log.i(TAG, "Location upload success for ${update.childId}")
             }
             .addOnFailureListener { e ->

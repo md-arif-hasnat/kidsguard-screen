@@ -95,8 +95,8 @@ class ReverseGeocoder(
     fun getShortAddress(latitude: Double, longitude: Double): String {
         val info = getAddress(latitude, longitude)
         return info?.let {
-            it.street?.let { s -> parts.add(it.fullAddress.split(",").firstOrNull() ?: s) }
             val parts = mutableListOf<String>()
+            it.street?.let { s -> parts.add(it.fullAddress.split(",").firstOrNull() ?: s) }
             it.city?.let { c -> parts.add(c) }
             if (parts.isEmpty()) it.fullAddress.take(20) else parts.joinToString(", ")
         } ?: "Address unavailable"

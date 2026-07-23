@@ -44,6 +44,7 @@ class BackgroundTrackingService : Service() {
     private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
     private var forceNextLocationSync = false
     private var lastListenedChildId: String? = null
+    private var locationHandlerThread: android.os.HandlerThread? = null
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -201,6 +202,7 @@ class BackgroundTrackingService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     // Get address from reverse geocoder
+                    android.util.Log.d("LocationUpload", "resolving full address")
                     val addressInfo = reverseGeocoder.getAddress(location.latitude, location.longitude)
                     
                     val point = LocationPoint(
@@ -210,10 +212,21 @@ class BackgroundTrackingService : Service() {
                         speed = location.speed,
                         bearing = location.bearing,
                         timestamp = location.time,
-                        address = addressInfo?.fullAddress,
+                        fullAddress = addressInfo?.fullAddress,
+                        street = addressInfo?.street,
                         city = addressInfo?.city,
-                        country = addressInfo?.country
+                        state = addressInfo?.state,
+                        country = addressInfo?.country,
+                        postalCode = addressInfo?.postalCode,
+                        address = addressInfo?.fullAddress // Legacy support
                     )
+                    
+                    if (addressInfo != null) {
+                        android.util.Log.i("LocationUpload", "resolved fullAddress=${addressInfo.fullAddress}")
+                    } else {
+                        android.util.Log.w("LocationUpload", "geocoding unavailable, uploading coordinates only")
+                    }
+
                     Log.i(TAG, "GPS Acquired: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}")
                     locationRepository.addLocationPoint(point, forceNextLocationSync)
                     forceNextLocationSync = false
@@ -257,10 +270,13 @@ class BackgroundTrackingService : Service() {
         }.build()
 
         try {
+            if (locationHandlerThread == null) {
+                locationHandlerThread = android.os.HandlerThread("LocationHandlerThread").apply { start() }
+            }
             fusedLocationClient.requestLocationUpdates(
                 locationRequest,
                 locationCallback,
-                Looper.getMainLooper()
+                locationHandlerThread!!.looper
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start location updates", e)
@@ -274,7 +290,11 @@ class BackgroundTrackingService : Service() {
             val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
                 .setMaxUpdates(1)
                 .build()
-            fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+            
+            if (locationHandlerThread == null) {
+                locationHandlerThread = android.os.HandlerThread("LocationHandlerThread").apply { start() }
+            }
+            fusedLocationClient.requestLocationUpdates(request, locationCallback, locationHandlerThread!!.looper)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to request single update", e)
         }
@@ -284,6 +304,8 @@ class BackgroundTrackingService : Service() {
         super.onDestroy()
         Log.d(TAG, "BackgroundTrackingService: stopped safely")
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        locationHandlerThread?.quitSafely()
+        locationHandlerThread = null
         
         trackingRepository.updateState(TrackingState.STOPPED)
         

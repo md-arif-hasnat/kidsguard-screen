@@ -96,6 +96,7 @@ class LocationRepository(
                     point
                 }
             } else {
+                // Address already resolved by caller or not available
                 point
             }
 
