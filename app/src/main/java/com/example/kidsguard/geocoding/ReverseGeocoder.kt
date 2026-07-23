@@ -18,30 +18,40 @@ class ReverseGeocoder(
 
     fun getAddress(latitude: Double, longitude: Double): AddressInfo? {
         val cacheKey = "%.4f,%.4f".format(latitude, longitude)
-        cache[cacheKey]?.let { 
+        cache[cacheKey]?.let {
             lastAddressInfo = it
             lastResultCount = 1
             lastException = null
-            return it 
+            return it
         }
 
-        android.util.Log.d("ReverseGeocoder", "Requesting address for Lat: $latitude, Lng: $longitude")
+        android.util.Log.d(
+            "ReverseGeocoder",
+            "Requesting address for Lat: $latitude, Lng: $longitude"
+        )
         lastException = null
 
         return try {
             val geocoder = Geocoder(context, Locale.getDefault())
             // Note: getFromLocation is blocking, should be called from background thread
             val addresses = geocoder.getFromLocation(latitude, longitude, 1)
-            
+
             lastResultCount = addresses?.size ?: 0
-            android.util.Log.d("ReverseGeocoder", "Geocoder returned $lastResultCount results for ($latitude, $longitude)")
+            android.util.Log.d(
+                "ReverseGeocoder",
+                "Geocoder returned $lastResultCount results for ($latitude, $longitude)"
+            )
 
             if (!addresses.isNullOrEmpty()) {
                 val address = addresses[0]
-                val fullAddress = (0..address.maxAddressLineIndex).joinToString(", ") { address.getAddressLine(it) }
-                
+                val fullAddress =
+                    (0..address.maxAddressLineIndex).joinToString(", ") { address.getAddressLine(it) }
+
                 android.util.Log.d("ReverseGeocoder", "Address found: $fullAddress")
-                android.util.Log.d("ReverseGeocoder", "City: ${address.locality}, Country: ${address.countryName}")
+                android.util.Log.d(
+                    "ReverseGeocoder",
+                    "City: ${address.locality}, Country: ${address.countryName}"
+                )
 
                 val info = AddressInfo(
                     fullAddress = fullAddress,
@@ -58,16 +68,26 @@ class ReverseGeocoder(
                 info
             } else {
                 lastAddressInfo = null
-                android.util.Log.w("ReverseGeocoder", "No addresses found for coordinates: $latitude, $longitude")
+                android.util.Log.w(
+                    "ReverseGeocoder",
+                    "No addresses found for coordinates: $latitude, $longitude"
+                )
                 null
             }
         } catch (e: Exception) {
             lastException = e.toString()
             lastAddressInfo = null
             lastResultCount = 0
-            android.util.Log.e("ReverseGeocoder", "Geocoding exception for ($latitude, $longitude): ${e.message}")
+            android.util.Log.e(
+                "ReverseGeocoder",
+                "Geocoding exception for ($latitude, $longitude): ${e.message}"
+            )
             android.util.Log.e("ReverseGeocoder", "Full exception: ", e)
-            errorLogRepository?.addError("ReverseGeocoder", "Geocoding failed for ($latitude, $longitude)", e)
+            errorLogRepository?.addError(
+                "ReverseGeocoder",
+                "Geocoding failed for ($latitude, $longitude)",
+                e
+            )
             null
         }
     }
@@ -75,8 +95,8 @@ class ReverseGeocoder(
     fun getShortAddress(latitude: Double, longitude: Double): String {
         val info = getAddress(latitude, longitude)
         return info?.let {
-            val parts = mutableListOf<String>()
             it.street?.let { s -> parts.add(it.fullAddress.split(",").firstOrNull() ?: s) }
+            val parts = mutableListOf<String>()
             it.city?.let { c -> parts.add(c) }
             if (parts.isEmpty()) it.fullAddress.take(20) else parts.joinToString(", ")
         } ?: "Address unavailable"

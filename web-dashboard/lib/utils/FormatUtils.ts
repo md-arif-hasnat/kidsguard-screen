@@ -60,8 +60,12 @@ export function formatLastUsed(timestamp: number): string {
 export function formatAddress(point: any): { street: string, area: string } {
   if (!point) return { street: "Address unavailable", area: "" };
 
-  const street = point.address?.trim() || point.formattedAddress?.trim() || point.fullAddress?.trim() || "Address unavailable";
-  const area = [point.city, point.country].filter(Boolean).join(", ");
+  const street = point.fullAddress?.trim() ||
+                [point.street, point.postalCode, point.city, point.country].filter(Boolean).join(", ") ||
+                point.address?.trim() ||
+                "Address unavailable";
+
+  const area = point.fullAddress ? [point.city, point.country].filter(Boolean).join(", ") : "";
 
   return { street, area };
 }

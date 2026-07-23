@@ -71,15 +71,27 @@ class LocationRepository(
 
     fun addLocationPoint(point: LocationPoint, forceSync: Boolean = false) {
         try {
-            val pointWithAddress = if (point.address == null && geocoder != null) {
+            val pointWithAddress = if (point.fullAddress == null && geocoder != null) {
                 try {
+                    android.util.Log.d("LocationUpload", "resolving full address for ${point.latitude}, ${point.longitude}")
                     val info = geocoder.getAddress(point.latitude, point.longitude)
-                    point.copy(
-                        address = info?.fullAddress,
-                        city = info?.city,
-                        country = info?.country
-                    )
+                    if (info != null) {
+                        android.util.Log.i("LocationUpload", "resolved fullAddress=${info.fullAddress}")
+                        point.copy(
+                            fullAddress = info.fullAddress,
+                            street = info.street,
+                            city = info.city,
+                            state = info.state,
+                            country = info.country,
+                            postalCode = info.postalCode,
+                            address = info.fullAddress // Legacy support
+                        )
+                    } else {
+                        android.util.Log.w("LocationUpload", "geocoding unavailable, uploading coordinates only")
+                        point
+                    }
                 } catch (e: Exception) {
+                    android.util.Log.e("LocationUpload", "Geocoding failed", e)
                     errorLogRepository?.addError("LocationRepository", "Geocoding failed", e)
                     point
                 }
@@ -118,13 +130,17 @@ class LocationRepository(
                     bearing = pointWithAddress.bearing,
                     timestamp = pointWithAddress.timestamp,
                     batteryLevel = battery,
-                    address = pointWithAddress.address,
+                    fullAddress = pointWithAddress.fullAddress,
+                    street = pointWithAddress.street,
                     city = pointWithAddress.city,
-                    country = pointWithAddress.country
+                    state = pointWithAddress.state,
+                    country = pointWithAddress.country,
+                    postalCode = pointWithAddress.postalCode
                 )
                 
-                android.util.Log.i("LocationRepository", "Syncing GPS to Firebase for child: ${prefHelper.childId}")
+                android.util.Log.i("LocationUpload", "writing location with fullAddress: ${pointWithAddress.fullAddress ?: "N/A"}")
                 syncProvider?.syncLocation(update)
+                android.util.Log.i("LocationUpload", "upload success")
                 lastSyncedLocation = pointWithAddress
                 lastSyncTime = now
             }
@@ -179,9 +195,13 @@ class LocationRepository(
                 put("speed", point.speed.toDouble())
                 put("bearing", point.bearing.toDouble())
                 put("timestamp", point.timestamp)
-                put("address", point.address ?: "")
+                put("fullAddress", point.fullAddress ?: "")
+                put("street", point.street ?: "")
                 put("city", point.city ?: "")
+                put("state", point.state ?: "")
                 put("country", point.country ?: "")
+                put("postalCode", point.postalCode ?: "")
+                put("address", point.address ?: "")
             }
             jsonArray.put(jsonObject)
         }
@@ -199,13 +219,17 @@ class LocationRepository(
                     LocationPoint(
                         latitude = obj.getDouble("lat"),
                         longitude = obj.getDouble("lng"),
-                        accuracy = obj.getDouble("accuracy").toFloat(),
-                        speed = obj.getDouble("speed").toFloat(),
-                        bearing = obj.getDouble("bearing").toFloat(),
+                        accuracy = obj.get("accuracy").toString().toFloat(),
+                        speed = obj.get("speed").toString().toFloat(),
+                        bearing = obj.get("bearing").toString().toFloat(),
                         timestamp = obj.getLong("timestamp"),
-                        address = obj.optString("address").takeIf { it.isNotEmpty() },
+                        fullAddress = obj.optString("fullAddress").takeIf { it.isNotEmpty() },
+                        street = obj.optString("street").takeIf { it.isNotEmpty() },
                         city = obj.optString("city").takeIf { it.isNotEmpty() },
-                        country = obj.optString("country").takeIf { it.isNotEmpty() }
+                        state = obj.optString("state").takeIf { it.isNotEmpty() },
+                        country = obj.optString("country").takeIf { it.isNotEmpty() },
+                        postalCode = obj.optString("postalCode").takeIf { it.isNotEmpty() },
+                        address = obj.optString("address").takeIf { it.isNotEmpty() }
                     )
                 )
             }

@@ -120,9 +120,12 @@ data class SyncLocationUpdate(
     var timestamp: Long = System.currentTimeMillis(),
     var batteryLevel: Int? = null,
     var source: String = "GPS",
-    var address: String? = null,
+    var fullAddress: String? = null,
+    var street: String? = null,
     var city: String? = null,
-    var country: String? = null
+    var state: String? = null,
+    var country: String? = null,
+    var postalCode: String? = null
 )
 
 @Keep
