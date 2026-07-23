@@ -2,8 +2,9 @@
 
 import React, { useCallback, useState, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polyline, InfoWindow } from '@react-google-maps/api';
-import { MapPin, AlertTriangle, Info } from 'lucide-react';
+import { MapPin, AlertTriangle, Info, Clock } from 'lucide-react';
 import { getRegionCenter, getRegionZoom } from '@/lib/utils/RegionPresets';
+import { formatAddress } from '@/lib/utils/FormatUtils';
 
 const mapContainerStyle = {
   width: '100%',
@@ -356,23 +357,43 @@ const LiveMap: React.FC<LiveMapProps> = ({
                 const isHighlighted = highlightedPointIndex === idx;
 
                 return (
-                    <Marker
-                        key={`hist-${idx}-${point.timestamp}`}
-                        position={pos}
-                        onClick={() => onHistoryPointClick?.(idx)}
-                        icon={isHighlighted ? {
-                            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-                            scaledSize: new google.maps.Size(40, 40)
-                        } : {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            fillColor: "#0ea5e9",
-                            fillOpacity: 0.5,
-                            strokeColor: "#ffffff",
-                            strokeWeight: 1,
-                            scale: 5
-                        }}
-                        zIndex={isHighlighted ? 100 : 1}
-                    />
+                    <React.Fragment key={`hist-${idx}-${point.timestamp}`}>
+                        <Marker
+                            position={pos}
+                            onClick={() => onHistoryPointClick?.(idx)}
+                            icon={isHighlighted ? {
+                                url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                                scaledSize: new google.maps.Size(40, 40)
+                            } : {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                fillColor: "#0ea5e9",
+                                fillOpacity: 0.5,
+                                strokeColor: "#ffffff",
+                                strokeWeight: 1,
+                                scale: 5
+                            }}
+                            zIndex={isHighlighted ? 100 : 1}
+                        />
+                        {isHighlighted && (
+                            <InfoWindow position={pos} onCloseClick={() => onHistoryPointClick?.(-1)}>
+                                <div className="p-2 max-w-[200px]">
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                        <Clock size={12} className="text-primary-600" />
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">{point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Unknown Time'}</span>
+                                    </div>
+                                    {(() => {
+                                        const { street, area } = formatAddress(point);
+                                        return (
+                                            <>
+                                                <p className="text-xs font-bold text-slate-800 leading-tight">{street}</p>
+                                                {area && <p className="text-[9px] font-medium text-slate-500 mt-0.5">{area}</p>}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </InfoWindow>
+                        )}
+                    </React.Fragment>
                 );
             })}
           </>

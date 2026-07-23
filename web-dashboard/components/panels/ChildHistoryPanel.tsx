@@ -15,7 +15,9 @@ import {
     Activity as ActivityIcon,
     ArrowRight,
     Loader2,
-    ShieldAlert
+    ShieldAlert,
+    Navigation,
+    Gauge
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
@@ -24,6 +26,7 @@ import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRe
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { calculateDistance, formatDuration } from '@/lib/utils/GeofenceUtils';
+import { formatAddress } from '@/lib/utils/FormatUtils';
 import { clsx } from 'clsx';
 
 interface ChildHistoryPanelProps {
@@ -37,6 +40,7 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'timeline' | 'records'>('timeline');
 
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayIndex, setReplayIndex] = useState(0);
@@ -220,9 +224,29 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
                         deviations={[]}
                         followChild={true}
                         replayPoint={replayPoint}
+                        highlightedPointIndex={replayIndex}
                     />
 
                     <div className="absolute bottom-4 left-4 right-4 md:bottom-6 md:left-1/2 md:transform md:-translate-x-1/2 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-slate-100 flex flex-col md:flex-row items-center gap-3 md:gap-6 z-10">
+                        {/* Replay Address Info */}
+                        {routeHistory[replayIndex] && (
+                            <div className="hidden md:block absolute -top-20 left-0 right-0 bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Clock size={12} className="text-primary-500" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase">Replay Position - {new Date(routeHistory[replayIndex].timestamp).toLocaleTimeString()}</span>
+                                </div>
+                                {(() => {
+                                    const { street, area } = formatAddress(routeHistory[replayIndex]);
+                                    return (
+                                        <>
+                                            <p className="text-xs font-bold text-slate-800 truncate">{street}</p>
+                                            {area && <p className="text-[9px] font-bold text-slate-400 uppercase">{area}</p>}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => { setReplayIndex(0); setIsReplaying(false); }}
@@ -279,26 +303,76 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
 
             <div className="space-y-6">
                 <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 overflow-hidden flex flex-col h-[500px]">
-                    <div className="flex items-center gap-2 mb-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                            <button
+                                onClick={() => setActiveTab('timeline')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                    activeTab === 'timeline' ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                )}
+                            >
+                                Timeline
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('records')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                    activeTab === 'records' ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                )}
+                            >
+                                Records
+                            </button>
+                        </div>
                         <ActivityIcon className="text-primary-500" size={20} />
-                        <h2 className="font-bold">Timeline</h2>
                     </div>
 
                     <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                        {timelineEvents.map((event) => (
-                            <div key={event.id} className="relative pl-6 border-l-2 border-slate-100 pb-2">
-                                <div className={clsx(
-                                    "absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 border-white shadow-sm",
-                                    event.type === 'EXIT_ZONE' ? "bg-rose-500" : "bg-emerald-500"
-                                )} />
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{event.time}</p>
-                                <h4 className="text-sm font-bold text-slate-800">{event.title}</h4>
-                            </div>
-                        ))}
+                        {activeTab === 'timeline' ? (
+                            timelineEvents.map((event) => (
+                                <div key={event.id} className="relative pl-6 border-l-2 border-slate-100 pb-2">
+                                    <div className={clsx(
+                                        "absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 border-white shadow-sm",
+                                        event.type === 'EXIT_ZONE' ? "bg-rose-500" : "bg-emerald-500"
+                                    )} />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{event.time}</p>
+                                    <h4 className="text-sm font-bold text-slate-800">{event.title}</h4>
+                                </div>
+                            ))
+                        ) : (
+                            routeHistory.slice().reverse().map((point, idx) => {
+                                const { street, area } = formatAddress(point);
+                                return (
+                                    <div
+                                        key={`point-${idx}-${point.timestamp}`}
+                                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-primary-200 transition-colors cursor-pointer"
+                                        onClick={() => setReplayIndex(routeHistory.length - 1 - idx)}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">{point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Unknown'}</span>
+                                            <span className="text-[9px] font-bold text-slate-400">±{Math.round(point.accuracy)}m</span>
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-700 truncate">{street}</p>
+                                        {area && <p className="text-[9px] text-slate-400 uppercase">{area}</p>}
 
-                        {timelineEvents.length === 0 && (
+                                        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-200/50">
+                                            <div className="flex items-center gap-1.5">
+                                                <Gauge size={12} className="text-emerald-500" />
+                                                <span className="text-[10px] font-bold text-slate-600">{Math.round(point.speed * 3.6)} km/h</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <Navigation size={12} className="text-orange-400" style={{ transform: `rotate(${point.bearing}deg)` }} />
+                                                <span className="text-[10px] font-bold text-slate-600">{Math.round(point.bearing)}°</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+
+                        {(activeTab === 'timeline' ? timelineEvents.length : routeHistory.length) === 0 && (
                             <div className="text-center py-10">
-                                <p className="text-xs text-slate-400 italic">No events logged today.</p>
+                                <p className="text-xs text-slate-400 italic">No {activeTab} logged today.</p>
                             </div>
                         )}
                     </div>
