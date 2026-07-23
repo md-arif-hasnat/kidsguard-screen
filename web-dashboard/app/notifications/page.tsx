@@ -106,12 +106,12 @@ export default function NotificationsPage() {
 
     if (type === "APP_INSTALLED" && childId) {
       const pkg = (notification as any).packageName || (notification as any).data?.packageName || "";
-      return `/children/${encodeURIComponent(childId)}/installed-apps?pkg=${encodeURIComponent(pkg)}`;
+      return `/dashboard/${encodeURIComponent(childId)}?tab=installed-apps&pkg=${encodeURIComponent(pkg)}`;
     }
 
     if (type === "APP_ACCESS_REQUEST" && childId) {
       const pkg = (notification as any).packageName || (notification as any).data?.packageName || "";
-      return `/children/${encodeURIComponent(childId)}/installed-apps?pkg=${encodeURIComponent(pkg)}`;
+      return `/dashboard/${encodeURIComponent(childId)}?tab=installed-apps&pkg=${encodeURIComponent(pkg)}`;
     }
 
     if (childId) {
