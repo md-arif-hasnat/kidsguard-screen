@@ -651,7 +651,7 @@ export default function ChildDashboard() {
       )}
 
       {activeTab === 'location' && (
-          <ChildLocationPanel childId={childId} />
+          <ChildLocationPanel childId={childId} onViewHistory={() => handleTabChange('history')} />
       )}
 
       {activeTab === 'app-activity' && (

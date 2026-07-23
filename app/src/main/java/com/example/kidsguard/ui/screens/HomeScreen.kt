@@ -157,9 +157,12 @@ fun HomeScreen(
 
     // Application status states
     val isTrackingActive = true // Tracking service is always active if child
-    val isAppUsageScheduled by com.example.kidsguard.sync.AppUsageSyncWorker.isScheduled(context).collectAsState(initial = false)
-    val isUsagePermissionGranted = remember(allGranted) { PermissionUtils.hasUsageStatsPermission(context) }
-    val isAppUsageActive = isAppUsageScheduled && isUsagePermissionGranted && prefHelper.familyId != null
+    val isAppUsageScheduled by com.example.kidsguard.sync.AppUsageSyncWorker.isScheduled(context)
+        .collectAsState(initial = false)
+    val isUsagePermissionGranted =
+        remember(allGranted) { PermissionUtils.hasUsageStatsPermission(context) }
+    val isAppUsageActive =
+        isAppUsageScheduled && isUsagePermissionGranted && prefHelper.familyId != null
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -293,7 +296,7 @@ fun HomeScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // ConnectedInfoRow("Child", prefHelper.childName)
+                            ConnectedInfoRow("Child", prefHelper.childName)
 
 
                             ConnectedInfoRow(

@@ -54,22 +54,24 @@ class BackgroundTrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
+        super.onCreate()
         Log.d(TAG, "BackgroundTrackingService: onCreate")
+        
         createNotificationChannel()
         
         // Call startForeground() immediately to prevent ForegroundServiceDidNotStartInTimeException
         try {
+            val notification = createNotification()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
             } else {
-                startForeground(NOTIFICATION_ID, createNotification())
+                startForeground(NOTIFICATION_ID, notification)
             }
             Log.d(TAG, "BackgroundTrackingService: startForeground called")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground", e)
         }
 
-        super.onCreate()
         val appContext = applicationContext
         prefHelper = PreferenceHelper(appContext)
         errorLogRepository = com.example.kidsguard.repository.ErrorLogRepository(appContext)
@@ -125,7 +127,6 @@ class BackgroundTrackingService : Service() {
             }
         )
 
-        createNotificationChannel()
         setupLocationCallback()
         setupCommandListener()
     }
@@ -156,17 +157,22 @@ class BackgroundTrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "BackgroundTrackingService: onStartCommand")
         
-        // Ensure foreground is started (safety call in case onCreate was skipped for some reason)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification())
+        // Ensure foreground is started immediately (safety call)
+        try {
+            val notification = createNotification()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground in onStartCommand", e)
         }
 
         // Permission check
         val fineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
         if (fineLocation != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "BackgroundTrackingService: missing location permission")
+            Log.e(TAG, "BackgroundTrackingService: missing location permission - stopping service")
             stopSelf()
             return START_NOT_STICKY
         }

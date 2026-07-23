@@ -64,6 +64,8 @@ interface LiveMapProps {
   deviations: Array<{ id: string; lat: number; lng: number; message: string; time: string; severity: string }>;
   followChild: boolean;
   replayPoint?: { lat: number; lng: number } | null;
+  highlightedPointIndex?: number | null;
+  onHistoryPointClick?: (index: number) => void;
 }
 
 const LiveMap: React.FC<LiveMapProps> = ({
@@ -76,7 +78,9 @@ const LiveMap: React.FC<LiveMapProps> = ({
   routeHistory,
   deviations,
   followChild,
-  replayPoint
+  replayPoint,
+  highlightedPointIndex,
+  onHistoryPointClick
 }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -103,19 +107,24 @@ const LiveMap: React.FC<LiveMapProps> = ({
   const normalizedRoute = normalizeMapPath(routeHistory);
   const normalizedChildLoc = normalizeMapPoint(childLocation);
   const normalizedReplayPoint = normalizeMapPoint(replayPoint);
+  const normalizedHighlightedPoint = typeof highlightedPointIndex === 'number' && routeHistory[highlightedPointIndex]
+    ? normalizeMapPoint(routeHistory[highlightedPointIndex])
+    : null;
 
-  const center = normalizedReplayPoint || normalizedChildLoc || getRegionCenter(defaultRegion);
-  const zoom = (normalizedReplayPoint || normalizedChildLoc) ? 15 : getRegionZoom(defaultRegion);
+  const center = normalizedHighlightedPoint || normalizedReplayPoint || normalizedChildLoc || getRegionCenter(defaultRegion);
+  const zoom = (normalizedHighlightedPoint || normalizedReplayPoint || normalizedChildLoc) ? 15 : getRegionZoom(defaultRegion);
 
   useEffect(() => {
     if (map && followChild) {
-        if (normalizedReplayPoint) {
+        if (normalizedHighlightedPoint) {
+            map.panTo(normalizedHighlightedPoint);
+        } else if (normalizedReplayPoint) {
             map.panTo(normalizedReplayPoint);
         } else if (normalizedChildLoc) {
             map.panTo(normalizedChildLoc);
         }
     }
-  }, [map, followChild, normalizedChildLoc, normalizedReplayPoint]);
+  }, [map, followChild, normalizedChildLoc, normalizedReplayPoint, normalizedHighlightedPoint]);
 
   if (!apiKey) {
     return (
@@ -338,6 +347,34 @@ const LiveMap: React.FC<LiveMapProps> = ({
                     title="Route End"
                 />
             )}
+
+            {/* History markers for interaction */}
+            {routeHistory.map((point, idx) => {
+                const pos = normalizeMapPoint(point);
+                if (!pos) return null;
+
+                const isHighlighted = highlightedPointIndex === idx;
+
+                return (
+                    <Marker
+                        key={`hist-${idx}-${point.timestamp}`}
+                        position={pos}
+                        onClick={() => onHistoryPointClick?.(idx)}
+                        icon={isHighlighted ? {
+                            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                            scaledSize: new google.maps.Size(40, 40)
+                        } : {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            fillColor: "#0ea5e9",
+                            fillOpacity: 0.5,
+                            strokeColor: "#ffffff",
+                            strokeWeight: 1,
+                            scale: 5
+                        }}
+                        zIndex={isHighlighted ? 100 : 1}
+                    />
+                );
+            })}
           </>
       )}
     </GoogleMap>
