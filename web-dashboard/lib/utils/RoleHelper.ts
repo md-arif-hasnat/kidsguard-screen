@@ -52,11 +52,23 @@ export class RoleHelper {
     return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
   }
 
+  static canEditChild(role: FamilyRole): boolean {
+    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+  }
+
+  static canRemoveChild(role: FamilyRole): boolean {
+    return role === FamilyRole.OWNER;
+  }
+
   static canViewChildren(role: FamilyRole): boolean {
     return true; // All roles can view
   }
 
   static canManageSafeZones(role: FamilyRole): boolean {
+    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+  }
+
+  static canManageProtectionModes(role: FamilyRole): boolean {
     return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
   }
 

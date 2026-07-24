@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onActivityCreated = void 0;
+exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onNotificationCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -43,6 +43,29 @@ exports.onActivityCreated = functions.firestore
         });
     }
 });
+exports.onNotificationCreated = functions.firestore
+    .document("notifications/{notificationId}")
+    .onCreate(async (snapshot, context) => {
+    const notification = snapshot.data();
+    if (!notification)
+        return;
+    const type = String(notification.type || "");
+    const childId = String(notification.childId || "");
+    if (type !== "APP_INSTALLED" || !childId)
+        return;
+    const childName = String(notification.childName || "Your child");
+    const appName = String(notification.appName || "a new app");
+    const packageName = String(notification.packageName || "");
+    await broadcastToParents(childId, {
+        title: "New app installed",
+        body: `${childName} installed ${appName}`,
+        type: "APP_INSTALLED",
+        childId,
+        clickAction: notification.clickAction ||
+            `/dashboard/${childId}?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
+        packageName,
+    });
+});
 exports.onSosCreated = functions.firestore
     .document('children/{childId}/sosEvents/{eventId}')
     .onCreate(async (snapshot, context) => {
@@ -60,16 +83,20 @@ exports.onSosCreated = functions.firestore
         description: data.message || 'Manual trigger from device',
         latitude: data.latitude || null,
         longitude: data.longitude || null,
-        timestamp: data.timestamp || Date.now(),
+        accuracy: data.locationAccuracy || data.accuracy || null,
+        timestamp: data.createdAt || data.timestamp || Date.now(),
         severity: 'critical'
     }, { merge: true });
+    const notificationBody = data.message && data.message !== 'Emergency SOS Triggered'
+        ? `${data.message}. Current location received.`
+        : `${childName} may need help. Current location received.`;
     await broadcastToParents(childId, {
-        title: 'Emergency SOS',
-        body: `${childName} may need help`,
+        title: `Emergency SOS from ${childName}`,
+        body: notificationBody,
         type: 'SOS',
         childId: childId,
         eventId: eventId,
-        clickAction: `/sos`
+        clickAction: `/sos?childId=${childId}&eventId=${eventId}`
     });
     if (data.latitude && data.longitude) {
         try {

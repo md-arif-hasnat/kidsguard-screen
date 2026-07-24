@@ -34,7 +34,7 @@ interface InstalledAppsPanelProps {
 }
 
 export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps) {
-  const { profile, isChildAccessible, loading: profileLoading } = useParentProfile();
+  const { profile, isChildAccessible, role, loading: profileLoading } = useParentProfile();
   const searchParams = useSearchParams();
   const highlightPkg = searchParams.get('pkg');
 
@@ -207,7 +207,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
         packageName: app.packageName,
         appName: app.appName,
         blocked: newStatus
-      });
+      }, role);
     } catch (err) {
       alert("Failed to update app control");
     } finally {
@@ -223,7 +223,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
             packageName,
             appName,
             dailyLimitMinutes: minutes
-        });
+        }, role);
     } catch (err) {
         alert("Failed to update time limit");
     } finally {

@@ -16,14 +16,14 @@ interface RemoveChildDialogProps {
 export default function RemoveChildDialog({ familyId, childId, childName, onClose, onSuccess }: RemoveChildDialogProps) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { profile } = useParentProfile();
+  const { profile, role } = useParentProfile();
 
   const handleRemove = async () => {
     setRemoving(true);
     setError(null);
 
     try {
-      await FamilyRepository.removeChildFromFamily(familyId, childId, profile?.uid, profile?.email || "parent@kidsguard.app");
+      await FamilyRepository.removeChildFromFamily(familyId, childId, profile?.uid, profile?.email || "parent@kidsguard.app", role);
       onSuccess();
       onClose();
     } catch (err: any) {

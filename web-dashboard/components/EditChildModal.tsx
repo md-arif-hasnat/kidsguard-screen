@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, User, Save, Loader2, Camera } from 'lucide-react';
 import { ChildRepository } from '@/lib/repositories/ChildRepository';
+import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import AvatarPicker from './AvatarPicker';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -25,6 +26,7 @@ export default function EditChildModal({ childId, initialName, initialAvatarId, 
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { role } = useParentProfile();
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +39,7 @@ export default function EditChildModal({ childId, initialName, initialAvatarId, 
       await ChildRepository.updateChild(childId, {
         name: name.trim(),
         avatarId: avatarId
-      });
+      }, role);
       onSuccess();
       onClose();
     } catch (err: any) {

@@ -48,10 +48,10 @@ class PreferenceHelper(context: Context) {
             // Priority: 1. pairedChildId, 2. existing saved child_id, 3. deviceId
             val paired = pairedChildId
             if (!paired.isNullOrEmpty()) return paired
-            
+
             val saved = prefs.getString("child_id", null)
             if (!saved.isNullOrEmpty()) return saved
-            
+
             val fallback = deviceId
             prefs.edit().putString("child_id", fallback).apply()
             return fallback
@@ -116,7 +116,7 @@ class PreferenceHelper(context: Context) {
         set(value) = prefs.edit().putString("schedule_start", value).apply()
 
     var scheduleEndTime: String
-        get() = prefs.getString("schedule_end", "08:00") ?: "08:00"
+        get() = prefs.getString("schedule_end", "05:00") ?: "08:00"
         set(value) = prefs.edit().putString("schedule_end", value).apply()
 
     var isSafeZoneNotificationsEnabled: Boolean
@@ -164,7 +164,12 @@ class PreferenceHelper(context: Context) {
         set(value) = prefs.edit().putLong("paired_at", value).apply()
 
     var lockReason: com.example.kidsguard.models.LockReason
-        get() = com.example.kidsguard.models.LockReason.valueOf(prefs.getString("lock_reason", "NONE") ?: "NONE")
+        get() = com.example.kidsguard.models.LockReason.valueOf(
+            prefs.getString(
+                "lock_reason",
+                "NONE"
+            ) ?: "NONE"
+        )
         set(value) = prefs.edit().putString("lock_reason", value.name).apply()
 
     var scheduleUnlockOverrideUntil: Long
@@ -197,7 +202,7 @@ object RemoteStatusService {
         val battery = getBatteryLevel(context)
         val lastActive = System.currentTimeMillis()
     }
-    
+
     fun startRemoteCommandListener(prefHelper: PreferenceHelper) {
     }
 }
@@ -206,19 +211,19 @@ data class DeviceLocation(val lat: Double, val lng: Double, val timestamp: Long)
 
 fun isCurrentTimeInSchedule(prefHelper: PreferenceHelper): Boolean {
     if (!prefHelper.isScheduleEnabled) return false
-    
+
     val now = Calendar.getInstance()
     val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-    
+
     fun parseToMinutes(time: String): Int {
         val parts = time.split(":")
         if (parts.size != 2) return 0
         return (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
     }
-    
+
     val startMin = parseToMinutes(prefHelper.scheduleStartTime)
     val endMin = parseToMinutes(prefHelper.scheduleEndTime)
-    
+
     return if (startMin <= endMin) {
         currentMinutes in startMin..endMin
     } else {

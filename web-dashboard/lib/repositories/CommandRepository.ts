@@ -3,6 +3,10 @@ import { collection, doc, setDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
+
 export enum CommandType {
   REFRESH_LOCATION = "REFRESH_LOCATION",
   RING_DEVICE = "RING_DEVICE",
@@ -20,7 +24,8 @@ export enum CommandType {
 }
 
 export class CommandRepository {
-  static async sendCommand(childId: string, familyId: string, parentId: string, parentName: string, commandType: CommandType, payload: string | null = null) {
+  static async sendCommand(childId: string, familyId: string, parentId: string, parentName: string, commandType: CommandType, payload: string | null = null, callerRole?: FamilyRole) {
+    if (callerRole && !RoleHelper.canSendRemoteCommands(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
 
     const commandId = uuidv4();

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
 import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
-import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone, MapPin } from 'lucide-react';
+import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone, MapPin, ShieldAlert } from 'lucide-react';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
 import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
@@ -14,13 +14,14 @@ import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 import { useParentProfile, getDisplayName } from '@/lib/context/ParentProfileContext';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx } from 'clsx';
 import ChildAvatar from '@/components/ChildAvatar';
 
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 
 export default function Home() {
-  const { profile, family: profileFamily, loading: contextLoading } = useParentProfile();
+  const { profile, family: profileFamily, loading: contextLoading, role } = useParentProfile();
   const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
   const [childrenSos, setChildrenSos] = useState<Record<string, SosEvent[]>>({});
   const [childrenActivities, setChildrenActivities] = useState<Record<string, ActivityEvent[]>>({});
@@ -148,6 +149,10 @@ export default function Home() {
   const handlePairChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!family || !pairingCode) return;
+    if (!RoleHelper.canInviteMembers(role) && !noChildrenPaired) {
+        setPairingError("Permission Denied: You cannot pair devices.");
+        return;
+    }
 
     setIsPairing(true);
     setPairingError(null);
@@ -267,44 +272,55 @@ export default function Home() {
             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
                 <Smartphone size={40} />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              {noChildrenPaired ? "No Child Connected Yet" : "Pair Another Child"}
-            </h2>
-            <p className="text-slate-500 max-w-md mx-auto mb-8">
-                {noChildrenPaired
-                  ? "Your family vault is ready, but you haven't linked any devices."
-                  : "Link another device to your family vault."}
-                Open the KidsGuard app on your child&apos;s phone to get a pairing code.
-            </p>
 
-            <form onSubmit={handlePairChild} className="max-w-xs mx-auto space-y-4">
-                <input
-                    type="text"
-                    value={pairingCode}
-                    onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
-                    placeholder="Enter 6-digit code"
-                    className="w-full min-w-0
-                               px-3 sm:px-5
-                               py-4
-                               text-center
-                               text-lg sm:text-2xl
-                               font-black
-                               tracking-normal sm:tracking-widest
-                               placeholder:text-base sm:placeholder:text-xl
-                               placeholder:tracking-normal sm:placeholder:tracking-widest
-                               rounded-2xl
-                               border-2"
-                    maxLength={6}
-                />
-                {pairingError && <p className="text-rose-600 text-xs font-bold">{pairingError}</p>}
-                <button
-                    disabled={isPairing || pairingCode.length < 6}
-                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                    {isPairing && <Loader2 size={18} className="animate-spin" />}
-                    Pair Device Now
-                </button>
-            </form>
+            {RoleHelper.canInviteMembers(role) || noChildrenPaired ? (
+                <>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                        {noChildrenPaired ? "No Child Connected Yet" : "Pair Another Child"}
+                    </h2>
+                    <p className="text-slate-500 max-w-md mx-auto mb-8">
+                        {noChildrenPaired
+                        ? "Your family vault is ready, but you haven't linked any devices."
+                        : "Link another device to your family vault."}
+                        Open the KidsGuard app on your child&apos;s phone to get a pairing code.
+                    </p>
+
+                    <form onSubmit={handlePairChild} className="max-w-xs mx-auto space-y-4">
+                        <input
+                            type="text"
+                            value={pairingCode}
+                            onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
+                            placeholder="Enter 6-digit code"
+                            className="w-full min-w-0
+                                        px-3 sm:px-5
+                                        py-4
+                                        text-center
+                                        text-lg sm:text-2xl
+                                        font-black
+                                        tracking-normal sm:tracking-widest
+                                        placeholder:text-base sm:placeholder:text-xl
+                                        placeholder:tracking-normal sm:placeholder:tracking-widest
+                                        rounded-2xl
+                                        border-2"
+                            maxLength={6}
+                        />
+                        {pairingError && <p className="text-rose-600 text-xs font-bold">{pairingError}</p>}
+                        <button
+                            disabled={isPairing || pairingCode.length < 6}
+                            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isPairing && <Loader2 size={18} className="animate-spin" />}
+                            Pair Device Now
+                        </button>
+                    </form>
+                </>
+            ) : (
+                <div className="py-8">
+                    <ShieldAlert size={48} className="mx-auto text-slate-200 mb-4" />
+                    <h3 className="text-xl font-bold text-slate-800">Permission Required</h3>
+                    <p className="text-slate-500 mt-2 italic text-sm">You do not have permission to pair new devices to this family.</p>
+                </div>
+            )}
         </div>
       )}
 
@@ -346,16 +362,18 @@ export default function Home() {
             ))
             ) : null}
 
-            <div
-                onClick={() => setShowPairingForm(true)}
-                className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[160px] md:min-h-[200px]"
-            >
-            <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">
-                <Plus size={24} />
-            </div>
-            <p className="font-bold">Add Another Child</p>
-            <p className="text-sm">Pair a new Android device</p>
-            </div>
+            {RoleHelper.canInviteMembers(role) && (
+                <div
+                    onClick={() => setShowPairingForm(true)}
+                    className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-100 hover:border-slate-400 transition-all cursor-pointer min-h-[160px] md:min-h-[200px]"
+                >
+                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-4">
+                        <Plus size={24} />
+                    </div>
+                    <p className="font-bold">Add Another Child</p>
+                    <p className="text-sm">Pair a new Android device</p>
+                </div>
+            )}
         </div>
       )}
 

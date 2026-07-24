@@ -320,7 +320,9 @@ export default function ChildDashboard() {
             family.familyId,
             profile.uid,
             profile.displayName || "Parent",
-            type
+            type,
+            null,
+            role
         );
     } catch (e) {
         alert("Failed to send command.");
@@ -437,26 +439,30 @@ export default function ChildDashboard() {
         </div>
 
         <div className="flex w-full md:w-auto gap-3">
-          <button
-            onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
-            disabled={!canControl}
-            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-          >
-            <RotateCcw size={18} />
-            <span className="hidden sm:inline">Refresh GPS</span>
-            <span className="sm:hidden">GPS</span>
-          </button>
-          <button
-            onClick={() => handleCommand(status?.kidGuardActive ? CommandType.UNLOCK_NOW : CommandType.LOCK_NOW)}
-            disabled={!canControl}
-            className={cn(
-                "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50",
-                status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'
-            )}
-          >
-            {status?.kidGuardActive ? <Unlock size={18} /> : <Lock size={18} />}
-            {status?.kidGuardActive ? 'Unlock' : 'Lock Now'}
-          </button>
+          {RoleHelper.canSendRemoteCommands(role) && (
+            <>
+              <button
+                onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
+                disabled={!canControl}
+                className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+              >
+                <RotateCcw size={18} />
+                <span className="hidden sm:inline">Refresh GPS</span>
+                <span className="sm:hidden">GPS</span>
+              </button>
+              <button
+                onClick={() => handleCommand(status?.kidGuardActive ? CommandType.UNLOCK_NOW : CommandType.LOCK_NOW)}
+                disabled={!canControl}
+                className={cn(
+                    "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50",
+                    status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'
+                )}
+              >
+                {status?.kidGuardActive ? <Unlock size={18} /> : <Lock size={18} />}
+                {status?.kidGuardActive ? 'Unlock' : 'Lock Now'}
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -607,13 +613,20 @@ export default function ChildDashboard() {
                     <p className="text-rose-600 text-sm font-medium mb-6">
                         Remove this device from your family. Monitoring will stop immediately and the child app will return to setup.
                     </p>
-                    <button
-                        onClick={() => setShowRemoveDialog(true)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all flex items-center gap-2 text-sm"
-                    >
-                        <ShieldAlert size={18} />
-                        Remove Device
-                    </button>
+                    {RoleHelper.canRemoveChild(role) ? (
+                      <button
+                          onClick={() => setShowRemoveDialog(true)}
+                          className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all flex items-center gap-2 text-sm"
+                      >
+                          <ShieldAlert size={18} />
+                          Remove Device
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic text-xs font-bold">
+                        <Shield size={14} />
+                        Only Family Owners can remove devices.
+                      </div>
+                    )}
                 </section>
                 </div>
 
@@ -842,7 +855,7 @@ export default function ChildDashboard() {
                                 youtubeRestrictedMode: true,
                                 adultContentBlockEnabled: true
                             }}
-                            onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules)}
+                            onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules, role)}
                         />
                     ) : (
                         <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center opacity-60 mb-12">
@@ -857,7 +870,7 @@ export default function ChildDashboard() {
                     {canManageWeb && (
                         <WebAccessRequestsPanel
                             requests={webRequests}
-                            onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain)}
+                            onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain, role)}
                         />
                     )}
                   </div>

@@ -14,6 +14,9 @@ import {
 } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
 
 export enum ProtectionModeType {
   SCHOOL = "SCHOOL",
@@ -61,7 +64,8 @@ export class ProtectionModeRepository {
     });
   }
 
-  static async saveMode(childId: string, familyId: string, mode: Omit<ProtectionMode, 'createdAt' | 'updatedAt'>) {
+  static async saveMode(childId: string, familyId: string, mode: Omit<ProtectionMode, 'createdAt' | 'updatedAt'>, callerRole?: FamilyRole) {
+    if (callerRole && !RoleHelper.canManageProtectionModes(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     const isNew = !mode.id;
     const id = mode.id || uuidv4();
@@ -95,7 +99,8 @@ export class ProtectionModeRepository {
     return id;
   }
 
-  static async deleteMode(childId: string, familyId: string, modeId: string) {
+  static async deleteMode(childId: string, familyId: string, modeId: string, callerRole?: FamilyRole) {
+    if (callerRole && !RoleHelper.canManageProtectionModes(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     await deleteDoc(doc(db, "children", childId, "protectionModes", modeId));
 

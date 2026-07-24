@@ -36,43 +36,60 @@ class InstalledAppsRepository(private val context: Context) {
      * Use this during initialization to populate the installedApps collection.
      */
     fun initialScan() {
+        performScan(isFullRescan = false)
+    }
+
+    /**
+     * Complete rescan that synchronizes local state and Firestore with current device reality.
+     */
+    fun fullRescan() {
+        performScan(isFullRescan = true)
+    }
+
+    private fun performScan(isFullRescan: Boolean) {
         val childId = getChildId() ?: run {
-            Log.e(TAG, "Initial scan aborted: childId is missing")
+            Log.e(TAG, "Scan aborted: childId is missing")
             return
         }
 
-        val installedPackages = try {
+        val allPackages = try {
             pm.getInstalledPackages(0)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get installed packages", e)
             return
         }
 
+        var launchableCount = 0
+        var internalExcludedCount = 0
         var uploaded = 0
-        var skipped = 0
         var failed = 0
 
-        Log.i(TAG, "Starting initial scan for child: $childId. Found ${installedPackages.size} total packages.")
+        Log.i(TAG, "InstalledAppsScan: Starting scan. total packages returned=${allPackages.size}")
 
-        installedPackages.forEach { pkg ->
+        val currentLaunchablePackages = mutableSetOf<String>()
+
+        allPackages.forEach { pkg ->
             val packageName = pkg.packageName
             
             // Ignore KidsGuard itself
             if (packageName == context.packageName) {
-                skipped++
+                internalExcludedCount++
                 return@forEach
             }
             
+            val launchIntent = pm.getLaunchIntentForPackage(packageName)
+            if (launchIntent == null) {
+                internalExcludedCount++
+                return@forEach
+            }
+
+            launchableCount++
+            currentLaunchablePackages.add(packageName)
+
             try {
                 val appInfo = pkg.applicationInfo ?: return@forEach
-
-                // Ignore system apps
-                if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
-                    skipped++
-                    return@forEach
-                }
-
                 val appName = pm.getApplicationLabel(appInfo).toString()
+                
                 val installedApp = InstalledApp(
                     packageName = packageName,
                     appName = appName,
@@ -87,17 +104,42 @@ class InstalledAppsRepository(private val context: Context) {
                     }
                 )
 
-                syncAppInstall(installedApp, createNotification = false)
-                uploaded++
-                
-                // Add to local cache to prevent future new-install notifications for these old apps
-                prefs.edit().putBoolean(packageName, true).apply()
+                // Only sync if not in cache or if it's a full rescan
+                if (isFullRescan || !prefs.contains(packageName)) {
+                    syncAppInstall(installedApp, createNotification = false)
+                    uploaded++
+                    prefs.edit().putBoolean(packageName, true).apply()
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to process $packageName during initial scan", e)
+                Log.e(TAG, "Failed to process $packageName during scan", e)
                 failed++
             }
         }
-        Log.i(TAG, "Initial scan completed. Uploaded: $uploaded, Skipped: $skipped, Failed: $failed")
+
+        Log.i(TAG, "InstalledAppsScan: total packages returned=${allPackages.size}")
+        Log.i(TAG, "InstalledAppsScan: launchable packages=$launchableCount")
+        Log.i(TAG, "InstalledAppsScan: excluded internal packages=$internalExcludedCount")
+        Log.i(TAG, "InstalledAppsScan: synced packages=$uploaded")
+        Log.i(TAG, "InstalledAppsScan: failed packages=$failed")
+
+        if (isFullRescan) {
+            cleanUpUninstalledApps(childId, currentLaunchablePackages)
+        }
+    }
+
+    private fun cleanUpUninstalledApps(childId: String, currentPackages: Set<String>) {
+        // 1. Clean up SharedPreferences cache
+        val cachedPackages = prefs.all.keys.toSet()
+        val toRemoveFromCache = cachedPackages.filter { !currentPackages.contains(it) }
+        toRemoveFromCache.forEach {
+            prefs.edit().remove(it).apply()
+            Log.d(TAG, "Cleaning up uninstalled app from cache: $it")
+        }
+
+        // 2. We could also query Firestore to remove apps that are no longer present.
+        // For now, we'll mark them as uninstalled if we had a list, 
+        // but typically the Dashboard only shows what's in 'installedApps' collection.
+        // We'll leave them in Firestore but removed from local 'new app' detection.
     }
 
     /**
@@ -106,16 +148,17 @@ class InstalledAppsRepository(private val context: Context) {
     fun handlePackageAdded(packageName: String) {
         if (packageName == context.packageName) return
 
+        val launchIntent = pm.getLaunchIntentForPackage(packageName)
+        if (launchIntent == null) {
+            Log.d(TAG, "Ignoring non-launchable added package: $packageName")
+            return
+        }
+
         val isNewInstall = !prefs.contains(packageName)
 
         try {
             val info = pm.getPackageInfo(packageName, 0)
             val appInfo = info.applicationInfo ?: return
-
-            // Ignore system apps
-            if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
-                return
-            }
 
             val appName = pm.getApplicationLabel(appInfo).toString()
             val installedApp = InstalledApp(

@@ -2,6 +2,9 @@ import { db } from "../firebase";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
 
 export type SafeZoneType = 'Home' | 'School' | 'Playground' | 'Relative House' | 'Custom';
 
@@ -69,7 +72,8 @@ export class SafeZoneRepository {
     };
   }
 
-  static async addSafeZone(childId: string, familyId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>): Promise<string> {
+  static async addSafeZone(childId: string, familyId: string, zone: Omit<SafeZone, 'id' | 'createdAt'>, callerRole?: FamilyRole): Promise<string> {
+    if (callerRole && !RoleHelper.canManageSafeZones(callerRole)) throw new PermissionError();
     if (!db) throw new Error("Firestore not initialized");
     const id = uuidv4();
     const zoneRef = doc(db, "children", childId, "safeZones", id);
@@ -96,7 +100,8 @@ export class SafeZoneRepository {
     return id;
   }
 
-  static async updateSafeZone(childId: string, familyId: string, zoneId: string, updates: Partial<SafeZone>): Promise<void> {
+  static async updateSafeZone(childId: string, familyId: string, zoneId: string, updates: Partial<SafeZone>, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageSafeZones(callerRole)) throw new PermissionError();
     if (!db) return;
     const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await updateDoc(zoneRef, {
@@ -117,7 +122,8 @@ export class SafeZoneRepository {
     });
   }
 
-  static async deleteSafeZone(childId: string, familyId: string, zoneId: string): Promise<void> {
+  static async deleteSafeZone(childId: string, familyId: string, zoneId: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageSafeZones(callerRole)) throw new PermissionError();
     if (!db) return;
     const zoneRef = doc(db, "children", childId, "safeZones", zoneId);
     await deleteDoc(zoneRef);

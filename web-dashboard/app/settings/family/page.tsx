@@ -77,7 +77,8 @@ export default function FamilyManagementPage() {
         inviteEmail,
         inviteRole,
         profile!.uid,
-        profile?.displayName || "Family Owner"
+        profile?.displayName || "Family Owner",
+        role
       );
 
       const inviteId = (family?.invites ?? []).find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
@@ -94,7 +95,7 @@ export default function FamilyManagementPage() {
   const handleRevokeInvite = async (inviteId: string) => {
     if (!family || !confirm("Revoke this invitation?")) return;
     try {
-      await FamilyRepository.revokeInvite(family.familyId, inviteId);
+      await FamilyRepository.revokeInvite(family.familyId, inviteId, role);
     } catch (err) {
       alert("Failed to revoke invite");
     }
@@ -110,7 +111,7 @@ export default function FamilyManagementPage() {
         relationship: contactRel,
         phone: contactPhone,
         priority: (family.emergencyContacts?.length || 0) + 1
-      });
+      }, role);
       setContactName('');
       setContactRelationship('');
       setContactPhone('');
@@ -193,7 +194,7 @@ export default function FamilyManagementPage() {
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         {isOwner && member.uid !== profile?.uid && family?.familyId && (
                             <button
-                            onClick={() => FamilyRepository.removeMember(family.familyId, member.uid)}
+                            onClick={() => FamilyRepository.removeMember(family.familyId, member.uid, role)}
                             className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
                             title="Remove Member"
                             >
@@ -378,7 +379,7 @@ export default function FamilyManagementPage() {
                       </div>
                       {family?.familyId && (
                         <button
-                          onClick={() => FamilyRepository.removeEmergencyContact(family.familyId, contact.id)}
+                          onClick={() => FamilyRepository.removeEmergencyContact(family.familyId, contact.id, role)}
                           className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
                         >
                           <Trash2 size={18} />

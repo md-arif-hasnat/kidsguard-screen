@@ -1,6 +1,7 @@
 package com.example.kidsguard.sync
 
 import androidx.annotation.Keep
+import com.google.firebase.Timestamp
 
 enum class SyncPlatform { ANDROID, IOS }
 enum class SyncRole { PARENT, CHILD }
@@ -12,6 +13,7 @@ enum class CommandType {
     UNLOCK_DEVICE,
     SHOW_MESSAGE,
     VIBRATE_DEVICE,
+
     // Legacy mapping support
     LOCK_NOW,
     UNLOCK_NOW,
@@ -201,7 +203,7 @@ data class SyncAppControl(
     var appName: String = "",
     var blocked: Boolean = false,
     var dailyLimitMinutes: Int? = null,
-    var updatedAt: Long? = null
+    var updatedAt: Timestamp? = null
 )
 
 @Keep
