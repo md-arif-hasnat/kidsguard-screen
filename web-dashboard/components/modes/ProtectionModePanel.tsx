@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { ProtectionModeRepository, ProtectionMode, ProtectionModeType } from '@/lib/repositories/ProtectionModeRepository';
 import { SafeZone } from '@/lib/repositories/SafeZoneRepository';
+import { FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -33,7 +35,7 @@ interface ProtectionModePanelProps {
     childId: string;
     familyId: string;
     safeZones: SafeZone[];
-    role: string;
+    role: FamilyRole;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -83,7 +85,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                 allowedDomains: [], // Future picker
                 blockedDomains: [], // Future picker
                 lockDevice
-            });
+            }, role);
             resetForm();
         } catch (e) {
             alert("Failed to save protection mode.");
@@ -120,7 +122,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
 
     const handleDelete = async (id: string) => {
         if (!confirm("Delete this protection mode?")) return;
-        await ProtectionModeRepository.deleteMode(childId, familyId, id);
+        await ProtectionModeRepository.deleteMode(childId, familyId, id, role);
     };
 
     const toggleDay = (day: number) => {
@@ -139,7 +141,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                     </h2>
                     <p className="text-slate-500 font-medium mt-1 italic text-sm">Automate safety rules based on time or location.</p>
                 </div>
-                {!showForm && (
+                {!showForm && RoleHelper.canManageProtectionModes(role) && (
                     <button
                         onClick={() => setShowAddForm(true)}
                         className="bg-primary-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-primary-700 transition-all flex items-center gap-2"
@@ -283,8 +285,12 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                                     <Shield size={24} />
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleEdit(mode)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={16} /></button>
-                                    <button onClick={() => handleDelete(mode.id)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                                    {RoleHelper.canManageProtectionModes(role) && (
+                                        <>
+                                            <button onClick={() => handleEdit(mode)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={16} /></button>
+                                            <button onClick={() => handleDelete(mode.id)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 

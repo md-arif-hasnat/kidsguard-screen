@@ -1,6 +1,9 @@
 import { db } from "../firebase";
 import { doc, onSnapshot, collection, query, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
 
 export enum WebCategory {
     SAFE = "SAFE",
@@ -59,7 +62,8 @@ export class WebProtectionRepository {
         });
     }
 
-    static async updateWebRules(childId: string, rules: WebRuleSet) {
+    static async updateWebRules(childId: string, rules: WebRuleSet, callerRole?: FamilyRole) {
+        if (callerRole && !RoleHelper.canManageWebProtection(callerRole)) throw new PermissionError();
         if (!db || !childId) return;
         const ref = doc(db, "children", childId, "webRules", "current");
         await setDoc(ref, rules);
@@ -95,7 +99,8 @@ export class WebProtectionRepository {
         });
     }
 
-    static async handleAccessRequest(childId: string, requestId: string, status: "APPROVED" | "DENIED", domain?: string) {
+    static async handleAccessRequest(childId: string, requestId: string, status: "APPROVED" | "DENIED", domain?: string, callerRole?: FamilyRole) {
+        if (callerRole && !RoleHelper.canManageWebProtection(callerRole)) throw new PermissionError();
         if (!db || !childId) return;
         const reqRef = doc(db, "children", childId, "accessRequests", requestId);
         await updateDoc(reqRef, { status });

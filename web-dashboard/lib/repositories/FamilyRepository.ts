@@ -13,6 +13,9 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
+
 export enum FamilyRole {
   OWNER = "OWNER",
   PARENT = "PARENT",
@@ -135,7 +138,8 @@ export class FamilyRepository {
     return familyId;
   }
 
-  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole, invitedBy: string, invitedByName?: string): Promise<string> {
+  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole, invitedBy: string, invitedByName?: string, callerRole?: FamilyRole): Promise<string> {
+    if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
     if (!db) throw new Error("Firestore not initialized");
     const inviteId = uuidv4();
     const token = uuidv4().replace(/-/g, ''); // Simple token
@@ -261,7 +265,8 @@ export class FamilyRepository {
     return invite.familyId;
   }
 
-  static async revokeInvite(familyId: string, inviteId: string): Promise<void> {
+  static async revokeInvite(familyId: string, inviteId: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
     if (!db) return;
 
     // 1. Update secure invite
@@ -279,7 +284,8 @@ export class FamilyRepository {
     }
   }
 
-  static async updateMemberRole(familyId: string, memberUid: string, newRole: FamilyRole): Promise<void> {
+  static async updateMemberRole(familyId: string, memberUid: string, newRole: FamilyRole, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageFamily(callerRole)) throw new PermissionError();
     if (!db) return;
     const familyRef = doc(db, "families", familyId);
     const snap = await getDoc(familyRef);
@@ -304,7 +310,8 @@ export class FamilyRepository {
     });
   }
 
-  static async removeMember(familyId: string, memberUid: string): Promise<void> {
+  static async removeMember(familyId: string, memberUid: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canRemoveMembers(callerRole)) throw new PermissionError();
     if (!db) return;
     const familyRef = doc(db, "families", familyId);
     const snap = await getDoc(familyRef);
@@ -326,7 +333,8 @@ export class FamilyRepository {
     });
   }
 
-  static async removeChildFromFamily(familyId: string, childId: string, parentUid: string = "current_user", parentEmail: string = "parent@kidsguard.app"): Promise<void> {
+  static async removeChildFromFamily(familyId: string, childId: string, parentUid: string = "current_user", parentEmail: string = "parent@kidsguard.app", callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canRemoveChild(callerRole)) throw new PermissionError();
     if (!db || !familyId || !childId) return;
     const familyRef = doc(db, "families", familyId);
     const snap = await getDoc(familyRef);
@@ -355,13 +363,15 @@ export class FamilyRepository {
     });
   }
 
-  static async updateFamilySettings(familyId: string, settings: Partial<FamilySettings>): Promise<void> {
+  static async updateFamilySettings(familyId: string, settings: Partial<FamilySettings>, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageFamily(callerRole)) throw new PermissionError();
     if (!db) return;
     const familyRef = doc(db, "families", familyId);
     await updateDoc(familyRef, { settings: settings });
   }
 
-  static async addEmergencyContact(familyId: string, contact: Omit<EmergencyContact, 'id'>): Promise<void> {
+  static async addEmergencyContact(familyId: string, contact: Omit<EmergencyContact, 'id'>, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageFamily(callerRole)) throw new PermissionError();
     if (!db) return;
     const familyRef = doc(db, "families", familyId);
     await updateDoc(familyRef, {
@@ -369,7 +379,8 @@ export class FamilyRepository {
     });
   }
 
-  static async removeEmergencyContact(familyId: string, contactId: string): Promise<void> {
+  static async removeEmergencyContact(familyId: string, contactId: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageFamily(callerRole)) throw new PermissionError();
     if (!db) return;
     const familyRef = doc(db, "families", familyId);
     const snap = await getDoc(familyRef);

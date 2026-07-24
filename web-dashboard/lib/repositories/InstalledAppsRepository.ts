@@ -1,5 +1,8 @@
 import { db } from "../firebase";
 import { collection, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+import { PermissionError } from "./ChildRepository";
 
 export interface InstalledApp {
   packageName: string;
@@ -54,7 +57,8 @@ export class InstalledAppsRepository {
     });
   }
 
-  static async updateAppControl(childId: string, parentUid: string, control: Partial<AppControl> & { packageName: string, appName: string }) {
+  static async updateAppControl(childId: string, parentUid: string, control: Partial<AppControl> & { packageName: string, appName: string }, callerRole?: FamilyRole) {
+    if (callerRole && !RoleHelper.canManageChildren(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
 
     // Sanitize package name for document ID
@@ -72,7 +76,8 @@ export class InstalledAppsRepository {
     await setDoc(controlRef, data, { merge: true });
   }
 
-  static async deleteAppControl(childId: string, packageName: string) {
+  static async deleteAppControl(childId: string, packageName: string, callerRole?: FamilyRole) {
+    if (callerRole && !RoleHelper.canManageChildren(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     const docId = packageName.replace(/\./g, "_");
     const controlRef = doc(db, "children", childId, "appControls", docId);

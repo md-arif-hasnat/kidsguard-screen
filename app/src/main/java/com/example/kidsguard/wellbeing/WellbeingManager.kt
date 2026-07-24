@@ -3,6 +3,8 @@ package com.example.kidsguard.wellbeing
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import com.example.kidsguard.admin.KidsGuardAdminReceiver
@@ -11,7 +13,6 @@ import com.example.kidsguard.repository.AppControlRepository
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.sync.SyncAppUsage
-import com.example.kidsguard.sync.SyncWellbeingSettings
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
@@ -21,10 +22,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import android.content.Intent
-import android.content.pm.PackageManager
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 class WellbeingManager(
     private val context: Context,
@@ -73,8 +75,19 @@ class WellbeingManager(
             syncProvider.getWellbeingSettings(childId).collectLatest { syncSettings ->
                 if (syncSettings != null) {
                     _settings.value = WellbeingSettings(
-                        appLimits = syncSettings.appLimits.map { AppLimit(it.packageName, it.dailyLimitMs, it.enabled) },
-                        blockRules = syncSettings.blockRules.map { AppBlockRule(it.packageName, it.isBlocked) }
+                        appLimits = syncSettings.appLimits.map {
+                            AppLimit(
+                                it.packageName,
+                                it.dailyLimitMs,
+                                it.enabled
+                            )
+                        },
+                        blockRules = syncSettings.blockRules.map {
+                            AppBlockRule(
+                                it.packageName,
+                                it.isBlocked
+                            )
+                        }
                     )
                 }
             }
@@ -100,8 +113,8 @@ class WellbeingManager(
 
         val usage = tracker.getDailyUsage()
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        
-        val syncUsage = usage.map { 
+
+        val syncUsage = usage.map {
             SyncAppUsage(
                 packageName = it.packageName,
                 appName = it.appName,
@@ -111,7 +124,7 @@ class WellbeingManager(
                 date = date
             )
         }
-        
+
         syncProvider.syncAppUsage(childId, syncUsage)
         checkLimits(usage)
     }
@@ -121,26 +134,40 @@ class WellbeingManager(
         usage.forEach { app ->
             val limit = currentLimits.find { it.packageName == app.packageName && it.enabled }
             if (limit != null && app.totalTimeVisibleMs >= limit.dailyLimitMs) {
-                Log.w(TAG, "Limit reached for ${app.appName}: ${app.totalTimeVisibleMs}ms >= ${limit.dailyLimitMs}ms")
+                Log.w(
+                    TAG,
+                    "Limit reached for ${app.appName}: ${app.totalTimeVisibleMs}ms >= ${limit.dailyLimitMs}ms"
+                )
             }
         }
     }
 
     fun getAppBlockReason(packageName: String): AppBlockReason {
+        Log.e(
+            "APP_BLOCK_TRACE",
+            "Checking package=$packageName, control=${appControlRepository.getControl(packageName)}"
+        )
+
         if (isEmergencyApp(packageName)) return AppBlockReason.NONE
-        
+
         val control = appControlRepository.getControl(packageName)
         if (control != null) {
             if (control.blocked) {
+
+                Log.e("APP_BLOCK_TRACE", "Block confirmed package=$packageName")
+
                 Log.i("AppBlock", "Blocking $packageName: Static block from appControls")
                 return AppBlockReason.STATIC_BLOCK
             }
-            
+
             if (control.dailyLimitMinutes != null) {
                 val usage = tracker.getDailyUsage().find { it.packageName == packageName }
                 val usageMins = (usage?.totalTimeVisibleMs ?: 0L) / 60000
                 if (usageMins >= control.dailyLimitMinutes!!) {
-                    Log.i("AppLimit", "Blocking $packageName: Limit reached (${usageMins}m >= ${control.dailyLimitMinutes}m)")
+                    Log.i(
+                        "AppLimit",
+                        "Blocking $packageName: Limit reached (${usageMins}m >= ${control.dailyLimitMinutes}m)"
+                    )
                     return AppBlockReason.LIMIT_REACHED
                 }
             }
@@ -150,10 +177,11 @@ class WellbeingManager(
         if (currentSettings.blockRules.any { it.packageName == packageName && it.isBlocked }) {
             return AppBlockReason.STATIC_BLOCK
         }
-        
+
         val usage = tracker.getDailyUsage()
         val appUsage = usage.find { it.packageName == packageName }
-        val legacyLimit = currentSettings.appLimits.find { it.packageName == packageName && it.enabled }
+        val legacyLimit =
+            currentSettings.appLimits.find { it.packageName == packageName && it.enabled }
         if (appUsage != null && legacyLimit != null && appUsage.totalTimeVisibleMs >= legacyLimit.dailyLimitMs) {
             return AppBlockReason.LIMIT_REACHED
         }
@@ -190,7 +218,7 @@ class WellbeingManager(
 
         val appName = getAppName(packageName)
         Log.i("RequestAccess", "Requesting access for $packageName ($reason)")
-        
+
         val requestId = UUID.randomUUID().toString()
         val request = mapOf(
             "childId" to childId,
@@ -228,14 +256,16 @@ class WellbeingManager(
     private fun isInsideBlockedSchedule(packageName: String, settings: WellbeingSettings): Boolean {
         val now = Calendar.getInstance()
         val currentDay = now.get(Calendar.DAY_OF_WEEK)
-        val currentTime = String.format("%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
-        
-        settings.globalSchedules.filter { it.enabled && it.daysOfWeek.contains(currentDay) }.forEach { schedule ->
-            if (currentTime >= schedule.startTime && currentTime <= schedule.endTime) {
-                if (schedule.blockedPackages.contains(packageName)) return true
+        val currentTime =
+            String.format("%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
+
+        settings.globalSchedules.filter { it.enabled && it.daysOfWeek.contains(currentDay) }
+            .forEach { schedule ->
+                if (currentTime >= schedule.startTime && currentTime <= schedule.endTime) {
+                    if (schedule.blockedPackages.contains(packageName)) return true
+                }
             }
-        }
-        
+
         return false
     }
 
@@ -254,14 +284,15 @@ class WellbeingManager(
         )
         // Also don't block launchers
         if (isLauncher(packageName)) return true
-        
+
         return emergency.contains(packageName) || packageName.startsWith("com.android.settings")
     }
 
     private fun isLauncher(packageName: String): Boolean {
         val intent = Intent(Intent.ACTION_MAIN)
         intent.addCategory(Intent.CATEGORY_HOME)
-        val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        val resolveInfo =
+            context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         return resolveInfo?.activityInfo?.packageName == packageName
     }
 }

@@ -29,6 +29,44 @@ export const onActivityCreated = functions.firestore
     });
 
 /**
+ * Triggered when a new notification document is created.
+ * Sends push notification for newly installed apps.
+ */
+export const onNotificationCreated = functions.firestore
+ .document("notifications/{notificationId}")
+ .onCreate(async (snapshot, context) => {
+ const notification = snapshot.data();
+
+ if (!notification) return;
+
+ const type = String(notification.type || "");
+ const childId = String(notification.childId || "");
+
+ // Only handle new app install notifications here
+ if (type !== "APP_INSTALLED" || !childId) return;
+
+ const childName = String(notification.childName || "Your child");
+ const appName = String(notification.appName || "a new app");
+ const packageName = String(notification.packageName || "");
+
+ await broadcastToParents(childId, {
+ title: "New app installed",
+ body: `${childName} installed ${appName}`,
+ type: "APP_INSTALLED",
+ childId,
+ clickAction:
+ notification.clickAction ||
+ `/dashboard/${childId}?tab=installed-apps&pkg=${encodeURIComponent(
+ packageName
+ )}`,
+ packageName,
+ });
+ });
+
+
+
+
+/**
  * Triggered when an SOS event is created.
  */
 export const onSosCreated = functions.firestore
@@ -328,9 +366,10 @@ class EmailService {
 interface NotificationPayload {
     title: string;
     body: string;
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING' | 'APP_INSTALLED';
     childId: string;
     clickAction: string;
+    packageName?: string;
     eventId?: string;
     familyId?: string;
     message?: string; // For explicit required field mapping

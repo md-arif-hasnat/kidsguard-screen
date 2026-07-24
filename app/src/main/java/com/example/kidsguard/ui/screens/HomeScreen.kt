@@ -296,9 +296,14 @@ fun HomeScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            ConnectedInfoRow("Child", prefHelper.childName)
+                            // ConnectedInfoRow("Child", prefHelper.childName)
 
-
+                            ConnectedInfoRow(
+                                label = "Child",
+                                value = prefHelper.childName
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: "Child not found"
+                            )
                             ConnectedInfoRow(
                                 label = "Parent",
                                 value = prefHelper.parentName

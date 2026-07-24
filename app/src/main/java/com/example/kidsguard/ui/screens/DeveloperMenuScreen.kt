@@ -266,6 +266,26 @@ fun DeveloperMenuScreen(
             )
 
             DeveloperActionItem(
+                title = "Rescan Installed Apps",
+                description = "Scan all launchable apps and sync to Firestore (includes system apps like Chrome/YouTube).",
+                onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val repo = com.example.kidsguard.repository.InstalledAppsRepository(context)
+                            repo.fullRescan()
+                            scope.launch(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Rescan completed", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            scope.launch(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Rescan failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            )
+
+            DeveloperActionItem(
                 title = "Reset Role Selection",
                 description = "Resets user role to NONE and clears pairing data.",
                 onClick = { showConfirmDialog = "RESET_ROLE" }

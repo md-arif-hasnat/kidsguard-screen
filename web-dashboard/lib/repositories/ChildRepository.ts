@@ -1,5 +1,14 @@
 import { db } from "../firebase";
 import { doc, onSnapshot,setDoc, collection, updateDoc, serverTimestamp } from "firebase/firestore";
+import { FamilyRole } from "./FamilyRepository";
+import { RoleHelper } from "../utils/RoleHelper";
+
+export class PermissionError extends Error {
+  constructor(message: string = "Permission Denied: You do not have authority to perform this action.") {
+    super(message);
+    this.name = "PermissionError";
+  }
+}
 
 export interface ChildStatus {
   childId: string;
@@ -102,7 +111,8 @@ export class ChildRepository {
     });
   }
 
-  static async updateLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>): Promise<void> {
+  static async updateLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canManageChildren(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     const ref = doc(db, "children", childId, "settings", "lockSchedule");
     await updateDoc(ref, {
@@ -120,8 +130,10 @@ startMinutes: number;
 endMinutes: number;
 days: number[];
 timezone: string;
-}
+},
+callerRole?: FamilyRole
 ): Promise<void> {
+if (callerRole && !RoleHelper.canManageChildren(callerRole)) throw new PermissionError();
 if (!childId?.trim()) {
 throw new Error("Missing childId");
 }
@@ -164,7 +176,8 @@ throw error;
 }
 }
 
-  static async updateAvatar(childId: string, avatarId: string): Promise<void> {
+  static async updateAvatar(childId: string, avatarId: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canEditChild(callerRole)) throw new PermissionError();
     if (!db) return;
     const childRef = doc(db, "children", childId);
     const statusRef = doc(db, "children", childId, "status", "current");
@@ -183,7 +196,8 @@ throw error;
       await updateDoc(ref, { familyId, updatedAt: serverTimestamp() });
   }
 
-  static async renameChild(childId: string, newName: string): Promise<void> {
+  static async renameChild(childId: string, newName: string, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canEditChild(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     const childRef = doc(db, "children", childId);
     const statusRef = doc(db, "children", childId, "status", "current");
@@ -196,7 +210,8 @@ throw error;
     }
   }
 
-  static async updateChild(childId: string, data: { name?: string, avatarId?: string }): Promise<void> {
+  static async updateChild(childId: string, data: { name?: string, avatarId?: string }, callerRole?: FamilyRole): Promise<void> {
+    if (callerRole && !RoleHelper.canEditChild(callerRole)) throw new PermissionError();
     if (!db || !childId) return;
     const childRef = doc(db, "children", childId);
     const statusRef = doc(db, "children", childId, "status", "current");

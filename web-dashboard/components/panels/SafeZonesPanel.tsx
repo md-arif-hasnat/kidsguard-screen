@@ -117,10 +117,10 @@ export default function SafeZonesPanel({ childId }: SafeZonesPanelProps) {
       };
 
       if (editingZone) {
-        await SafeZoneRepository.updateSafeZone(childId, family.familyId, editingZone.id, zoneData);
+        await SafeZoneRepository.updateSafeZone(childId, family.familyId, editingZone.id, zoneData, role);
         setStatus({ type: 'success', message: 'Safe zone updated!' });
       } else {
-        await SafeZoneRepository.addSafeZone(childId, family.familyId, zoneData);
+        await SafeZoneRepository.addSafeZone(childId, family.familyId, zoneData, role);
         setStatus({ type: 'success', message: 'Safe zone added!' });
       }
 
@@ -156,7 +156,7 @@ export default function SafeZonesPanel({ childId }: SafeZonesPanelProps) {
   const handleDelete = async (id: string) => {
     if (!childId || !family || !confirm("Delete this safe zone?")) return;
     try {
-      await SafeZoneRepository.deleteSafeZone(childId, family.familyId, id);
+      await SafeZoneRepository.deleteSafeZone(childId, family.familyId, id, role);
       setStatus({ type: 'success', message: 'Safe zone deleted.' });
     } catch (err) {
       setStatus({ type: 'error', message: 'Failed to delete.' });

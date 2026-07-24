@@ -11,6 +11,7 @@ import ChildAvatar from './ChildAvatar';
 import EditChildModal from './EditChildModal';
 import RemoveChildDialog from './RemoveChildDialog';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -40,7 +41,7 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
   const [showEditModal, setShowEditModal] = useState(false);
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { family } = useParentProfile();
+  const { family, role } = useParentProfile();
 
   useEffect(() => {
     if (childId) {
@@ -193,73 +194,82 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
         </Link>
 
         {/* Management Menu */}
-        <div className="absolute top-4 right-4" ref={menuRef}>
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowMenu(!showMenu);
-                }}
-                className={cn(
-                    "p-2 rounded-lg transition-all duration-200 hover:bg-slate-100",
-                    showMenu ? "bg-slate-100 text-slate-900 shadow-inner" : "text-slate-400"
-                )}
-            >
-                <MoreVertical size={20} />
-            </button>
+        {RoleHelper.canManageChildren(role) && (
+          <div className="absolute top-4 right-4" ref={menuRef}>
+              <button
+                  onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowMenu(!showMenu);
+                  }}
+                  className={cn(
+                      "p-2 rounded-lg transition-all duration-200 hover:bg-slate-100",
+                      showMenu ? "bg-slate-100 text-slate-900 shadow-inner" : "text-slate-400"
+                  )}
+              >
+                  <MoreVertical size={20} />
+              </button>
 
-            {showMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setShowEditModal(true);
-                            setShowMenu(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-                    >
-                        <Edit2 size={16} />
-                        Edit Child
-                    </button>
-                    <Link
-                        href={`/dashboard/${displayChild.id}?tab=app-activity`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenu(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-                    >
-                        <BarChart3 size={16} />
-                        View App Activity
-                    </Link>
-                    <Link
-                        href={`/dashboard/${displayChild.id}?tab=installed-apps`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenu(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-                    >
-                        <AppWindow size={16} />
-                        View Installed Apps
-                    </Link>
-                    <div className="my-1 border-t border-slate-50" />
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setShowRemoveDialog(true);
-                            setShowMenu(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
-                    >
-                        <Trash2 size={16} />
-                        Remove Child
-                    </button>
-                </div>
-            )}
-        </div>
+              {showMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {RoleHelper.canEditChild(role) && (
+                          <button
+                              onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setShowEditModal(true);
+                                  setShowMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                          >
+                              <Edit2 size={16} />
+                              Edit Child
+                          </button>
+                      )}
+                          <Link
+                              href={`/dashboard/${displayChild.id}?tab=app-activity`}
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                          >
+                              <BarChart3 size={16} />
+                              View App Activity
+                          </Link>
+                          <Link
+                              href={`/dashboard/${displayChild.id}?tab=installed-apps`}
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                          >
+                              <AppWindow size={16} />
+                              View Installed Apps
+                          </Link>
+
+                          {RoleHelper.canRemoveChild(role) && (
+                            <>
+                              <div className="my-1 border-t border-slate-50" />
+                              <button
+                                  onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setShowRemoveDialog(true);
+                                      setShowMenu(false);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                              >
+                                  <Trash2 size={16} />
+                                  Remove Child
+                              </button>
+                            </>
+                          )}
+                  </div>
+              )}
+          </div>
+        )}
       </div>
     </>
   );
