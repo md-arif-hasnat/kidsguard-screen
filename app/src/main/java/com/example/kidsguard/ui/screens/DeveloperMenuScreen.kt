@@ -53,7 +53,8 @@ fun DeveloperMenuScreen(
     knownRouteRepository: com.example.kidsguard.routeintelligence.KnownRouteRepository,
     reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder,
     errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository,
-    authRepository: AuthRepository
+    authRepository: AuthRepository,
+    youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -263,6 +264,12 @@ fun DeveloperMenuScreen(
                         }
                     }
                 }
+            )
+
+            DeveloperActionItem(
+                title = "YouTube Debug",
+                description = "View locally captured YouTube watch history.",
+                onClick = { onScreenChange(Screen.YouTubeDebug) }
             )
 
             DeveloperActionItem(

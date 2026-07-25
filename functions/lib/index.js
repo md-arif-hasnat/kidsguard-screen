@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onNotificationCreated = exports.onActivityCreated = void 0;
+exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -43,27 +43,42 @@ exports.onActivityCreated = functions.firestore
         });
     }
 });
-exports.onNotificationCreated = functions.firestore
-    .document("notifications/{notificationId}")
+exports.onInstalledAppCreated = functions.firestore
+    .document("children/{childId}/installedApps/{packageName}")
     .onCreate(async (snapshot, context) => {
-    const notification = snapshot.data();
-    if (!notification)
+    const app = snapshot.data();
+    const childId = String(context.params.childId || "");
+    const packageName = String(context.params.packageName || "");
+    if (!childId || !packageName) {
+        console.warn("Missing childId or packageName");
         return;
-    const type = String(notification.type || "");
-    const childId = String(notification.childId || "");
-    if (type !== "APP_INSTALLED" || !childId)
-        return;
-    const childName = String(notification.childName || "Your child");
-    const appName = String(notification.appName || "a new app");
-    const packageName = String(notification.packageName || "");
+    }
+    const appName = String(app?.appName ||
+        app?.name ||
+        app?.applicationName ||
+        packageName);
+    const childSnapshot = await db
+        .collection("children")
+        .doc(childId)
+        .get();
+    const childData = childSnapshot.data();
+    const childName = String(childData?.childName ||
+        childData?.name ||
+        "Your child");
+    console.log("New app notification:", {
+        childId,
+        childName,
+        appName,
+        packageName,
+    });
     await broadcastToParents(childId, {
         title: "New app installed",
         body: `${childName} installed ${appName}`,
         type: "APP_INSTALLED",
         childId,
-        clickAction: notification.clickAction ||
-            `/dashboard/${childId}?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
         packageName,
+        clickAction: `/dashboard/${encodeURIComponent(childId)}` +
+            `?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
     });
 });
 exports.onSosCreated = functions.firestore
@@ -375,8 +390,11 @@ async function notifyParent(uid, payload) {
         data: {
             type: payload.type,
             childId: payload.childId,
-            eventId: payload.eventId || '',
-            clickAction: payload.clickAction
+            eventId: payload.eventId || "",
+            clickAction: payload.clickAction,
+            packageName: payload.packageName || "",
+            title: payload.title,
+            body: payload.body,
         },
         webpush: {
             fcmOptions: {

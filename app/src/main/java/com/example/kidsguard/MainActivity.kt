@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager
     private lateinit var wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager
     private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
+    private lateinit var youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
     private lateinit var locationProvider: LocalLocationProvider
@@ -138,6 +139,7 @@ class MainActivity : ComponentActivity() {
         wellbeingManager =
             com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
+        youtubeHistoryRepository = com.example.kidsguard.repository.YouTubeHistoryRepository(this)
 
         // Initialize synchronization for repositories
         val syncId = prefHelper.childId
@@ -209,6 +211,7 @@ class MainActivity : ComponentActivity() {
         if (prefHelper.userRole == "CHILD") {
             trackingManager.startTracking() // Ensure service is running for commands
             com.example.kidsguard.sync.AppUsageSyncWorker.schedule(this)
+            com.example.kidsguard.sync.YouTubeSyncWorker.schedule(this)
             com.example.kidsguard.repository.InstalledAppsRepository(this).initialScan()
         }
 
@@ -356,6 +359,7 @@ class MainActivity : ComponentActivity() {
                         protectionModeRepository = protectionModeRepository,
                         remoteCommandRepository = remoteCommandRepository,
                         wellbeingManager = wellbeingManager,
+                        youtubeHistoryRepository = youtubeHistoryRepository,
                         onParentLoginSuccess = {
                             lifecycleScope.launch {
                                 parentNotificationManager.registerParentDevice()

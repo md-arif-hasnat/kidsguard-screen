@@ -1,8 +1,6 @@
 package com.example.kidsguard.repository
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.util.Log
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.InstalledApp
@@ -70,13 +68,13 @@ class InstalledAppsRepository(private val context: Context) {
 
         allPackages.forEach { pkg ->
             val packageName = pkg.packageName
-            
+
             // Ignore KidsGuard itself
             if (packageName == context.packageName) {
                 internalExcludedCount++
                 return@forEach
             }
-            
+
             val launchIntent = pm.getLaunchIntentForPackage(packageName)
             if (launchIntent == null) {
                 internalExcludedCount++
@@ -89,7 +87,7 @@ class InstalledAppsRepository(private val context: Context) {
             try {
                 val appInfo = pkg.applicationInfo ?: return@forEach
                 val appName = pm.getApplicationLabel(appInfo).toString()
-                
+
                 val installedApp = InstalledApp(
                     packageName = packageName,
                     appName = appName,
@@ -176,7 +174,7 @@ class InstalledAppsRepository(private val context: Context) {
             )
 
             syncAppInstall(installedApp, createNotification = isNewInstall)
-            
+
             // Mark as known in cache
             prefs.edit().putBoolean(packageName, true).apply()
 
@@ -188,7 +186,7 @@ class InstalledAppsRepository(private val context: Context) {
     fun handlePackageRemoved(packageName: String) {
         prefs.edit().remove(packageName).apply()
         Log.i(TAG, "Removed package from install cache: $packageName")
-        
+
         // Optional: Mark as uninstalled in Firestore if needed in future
     }
 
@@ -204,7 +202,7 @@ class InstalledAppsRepository(private val context: Context) {
             .addOnSuccessListener {
                 Log.i(TAG, "App metadata synced: ${app.packageName} (notify=$createNotification)")
                 if (createNotification) {
-                    createInstallNotification(childId, app)
+                    // createInstallNotification(childId, app)
                 }
             }
             .addOnFailureListener { error ->

@@ -3,6 +3,7 @@
     <string name="accessibility_description">KidGuard prevents curious little hands from leaving the app
         when active.</string>
     <string name="device_admin_description">KidsGuard uses system protection to prevent accidental app uninstallation and manage wellbeing restrictions.</string>
+    <string name="youtube_accessibility_description">KidsGuard monitors YouTube watch history to ensure a safe viewing environment.</string>
 
     <!-- Play Store Metadata -->
     <string name="short_description">Protect your phone from curious little hands with a fake dead battery lock.</string>
