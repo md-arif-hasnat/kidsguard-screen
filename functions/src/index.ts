@@ -29,42 +29,60 @@ export const onActivityCreated = functions.firestore
     });
 
 /**
- * Triggered when a new notification document is created.
- * Sends push notification for newly installed apps.
- */
-export const onNotificationCreated = functions.firestore
- .document("notifications/{notificationId}")
- .onCreate(async (snapshot, context) => {
- const notification = snapshot.data();
+* Triggered only when a genuinely new installed-app document is created.
+* This avoids recursive notifications.
+*/
+export const onInstalledAppCreated = functions.firestore
+.document("children/{childId}/installedApps/{packageName}")
+.onCreate(async (snapshot, context) => {
+const app = snapshot.data();
+const childId = String(context.params.childId || "");
+const packageName = String(context.params.packageName || "");
 
- if (!notification) return;
+if (!childId || !packageName) {
+console.warn("Missing childId or packageName");
+return;
+}
 
- const type = String(notification.type || "");
- const childId = String(notification.childId || "");
+const appName = String(
+app?.appName ||
+app?.name ||
+app?.applicationName ||
+packageName
+);
 
- // Only handle new app install notifications here
- if (type !== "APP_INSTALLED" || !childId) return;
+// Child document থেকে আসল child name নেওয়া
+const childSnapshot = await db
+.collection("children")
+.doc(childId)
+.get();
 
- const childName = String(notification.childName || "Your child");
- const appName = String(notification.appName || "a new app");
- const packageName = String(notification.packageName || "");
+const childData = childSnapshot.data();
 
- await broadcastToParents(childId, {
- title: "New app installed",
- body: `${childName} installed ${appName}`,
- type: "APP_INSTALLED",
- childId,
- clickAction:
- notification.clickAction ||
- `/dashboard/${childId}?tab=installed-apps&pkg=${encodeURIComponent(
- packageName
- )}`,
- packageName,
- });
- });
+const childName = String(
+childData?.childName ||
+childData?.name ||
+"Your child"
+);
 
+console.log("New app notification:", {
+childId,
+childName,
+appName,
+packageName,
+});
 
-
+await broadcastToParents(childId, {
+title: "New app installed",
+body: `${childName} installed ${appName}`,
+type: "APP_INSTALLED",
+childId,
+packageName,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}` +
+`?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
+});
+});
 
 /**
  * Triggered when an SOS event is created.
@@ -463,6 +481,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
 
     if (tokens.length === 0) return;
 
+
+    Console.log("sending FCM")
+    Console.log(tokens.length)
+    Console.log(tokens)
     const messagingPayload: admin.messaging.MulticastMessage = {
         tokens,
         notification: {
@@ -470,10 +492,13 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
             body: payload.body,
         },
         data: {
-            type: payload.type,
-            childId: payload.childId,
-            eventId: payload.eventId || '',
-            clickAction: payload.clickAction
+        type: payload.type,
+        childId: payload.childId,
+        eventId: payload.eventId || "",
+        clickAction: payload.clickAction,
+        packageName: payload.packageName || "",
+        title: payload.title,
+        body: payload.body,
         },
         webpush: {
             fcmOptions: {
@@ -485,12 +510,14 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
             notification: {
                 clickAction: 'FLUTTER_NOTIFICATION_CLICK'
             }
+
         }
     };
 
     try {
         const response = await admin.messaging().sendEachForMulticast(messagingPayload);
         console.log(`Successfully sent ${response.successCount} notifications for parent ${uid}`);
+        Console.log("FCM sent once")
 
         // Clean up invalid tokens if any
         if (response.failureCount > 0) {

@@ -22,6 +22,20 @@ export function formatDuration(ms: number): string {
 }
 
 /**
+ * Formats duration from seconds into human readable string
+ */
+export function formatDurationSeconds(seconds: number): string {
+  if (!seconds || seconds <= 0) return "0 sec";
+  if (seconds < 60) return `${seconds} sec`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m < 60) return `${m} min ${s} sec`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  return `${h} hr ${remM} min`;
+}
+
+/**
  * Formats last used timestamp into human readable relative string
  * “Just now”, “8 min ago”, “Today, 14:20”, “Yesterday, 21:10”, or date
  */

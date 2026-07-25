@@ -46,6 +46,16 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn(); // Parent can update during pairing
       allow delete: if false;
+
+      // Children sub-collection (Phase 8B structure)
+      match /children/{childId} {
+        allow read: if isFamilyMember(familyId);
+
+        match /youtubeHistory/{historyId} {
+          allow read: if isFamilyMember(familyId);
+          allow write: if isFamilyMember(familyId);
+        }
+      }
     }
 
     // Children: Status and settings

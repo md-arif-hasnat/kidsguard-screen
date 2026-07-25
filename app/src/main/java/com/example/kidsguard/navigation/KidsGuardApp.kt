@@ -38,6 +38,7 @@ fun KidsGuardApp(
     protectionModeRepository: com.example.kidsguard.repository.ProtectionModeRepository,
     remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository,
     wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager,
+    youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository,
     onParentLoginSuccess: () -> Unit = {},
     blockedPackage: String? = null,
     blockedReason: String? = null,
@@ -441,11 +442,18 @@ fun KidsGuardApp(
                         knownRouteRepository = knownRouteRepository,
                         reverseGeocoder = reverseGeocoder,
                         errorLogRepository = errorLogRepository,
-                        authRepository = authRepository
+                        authRepository = authRepository,
+                        youtubeHistoryRepository = youtubeHistoryRepository
                     )
                 } else {
                     onScreenChange(Screen.Home)
                 }
+            }
+            Screen.YouTubeDebug -> {
+                YouTubeDebugScreen(
+                    repository = youtubeHistoryRepository,
+                    onBack = { onScreenChange(Screen.DeveloperMenu) }
+                )
             }
             Screen.Diagnostics -> DiagnosticsScreen(
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
