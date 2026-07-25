@@ -85,6 +85,8 @@ import InstalledAppsPanel from '@/components/panels/InstalledAppsPanel';
 import SafeZonesPanel from '@/components/panels/SafeZonesPanel';
 import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 import YouTubeHistoryPanel from '@/components/panels/YouTubeHistoryPanel';
+import BrowserHistoryPanel from '@/components/panels/BrowserHistoryPanel';
+import WebsiteRulesPanel from '@/components/panels/WebsiteRulesPanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -102,7 +104,7 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
-type Tab = 'overview' | 'location' | 'app-activity' | 'installed-apps' | 'safe-zones' | 'history' | 'youtube-history' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
+type Tab = 'overview' | 'location' | 'app-activity' | 'installed-apps' | 'safe-zones' | 'history' | 'youtube-history' | 'browser-history' | 'web-rules' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -115,7 +117,7 @@ export default function ChildDashboard() {
   // Sync tab with URL
   useEffect(() => {
     const tabParam = searchParams.get('tab') as Tab;
-    const validTabs: Tab[] = ['overview', 'location', 'app-activity', 'installed-apps', 'safe-zones', 'history', 'youtube-history', 'intelligence', 'wellbeing', 'internet', 'health', 'modes'];
+    const validTabs: Tab[] = ['overview', 'location', 'app-activity', 'installed-apps', 'safe-zones', 'history', 'youtube-history', 'browser-history', 'web-rules', 'intelligence', 'wellbeing', 'internet', 'health', 'modes'];
     if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam);
     } else if (!tabParam) {
@@ -492,6 +494,8 @@ export default function ChildDashboard() {
               <TabButton active={activeTab === 'safe-zones'} onClick={() => handleTabChange('safe-zones')} icon={Shield} label="Safe Zones" />
               <TabButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={History} label="History" />
               <TabButton active={activeTab === 'youtube-history'} onClick={() => handleTabChange('youtube-history')} icon={Youtube} label="YouTube" />
+              <TabButton active={activeTab === 'browser-history'} onClick={() => handleTabChange('browser-history')} icon={GlobeIcon} label="Browser" />
+              <TabButton active={activeTab === 'web-rules'} onClick={() => handleTabChange('web-rules')} icon={ShieldAlert} label="Web Rules" />
 
               <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
 
@@ -688,6 +692,14 @@ export default function ChildDashboard() {
 
       {activeTab === 'youtube-history' && (
           <YouTubeHistoryPanel childId={childId} />
+      )}
+
+      {activeTab === 'browser-history' && (
+          <BrowserHistoryPanel childId={childId} />
+      )}
+
+      {activeTab === 'web-rules' && (
+          <WebsiteRulesPanel childId={childId} />
       )}
 
       {activeTab === 'intelligence' && (

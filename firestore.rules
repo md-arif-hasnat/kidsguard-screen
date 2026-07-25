@@ -55,6 +55,17 @@ service cloud.firestore {
           allow read: if isFamilyMember(familyId);
           allow write: if isFamilyMember(familyId);
         }
+
+        match /browserHistory/{historyId} {
+          allow read: if isFamilyMember(familyId);
+          allow write: if isFamilyMember(familyId);
+        }
+      }
+
+      // Website Policy (Phase 8I structure)
+      match /websitePolicy/{policyId} {
+        allow read: if isFamilyMember(familyId);
+        allow write: if isFamilyMember(familyId);
       }
     }
 

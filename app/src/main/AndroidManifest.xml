@@ -120,6 +120,11 @@
             </intent-filter>
         </receiver>
 
+        <activity
+            android:name=".ui.activities.BlockedWebsiteActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsGuard.Splash" />
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />

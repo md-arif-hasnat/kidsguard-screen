@@ -54,7 +54,9 @@ fun DeveloperMenuScreen(
     reverseGeocoder: com.example.kidsguard.geocoding.ReverseGeocoder,
     errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository,
     authRepository: AuthRepository,
-    youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository
+    youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository,
+    browserHistoryRepository: com.example.kidsguard.repository.BrowserHistoryRepository,
+    websitePolicyRepository: com.example.kidsguard.repository.WebsitePolicyRepository
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -270,6 +272,24 @@ fun DeveloperMenuScreen(
                 title = "YouTube Debug",
                 description = "View locally captured YouTube watch history.",
                 onClick = { onScreenChange(Screen.YouTubeDebug) }
+            )
+
+            DeveloperActionItem(
+                title = "Browser Debug",
+                description = "View locally captured browser history (Chrome, Firefox, etc).",
+                onClick = { onScreenChange(Screen.BrowserDebug) }
+            )
+
+            DeveloperActionItem(
+                title = "Policy Engine Tester",
+                description = "Test website blocking policies against URLs and categories.",
+                onClick = { onScreenChange(Screen.PolicyTester) }
+            )
+
+            DeveloperActionItem(
+                title = "Live Policy Enforcement",
+                description = "View real-time blocking decisions and enforcement actions.",
+                onClick = { onScreenChange(Screen.LiveEnforcement) }
             )
 
             DeveloperActionItem(

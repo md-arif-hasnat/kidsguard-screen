@@ -1,0 +1,56 @@
+{
+  "EDUCATION": [
+    "wikipedia.org", "khanacademy.org", "coursera.org", "edx.org", "udemy.com",
+    "duolingo.com", "quizlet.com", "scholar.google.com", "britannica.com", "instructure.com",
+    "blackboard.com", "sciencedirect.com", "researchgate.net", "jstor.org"
+  ],
+  "SEARCH": [
+    "google.com", "bing.com", "yahoo.com", "duckduckgo.com", "baidu.com", "yandex.com", "ecosia.org"
+  ],
+  "SOCIAL_MEDIA": [
+    "facebook.com", "instagram.com", "tiktok.com", "twitter.com", "x.com", "linkedin.com",
+    "reddit.com", "pinterest.com", "snapchat.com", "tumblr.com", "discord.com", "vk.com"
+  ],
+  "VIDEO": [
+    "youtube.com", "vimeo.com", "dailymotion.com", "twitch.tv", "rumble.com"
+  ],
+  "NEWS": [
+    "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "nytimes.com", "theguardian.com",
+    "foxnews.com", "forbes.com", "bloomberg.com", "aljazeera.com", "wsj.com", "nbcnews.com"
+  ],
+  "GAMING": [
+    "steampowered.com", "roblox.com", "minecraft.net", "epicgames.com", "nintendo.com",
+    "playstation.com", "xbox.com", "twitch.tv", "ign.com", "gamespot.com"
+  ],
+  "SHOPPING": [
+    "amazon.com", "amazon.de", "amazon.co.uk", "ebay.com", "aliexpress.com", "walmart.com",
+    "target.com", "etsy.com", "bestbuy.com", "shopify.com"
+  ],
+  "STREAMING": [
+    "netflix.com", "disneyplus.com", "hulu.com", "hbomax.com", "primevideo.com", "spotify.com"
+  ],
+  "MUSIC": [
+    "spotify.com", "soundcloud.com", "music.apple.com", "music.google.com", "deezer.com", "tidal.com"
+  ],
+  "PRODUCTIVITY": [
+    "github.com", "slack.com", "trello.com", "asana.com", "notion.so", "zoom.us", "microsoft.com", "office.com"
+  ],
+  "TECHNOLOGY": [
+    "stackoverflow.com", "techcrunch.com", "theverge.com", "wired.com", "cnet.com", "medium.com", "github.com"
+  ],
+  "FINANCE": [
+    "paypal.com", "chase.com", "wellsfargo.com", "bankofamerica.com", "coinbase.com", "binance.com"
+  ],
+  "TRAVEL": [
+    "booking.com", "expedia.com", "airbnb.com", "tripadvisor.com", "uber.com", "lyft.com"
+  ],
+  "GOVERNMENT": [
+    "gov", "usa.gov", "nhs.uk", "europa.eu"
+  ],
+  "ADULT": [
+    "pornhub.com", "xvideos.com", "xnxx.com", "onlyfans.com"
+  ],
+  "GAMBLING": [
+    "bet365.com", "888poker.com", "pokerstars.com", "draftkings.com"
+  ]
+}
