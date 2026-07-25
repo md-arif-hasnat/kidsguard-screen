@@ -42,6 +42,7 @@ import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
 import com.example.kidsguard.update.UpdateRepository
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -67,6 +68,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager
     private lateinit var webManager: com.example.kidsguard.web.WebProtectionManager
     private lateinit var youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository
+    private lateinit var browserHistoryRepository: com.example.kidsguard.repository.BrowserHistoryRepository
+    private lateinit var websitePolicyRepository: com.example.kidsguard.repository.WebsitePolicyRepository
     private lateinit var notificationEngine: LocalNotificationEngine
     private lateinit var parentNotificationManager: com.example.kidsguard.notifications.ParentNotificationManager
     private lateinit var locationProvider: LocalLocationProvider
@@ -140,6 +143,8 @@ class MainActivity : ComponentActivity() {
             com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
         youtubeHistoryRepository = com.example.kidsguard.repository.YouTubeHistoryRepository(this)
+        browserHistoryRepository = com.example.kidsguard.repository.BrowserHistoryRepository(this)
+        websitePolicyRepository = com.example.kidsguard.repository.WebsitePolicyRepository(this)
 
         // Initialize synchronization for repositories
         val syncId = prefHelper.childId
@@ -212,7 +217,12 @@ class MainActivity : ComponentActivity() {
             trackingManager.startTracking() // Ensure service is running for commands
             com.example.kidsguard.sync.AppUsageSyncWorker.schedule(this)
             com.example.kidsguard.sync.YouTubeSyncWorker.schedule(this)
+            com.example.kidsguard.sync.BrowserSyncWorker.schedule(this)
             com.example.kidsguard.repository.InstalledAppsRepository(this).initialScan()
+            
+            lifecycleScope.launch(Dispatchers.IO) {
+                browserHistoryRepository.categorizeExistingUnknownRecords()
+            }
         }
 
         // Check for updates on startup
@@ -360,6 +370,8 @@ class MainActivity : ComponentActivity() {
                         remoteCommandRepository = remoteCommandRepository,
                         wellbeingManager = wellbeingManager,
                         youtubeHistoryRepository = youtubeHistoryRepository,
+                        browserHistoryRepository = browserHistoryRepository,
+                        websitePolicyRepository = websitePolicyRepository,
                         onParentLoginSuccess = {
                             lifecycleScope.launch {
                                 parentNotificationManager.registerParentDevice()

@@ -39,6 +39,8 @@ fun KidsGuardApp(
     remoteCommandRepository: com.example.kidsguard.repository.RemoteCommandRepository,
     wellbeingManager: com.example.kidsguard.wellbeing.WellbeingManager,
     youtubeHistoryRepository: com.example.kidsguard.repository.YouTubeHistoryRepository,
+    browserHistoryRepository: com.example.kidsguard.repository.BrowserHistoryRepository,
+    websitePolicyRepository: com.example.kidsguard.repository.WebsitePolicyRepository,
     onParentLoginSuccess: () -> Unit = {},
     blockedPackage: String? = null,
     blockedReason: String? = null,
@@ -443,7 +445,9 @@ fun KidsGuardApp(
                         reverseGeocoder = reverseGeocoder,
                         errorLogRepository = errorLogRepository,
                         authRepository = authRepository,
-                        youtubeHistoryRepository = youtubeHistoryRepository
+                        youtubeHistoryRepository = youtubeHistoryRepository,
+                        browserHistoryRepository = browserHistoryRepository,
+                        websitePolicyRepository = websitePolicyRepository
                     )
                 } else {
                     onScreenChange(Screen.Home)
@@ -452,6 +456,24 @@ fun KidsGuardApp(
             Screen.YouTubeDebug -> {
                 YouTubeDebugScreen(
                     repository = youtubeHistoryRepository,
+                    onBack = { onScreenChange(Screen.DeveloperMenu) }
+                )
+            }
+            Screen.BrowserDebug -> {
+                BrowserDebugScreen(
+                    repository = browserHistoryRepository,
+                    onBack = { onScreenChange(Screen.DeveloperMenu) }
+                )
+            }
+            Screen.PolicyTester -> {
+                PolicyTesterScreen(
+                    policyRepository = websitePolicyRepository,
+                    classifier = remember { com.example.kidsguard.utils.WebsiteCategoryClassifier(context) },
+                    onBack = { onScreenChange(Screen.DeveloperMenu) }
+                )
+            }
+            Screen.LiveEnforcement -> {
+                LiveEnforcementScreen(
                     onBack = { onScreenChange(Screen.DeveloperMenu) }
                 )
             }
