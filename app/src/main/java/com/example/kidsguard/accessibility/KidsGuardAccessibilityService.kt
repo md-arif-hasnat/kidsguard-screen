@@ -14,6 +14,11 @@ import java.util.UUID
 
 class KidsGuardAccessibilityService : AccessibilityService() {
 
+    companion object {
+        private var instance: KidsGuardAccessibilityService? = null
+        fun getInstance(): KidsGuardAccessibilityService? = instance
+    }
+
     private lateinit var youtubeRepository: YouTubeHistoryRepository
     private lateinit var browserRepository: BrowserHistoryRepository
     private lateinit var classifier: WebsiteCategoryClassifier
@@ -38,6 +43,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         youtubeRepository = YouTubeHistoryRepository(applicationContext)
         browserRepository = BrowserHistoryRepository(applicationContext)
         classifier = WebsiteCategoryClassifier(applicationContext)
@@ -72,7 +78,6 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private fun logYouTubeEvent(event: AccessibilityEvent) {
         if (!com.example.kidsguard.BuildConfig.DEBUG) return
-        
         Log.v(TAG_YT_TRACE, "Event: ${event.eventType}, Class: ${event.className}, ID: ${event.source?.viewIdResourceName}, Text: ${event.text}")
     }
 
@@ -89,46 +94,64 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         
         Log.d(TAG_YT_TRACE, "Detected Screen: $screenType")
 
-        if (screenType == YouTubeScreenType.AD_PLAYING) {
+        if (screenType == YouTubeScreenType.AD) {
             activeYouTubeSession?.let { it.isAdPlaying = true }
             youtubeRepository.adCount++
-            Log.d(TAG_YT_TRACE, "Ad detected, pausing metadata updates")
+            youtubeRepository.addDebugLog("Ad playing, metadata updates paused.")
             return
         }
 
         activeYouTubeSession?.let { it.isAdPlaying = false }
 
-        if (screenType == YouTubeScreenType.WATCH_PAGE || screenType == YouTubeScreenType.SHORTS) {
-            val metadata = YouTubeMetadataExtractor.extract(rootNode)
-            if (metadata != null && !metadata.title.isNullOrBlank()) {
-                updateYouTubeSession(metadata, screenType)
+        val candidate = YouTubeMetadataExtractor.extract(rootNode, screenType)
+        if (candidate != null) {
+            updateYouTubeSession(candidate)
+        } else {
+            // Check if we should close the session (e.g. they are on Home Feed now)
+            if (screenType == YouTubeScreenType.FEED || screenType == YouTubeScreenType.SEARCH_RESULTS) {
+                // If they've been on feed for a while, finish. 
+                // Using a short delay or threshold would be better.
+                finishYouTubeSession()
             }
-        } else if (screenType != YouTubeScreenType.MINIPLAYER) {
-            // If they are on home feed or search, maybe close current session after a threshold
-            // For now, just keep it but check timing later
         }
     }
 
-    private fun updateYouTubeSession(metadata: YouTubeMetadata, screenType: YouTubeScreenType) {
-        val currentSession = activeYouTubeSession
+    private fun updateYouTubeSession(candidate: YouTubeMetadataCandidate) {
+        val current = activeYouTubeSession
         
-        if (currentSession != null && currentSession.title == metadata.title) {
-            // Same video, update last seen
-            currentSession.lastSeenAt = System.currentTimeMillis()
-            currentSession.screenType = screenType
-            Log.v(TAG_YT_TRACE, "Session updated: ${metadata.title}")
-        } else {
-            // New video detected
-            finishYouTubeSession()
+        if (current != null && current.title == candidate.videoTitle) {
+            current.lastSeenAt = System.currentTimeMillis()
+            current.screenType = candidate.screenType
             
+            // Enrich existing session if new link data found
+            if (current.videoId == null && candidate.videoId != null) {
+                current.videoId = candidate.videoId
+                current.youtubeUrl = candidate.youtubeUrl
+                current.thumbnailUrl = candidate.thumbnailUrl
+                current.linkSource = candidate.linkSource
+                current.linkConfidence = candidate.linkConfidence
+                youtubeRepository.addDebugLog("Enriched active session with videoId: ${candidate.videoId}")
+                Log.d("YOUTUBE_THUMBNAIL_DEBUG", "Video ID enriched: ${candidate.videoId}, Thumb: ${candidate.thumbnailUrl}")
+            }
+            
+            Log.v(TAG_YT_TRACE, "Session active: ${candidate.videoTitle}")
+        } else {
+            finishYouTubeSession()
             activeYouTubeSession = YouTubeWatchSession(
-                title = metadata.title,
-                channel = metadata.channel,
-                videoId = metadata.videoId,
-                screenType = screenType,
-                lastDetectionConfidence = metadata.confidence
+                videoId = candidate.videoId,
+                youtubeUrl = candidate.youtubeUrl,
+                title = candidate.videoTitle,
+                channel = candidate.channelName,
+                thumbnailUrl = candidate.thumbnailUrl,
+                linkSource = candidate.linkSource,
+                linkConfidence = candidate.linkConfidence,
+                screenType = candidate.screenType,
+                lastDetectionConfidence = candidate.confidence
             )
-            Log.i(TAG_YT_TRACE, "New Session Started: ${metadata.title} (Strategy: ${metadata.strategy})")
+            youtubeRepository.addDebugLog("New Session: ${candidate.videoTitle} (Strategy: ${candidate.extractionStrategy}, Link: ${candidate.videoId != null})")
+            if (candidate.videoId != null) {
+                Log.d("YOUTUBE_THUMBNAIL_DEBUG", "Video ID detected: ${candidate.videoId}, Thumb: ${candidate.thumbnailUrl}")
+            }
         }
     }
 
@@ -137,7 +160,6 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         val duration = (now - session.startedAt) / 1000
         
-        // Threshold: 5s for videos, 2s for shorts
         val threshold = if (session.screenType == YouTubeScreenType.SHORTS) 2 else 5
         
         if (duration >= threshold && !session.title.isNullOrBlank()) {
@@ -146,20 +168,43 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 videoTitle = session.title!!,
                 channelName = session.channel ?: "Unknown channel",
                 videoId = session.videoId,
+                youtubeUrl = session.youtubeUrl,
                 thumbnailUrl = session.thumbnailUrl,
+                linkSource = session.linkSource,
+                linkConfidence = session.linkConfidence,
                 startedAt = session.startedAt,
                 endedAt = now,
                 watchDurationSeconds = duration
             )
             youtubeRepository.save(activity)
-            Log.i(TAG_YT_TRACE, "Session Saved: ${session.title}, Duration: ${duration}s")
+            youtubeRepository.addDebugLog("Saved History: ${session.title} (${duration}s)")
             com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(applicationContext)
         } else {
             youtubeRepository.droppedCount++
-            Log.d(TAG_YT_TRACE, "Session Dropped (below threshold or empty): ${session.title}, Duration: ${duration}s")
+            youtubeRepository.addDebugLog("Dropped Session: ${session.title} (Duration ${duration}s < ${threshold}s)")
         }
-        
         activeYouTubeSession = null
+    }
+
+    // --- Tree Dumping ---
+    
+    fun dumpTree() {
+        val root = rootInActiveWindow ?: return
+        youtubeRepository.addDebugLog("--- ACCESSIBILITY TREE DUMP ---")
+        dumpNode(root, 0)
+        youtubeRepository.addDebugLog("--- END DUMP ---")
+    }
+
+    private fun dumpNode(node: AccessibilityNodeInfo, depth: Int) {
+        if (depth > 50) return // Safety
+        val indent = "  ".repeat(depth)
+        val info = "ID: ${node.viewIdResourceName}, Text: ${node.text}, Desc: ${node.contentDescription}, Class: ${node.className}"
+        Log.d("TREE_DUMP", "$indent $info")
+        
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            dumpNode(child, depth + 1)
+        }
     }
 
     // --- Browser Handling ---
@@ -286,6 +331,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         finishYouTubeSession()
         finishBrowserHistory()
+        instance = null
         super.onDestroy()
     }
 }

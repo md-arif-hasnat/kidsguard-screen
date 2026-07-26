@@ -286,6 +286,26 @@ function FilterBtn({ active, onClick, label }: any) {
 }
 
 function ActivityDetailsModal({ activity, onClose }: any) {
+  const safeYoutubeUrl = useMemo(() => {
+    if (!activity.youtubeUrl) return null;
+    try {
+      const url = new URL(activity.youtubeUrl);
+      const validHosts = ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"];
+      if (url.protocol === "https:" && validHosts.some(host => url.hostname === host || url.hostname.endsWith("." + host))) {
+        return activity.youtubeUrl;
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }, [activity.youtubeUrl]);
+
+  const derivedThumbnail = useMemo(() => {
+    if (activity.thumbnailUrl) return activity.thumbnailUrl;
+    if (activity.videoId) return `https://img.youtube.com/vi/${activity.videoId}/hqdefault.jpg`;
+    return null;
+  }, [activity.thumbnailUrl, activity.videoId]);
+
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -297,8 +317,27 @@ function ActivityDetailsModal({ activity, onClose }: any) {
         </button>
 
         <header className="flex flex-col gap-6 mb-10">
-          <div className="w-16 h-16 bg-red-50 rounded-3xl flex items-center justify-center text-red-600 border border-red-100">
-            <Youtube size={32} />
+          <div className="w-full aspect-video bg-slate-100 rounded-3xl overflow-hidden border border-slate-100 relative group">
+            {derivedThumbnail ? (
+              <img src={derivedThumbnail} alt={activity.videoTitle} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-red-600 bg-red-50">
+                <Youtube size={64} />
+              </div>
+            )}
+
+            {safeYoutubeUrl && (
+               <a
+                href={safeYoutubeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"
+               >
+                 <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center text-red-600 shadow-xl">
+                    <Play size={32} fill="currentColor" className="ml-1" />
+                 </div>
+               </a>
+            )}
           </div>
           <div>
             <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">{activity.videoTitle}</h2>
@@ -326,8 +365,8 @@ function ActivityDetailsModal({ activity, onClose }: any) {
                 <span className="text-xs font-mono font-bold text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200">{activity.deviceId?.substring(0, 8)}...</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-500">Package</span>
-                <span className="text-xs font-bold text-slate-700">{activity.packageName}</span>
+                <span className="text-xs font-bold text-slate-500">Video ID</span>
+                <span className="text-xs font-bold text-slate-700">{activity.videoId || "N/A"}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-500">Sync Version</span>
@@ -337,7 +376,23 @@ function ActivityDetailsModal({ activity, onClose }: any) {
           </div>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {safeYoutubeUrl ? (
+            <a
+              href={safeYoutubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100"
+            >
+              <Youtube size={18} />
+              Open on YouTube
+              <ExternalLink size={14} />
+            </a>
+          ) : (
+            <div className="flex-1 py-4 bg-slate-50 text-slate-400 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center italic">
+              Link unavailable
+            </div>
+          )}
           <button
             onClick={onClose}
             className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"

@@ -18,6 +18,11 @@ export interface YouTubeActivity {
   historyId: string;
   videoTitle: string;
   channelName?: string | null;
+  videoId?: string | null;
+  youtubeUrl?: string | null;
+  thumbnailUrl?: string | null;
+  linkSource?: string | null;
+  linkConfidence?: number | null;
   packageName?: string;
   capturedAt: number;
   startedAt: number;

@@ -62,12 +62,10 @@ class YouTubeSyncRepository(private val context: Context) {
             .document(activity.id)
 
         return try {
-            val data = hashMapOf(
+            val data = mutableMapOf<String, Any?>(
                 "historyId" to activity.id,
                 "videoTitle" to activity.videoTitle,
                 "channelName" to activity.channelName,
-                "videoId" to activity.videoId,
-                "thumbnailUrl" to activity.thumbnailUrl,
                 "packageName" to activity.packageName,
                 "capturedAt" to activity.capturedAt,
                 "startedAt" to activity.startedAt,
@@ -78,6 +76,12 @@ class YouTubeSyncRepository(private val context: Context) {
                 "syncVersion" to activity.syncVersion,
                 "createdBy" to activity.createdBy
             )
+
+            activity.videoId?.let { data["videoId"] = it }
+            activity.youtubeUrl?.let { data["youtubeUrl"] = it }
+            activity.thumbnailUrl?.let { data["thumbnailUrl"] = it }
+            activity.linkSource?.let { data["linkSource"] = it }
+            activity.linkConfidence?.let { data["linkConfidence"] = it }
 
             docRef.set(data, SetOptions.merge()).await()
             Log.d(TAG, "Upload success: ${activity.videoTitle}")
