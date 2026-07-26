@@ -8,8 +8,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.content.ComponentName
-import com.example.kidsguard.KidGuardAccessibilityService
-//import android.provider.Settings
+import com.example.kidsguard.accessibility.KidsGuardAccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
 import androidx.core.content.ContextCompat
@@ -80,7 +79,7 @@ object PermissionUtils {
         return try {
             val componentName = ComponentName(
                 context,
-                KidGuardAccessibilityService::class.java
+                KidsGuardAccessibilityService::class.java
             )
 
             val enabledServices = Settings.Secure.getString(

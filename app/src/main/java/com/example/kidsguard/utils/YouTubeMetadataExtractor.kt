@@ -1,12 +1,11 @@
 package com.example.kidsguard.utils
 
 import android.view.accessibility.AccessibilityNodeInfo
-import android.util.Log
 import com.example.kidsguard.models.YouTubeMetadataCandidate
 import com.example.kidsguard.models.YouTubeScreenType
+import com.example.kidsguard.repository.YouTubeHistoryRepository
 
 object YouTubeMetadataExtractor {
-    private const val TAG = "YOUTUBE_METADATA_DEBUG"
 
     private val WATCH_TITLE_IDS = listOf(
         "com.google.android.youtube:id/title",
@@ -23,22 +22,24 @@ object YouTubeMetadataExtractor {
         "com.google.android.youtube:id/video_description"
     )
 
-    fun extract(rootNode: AccessibilityNodeInfo?, screenType: YouTubeScreenType): YouTubeMetadataCandidate? {
-        if (rootNode == null) return null
-
+    fun extract(rootNode: AccessibilityNodeInfo, screenType: YouTubeScreenType, repo: YouTubeHistoryRepository): YouTubeMetadataCandidate? {
         val candidate = when (screenType) {
             YouTubeScreenType.WATCH_PAGE -> extractWatchPage(rootNode)
             YouTubeScreenType.SHORTS -> extractShorts(rootNode)
             YouTubeScreenType.MINIPLAYER -> extractMiniplayer(rootNode)
             else -> null
         }
+        
+        if (candidate == null) {
+            if (screenType != YouTubeScreenType.FEED && screenType != YouTubeScreenType.SEARCH_RESULTS && screenType != YouTubeScreenType.UNKNOWN) {
+                repo.addDebugLog("METADATA_MISSING screen=$screenType")
+            }
+        }
 
-        // Try to find video ID/URL regardless of screen type if we found a candidate or even if we didn't (to enrich later)
         return candidate?.let { enrichWithVideoId(rootNode, it) }
     }
 
     private fun enrichWithVideoId(rootNode: AccessibilityNodeInfo, candidate: YouTubeMetadataCandidate): YouTubeMetadataCandidate {
-        // Search tree for any node that might contain a YouTube URL or ID
         val extractedId = findVideoIdInTree(rootNode)
         
         if (extractedId != null) {
@@ -58,21 +59,18 @@ object YouTubeMetadataExtractor {
     }
 
     private fun findVideoIdInTree(node: AccessibilityNodeInfo): String? {
-        // Check content description for URL patterns
         val contentDesc = node.contentDescription?.toString()
         if (contentDesc != null) {
             val id = YouTubeMediaUrlBuilder.extractVideoId(contentDesc)
             if (YouTubeValidator.isValidVideoId(id)) return id
         }
 
-        // Check text for URL patterns (rare but possible in some views)
         val text = node.text?.toString()
         if (text != null) {
             val id = YouTubeMediaUrlBuilder.extractVideoId(text)
             if (YouTubeValidator.isValidVideoId(id)) return id
         }
 
-        // Specific ID for some share/info buttons
         val shareNodes = node.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/share_button")
         shareNodes?.firstOrNull()?.contentDescription?.toString()?.let {
             val id = YouTubeMediaUrlBuilder.extractVideoId(it)
@@ -88,7 +86,6 @@ object YouTubeMetadataExtractor {
     }
 
     private fun extractWatchPage(rootNode: AccessibilityNodeInfo): YouTubeMetadataCandidate? {
-        // Strategy 1: Explicit Resource IDs
         for (titleId in WATCH_TITLE_IDS) {
             val titleNodes = rootNode.findAccessibilityNodeInfosByViewId(titleId)
             val title = titleNodes?.firstOrNull()?.text?.toString()
@@ -111,24 +108,17 @@ object YouTubeMetadataExtractor {
             }
         }
 
-        // Strategy 2: Structural Relationship (Fallback)
-        // Look for the "Subscribe" button and search nearby
         val subscribeNodes = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/subscribe_button")
         if (!subscribeNodes.isNullOrEmpty()) {
-            val parent = subscribeNodes[0].parent
-            if (parent != null) {
-                // Usually title is a few levels up or a sibling's child
-                // This is a simplified structural search
-                val title = findFirstValidTitleInTree(rootNode)
-                if (title != null) {
-                    return YouTubeMetadataCandidate(
-                        videoTitle = title,
-                        channelName = null, // Channel harder to find structurally
-                        screenType = YouTubeScreenType.WATCH_PAGE,
-                        confidence = 0.80f,
-                        extractionStrategy = "watch_structural"
-                    )
-                }
+            val title = findFirstValidTitleInTree(rootNode)
+            if (title != null) {
+                return YouTubeMetadataCandidate(
+                    videoTitle = title,
+                    channelName = null,
+                    screenType = YouTubeScreenType.WATCH_PAGE,
+                    confidence = 0.80f,
+                    extractionStrategy = "watch_structural"
+                )
             }
         }
 

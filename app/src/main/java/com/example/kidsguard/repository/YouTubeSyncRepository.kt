@@ -12,7 +12,7 @@ import kotlinx.coroutines.tasks.await
 class YouTubeSyncRepository(private val context: Context) {
     private val db = FirebaseFirestore.getInstance()
     private val prefHelper = PreferenceHelper(context)
-    private val historyRepo = YouTubeHistoryRepository(context)
+    private val historyRepo = YouTubeHistoryRepository.getInstance(context)
     private val TAG = "YT_SYNC"
 
     suspend fun syncHistory(): Result<Int> {

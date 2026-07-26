@@ -1,17 +1,36 @@
 package com.example.kidsguard.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.ActivityOptions
+import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.kidsguard.MainActivity
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.*
 import com.example.kidsguard.repository.YouTubeHistoryRepository
 import com.example.kidsguard.repository.BrowserHistoryRepository
 import com.example.kidsguard.utils.*
+import com.example.kidsguard.wellbeing.WellbeingManager
+import com.example.kidsguard.web.WebProtectionManager
+import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
+import com.example.kidsguard.managers.ProtectionModeManager
+import com.example.kidsguard.wellbeing.AppBlockReason
 import java.util.UUID
 
+/**
+ * CONSOLIDATED ACCESSIBILITY SERVICE
+ * Handles:
+ * 1. App Blocking (Protection Modes, Wellbeing Limits)
+ * 2. Global Lock Mode
+ * 3. YouTube Watch History Tracking
+ * 4. Browser History Tracking & Content Filtering
+ */
 class KidsGuardAccessibilityService : AccessibilityService() {
 
     companion object {
@@ -23,13 +42,20 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     private lateinit var browserRepository: BrowserHistoryRepository
     private lateinit var classifier: WebsiteCategoryClassifier
     private lateinit var enforcementManager: PolicyEnforcementManager
+    private lateinit var prefHelper: PreferenceHelper
+    
+    private var wellbeingManager: WellbeingManager? = null
+    private var webManager: WebProtectionManager? = null
+    private var protectionModeManager: ProtectionModeManager? = null
     
     // YouTube Monitoring
     private var activeYouTubeSession: YouTubeWatchSession? = null
     private val handler = Handler(Looper.getMainLooper())
     
+    private val TAG_RUNTIME = "YOUTUBE_MONITOR_RUNTIME"
     private val TAG_YT_TRACE = "YOUTUBE_HISTORY_TRACE"
     private val TAG_BROWSER = "BROWSER_MONITOR"
+    private val TAG_BLOCK = "APP_BLOCKING"
     
     private val PACKAGE_YOUTUBE = "com.google.android.youtube"
     
@@ -38,26 +64,120 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         "org.mozilla.firefox",
         "com.microsoft.emmx",
         "com.brave.browser",
-        "com.opera.browser"
+        "com.opera.browser",
+        "com.sec.android.app.sbrowser"
     )
+
+    private var debugEventCount = 0
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        youtubeRepository = YouTubeHistoryRepository(applicationContext)
-        browserRepository = BrowserHistoryRepository(applicationContext)
-        classifier = WebsiteCategoryClassifier(applicationContext)
-        enforcementManager = PolicyEnforcementManager(applicationContext)
-        Log.d("KidGuardAccess", "KidsGuardAccessibilityService created")
+        Log.i(TAG_RUNTIME, "SERVICE_CREATED")
+        
+        try {
+            youtubeRepository = YouTubeHistoryRepository.getInstance(applicationContext)
+            youtubeRepository.addDebugLog("SERVICE_CREATED")
+            youtubeRepository.lastServiceVersion = com.example.kidsguard.BuildConfig.VERSION_NAME
+            youtubeRepository.lastServiceCode = com.example.kidsguard.BuildConfig.VERSION_CODE
+            youtubeRepository.lastServicePackage = applicationContext.packageName
+
+            prefHelper = PreferenceHelper(applicationContext)
+            val sync = FirebaseRemoteSyncProvider(applicationContext)
+            
+            browserRepository = BrowserHistoryRepository(applicationContext)
+            classifier = WebsiteCategoryClassifier(applicationContext)
+            enforcementManager = PolicyEnforcementManager(applicationContext)
+            
+            wellbeingManager = WellbeingManager(applicationContext, prefHelper, sync)
+            webManager = WebProtectionManager(applicationContext, prefHelper, sync)
+            protectionModeManager = ProtectionModeManager(applicationContext, prefHelper.childId)
+            
+            youtubeRepository.addDebugLog("YOUTUBE_MONITOR_INIT - PID: ${android.os.Process.myPid()}")
+        } catch (e: Exception) {
+            Log.e(TAG_RUNTIME, "Critical failure in onCreate", e)
+        }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.i(TAG_RUNTIME, "SERVICE_CONNECTED")
+        youtubeRepository.addDebugLog("SERVICE_CONNECTED")
+        
+        // Log configuration
+        val info = serviceInfo
+        Log.d(TAG_RUNTIME, "Configured Event Types: ${info.eventTypes}")
+        Log.d(TAG_RUNTIME, "Configured Package Names: ${info.packageNames?.joinToString()}")
+        
+        youtubeRepository.addDebugLog("MONITOR_ATTACHED - Packages: ${info.packageNames?.size ?: "ALL"}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        val packageName = event.packageName?.toString() ?: return
+        val packageName = event.packageName?.toString() ?: "unknown"
+        val eventType = event.eventType
+        
+        // Update diagnostics regardless of package
+        youtubeRepository.lastAccessibilityPackage = packageName
+        youtubeRepository.lastAccessibilityTime = System.currentTimeMillis()
 
+        // 0. TRACE ALL EVENTS UNTIL STABLE
+        if (debugEventCount < 20) {
+            youtubeRepository.addDebugLog("EVENT_RECEIVED package=$packageName type=$eventType")
+            debugEventCount++
+        }
+
+        // 0.1 IMMEDIATE LOG FOR YOUTUBE specifically
         if (packageName == PACKAGE_YOUTUBE) {
-            handleYouTubeEvent(event)
-        } else if (BROWSER_PACKAGES.contains(packageName)) {
-            handleBrowserEvent(event, packageName)
+            youtubeRepository.addDebugLog("YOUTUBE_EVENT_FORWARDED type=$eventType")
+            Log.i(TAG_RUNTIME, "EVENT_RECEIVED package=$packageName type=$eventType")
+        }
+
+        // 1. System Unlocked check
+        val userManager = getSystemService(android.os.UserManager::class.java)
+        if (userManager != null && !userManager.isUserUnlocked) {
+            if (packageName == PACKAGE_YOUTUBE) {
+                youtubeRepository.addDebugLog("EVENT_REJECTED reason=DEVICE_LOCKED")
+            }
+            return
+        }
+
+        // 2. Protection Modes Enforcement (Highest Priority)
+        if (packageName != applicationContext.packageName && protectionModeManager?.isAppBlocked(packageName) == true) {
+            if (packageName == PACKAGE_YOUTUBE) {
+                youtubeRepository.addDebugLog("EVENT_REJECTED reason=APP_BLOCKED_BY_PROTECTION")
+            }
+            blockApp(packageName)
+            return
+        }
+
+        // 3. Global Lock Mode
+        if (prefHelper.isLocked && packageName != applicationContext.packageName) {
+            if (packageName == PACKAGE_YOUTUBE) {
+                youtubeRepository.addDebugLog("EVENT_REJECTED reason=GLOBAL_LOCK_ACTIVE")
+            }
+            bringOurAppToFront()
+            return
+        }
+
+        // 4. YouTube & Browser Monitoring
+        when {
+            packageName == PACKAGE_YOUTUBE -> {
+                handleYouTubeEvent(event)
+            }
+            BROWSER_PACKAGES.contains(packageName) -> {
+                handleBrowserEvent(event, packageName)
+            }
+        }
+
+        // 5. Individual App Blocking (Wellbeing)
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (packageName != applicationContext.packageName) {
+                val reason = wellbeingManager?.getAppBlockReason(packageName) ?: AppBlockReason.NONE
+                if (reason != AppBlockReason.NONE) {
+                    Log.i(TAG_BLOCK, "App Blocked by Wellbeing: $packageName (Reason: $reason)")
+                    blockApp(packageName, reason)
+                }
+            }
         }
     }
 
@@ -89,28 +209,32 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     }
 
     private fun scanYouTube() {
-        val rootNode = rootInActiveWindow ?: return
-        val screenType = YouTubeScreenDetector.detect(rootNode)
+        youtubeRepository.addDebugLog("MONITOR_RECEIVED_EVENT")
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            youtubeRepository.addDebugLog("PARSER_STARTED (Root Null)")
+            Log.w(TAG_RUNTIME, "scanYouTube: rootNode is NULL")
+            return
+        }
         
+        youtubeRepository.addDebugLog("PARSER_STARTED")
+        val screenType = YouTubeScreenDetector.detect(rootNode)
         Log.d(TAG_YT_TRACE, "Detected Screen: $screenType")
 
         if (screenType == YouTubeScreenType.AD) {
             activeYouTubeSession?.let { it.isAdPlaying = true }
             youtubeRepository.adCount++
-            youtubeRepository.addDebugLog("Ad playing, metadata updates paused.")
+            youtubeRepository.addDebugLog("Screen: AD - Pausing capture")
             return
         }
 
         activeYouTubeSession?.let { it.isAdPlaying = false }
 
-        val candidate = YouTubeMetadataExtractor.extract(rootNode, screenType)
+        val candidate = YouTubeMetadataExtractor.extract(rootNode, screenType, youtubeRepository)
         if (candidate != null) {
             updateYouTubeSession(candidate)
         } else {
-            // Check if we should close the session (e.g. they are on Home Feed now)
             if (screenType == YouTubeScreenType.FEED || screenType == YouTubeScreenType.SEARCH_RESULTS) {
-                // If they've been on feed for a while, finish. 
-                // Using a short delay or threshold would be better.
                 finishYouTubeSession()
             }
         }
@@ -123,18 +247,14 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             current.lastSeenAt = System.currentTimeMillis()
             current.screenType = candidate.screenType
             
-            // Enrich existing session if new link data found
             if (current.videoId == null && candidate.videoId != null) {
                 current.videoId = candidate.videoId
                 current.youtubeUrl = candidate.youtubeUrl
                 current.thumbnailUrl = candidate.thumbnailUrl
                 current.linkSource = candidate.linkSource
                 current.linkConfidence = candidate.linkConfidence
-                youtubeRepository.addDebugLog("Enriched active session with videoId: ${candidate.videoId}")
-                Log.d("YOUTUBE_THUMBNAIL_DEBUG", "Video ID enriched: ${candidate.videoId}, Thumb: ${candidate.thumbnailUrl}")
+                youtubeRepository.addDebugLog("Session Enriched ID=${candidate.videoId}")
             }
-            
-            Log.v(TAG_YT_TRACE, "Session active: ${candidate.videoTitle}")
         } else {
             finishYouTubeSession()
             activeYouTubeSession = YouTubeWatchSession(
@@ -148,10 +268,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 screenType = candidate.screenType,
                 lastDetectionConfidence = candidate.confidence
             )
-            youtubeRepository.addDebugLog("New Session: ${candidate.videoTitle} (Strategy: ${candidate.extractionStrategy}, Link: ${candidate.videoId != null})")
-            if (candidate.videoId != null) {
-                Log.d("YOUTUBE_THUMBNAIL_DEBUG", "Video ID detected: ${candidate.videoId}, Thumb: ${candidate.thumbnailUrl}")
-            }
+            youtubeRepository.addDebugLog("VIDEO_DETECTED: ${candidate.videoTitle}")
         }
     }
 
@@ -162,6 +279,8 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         
         val threshold = if (session.screenType == YouTubeScreenType.SHORTS) 2 else 5
         
+        youtubeRepository.addDebugLog("HISTORY_SAVE_ATTEMPT: ${session.title}")
+
         if (duration >= threshold && !session.title.isNullOrBlank()) {
             val activity = YouTubeActivity(
                 id = UUID.randomUUID().toString(),
@@ -177,11 +296,12 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 watchDurationSeconds = duration
             )
             youtubeRepository.save(activity)
-            youtubeRepository.addDebugLog("Saved History: ${session.title} (${duration}s)")
+            youtubeRepository.addDebugLog("HISTORY_SAVED: ${session.title} (${duration}s)")
             com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(applicationContext)
         } else {
+            val reason = if (session.title.isNullOrBlank()) "EMPTY_TITLE" else "SHORT_DURATION (${duration}s)"
             youtubeRepository.droppedCount++
-            youtubeRepository.addDebugLog("Dropped Session: ${session.title} (Duration ${duration}s < ${threshold}s)")
+            youtubeRepository.addDebugLog("HISTORY_DROPPED reason=$reason")
         }
         activeYouTubeSession = null
     }
@@ -190,17 +310,16 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     
     fun dumpTree() {
         val root = rootInActiveWindow ?: return
-        youtubeRepository.addDebugLog("--- ACCESSIBILITY TREE DUMP ---")
+        youtubeRepository.addDebugLog("--- TREE DUMP START ---")
         dumpNode(root, 0)
-        youtubeRepository.addDebugLog("--- END DUMP ---")
+        youtubeRepository.addDebugLog("--- TREE DUMP END ---")
     }
 
     private fun dumpNode(node: AccessibilityNodeInfo, depth: Int) {
-        if (depth > 50) return // Safety
+        if (depth > 50) return
         val indent = "  ".repeat(depth)
-        val info = "ID: ${node.viewIdResourceName}, Text: ${node.text}, Desc: ${node.contentDescription}, Class: ${node.className}"
+        val info = "ID: ${node.viewIdResourceName}, Text: ${node.text}, Desc: ${node.contentDescription}"
         Log.d("TREE_DUMP", "$indent $info")
-        
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             dumpNode(child, depth + 1)
@@ -210,6 +329,11 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     // --- Browser Handling ---
 
     private fun handleBrowserEvent(event: AccessibilityEvent, packageName: String) {
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || 
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            checkBrowserUrl(event, packageName)
+        }
+
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
@@ -230,7 +354,6 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private fun scanBrowser(packageName: String) {
         val rootNode = rootInActiveWindow ?: return
-        
         val url = findUrlHeuristic(rootNode, packageName)
         val title = findBrowserTitleHeuristic(rootNode, packageName)
         
@@ -241,10 +364,21 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun checkBrowserUrl(event: AccessibilityEvent, packageName: String) {
+        val source = event.source ?: return
+        val url = findUrlHeuristic(source, packageName)
+        if (!url.isNullOrEmpty()) {
+            if (webManager?.checkUrl(url, packageName) == false) {
+                blockWeb(url, packageName)
+            }
+        }
+    }
+
     private fun findUrlHeuristic(rootNode: AccessibilityNodeInfo, packageName: String): String? {
         val addressBarIds = when (packageName) {
             "com.android.chrome" -> listOf("com.android.chrome:id/url_bar", "com.android.chrome:id/search_box_text")
             "org.mozilla.firefox" -> listOf("org.mozilla.firefox:id/mozac_browser_toolbar_url_view")
+            "com.sec.android.app.sbrowser" -> listOf("com.sec.android.app.sbrowser:id/location_bar_edit_text")
             else -> emptyList()
         }
 
@@ -323,12 +457,72 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         currentBrowserHistory = null
     }
 
+    // --- App Blocking UI ---
+
+    private var lastLaunchTime = 0L
+    private val launchThrottleMs = 1000L
+
+    private fun safeStartActivity(intent: Intent) {
+        val now = System.currentTimeMillis()
+        if (now - lastLaunchTime < launchThrottleMs) return
+        lastLaunchTime = now
+
+        try {
+            if (Build.VERSION.SDK_INT >= 35) {
+                val options = ActivityOptions.makeBasic()
+                options.pendingIntentBackgroundActivityStartMode = ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                startActivity(intent, options.toBundle())
+            } else {
+                startActivity(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG_BLOCK, "Failed to start activity: ${e.message}")
+        }
+    }
+
+    private fun blockApp(packageName: String, reason: AppBlockReason = AppBlockReason.STATIC_BLOCK) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            putExtra("action", "BLOCK_SCREEN")
+            putExtra("blocked_package", packageName)
+            putExtra("block_reason", reason.name)
+        }
+        safeStartActivity(intent)
+    }
+
+    private fun blockWeb(url: String, packageName: String) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            putExtra("action", "WEB_BLOCKED")
+            putExtra("blocked_url", url)
+            putExtra("browser_package", packageName)
+        }
+        safeStartActivity(intent)
+    }
+
+    private fun bringOurAppToFront() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        }
+        safeStartActivity(intent)
+    }
+
     override fun onInterrupt() {
+        Log.i(TAG_RUNTIME, "SERVICE_INTERRUPTED")
+        youtubeRepository.addDebugLog("SERVICE_INTERRUPTED")
         finishYouTubeSession()
         finishBrowserHistory()
     }
 
     override fun onDestroy() {
+        Log.i(TAG_RUNTIME, "SERVICE_DESTROYED")
+        youtubeRepository.addDebugLog("SERVICE_DESTROYED")
         finishYouTubeSession()
         finishBrowserHistory()
         instance = null
