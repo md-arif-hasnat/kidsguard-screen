@@ -26,7 +26,8 @@ import {
   WebsitePolicy,
   WebsiteCategory,
   WebsiteRiskLevel,
-  WebsiteDecision
+  WebsiteDecision,
+  DEFAULT_WEBSITE_POLICY
 } from '@/lib/repositories/WebsitePolicyRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
@@ -38,7 +39,7 @@ interface WebsiteRulesPanelProps {
 export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
   const { family, profile, role, loading: profileLoading } = useParentProfile();
 
-  const [policy, setPolicy] = useState<WebsitePolicy | null>(null);
+  const [policy, setPolicy] = useState<WebsitePolicy>(DEFAULT_WEBSITE_POLICY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -216,7 +217,7 @@ export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-slate-500 text-sm">Manage what websites and categories your children can access.</p>
-            {policy?.updatedAt && (
+            {policy.updatedAt && (
               <>
                 <span className="text-slate-300">•</span>
                 <p className="text-[10px] font-bold text-slate-400 uppercase">

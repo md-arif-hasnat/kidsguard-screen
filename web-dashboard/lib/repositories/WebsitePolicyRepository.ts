@@ -53,20 +53,54 @@ export interface WebsitePolicy {
     riskLevels: Record<WebsiteRiskLevel, WebsiteDecision>;
     createdAt: any;
     updatedAt: any;
+    version: number;
 }
 
+export const DEFAULT_WEBSITE_POLICY: WebsitePolicy = {
+    id: "default",
+    enabled: true,
+    blockedDomains: [],
+    allowedDomains: [],
+    blockedCategories: [],
+    allowedCategories: [],
+    riskLevels: {
+        [WebsiteRiskLevel.SAFE]: WebsiteDecision.ALLOW,
+        [WebsiteRiskLevel.CAUTION]: WebsiteDecision.ALLOW,
+        [WebsiteRiskLevel.RESTRICTED]: WebsiteDecision.BLOCK,
+        [WebsiteRiskLevel.UNKNOWN]: WebsiteDecision.ALLOW
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    version: 1
+};
+
 export class WebsitePolicyRepository {
-    static listenToFamilyPolicy(familyId: string, onUpdate: (policy: WebsitePolicy | null) => void) {
+    static listenToFamilyPolicy(familyId: string, onUpdate: (policy: WebsitePolicy) => void) {
         if (!db || !familyId) return () => {};
 
         const policyRef = doc(db, "families", familyId, "websitePolicy", "current");
         return onSnapshot(policyRef, (snapshot) => {
             if (snapshot.exists()) {
-                onUpdate(snapshot.data() as WebsitePolicy);
+                onUpdate(this.normalizeWebsitePolicy(snapshot.data()));
             } else {
-                onUpdate(this.getDefaultPolicy());
+                onUpdate(DEFAULT_WEBSITE_POLICY);
             }
         });
+    }
+
+    static normalizeWebsitePolicy(data: any): WebsitePolicy {
+        return {
+            ...DEFAULT_WEBSITE_POLICY,
+            ...data,
+            blockedDomains: Array.isArray(data?.blockedDomains) ? data.blockedDomains : [],
+            allowedDomains: Array.isArray(data?.allowedDomains) ? data.allowedDomains : [],
+            blockedCategories: Array.isArray(data?.blockedCategories) ? data.blockedCategories : [],
+            allowedCategories: Array.isArray(data?.allowedCategories) ? data.allowedCategories : [],
+            riskLevels: {
+                ...DEFAULT_WEBSITE_POLICY.riskLevels,
+                ...(data?.riskLevels || {})
+            }
+        };
     }
 
     static async updatePolicy(familyId: string, parentUid: string, policy: Partial<WebsitePolicy>, callerRole?: FamilyRole) {
@@ -78,7 +112,8 @@ export class WebsitePolicyRepository {
         const data = {
             ...policy,
             updatedAt: serverTimestamp(),
-            updatedBy: parentUid
+            updatedBy: parentUid,
+            version: (policy.version || 0) + 1
         };
 
         await setDoc(policyRef, data, { merge: true });
@@ -96,21 +131,6 @@ export class WebsitePolicyRepository {
     }
 
     static getDefaultPolicy(): WebsitePolicy {
-        return {
-            id: "default",
-            enabled: true,
-            blockedDomains: [],
-            allowedDomains: [],
-            blockedCategories: [],
-            allowedCategories: [],
-            riskLevels: {
-                [WebsiteRiskLevel.SAFE]: WebsiteDecision.ALLOW,
-                [WebsiteRiskLevel.CAUTION]: WebsiteDecision.ALLOW,
-                [WebsiteRiskLevel.RESTRICTED]: WebsiteDecision.BLOCK,
-                [WebsiteRiskLevel.UNKNOWN]: WebsiteDecision.ALLOW
-            },
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        };
+        return DEFAULT_WEBSITE_POLICY;
     }
 }
