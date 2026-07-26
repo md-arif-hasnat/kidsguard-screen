@@ -91,6 +91,11 @@ fun HistoryTab(repository: YouTubeHistoryRepository, history: List<com.example.k
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text("APK Info: v${repository.lastServiceVersion} (${repository.lastServiceCode})", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text("App ID: ${repository.lastServicePackage}", style = MaterialTheme.typography.labelSmall)
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -116,6 +121,13 @@ fun HistoryTab(repository: YouTubeHistoryRepository, history: List<com.example.k
                     val withThumb = history.count { it.thumbnailUrl != null }
                     Text("Thumbs: $withThumb", style = MaterialTheme.typography.bodySmall, color = Color.Magenta)
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text("System Integration", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text("Last Package: ${repository.lastAccessibilityPackage}", style = MaterialTheme.typography.bodySmall)
+                val timeStr = if (repository.lastAccessibilityTime > 0) sdf.format(Date(repository.lastAccessibilityTime)) else "Never"
+                Text("Last Event Time: $timeStr", style = MaterialTheme.typography.bodySmall)
             }
         }
 

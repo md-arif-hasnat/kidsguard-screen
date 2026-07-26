@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
         wellbeingManager =
             com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
-        youtubeHistoryRepository = com.example.kidsguard.repository.YouTubeHistoryRepository(this)
+        youtubeHistoryRepository = com.example.kidsguard.repository.YouTubeHistoryRepository.getInstance(this)
         browserHistoryRepository = com.example.kidsguard.repository.BrowserHistoryRepository(this)
         websitePolicyRepository = com.example.kidsguard.repository.WebsitePolicyRepository(this)
 

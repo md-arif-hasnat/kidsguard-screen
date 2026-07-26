@@ -8,28 +8,45 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class YouTubeHistoryRepository(context: Context) {
-    private val prefs = context.getSharedPreferences("youtube_history_prefs", Context.MODE_PRIVATE)
+class YouTubeHistoryRepository private constructor(context: Context) {
+    private val prefs = context.applicationContext.getSharedPreferences("youtube_history_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
     private val TAG = "YT_MONITOR"
 
     private val _history = MutableStateFlow<List<YouTubeActivity>>(loadHistory())
     val history: StateFlow<List<YouTubeActivity>> = _history
 
-    // Diagnostic Stats & Logs
+    // Diagnostic Stats & Logs (Global across instances if they were same process, but now truly singleton)
     var sessionCount = 0
     var savedCount = 0
     var droppedCount = 0
     var duplicateCount = 0
     var adCount = 0
     
+    var lastAccessibilityPackage = "None"
+    var lastAccessibilityTime = 0L
+    var lastServicePackage = "com.example.kidsguard"
+    var lastServiceVersion = "Unknown"
+    var lastServiceCode = 0
+
     private val _debugLogs = MutableStateFlow<List<String>>(emptyList())
     val debugLogs: StateFlow<List<String>> = _debugLogs
 
+    companion object {
+        @Volatile
+        private var instance: YouTubeHistoryRepository? = null
+
+        fun getInstance(context: Context): YouTubeHistoryRepository {
+            return instance ?: synchronized(this) {
+                instance ?: YouTubeHistoryRepository(context).also { instance = it }
+            }
+        }
+    }
+
     fun addDebugLog(msg: String) {
         val current = _debugLogs.value.toMutableList()
-        current.add(0, msg)
-        if (current.size > 50) current.removeAt(50)
+        current.add(0, "[${System.currentTimeMillis() % 100000}] $msg")
+        if (current.size > 100) current.removeAt(100)
         _debugLogs.value = current
         Log.d("YOUTUBE_METADATA_DEBUG", msg)
     }
