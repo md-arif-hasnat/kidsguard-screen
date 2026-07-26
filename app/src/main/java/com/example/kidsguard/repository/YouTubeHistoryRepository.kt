@@ -16,12 +16,27 @@ class YouTubeHistoryRepository(context: Context) {
     private val _history = MutableStateFlow<List<YouTubeActivity>>(loadHistory())
     val history: StateFlow<List<YouTubeActivity>> = _history
 
-    // Diagnostic Stats
+    // Diagnostic Stats & Logs
     var sessionCount = 0
     var savedCount = 0
     var droppedCount = 0
     var duplicateCount = 0
     var adCount = 0
+    
+    private val _debugLogs = MutableStateFlow<List<String>>(emptyList())
+    val debugLogs: StateFlow<List<String>> = _debugLogs
+
+    fun addDebugLog(msg: String) {
+        val current = _debugLogs.value.toMutableList()
+        current.add(0, msg)
+        if (current.size > 50) current.removeAt(50)
+        _debugLogs.value = current
+        Log.d("YOUTUBE_METADATA_DEBUG", msg)
+    }
+
+    fun clearDebugLogs() {
+        _debugLogs.value = emptyList()
+    }
 
     fun save(activity: YouTubeActivity) {
         sessionCount++
@@ -45,6 +60,29 @@ class YouTubeHistoryRepository(context: Context) {
         _history.value = currentList
         persistHistory(currentList)
         Log.i(TAG, "Saved successfully: ${activity.videoTitle} (Channel: ${activity.channelName})")
+    }
+
+    fun updateIfMoreMetadata(activityId: String, videoId: String?, url: String?, thumbnail: String?) {
+        if (videoId == null && url == null && thumbnail == null) return
+        
+        val currentList = _history.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == activityId }
+        if (index != -1) {
+            val old = currentList[index]
+            // Only update if we are adding new info
+            if ((videoId != null && old.videoId == null) || (url != null && old.youtubeUrl == null) || (thumbnail != null && old.thumbnailUrl == null)) {
+                val updated = old.copy(
+                    videoId = videoId ?: old.videoId,
+                    youtubeUrl = url ?: old.youtubeUrl,
+                    thumbnailUrl = thumbnail ?: old.thumbnailUrl,
+                    isSynced = false // Mark as unsynced so we upload the new data
+                )
+                currentList[index] = updated
+                _history.value = currentList
+                persistHistory(currentList)
+                Log.d(TAG, "Updated record with more metadata: $activityId")
+            }
+        }
     }
 
     fun getHistory(): List<YouTubeActivity> {
