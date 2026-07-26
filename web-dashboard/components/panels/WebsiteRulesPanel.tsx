@@ -44,6 +44,7 @@ export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
 
   const [domainInput, setDomainInput] = useState('');
   const [domainType, setDomainType] = useState<'blocked' | 'allowed'>('blocked');
+  const [editingDomain, setEditingDomain] = useState<{ name: string, type: 'blocked' | 'allowed' } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'blocked' | 'allowed'>('all');
 
@@ -103,26 +104,45 @@ export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
     const field = domainType === 'blocked' ? 'blockedDomains' : 'allowedDomains';
     const oppositeField = domainType === 'blocked' ? 'allowedDomains' : 'blockedDomains';
 
-    if (policy[field].includes(normalized)) {
+    if (!editingDomain && policy[field].includes(normalized)) {
         alert("Domain already in list.");
         return;
     }
 
     setSaving(true);
     try {
-        let newList = [...policy[field], normalized];
-        let oppositeList = policy[oppositeField].filter(d => d !== normalized);
+        let updates: any = {};
 
-        await WebsitePolicyRepository.updatePolicy(family.familyId, profile.uid, {
-            [field]: newList,
-            [oppositeField]: oppositeList
-        }, role);
+        if (editingDomain) {
+            // Remove old
+            const oldField = editingDomain.type === 'blocked' ? 'blockedDomains' : 'allowedDomains';
+            updates[oldField] = policy[oldField].filter(d => d !== editingDomain.name);
+
+            // Add new (merge with existing if they changed field)
+            const targetField = domainType === 'blocked' ? 'blockedDomains' : 'allowedDomains';
+            const currentList = updates[targetField] || policy[targetField];
+            // Use Array.from for compatibility if needed, or spread after verifying TS config
+            updates[targetField] = Array.from(new Set([...currentList, normalized]));
+        } else {
+            updates[field] = [...policy[field], normalized];
+            updates[oppositeField] = policy[oppositeField].filter(d => d !== normalized);
+        }
+
+        await WebsitePolicyRepository.updatePolicy(family.familyId, profile.uid, updates, role);
         setDomainInput('');
+        setEditingDomain(null);
     } catch (err) {
-        console.error("Failed to add domain:", err);
+        console.error("Failed to add/update domain:", err);
     } finally {
         setSaving(false);
     }
+  };
+
+  const handleEditClick = (domain: string, type: 'blocked' | 'allowed') => {
+      setDomainInput(domain);
+      setDomainType(type);
+      setEditingDomain({ name: domain, type });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleRemoveDomain = async (domain: string, type: 'blocked' | 'allowed') => {
@@ -287,9 +307,17 @@ export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
                         disabled={!domainInput || saving}
                         className="bg-slate-900 text-white px-6 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg"
                     >
-                        <Plus size={16} />
-                        Add
+                        {editingDomain ? "Update" : "Add"}
                     </button>
+                    {editingDomain && (
+                        <button
+                            type="button"
+                            onClick={() => { setEditingDomain(null); setDomainInput(''); }}
+                            className="bg-slate-200 text-slate-600 px-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-300 transition-all"
+                        >
+                            Cancel
+                        </button>
+                    )}
                  </div>
               </form>
             </div>
@@ -326,12 +354,20 @@ export default function WebsiteRulesPanel({ childId }: WebsiteRulesPanelProps) {
                           </span>
                         </td>
                         <td className="px-8 py-4 text-right">
-                          <button
-                            onClick={() => handleRemoveDomain(d.name, d.type)}
-                            className="p-2 text-slate-300 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <div className="flex justify-end gap-1">
+                            <button
+                                onClick={() => handleEditClick(d.name, d.type)}
+                                className="p-2 text-slate-300 hover:text-primary-600 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                                <Settings2 size={16} />
+                            </button>
+                            <button
+                                onClick={() => handleRemoveDomain(d.name, d.type)}
+                                className="p-2 text-slate-300 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

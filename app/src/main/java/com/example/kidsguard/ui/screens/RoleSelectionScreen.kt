@@ -24,14 +24,17 @@ import androidx.compose.ui.text.style.TextAlign
 import com.example.kidsguard.data.PreferenceHelper
 import androidx.compose.ui.platform.LocalContext
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import android.util.Log
+
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: () -> Unit) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
     
     // Developer Menu hidden access
-    var logoTapCount by remember { mutableIntStateOf(0) }
-    var lastLogoTapTime by remember { mutableLongStateOf(0L) }
+    var logoTapCount by rememberSaveable { mutableIntStateOf(0) }
+    var lastLogoTapTime by rememberSaveable { mutableLongStateOf(0L) }
 
     Column(
         modifier = Modifier
@@ -49,18 +52,23 @@ fun RoleSelectionScreen(onRoleSelected: (String) -> Unit, onOpenDeveloperMenu: (
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
-                    if (com.example.kidsguard.BuildConfig.DEBUG) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastLogoTapTime > 2000) {
-                            logoTapCount = 1
-                        } else {
-                            logoTapCount++
-                        }
-                        lastLogoTapTime = now
-                        if (logoTapCount >= 7) {
-                            logoTapCount = 0
-                            onOpenDeveloperMenu()
-                        }
+                    val now = System.currentTimeMillis()
+                    Log.d("DeveloperMenu", "RoleSelection: Logo tapped! Current count: $logoTapCount, Delta: ${now - lastLogoTapTime}ms")
+
+                    if (now - lastLogoTapTime > 2000) {
+                        logoTapCount = 1
+                        Log.d("DeveloperMenu", "RoleSelection: Timeout, resetting to 1")
+                    } else {
+                        logoTapCount++
+                        Log.d("DeveloperMenu", "RoleSelection: Progressing to $logoTapCount")
+                    }
+                    
+                    lastLogoTapTime = now
+                    
+                    if (logoTapCount >= 7) {
+                        Log.i("DeveloperMenu", "RoleSelection: 7-tap complete. Opening Developer Menu.")
+                        logoTapCount = 0
+                        onOpenDeveloperMenu()
                     }
                 }
         )
