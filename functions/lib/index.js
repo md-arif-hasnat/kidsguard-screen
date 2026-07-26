@@ -381,6 +381,9 @@ async function notifyParent(uid, payload) {
         .filter(t => !!t);
     if (tokens.length === 0)
         return;
+    Console.log("sending FCM");
+    Console.log(tokens.length);
+    Console.log(tokens);
     const messagingPayload = {
         tokens,
         notification: {
@@ -411,6 +414,7 @@ async function notifyParent(uid, payload) {
     try {
         const response = await admin.messaging().sendEachForMulticast(messagingPayload);
         console.log(`Successfully sent ${response.successCount} notifications for parent ${uid}`);
+        Console.log("FCM sent once");
         if (response.failureCount > 0) {
             const tokensToRemove = [];
             response.responses.forEach((resp, idx) => {
