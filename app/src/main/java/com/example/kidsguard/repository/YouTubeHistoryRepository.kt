@@ -16,16 +16,26 @@ class YouTubeHistoryRepository(context: Context) {
     private val _history = MutableStateFlow<List<YouTubeActivity>>(loadHistory())
     val history: StateFlow<List<YouTubeActivity>> = _history
 
+    // Diagnostic Stats
+    var sessionCount = 0
+    var savedCount = 0
+    var droppedCount = 0
+    var duplicateCount = 0
+    var adCount = 0
+
     fun save(activity: YouTubeActivity) {
+        sessionCount++
         val last = getLast()
         if (last != null && last.videoTitle == activity.videoTitle) {
             val timeDiff = activity.startedAt - last.startedAt
             if (timeDiff < 60000) {
+                duplicateCount++
                 Log.d(TAG, "Duplicate ignored: ${activity.videoTitle}")
                 return
             }
         }
 
+        savedCount++
         val currentList = _history.value.toMutableList()
         currentList.add(0, activity)
         if (currentList.size > 100) {

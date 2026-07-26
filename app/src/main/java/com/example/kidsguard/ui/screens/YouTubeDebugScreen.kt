@@ -58,17 +58,32 @@ fun YouTubeDebugScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Sync Status", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text("$syncedCount Synced / $pendingCount Pending", style = MaterialTheme.typography.titleMedium)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Sync Status", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Text("$syncedCount Synced / $pendingCount Pending", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Button(onClick = { com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(context) }) {
+                            Text("Sync Now", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
-                    Button(onClick = { com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(context) }) {
-                        Text("Sync Now", style = MaterialTheme.typography.labelSmall)
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text("Monitoring Stats", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Detected: ${repository.sessionCount}", style = MaterialTheme.typography.bodySmall)
+                        Text("Saved: ${repository.savedCount}", style = MaterialTheme.typography.bodySmall)
+                        Text("Dropped: ${repository.droppedCount}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Duplicates: ${repository.duplicateCount}", style = MaterialTheme.typography.bodySmall)
+                        Text("Ads Ignored: ${repository.adCount}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

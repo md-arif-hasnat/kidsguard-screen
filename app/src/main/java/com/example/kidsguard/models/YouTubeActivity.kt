@@ -7,6 +7,8 @@ data class YouTubeActivity(
     val id: String, // Locally generated UUID
     val videoTitle: String,
     val channelName: String?,
+    val videoId: String? = null,
+    val thumbnailUrl: String? = null,
     val packageName: String = "com.google.android.youtube",
     val capturedAt: Long = System.currentTimeMillis(),
     val startedAt: Long,

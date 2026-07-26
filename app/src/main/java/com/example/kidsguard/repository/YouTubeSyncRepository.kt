@@ -66,6 +66,8 @@ class YouTubeSyncRepository(private val context: Context) {
                 "historyId" to activity.id,
                 "videoTitle" to activity.videoTitle,
                 "channelName" to activity.channelName,
+                "videoId" to activity.videoId,
+                "thumbnailUrl" to activity.thumbnailUrl,
                 "packageName" to activity.packageName,
                 "capturedAt" to activity.capturedAt,
                 "startedAt" to activity.startedAt,
