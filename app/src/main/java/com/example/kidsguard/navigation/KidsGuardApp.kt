@@ -419,39 +419,35 @@ fun KidsGuardApp(
                 }
             }
             Screen.DeveloperMenu -> {
-                if (com.example.kidsguard.BuildConfig.DEBUG) {
-                    DeveloperMenuScreen(
-                        onBack = { 
-                            if (prefHelper.userRole == "NONE") {
-                                onScreenChange(Screen.RoleSelection)
-                            } else {
-                                onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
-                            }
-                        },
-                        prefHelper = prefHelper,
-                        repository = repository,
-                        locationRepository = locationRepository,
-                        onScreenChange = onScreenChange,
-                        trackingRepository = trackingRepository,
-                        trackingManager = trackingManager,
-                        syncProvider = syncProvider,
-                        commandHandler = commandHandler,
-                        sosRepository = sosRepository,
-                        routeRepository = routeRepository,
-                        locationProvider = locationProvider,
-                        updateRepository = updateRepository,
-                        dailySummaryRepository = dailySummaryRepository,
-                        knownRouteRepository = knownRouteRepository,
-                        reverseGeocoder = reverseGeocoder,
-                        errorLogRepository = errorLogRepository,
-                        authRepository = authRepository,
-                        youtubeHistoryRepository = youtubeHistoryRepository,
-                        browserHistoryRepository = browserHistoryRepository,
-                        websitePolicyRepository = websitePolicyRepository
-                    )
-                } else {
-                    onScreenChange(Screen.Home)
-                }
+                DeveloperMenuScreen(
+                    onBack = { 
+                        if (prefHelper.userRole == "NONE") {
+                            onScreenChange(Screen.RoleSelection)
+                        } else {
+                            onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
+                        }
+                    },
+                    prefHelper = prefHelper,
+                    repository = repository,
+                    locationRepository = locationRepository,
+                    onScreenChange = onScreenChange,
+                    trackingRepository = trackingRepository,
+                    trackingManager = trackingManager,
+                    syncProvider = syncProvider,
+                    commandHandler = commandHandler,
+                    sosRepository = sosRepository,
+                    routeRepository = routeRepository,
+                    locationProvider = locationProvider,
+                    updateRepository = updateRepository,
+                    dailySummaryRepository = dailySummaryRepository,
+                    knownRouteRepository = knownRouteRepository,
+                    reverseGeocoder = reverseGeocoder,
+                    errorLogRepository = errorLogRepository,
+                    authRepository = authRepository,
+                    youtubeHistoryRepository = youtubeHistoryRepository,
+                    browserHistoryRepository = browserHistoryRepository,
+                    websitePolicyRepository = websitePolicyRepository
+                )
             }
             Screen.YouTubeDebug -> {
                 YouTubeDebugScreen(
