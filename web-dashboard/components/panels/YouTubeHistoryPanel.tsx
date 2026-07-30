@@ -204,22 +204,37 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
                     onClick={() => setSelectedActivity(activity)}
                     className="group bg-white p-5 rounded-[2rem] border border-slate-100 hover:border-primary-200 hover:shadow-xl hover:shadow-primary-50/50 transition-all cursor-pointer relative overflow-hidden"
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
-                        <Play size={20} fill="currentColor" />
-                      </div>
-                      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                        {new Date(activity.capturedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
+                    <div className="flex items-start gap-3 mb-4">
 
-                    <h4 className="font-bold text-slate-800 line-clamp-2 group-hover:text-primary-600 transition-colors leading-tight mb-1">
-                      {activity.videoTitle}
-                    </h4>
+                      {/* Thumbnail */}
+                      <div className="w-28 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-slate-100">
+                        {activity.thumbnailUrl ? (
+                          <img
+                            src={activity.thumbnailUrl}
+                            alt={activity.videoTitle || "YouTube thumbnail"}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-red-600">
+                            <Play size={24} fill="currentColor" />
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="flex items-center gap-1.5 text-slate-500 mb-4">
-                      <User size={12} className="text-slate-400" />
-                      <span className="text-[11px] font-bold truncate">{activity.channelName || "Unknown Channel"}</span>
+                      {/* Title + Channel */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-black text-slate-900 text-[15px] leading-snug line-clamp-2">
+                          {activity.videoTitle}
+                        </h4>
+
+                        <div className="flex items-center gap-1.5 text-slate-500 mt-1">
+                          <User size={12} className="text-slate-400 flex-shrink-0" />
+                          <span className="text-[11px] font-bold truncate">
+                            {activity.channelName || "Unknown Channel"}
+                          </span>
+                        </div>
+                      </div>
+
                     </div>
 
                     <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
