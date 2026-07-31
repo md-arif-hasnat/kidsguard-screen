@@ -10,6 +10,7 @@ import {
   deleteDoc,
   Timestamp
 } from "firebase/firestore";
+import { auth } from "../firebase";
 import { v4 as uuidv4 } from 'uuid';
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
@@ -394,6 +395,7 @@ export class FamilyRepository {
 
   static async pairChild(familyId: string, pairingCode: string, parentName: string = "Parent"): Promise<boolean> {
     if (!db) return false;
+    const parentUid = auth?.currentUser?.uid;
 
     console.log(`WEB: Searching for pair code: ${pairingCode}`);
     const codePath = `pairingCodes/${pairingCode}`;
@@ -458,6 +460,7 @@ export class FamilyRepository {
     await updateDoc(codeRef, {
         used: true,
         familyId: familyId,
+        parentUid: parentUid,
         parentName: parentName,
         pairedAt: serverTimestamp()
     });
