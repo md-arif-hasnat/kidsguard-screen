@@ -131,9 +131,28 @@ export class NotificationRepository {
     const ref = collection(db, "notifications");
     const q = query(ref, where("userId", "==", uid), where("read", "==", false));
 
-    return onSnapshot(q, (snapshot) => {
-      onUpdate(snapshot.size);
-    });
+   return onSnapshot(q, (snapshot) => {
+
+     console.log(
+       "NOTIFICATION_SNAPSHOT",
+       snapshot.docs.map(doc => ({
+         id: doc.id,
+         type: doc.data().type,
+         userId: doc.data().userId,
+         title: doc.data().title
+       }))
+     );
+
+     const notifications = snapshot.docs.map(doc => ({
+       id: doc.id,
+       ...doc.data()
+     } as NotificationHistoryItem));
+
+     onUpdate(notifications);
+   }, (error) => {
+     console.error("Error listening to notifications:", error);
+     onUpdate([]);
+   });
   }
 
   static async markAsRead(uid: string, notificationId: string): Promise<void> {
