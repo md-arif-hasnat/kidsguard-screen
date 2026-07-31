@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.kidsguard.admin.KidsGuardAdminReceiver
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.repository.SafeZoneRepository
@@ -102,6 +103,7 @@ fun ChildSetupScreen(
                                     val familyId = snapshot.getString("familyId")
                                     val childId = snapshot.getString("childId")
                                     val parentName = snapshot.getString("parentName")
+                                    val parentUid = snapshot.getString("parentUid")
                                     Log.d(
                                         "Pairing",
                                         "Firebase parent name=${parentName}"
@@ -113,6 +115,7 @@ fun ChildSetupScreen(
                                     prefHelper.pairedChildId = childId
                                     prefHelper.parentName = parentName
                                     prefHelper.pairedAt = pairedAt
+                                    prefHelper.parentUid = parentUid
                                     prefHelper.userRole = "CHILD"
                                     prefHelper.isSetupCompleted = true
 
@@ -126,9 +129,17 @@ fun ChildSetupScreen(
                                         "Repository initialized after pairing: childId=${prefHelper.childId}, familyId=${prefHelper.familyId}"
                                     )
 
-                                    Log.i("ChildSetup", "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD")
+                                    Log.i(
+                                        "ChildSetup",
+                                        "Pairing saved: familyId=$familyId, childId=$childId, role=CHILD"
+                                    )
                                     isPaired = true
-                                    
+                                    if (!KidsGuardAdminReceiver.isAdminActive(context)) {
+                                        context.startActivity(
+                                            KidsGuardAdminReceiver.getRequestIntent(context)
+                                        )
+                                    }
+
                                     // Start periodic usage sync
                                     com.example.kidsguard.sync.AppUsageSyncWorker.schedule(context)
 

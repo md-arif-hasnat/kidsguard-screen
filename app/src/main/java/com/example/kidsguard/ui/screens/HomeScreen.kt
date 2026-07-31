@@ -1,5 +1,6 @@
 package com.example.kidsguard.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +64,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.saveable.rememberSaveable
-import android.util.Log
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -197,8 +197,11 @@ fun HomeScreen(
                         indication = null
                     ) {
                         val now = System.currentTimeMillis()
-                        Log.d("DeveloperMenu", "Logo tapped! Current count: $logoTapCount, Time since last: ${now - lastLogoTapTime}ms")
-                        
+                        Log.d(
+                            "DeveloperMenu",
+                            "Logo tapped! Current count: $logoTapCount, Time since last: ${now - lastLogoTapTime}ms"
+                        )
+
                         if (now - lastLogoTapTime > 2000) {
                             logoTapCount = 1
                             Log.d("DeveloperMenu", "Tap timeout exceeded, resetting count to 1")
@@ -206,11 +209,14 @@ fun HomeScreen(
                             logoTapCount++
                             Log.d("DeveloperMenu", "Tap within window, new count: $logoTapCount")
                         }
-                        
+
                         lastLogoTapTime = now
-                        
+
                         if (logoTapCount >= 7) {
-                            Log.i("DeveloperMenu", "7-tap gesture sequence complete. Opening Developer Menu.")
+                            Log.i(
+                                "DeveloperMenu",
+                                "7-tap gesture sequence complete. Opening Developer Menu."
+                            )
                             logoTapCount = 0
                             onOpenDeveloperMenu()
                         }
@@ -291,7 +297,7 @@ fun HomeScreen(
 
                         Column {
                             Text(
-                                text = "Connected to Parent",
+                                text = "Coonnected to Parent",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Black
                             )

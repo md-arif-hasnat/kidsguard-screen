@@ -1,7 +1,19 @@
 package com.example.kidsguard.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -9,19 +21,38 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.kidsguard.accessibility.KidsGuardAccessibilityService
 import com.example.kidsguard.repository.YouTubeHistoryRepository
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,17 +77,17 @@ fun YouTubeDebugScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         KidsGuardAccessibilityService.getInstance()?.dumpTree()
                     }) {
                         Icon(Icons.Default.BugReport, contentDescription = "Dump Tree")
                     }
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(context)
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
                     }
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         if (selectedTab == 0) repository.clear() else repository.clearDebugLogs()
                     }) {
                         Icon(Icons.Default.Delete, contentDescription = "Clear")
@@ -67,8 +98,14 @@ fun YouTubeDebugScreen(
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
             TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("History") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Trace Logs") })
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("History") })
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Trace Logs") })
             }
 
             if (selectedTab == 0) {
@@ -81,19 +118,32 @@ fun YouTubeDebugScreen(
 }
 
 @Composable
-fun HistoryTab(repository: YouTubeHistoryRepository, history: List<com.example.kidsguard.models.YouTubeActivity>, sdf: SimpleDateFormat) {
+fun HistoryTab(
+    repository: YouTubeHistoryRepository,
+    history: List<com.example.kidsguard.models.YouTubeActivity>,
+    sdf: SimpleDateFormat
+) {
     val pendingCount = history.count { !it.isSynced }
     val syncedCount = history.count { it.isSynced }
 
     Column {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("APK Info: v${repository.lastServiceVersion} (${repository.lastServiceCode})", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                Text("App ID: ${repository.lastServicePackage}", style = MaterialTheme.typography.labelSmall)
-                
+                Text(
+                    "APK Info: v${repository.lastServiceVersion} (${repository.lastServiceCode})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "App ID: ${repository.lastServicePackage}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 Row(
@@ -102,35 +152,79 @@ fun HistoryTab(repository: YouTubeHistoryRepository, history: List<com.example.k
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Sync Status", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text("$syncedCount Synced / $pendingCount Pending", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Sync Status",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "$syncedCount Synced / $pendingCount Pending",
+                            style = MaterialTheme.typography.titleMedium
+                        )
                     }
                 }
-                
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Text("Monitoring Stats", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Detected: ${repository.sessionCount}", style = MaterialTheme.typography.bodySmall)
-                    Text("Saved: ${repository.savedCount}", style = MaterialTheme.typography.bodySmall)
-                    Text("Dropped: ${repository.droppedCount}", style = MaterialTheme.typography.bodySmall)
+
+                Text(
+                    "Monitoring Stats",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Detected: ${repository.sessionCount}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "Saved: ${repository.savedCount}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "Dropped: ${repository.droppedCount}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Duplicates: ${repository.duplicateCount}", style = MaterialTheme.typography.bodySmall)
-                    Text("Ads Ignored: ${repository.adCount}", style = MaterialTheme.typography.bodySmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Duplicates: ${repository.duplicateCount}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "Ads Ignored: ${repository.adCount}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                     val withThumb = history.count { it.thumbnailUrl != null }
-                    Text("Thumbs: $withThumb", style = MaterialTheme.typography.bodySmall, color = Color.Magenta)
+                    Text(
+                        "Thumbs: $withThumb",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Magenta
+                    )
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                Text("System Integration", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                Text("Last Package: ${repository.lastAccessibilityPackage}", style = MaterialTheme.typography.bodySmall)
-                val timeStr = if (repository.lastAccessibilityTime > 0) sdf.format(Date(repository.lastAccessibilityTime)) else "Never"
+                Text(
+                    "System Integration",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Last Package: ${repository.lastAccessibilityPackage}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                val timeStr =
+                    if (repository.lastAccessibilityTime > 0) sdf.format(Date(repository.lastAccessibilityTime)) else "Never"
                 Text("Last Event Time: $timeStr", style = MaterialTheme.typography.bodySmall)
             }
         }
-
+        val context = LocalContext.current
         if (history.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No history yet.", style = MaterialTheme.typography.bodyMedium)
@@ -144,20 +238,87 @@ fun HistoryTab(repository: YouTubeHistoryRepository, history: List<com.example.k
                 items(history) { item ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(item.videoTitle, fontWeight = FontWeight.Bold)
-                            Text(item.channelName ?: "Unknown Channel", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                            
-                            if (item.videoId != null) {
-                                Text("ID: ${item.videoId}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                Text("Source: ${item.linkSource ?: "N/A"}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                if (item.thumbnailUrl != null) {
-                                    Text("Thumb: ${item.thumbnailUrl!!.substringAfterLast("/")}", style = MaterialTheme.typography.labelSmall, color = Color.Magenta)
+                            if (!item.thumbnailUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = item.thumbnailUrl,
+                                    contentDescription = "YouTube thumbnail",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp)
+                                        .clickable {
+                                            item.youtubeUrl?.let { url ->
+                                                val intent = Intent(
+                                                    Intent.ACTION_VIEW,
+                                                    Uri.parse(url)
+                                                )
+                                                context.startActivity(intent)
+                                            }
+                                        },
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+                                if (!item.youtubeUrl.isNullOrBlank()) {
+                                    Text(
+                                        text = item.youtubeUrl!!,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickable {
+                                            val intent = Intent(
+                                                Intent.ACTION_VIEW,
+                                                Uri.parse(item.youtubeUrl)
+                                            )
+                                            context.startActivity(intent)
+                                        }
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
                             }
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("${sdf.format(Date(item.startedAt))} • ${item.watchDurationSeconds}s", style = MaterialTheme.typography.labelSmall)
-                                Text(if (item.isSynced) "Synced" else "Pending", color = if (item.isSynced) Color.Green else Color.Gray, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                            Text(item.videoTitle, fontWeight = FontWeight.Bold)
+                            Text(
+                                item.channelName ?: "Unknown Channel",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            if (item.videoId != null) {
+                                Text(
+                                    "ID: ${item.videoId}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                                Text(
+                                    "Source: ${item.linkSource ?: "N/A"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                                if (item.thumbnailUrl != null) {
+                                    Text(
+                                        "Thumb: ${item.thumbnailUrl!!.substringAfterLast("/")}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.Magenta
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "${sdf.format(Date(item.startedAt))} • ${item.watchDurationSeconds}s",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                Text(
+                                    if (item.isSynced) "Synced" else "Pending",
+                                    color = if (item.isSynced) Color.Green else Color.Gray,
+                                    fontWeight = FontWeight.Black,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
                             }
                         }
                     }
@@ -175,7 +336,9 @@ fun LogsTab(logs: List<String>) {
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().background(Color.Black),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
             contentPadding = PaddingValues(8.dp)
         ) {
             items(logs) { log ->

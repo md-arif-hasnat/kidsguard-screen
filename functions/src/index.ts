@@ -384,7 +384,7 @@ class EmailService {
 interface NotificationPayload {
     title: string;
     body: string;
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING' | 'APP_INSTALLED';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
     childId: string;
     clickAction: string;
     packageName?: string;
