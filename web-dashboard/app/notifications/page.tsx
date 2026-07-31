@@ -84,8 +84,7 @@ export default function NotificationsPage() {
 
     const type = String(
       notification.type ||
-      (no
-          tification as any).eventType ||
+      (notification as any).eventType ||
       (notification as any).data?.type ||
       ""
     ).toUpperCase();
