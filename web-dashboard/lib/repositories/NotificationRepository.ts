@@ -114,6 +114,15 @@ export class NotificationRepository {
     const q = query(ref, where("userId", "==", uid), orderBy("createdAt", "desc"), limit(50));
 
     return onSnapshot(q, (snapshot) => {
+        console.log(
+            "NOTIFICATION_SNAPSHOT",
+            snapshot.docs.map(doc => ({
+                id: doc.id,
+                type: doc.data().type,
+                userId: doc.data().userId,
+                title: doc.data().title
+            }))
+        );
       const notifications = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -126,33 +135,18 @@ export class NotificationRepository {
   }
 
   static listenToUnreadCount(uid: string, onUpdate: (count: number) => void) {
-    if (!db || !uid) return () => {};
+      if (!db || !uid) return () => {};
 
-    const ref = collection(db, "notifications");
-    const q = query(ref, where("userId", "==", uid), where("read", "==", false));
+      const ref = collection(db, "notifications");
+      const q = query(
+          ref,
+          where("userId", "==", uid),
+          where("read", "==", false)
+      );
 
-   return onSnapshot(q, (snapshot) => {
-
-     console.log(
-       "NOTIFICATION_SNAPSHOT",
-       snapshot.docs.map(doc => ({
-         id: doc.id,
-         type: doc.data().type,
-         userId: doc.data().userId,
-         title: doc.data().title
-       }))
-     );
-
-     const notifications = snapshot.docs.map(doc => ({
-       id: doc.id,
-       ...doc.data()
-     } as NotificationHistoryItem));
-
-     onUpdate(notifications);
-   }, (error) => {
-     console.error("Error listening to notifications:", error);
-     onUpdate([]);
-   });
+      return onSnapshot(q, (snapshot) => {
+          onUpdate(snapshot.size);
+      });
   }
 
   static async markAsRead(uid: string, notificationId: string): Promise<void> {
