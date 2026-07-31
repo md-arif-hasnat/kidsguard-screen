@@ -30,6 +30,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     const unsubAuth = observeAuth((authUser) => {
+        console.log("PARENT_AUTH_UID =", authUser?.uid);
       setUser(authUser);
       if (authUser) {
         const unsubNotifs = NotificationRepository.listenToNotifications(authUser.uid, (data) => {
