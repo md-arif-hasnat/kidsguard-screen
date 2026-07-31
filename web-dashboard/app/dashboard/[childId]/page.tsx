@@ -431,8 +431,7 @@ export default function ChildDashboard() {
             />
             <button
               onClick={() => setShowAvatarPicker(true)}
-              className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 rounded-full shadow-lg border-2 border-white hover:bg-primary-700
-              transition-colors"
+              className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
             >
               <Camera size={14} />
             </button>
@@ -449,8 +448,7 @@ export default function ChildDashboard() {
               <button
                 onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
                 disabled={!canControl}
-                className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm
-                hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
               >
                 <RotateCcw size={18} />
                 <span className="hidden sm:inline">Refresh GPS</span>
@@ -460,8 +458,7 @@ export default function ChildDashboard() {
                 onClick={() => handleCommand(status?.kidGuardActive ? CommandType.UNLOCK_NOW : CommandType.LOCK_NOW)}
                 disabled={!canControl}
                 className={cn(
-                    "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center
-                    gap-2 text-sm disabled:opacity-50",
+                    "flex-1 md:flex-none text-white px-4 md:px-5 py-2.5 rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50",
                     status?.kidGuardActive ? 'bg-green-600 shadow-green-100 hover:bg-green-700' : 'bg-red-600 shadow-red-100 hover:bg-red-700'
                 )}
               >
