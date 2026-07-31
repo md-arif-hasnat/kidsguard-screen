@@ -46,9 +46,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     <div className="flex min-h-screen bg-slate-50 overflow-x-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col lg:ml-64 w-full">
+      <div className="flex-1 flex flex-col lg:ml-64 min-w-0">
         {/* Top Header - Fixed on mobile, sticky on desktop */}
-        <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 z-[1000] pt-[env(safe-area-inset-top)] box-content lg:sticky lg:top-0 lg:z-30 lg:pt-0 lg:box-border transition-all">
+        <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 z-[1000]
+        pt-[env(safe-area-inset-top)] box-content lg:sticky lg:top-0 lg:z-30 lg:pt-0 lg:box-border transition-all">
           <div className="flex items-center gap-4">
             <button
                 onClick={() => setIsSidebarOpen(true)}
@@ -71,16 +72,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <img src="/navbar-logo.png" alt="KidsGuard" className="h-8 w-auto" />
             </div>
 
-            <Link href="/notifications" className="relative p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-500 hover:bg-slate-100 hover:text-primary-600 transition-all group">
+            <Link href="/notifications" className="relative p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-500 hover:bg-slate-100
+            hover:text-primary-600 transition-all group">
               <Bell size={20} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-in zoom-in duration-300">
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center
+                justify-center border-2 border-white shadow-sm animate-in zoom-in duration-300">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </Link>
 
-            <Link href="/settings" className="flex items-center gap-3 p-1.5 md:pr-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-all group">
+            <Link href="/settings" className="flex items-center gap-3 p-1.5 md:pr-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100
+            transition-all group">
               <div className="w-9 h-9 rounded-lg bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden">
                 {avatarUrl ? (
                     <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
