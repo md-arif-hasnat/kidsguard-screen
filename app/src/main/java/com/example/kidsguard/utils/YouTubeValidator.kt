@@ -14,13 +14,14 @@ object YouTubeValidator {
         "Subscribe", "Subscribed", "You", "Notifications", "Settings", "Help & feedback",
         "Explore", "Trending", "Gaming", "News", "Sport", "Learning", "Fashion & Beauty", 
         "Podcasts", "Movies", "Live", "Videos", "Playlists", "Community", "Channels", "About",
-        "More actions", "In this video", "Touch to add city", "Sponsored", "Ad", "Advertisement", "Skip ad", "Visit advertiser"
+        "More actions", "In this video", "Touch to add city", "Sponsored", "Ad", "Advertisement", "Skip ad", "Visit advertiser",
+        "Video player", "Player", "Play", "Pause", "Next video", "Previous video", "Replay", "Cast", "Connected", "Disconnect"
     )
 
     fun isValidVideoTitle(title: String?): Boolean {
         if (title.isNullOrBlank()) return false
         val trimmed = title.trim()
-        if (trimmed.length < 5) return false
+        if (trimmed.length < 3) return false
         if (trimmed.length > 250) return false
         if (isNumericOnly(trimmed)) return false
         if (isClockTime(trimmed)) return false

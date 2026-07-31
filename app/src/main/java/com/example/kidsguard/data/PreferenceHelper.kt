@@ -151,6 +151,12 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getBoolean("setup_completed", false)
         set(value) = prefs.edit().putBoolean("setup_completed", value).apply()
 
+    var authorizedUninstall: Boolean
+        get() = prefs.getBoolean("authorized_uninstall", false)
+        set(value) = prefs.edit()
+            .putBoolean("authorized_uninstall", value)
+            .apply()
+    
     var removedByParent: Boolean
         get() = prefs.getBoolean("removed_by_parent", false)
         set(value) = prefs.edit().putBoolean("removed_by_parent", value).apply()
@@ -158,6 +164,10 @@ class PreferenceHelper(context: Context) {
     var parentName: String?
         get() = prefs.getString("parent_name", null)
         set(value) = prefs.edit().putString("parent_name", value).apply()
+
+    var parentUid: String?
+        get() = prefs.getString("parent_uid", null)
+        set(value) = prefs.edit().putString("parent_uid", value).apply()
 
     var pairedAt: Long
         get() = prefs.getLong("paired_at", 0L)

@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class YouTubeHistoryRepository private constructor(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("youtube_history_prefs", Context.MODE_PRIVATE)
+    private val prefs = context.applicationContext.getSharedPreferences(
+        "youtube_history_prefs",
+        Context.MODE_PRIVATE
+    )
     private val gson = Gson()
     private val TAG = "YT_MONITOR"
 
@@ -22,7 +25,7 @@ class YouTubeHistoryRepository private constructor(context: Context) {
     var droppedCount = 0
     var duplicateCount = 0
     var adCount = 0
-    
+
     var lastAccessibilityPackage = "None"
     var lastAccessibilityTime = 0L
     var lastServicePackage = "com.example.kidsguard"
@@ -58,30 +61,106 @@ class YouTubeHistoryRepository private constructor(context: Context) {
     fun save(activity: YouTubeActivity) {
         sessionCount++
         val last = getLast()
-        if (last != null && last.videoTitle == activity.videoTitle) {
-            val timeDiff = activity.startedAt - last.startedAt
-            if (timeDiff < 60000) {
+
+        if (last != null) {
+            val timeDiff = kotlin.math.abs(activity.startedAt - last.startedAt)
+
+            val sameVideoId =
+                !activity.videoId.isNullOrBlank() &&
+                        !last.videoId.isNullOrBlank() &&
+                        activity.videoId == last.videoId
+
+            val sameTitle =
+                activity.videoTitle.trim()
+                    .equals(last.videoTitle.trim(), ignoreCase = true)
+
+            if (
+                sameVideoId ||
+                (sameTitle && timeDiff < 5 * 60 * 1000)
+            ) {
                 duplicateCount++
-                Log.d(TAG, "Duplicate ignored: ${activity.videoTitle}")
+
+                Log.d(
+                    TAG,
+                    "Duplicate ignored: ${activity.videoTitle} " +
+                            "videoId=${activity.videoId}"
+                )
+
                 return
             }
         }
 
         savedCount++
         val currentList = _history.value.toMutableList()
-        currentList.add(0, activity)
+        currentList.add(
+            0, activity
+        )
         if (currentList.size > 100) {
-            currentList.removeAt(currentList.size - 1)
+            currentList.removeAt(
+                currentList.size - 1
+            )
         }
-        
+
         _history.value = currentList
         persistHistory(currentList)
         Log.i(TAG, "Saved successfully: ${activity.videoTitle} (Channel: ${activity.channelName})")
     }
 
-    fun updateIfMoreMetadata(activityId: String, videoId: String?, url: String?, thumbnail: String?) {
+    fun enrichSavedActivity(
+        title: String,
+        videoId: String?,
+        youtubeUrl: String?,
+        thumbnailUrl: String?,
+        linkSource: String?,
+        linkConfidence: Float?
+    ) {
+        val currentList = _history.value.toMutableList()
+        Log.d(
+            TAG,
+            "ENRICH_ATTEMPT title=$title historySize=${currentList.size}"
+        )
+        val index = currentList.indexOfFirst {
+            it.videoTitle == title
+        }
+
+        if (index == -1) {
+            Log.d(TAG, "Enrich skipped - history item not found: $title")
+            return
+        }
+
+        val old = currentList[index]
+
+        val updated = old.copy(
+            videoId = videoId ?: old.videoId,
+            youtubeUrl = youtubeUrl ?: old.youtubeUrl,
+            thumbnailUrl = thumbnailUrl ?: old.thumbnailUrl,
+            linkSource = linkSource ?: old.linkSource,
+            linkConfidence = linkConfidence ?: old.linkConfidence
+        )
+
+        currentList[index] = updated
+        Log.d(
+            TAG,
+            "ENRICH_SUCCESS title=$title id=${updated.videoId} thumb=${updated.thumbnailUrl}"
+        )
+
+        _history.value = currentList
+        persistHistory(currentList)
+
+        Log.i(
+            TAG,
+            "History enriched: $title | videoId=${updated.videoId}"
+        )
+    }
+
+    fun updateIfMoreMetadata(
+        activityId: String,
+        videoId: String?,
+        url: String?,
+        thumbnail: String?
+    ) {
         if (videoId == null && url == null && thumbnail == null) return
-        
+
         val currentList = _history.value.toMutableList()
         val index = currentList.indexOfFirst { it.id == activityId }
         if (index != -1) {
@@ -120,7 +199,8 @@ class YouTubeHistoryRepository private constructor(context: Context) {
         val currentList = _history.value.toMutableList()
         val index = currentList.indexOfFirst { it.id == activityId }
         if (index != -1) {
-            val updated = currentList[index].copy(isSynced = true, uploadedAt = System.currentTimeMillis())
+            val updated =
+                currentList[index].copy(isSynced = true, uploadedAt = System.currentTimeMillis())
             currentList[index] = updated
             _history.value = currentList
             persistHistory(currentList)
