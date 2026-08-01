@@ -239,7 +239,14 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
 
         // Prevent repeated alerts from the same Settings screen
-        if (now - lastTamperAlertTime < 30_000) return
+
+        if (now - lastTamperAlertTime < 120_000L) {
+            youtubeRepository.addDebugLog(
+                "TAMPER_ALERT_SKIPPED_DUPLICATE reason=$reason"
+            )
+            return
+        }
+
         lastTamperAlertTime = now
 
         val childId = prefHelper.childId
@@ -276,9 +283,13 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             "clickAction" to "/dashboard/$childId"
         )
 
+        val timeBucket = now / 120_000L
+        val alertId = "tamper_${childId}_${reason}_$timeBucket"
+
         FirebaseFirestore.getInstance()
             .collection(FirebaseConfig.COL_NOTIFICATIONS)
-            .add(notification)
+            .document(alertId)
+            .set(notification)
             .addOnSuccessListener {
                 Log.i(TAG_RUNTIME, "TAMPER_ALERT_SENT reason=$reason")
 
@@ -300,7 +311,14 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         className: String
     ): Boolean {
         if (prefHelper.authorizedUninstall) {
-            return false
+            val expiresAt = prefHelper.authorizedUninstallExpiresAt
+
+            if (expiresAt > System.currentTimeMillis()) {
+                return false
+            }
+
+            prefHelper.authorizedUninstall = false
+            prefHelper.authorizedUninstallExpiresAt = 0L
         }
 
         val settingsPackage =
@@ -357,9 +375,9 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                     screenText.contains("deactivate") ||
                     screenText.contains("stop kidsguard") ||
                     screenText.contains("turn off") ||
-                    className.contains("DeviceAdmin", ignoreCase = true) ||
-                    className.contains("InstalledApp", ignoreCase = true) ||
-                    className.contains("AppInfo", ignoreCase = true)
+                    className.contains("DeviceAdmin", ignoreCase = true)
+        //className.contains("InstalledApp", ignoreCase = true) ||
+        //className.contains("AppInfo", ignoreCase = true)
 
         return mentionsKidsGuard && looksDangerous
     }

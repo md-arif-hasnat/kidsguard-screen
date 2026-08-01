@@ -512,6 +512,9 @@ fun DeveloperMenuScreen(
 
                                     // Tell Accessibility protection this removal is parent-approved
                                     prefHelper.authorizedUninstall = true
+                                    prefHelper.authorizedUninstallExpiresAt =
+                                        System.currentTimeMillis() + 2 * 60 * 1000L
+
 
                                     val dpm = context.getSystemService(
                                         Context.DEVICE_POLICY_SERVICE

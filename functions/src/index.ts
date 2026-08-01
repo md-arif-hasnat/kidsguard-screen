@@ -422,6 +422,85 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
     await Promise.all(promises);
 }
 
+export const onTamperAlertCreated = functions.firestore
+  .document("notifications/{notificationId}")
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+
+    if (data.type !== "TAMPER_ALERT") {
+      return null;
+    }
+
+    const parentUid = data.userId;
+    const childId = data.childId;
+
+    if (!parentUid || !childId) {
+      console.warn("Tamper alert missing parentUid or childId", {
+        notificationId: context.params.notificationId,
+        parentUid,
+        childId,
+      });
+      return null;
+    }
+
+    await notifyParent(parentUid, {
+      type: "TAMPER_ALERT",
+      title: data.title || "Security Alert",
+      body:
+        data.body ||
+        "Someone tried to disable or remove KidsGuard protection.",
+      childId,
+      eventId: context.params.notificationId,
+      clickAction: data.clickAction || `/dashboard/${childId}`,
+      familyId: data.familyId || "",
+    });
+
+    return null;
+  });
+
+/**
+ * Sends a notification to a specific parent if child changes checklisfrom child phone app home or phone settings.
+ */
+ export const onPermissionAlertCreated = functions.firestore
+   .document("notifications/{notificationId}")
+   .onCreate(async (snapshot, context) => {
+     const data = snapshot.data();
+
+     const allowedTypes = [
+       "LOCATION_PERMISSION_DISABLED",
+       "BACKGROUND_LOCATION_DISABLED",
+     ];
+
+     if (!allowedTypes.includes(String(data.type || ""))) {
+       return null;
+     }
+
+     const parentUid = String(data.userId || "");
+     const childId = String(data.childId || "");
+
+     if (!parentUid || !childId) {
+       console.warn("Permission alert missing userId or childId", {
+         notificationId: context.params.notificationId,
+       });
+       return null;
+     }
+
+     await notifyParent(parentUid, {
+       type: String(data.type) as any,
+       title: String(data.title || "Permission Alert"),
+       body: String(data.body || "A required permission was disabled."),
+       childId,
+       eventId: context.params.notificationId,
+       clickAction: String(
+         data.clickAction || `/dashboard/${childId}`
+       ),
+       familyId: String(data.familyId || ""),
+     });
+
+     return null;
+   });
+
+
 /**
  * Sends a notification to a specific parent if their settings allow it.
  */

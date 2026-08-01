@@ -157,6 +157,14 @@ class PreferenceHelper(context: Context) {
             .putBoolean("authorized_uninstall", value)
             .apply()
     
+    var authorizedUninstallExpiresAt: Long
+        get() = prefs.getLong("authorized_uninstall_expires_at", 0L)
+        set(value) {
+            prefs.edit()
+                .putLong("authorized_uninstall_expires_at", value)
+                .apply()
+        }
+
     var removedByParent: Boolean
         get() = prefs.getBoolean("removed_by_parent", false)
         set(value) = prefs.edit().putBoolean("removed_by_parent", value).apply()
