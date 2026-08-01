@@ -21,24 +21,43 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  // Customize notification here
-  const notificationTitle = payload.notification.title;
+  console.log(
+    "[firebase-messaging-sw.js] Received background message",
+    payload
+  );
 
   const data = payload.data || {};
-  const targetUrl = data.url || data.clickAction || data.route || "/";
+
+  const notificationTitle =
+    data.title ||
+    payload.notification?.title ||
+    "KidsGuard";
+
+  const notificationBody =
+    data.body ||
+    payload.notification?.body ||
+    "You have a new KidsGuard alert.";
+
+  const targetUrl =
+    data.url ||
+    data.clickAction ||
+    data.route ||
+    "/";
 
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo.png',
-    badge: '/symbol.png',
+    body: notificationBody,
+    icon: "/logo.png",
+    badge: "/symbol.png",
     data: {
       ...data,
       url: targetUrl
     }
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(
+    notificationTitle,
+    notificationOptions
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
