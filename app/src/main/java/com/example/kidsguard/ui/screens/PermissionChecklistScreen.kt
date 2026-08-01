@@ -3,14 +3,49 @@ package com.example.kidsguard.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FlipToFront
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,28 +56,154 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.kidsguard.data.PreferenceHelper
+//mport com.example.kidsguard.firebase.FirebaseConfig
+import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.utils.PermissionUtils
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+
+private fun sendPermissionAlert(
+    prefHelper: PreferenceHelper,
+    type: String,
+    title: String,
+    body: String
+) {
+    val childId = prefHelper.childId
+    val familyId = prefHelper.familyId
+    val parentUid = prefHelper.parentUid
+
+    if (childId.isNullOrBlank() || familyId.isNullOrBlank()) {
+        return
+    }
+
+    val notification = mapOf(
+        "type" to type,
+        "title" to title,
+        "body" to body,
+        "message" to body,
+        "childId" to childId,
+        "childName" to prefHelper.childName,
+        "familyId" to familyId,
+        "userId" to parentUid,
+        "createdAt" to FieldValue.serverTimestamp(),
+        "read" to false,
+        "clickAction" to "/dashboard/$childId"
+    )
+
+    FirebaseFirestore.getInstance()
+        .collection(FirebaseConfig.COL_NOTIFICATIONS)
+        .add(notification)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PermissionChecklistScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    
+    val prefHelper = remember { PreferenceHelper(context) }
+
     var locationGranted by remember { mutableStateOf(PermissionUtils.hasLocationPermission(context)) }
-    var bgLocationGranted by remember { mutableStateOf(PermissionUtils.hasBackgroundLocationPermission(context)) }
-    var notificationsGranted by remember { mutableStateOf(PermissionUtils.hasNotificationPermission(context)) }
-    var batteryIgnored by remember { mutableStateOf(PermissionUtils.isBatteryOptimizationIgnored(context)) }
-    var accessibilityEnabled by remember { mutableStateOf(PermissionUtils.isAccessibilityServiceEnabled(context)) }
-    var usageStatsGranted by remember { mutableStateOf(PermissionUtils.hasUsageStatsPermission(context)) }
+    var bgLocationGranted by remember {
+        mutableStateOf(
+            PermissionUtils.hasBackgroundLocationPermission(
+                context
+            )
+        )
+    }
+    var previousLocationGranted by remember {
+        mutableStateOf<Boolean?>(null)
+    }
+
+    var previousBgLocationGranted by remember {
+        mutableStateOf<Boolean?>(null)
+    }
+
+    var notificationsGranted by remember {
+        mutableStateOf(
+            PermissionUtils.hasNotificationPermission(
+                context
+            )
+        )
+    }
+    var batteryIgnored by remember {
+        mutableStateOf(
+            PermissionUtils.isBatteryOptimizationIgnored(
+                context
+            )
+        )
+    }
+    var accessibilityEnabled by remember {
+        mutableStateOf(
+            PermissionUtils.isAccessibilityServiceEnabled(
+                context
+            )
+        )
+    }
+    var usageStatsGranted by remember {
+        mutableStateOf(
+            PermissionUtils.hasUsageStatsPermission(
+                context
+            )
+        )
+    }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var audioGranted by remember { mutableStateOf(PermissionUtils.hasAudioPermission(context)) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refreshPermissions() {
-        locationGranted = PermissionUtils.hasLocationPermission(context)
-        bgLocationGranted = PermissionUtils.hasBackgroundLocationPermission(context)
+        val newLocationGranted =
+            PermissionUtils.hasLocationPermission(context)
+
+        val newBgLocationGranted =
+            PermissionUtils.hasBackgroundLocationPermission(context)
+
+        if (previousLocationGranted == null) {
+            previousLocationGranted = newLocationGranted
+        }
+
+        if (previousBgLocationGranted == null) {
+            previousBgLocationGranted = newBgLocationGranted
+        }
+
+        if (
+            previousLocationGranted == true &&
+            !newLocationGranted
+        ) {
+            android.util.Log.w(
+                "KidsGuardPermission",
+                "LOCATION_PERMISSION_DISABLED"
+            )
+
+            sendPermissionAlert(
+                prefHelper = prefHelper,
+                type = "LOCATION_PERMISSION_DISABLED",
+                title = "Location Access Disabled",
+                body = "${prefHelper.childName ?: "Child"} turned off location access. Live location is unavailable."
+            )
+        } else if (
+            previousBgLocationGranted == true &&
+            !newBgLocationGranted
+        ) {
+            android.util.Log.w(
+                "KidsGuardPermission",
+                "BACKGROUND_LOCATION_DISABLED"
+            )
+
+            sendPermissionAlert(
+                prefHelper = prefHelper,
+                type = "BACKGROUND_LOCATION_DISABLED",
+                title = "Live Location Disabled",
+                body = "${prefHelper.childName ?: "Child"} turned off Always-On Location. Background tracking may stop."
+            )
+        }
+
+        locationGranted = newLocationGranted
+        bgLocationGranted = newBgLocationGranted
+
+        previousLocationGranted = newLocationGranted
+        previousBgLocationGranted = newBgLocationGranted
         notificationsGranted = PermissionUtils.hasNotificationPermission(context)
         batteryIgnored = PermissionUtils.isBatteryOptimizationIgnored(context)
         accessibilityEnabled = PermissionUtils.isAccessibilityServiceEnabled(context)
@@ -66,7 +227,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
 
     // Auto refresh loop (backup)
     LaunchedEffect(Unit) {
-        while(true) {
+        while (true) {
             refreshPermissions()
             delay(2000)
         }
@@ -150,7 +311,10 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 status = if (overlayGranted) "Ready" else "Missing",
                 isGranted = overlayGranted,
                 onClick = {
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
                     context.startActivity(intent)
                 }
             )
@@ -192,14 +356,17 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                     context.startActivity(intent)
                 }
             )
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
-            val allDone = locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled && audioGranted
-            
+
+            val allDone =
+                locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled && audioGranted
+
             Button(
                 onClick = onBack,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (allDone) MaterialTheme.colorScheme.primary else Color.Gray
                 )
@@ -228,9 +395,14 @@ fun PermissionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (isGranted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+            containerColor = if (isGranted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer.copy(
+                alpha = 0.1f
+            )
         ),
-        border = if (!isGranted) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) else null
+        border = if (!isGranted) androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+        ) else null
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,7 +420,11 @@ fun PermissionCard(
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         status,
                         style = MaterialTheme.typography.labelSmall,
@@ -265,13 +441,17 @@ fun PermissionCard(
                         Text("Grant", style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF2E7D32)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                description, 
-                style = MaterialTheme.typography.bodySmall, 
+                description,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified
             )

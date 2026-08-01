@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -339,6 +339,65 @@ async function broadcastToParents(childId, payload) {
     const promises = parentUids.map(uid => notifyParent(uid, { ...payload, familyId }));
     await Promise.all(promises);
 }
+exports.onTamperAlertCreated = functions.firestore
+    .document("notifications/{notificationId}")
+    .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+    if (data.type !== "TAMPER_ALERT") {
+        return null;
+    }
+    const parentUid = data.userId;
+    const childId = data.childId;
+    if (!parentUid || !childId) {
+        console.warn("Tamper alert missing parentUid or childId", {
+            notificationId: context.params.notificationId,
+            parentUid,
+            childId,
+        });
+        return null;
+    }
+    await notifyParent(parentUid, {
+        type: "TAMPER_ALERT",
+        title: data.title || "Security Alert",
+        body: data.body ||
+            "Someone tried to disable or remove KidsGuard protection.",
+        childId,
+        eventId: context.params.notificationId,
+        clickAction: data.clickAction || `/dashboard/${childId}`,
+        familyId: data.familyId || "",
+    });
+    return null;
+});
+exports.onPermissionAlertCreated = functions.firestore
+    .document("notifications/{notificationId}")
+    .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+    const allowedTypes = [
+        "LOCATION_PERMISSION_DISABLED",
+        "BACKGROUND_LOCATION_DISABLED",
+    ];
+    if (!allowedTypes.includes(String(data.type || ""))) {
+        return null;
+    }
+    const parentUid = String(data.userId || "");
+    const childId = String(data.childId || "");
+    if (!parentUid || !childId) {
+        console.warn("Permission alert missing userId or childId", {
+            notificationId: context.params.notificationId,
+        });
+        return null;
+    }
+    await notifyParent(parentUid, {
+        type: String(data.type),
+        title: String(data.title || "Permission Alert"),
+        body: String(data.body || "A required permission was disabled."),
+        childId,
+        eventId: context.params.notificationId,
+        clickAction: String(data.clickAction || `/dashboard/${childId}`),
+        familyId: String(data.familyId || ""),
+    });
+    return null;
+});
 async function notifyParent(uid, payload) {
     const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
     const settings = settingsSnap.data();
@@ -375,17 +434,52 @@ async function notifyParent(uid, payload) {
     const devicesSnap = await db.collection('users').doc(uid).collection('notificationTokens').get();
     if (devicesSnap.empty)
         return;
-    const tokens = devicesSnap.docs
-        .filter(doc => doc.data().enabled !== false)
-        .map(doc => doc.data().token)
-        .filter(t => !!t);
-    if (tokens.length === 0)
+    const enabledDevices = devicesSnap.docs.filter(doc => doc.data().enabled !== false && !!doc.data().token);
+    const webTokens = enabledDevices
+        .filter(doc => {
+        const platform = String(doc.data().platform || "").toLowerCase();
+        return platform === "ios-pwa" || platform === "web";
+    })
+        .map(doc => String(doc.data().token));
+    const nativeTokens = enabledDevices
+        .filter(doc => {
+        const platform = String(doc.data().platform || "").toLowerCase();
+        return platform !== "ios-pwa" && platform !== "web";
+    })
+        .map(doc => String(doc.data().token));
+    if (webTokens.length === 0 && nativeTokens.length === 0)
         return;
-    Console.log("sending FCM");
-    Console.log(tokens.length);
-    Console.log(tokens);
+    console.log("Notification token groups", {
+        webCount: webTokens.length,
+        nativeCount: nativeTokens.length
+    });
+    console.log("sending FCM");
+    console.log("webTokens:", webTokens.length);
+    console.log("nativeTokens:", nativeTokens.length);
+    const allTokens = [...webTokens, ...nativeTokens];
+    const webPayload = {
+        tokens: webTokens,
+        notification: {
+            title: payload.title,
+            body: payload.body,
+        },
+        data: {
+            type: payload.type,
+            childId: payload.childId,
+            eventId: payload.eventId || "",
+            clickAction: payload.clickAction,
+            packageName: payload.packageName || "",
+            title: payload.title,
+            body: payload.body,
+        },
+        webpush: {
+            fcmOptions: {
+                link: payload.clickAction,
+            },
+        },
+    };
     const messagingPayload = {
-        tokens,
+        tokens: nativeTokens,
         notification: {
             title: payload.title,
             body: payload.body,
@@ -412,22 +506,39 @@ async function notifyParent(uid, payload) {
         }
     };
     try {
-        const response = await admin.messaging().sendEachForMulticast(messagingPayload);
-        console.log(`Successfully sent ${response.successCount} notifications for parent ${uid}`);
-        Console.log("FCM sent once");
-        if (response.failureCount > 0) {
-            const tokensToRemove = [];
+        let webResponse = null;
+        let nativeResponse = null;
+        if (webTokens.length > 0) {
+            webResponse = await admin.messaging().sendEachForMulticast(webPayload);
+        }
+        if (nativeTokens.length > 0) {
+            nativeResponse = await admin.messaging().sendEachForMulticast(messagingPayload);
+        }
+        const successCount = (webResponse?.successCount || 0) +
+            (nativeResponse?.successCount || 0);
+        console.log(`Successfully sent ${successCount} notifications for parent ${uid}`);
+        console.log("FCM sent once");
+        const tokensToRemove = [];
+        const removeInvalidTokens = (response, tokenList) => {
+            if (!response || response.failureCount === 0)
+                return;
             response.responses.forEach((resp, idx) => {
-                if (!resp.success) {
-                    const error = resp.error;
-                    if (error?.code === 'messaging/invalid-registration-token' ||
-                        error?.code === 'messaging/registration-token-not-registered') {
-                        tokensToRemove.push(devicesSnap.docs[idx].ref.delete());
+                if (resp.success)
+                    return;
+                const error = resp.error;
+                if (error?.code === "messaging/invalid-registration-token" ||
+                    error?.code === "messaging/registration-token-not-registered") {
+                    const invalidToken = tokenList[idx];
+                    const matchingDoc = devicesSnap.docs.find(doc => String(doc.data().token) === invalidToken);
+                    if (matchingDoc) {
+                        tokensToRemove.push(matchingDoc.ref.delete());
                     }
                 }
             });
-            await Promise.all(tokensToRemove);
-        }
+        };
+        removeInvalidTokens(webResponse, webTokens);
+        removeInvalidTokens(nativeResponse, nativeTokens);
+        await Promise.all(tokensToRemove);
     }
     catch (error) {
         console.error(`Error sending FCM to parent ${uid}:`, error);
