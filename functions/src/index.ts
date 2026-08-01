@@ -474,19 +474,61 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     if (devicesSnap.empty) return;
 
     // Filter for enabled tokens
-    const tokens = devicesSnap.docs
-        .filter(doc => doc.data().enabled !== false)
-        .map(doc => doc.data().token)
-        .filter(t => !!t);
+    // Filter enabled token documents
+    const enabledDevices = devicesSnap.docs.filter(
+      doc => doc.data().enabled !== false && !!doc.data().token
+    );
 
-    if (tokens.length === 0) return;
+    // iPhone / Web PWA tokens
+    const webTokens = enabledDevices
+      .filter(doc => {
+        const platform = String(doc.data().platform || "").toLowerCase();
+        return platform === "ios-pwa" || platform === "web";
+      })
+      .map(doc => String(doc.data().token));
+
+    // Native Android/other tokens
+    const nativeTokens = enabledDevices
+      .filter(doc => {
+        const platform = String(doc.data().platform || "").toLowerCase();
+        return platform !== "ios-pwa" && platform !== "web";
+      })
+      .map(doc => String(doc.data().token));
+
+    if (webTokens.length === 0 && nativeTokens.length === 0) return;
+
+    console.log("Notification token groups", {
+      webCount: webTokens.length,
+      nativeCount: nativeTokens.length
+    });
 
 
-    Console.log("sending FCM")
-    Console.log(tokens.length)
-    Console.log(tokens)
+    console.log("sending FCM");
+    console.log("webTokens:", webTokens.length);
+    console.log("nativeTokens:", nativeTokens.length);
+
+    const allTokens = [...webTokens, ...nativeTokens];
+
+    const webPayload: admin.messaging.MulticastMessage = {
+      tokens: webTokens,
+      data: {
+        type: payload.type,
+        childId: payload.childId,
+        eventId: payload.eventId || "",
+        clickAction: payload.clickAction,
+        packageName: payload.packageName || "",
+        title: payload.title,
+        body: payload.body,
+      },
+      webpush: {
+        fcmOptions: {
+          link: payload.clickAction,
+        },
+      },
+    };
+
     const messagingPayload: admin.messaging.MulticastMessage = {
-        tokens,
+      tokens: nativeTokens,
         notification: {
             title: payload.title,
             body: payload.body,
@@ -515,24 +557,61 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     };
 
     try {
-        const response = await admin.messaging().sendEachForMulticast(messagingPayload);
-        console.log(`Successfully sent ${response.successCount} notifications for parent ${uid}`);
-        Console.log("FCM sent once")
+        let webResponse: admin.messaging.BatchResponse | null = null;
+        let nativeResponse: admin.messaging.BatchResponse | null = null;
+
+        if (webTokens.length > 0) {
+          webResponse = await admin.messaging().sendEachForMulticast(webPayload);
+        }
+
+        if (nativeTokens.length > 0) {
+          nativeResponse = await admin.messaging().sendEachForMulticast(messagingPayload);
+        }
+        const successCount =
+          (webResponse?.successCount || 0) +
+          (nativeResponse?.successCount || 0);
+
+        console.log(
+          `Successfully sent ${successCount} notifications for parent ${uid}`
+        );
+        console.log("FCM sent once")
 
         // Clean up invalid tokens if any
-        if (response.failureCount > 0) {
-            const tokensToRemove: Promise<any>[] = [];
-            response.responses.forEach((resp, idx) => {
-                if (!resp.success) {
-                    const error = resp.error;
-                    if (error?.code === 'messaging/invalid-registration-token' ||
-                        error?.code === 'messaging/registration-token-not-registered') {
-                        tokensToRemove.push(devicesSnap.docs[idx].ref.delete());
-                    }
-                }
-            });
-            await Promise.all(tokensToRemove);
-        }
+        // Clean up invalid tokens if any
+        const tokensToRemove: Promise<any>[] = [];
+
+        const removeInvalidTokens = (
+          response: admin.messaging.BatchResponse | null,
+          tokenList: string[]
+        ) => {
+          if (!response || response.failureCount === 0) return;
+
+          response.responses.forEach((resp, idx) => {
+            if (resp.success) return;
+
+            const error = resp.error;
+
+            if (
+              error?.code === "messaging/invalid-registration-token" ||
+              error?.code === "messaging/registration-token-not-registered"
+            ) {
+              const invalidToken = tokenList[idx];
+
+              const matchingDoc = devicesSnap.docs.find(
+                doc => String(doc.data().token) === invalidToken
+              );
+
+              if (matchingDoc) {
+                tokensToRemove.push(matchingDoc.ref.delete());
+              }
+            }
+          });
+        };
+
+        removeInvalidTokens(webResponse, webTokens);
+        removeInvalidTokens(nativeResponse, nativeTokens);
+
+        await Promise.all(tokensToRemove);
     } catch (error) {
         console.error(`Error sending FCM to parent ${uid}:`, error);
     }
