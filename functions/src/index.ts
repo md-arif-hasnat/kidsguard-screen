@@ -511,6 +511,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
 
     const webPayload: admin.messaging.MulticastMessage = {
       tokens: webTokens,
+      notification: {
+        title: payload.title,
+        body: payload.body,
+      },
       data: {
         type: payload.type,
         childId: payload.childId,
