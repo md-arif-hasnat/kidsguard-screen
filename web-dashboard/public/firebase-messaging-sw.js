@@ -25,6 +25,13 @@ messaging.onBackgroundMessage((payload) => {
     "[firebase-messaging-sw.js] Received background message",
     payload
   );
+  if (payload.notification) {
+    console.log(
+      "[firebase-messaging-sw.js] Notification payload handled by browser",
+      payload.notification
+    );
+    return;
+  }
 
   const data = payload.data || {};
 
