@@ -392,6 +392,7 @@ interface NotificationPayload {
     familyId?: string;
     message?: string; // For explicit required field mapping
     route?: string;   // For explicit required field mapping
+    skipHistory?: boolean;
 }
 
 /**
@@ -427,6 +428,10 @@ export const onTamperAlertCreated = functions.firestore
   .onCreate(async (snapshot, context) => {
     const data = snapshot.data();
 
+    if(data.generatedBy === "cloud_function"){
+    return null;
+    }
+
     if (data.type !== "TAMPER_ALERT") {
       return null;
     }
@@ -453,6 +458,7 @@ export const onTamperAlertCreated = functions.firestore
       eventId: context.params.notificationId,
       clickAction: data.clickAction || `/dashboard/${childId}`,
       familyId: data.familyId || "",
+      skipHistory: true,
     });
 
     return null;
@@ -465,6 +471,10 @@ export const onTamperAlertCreated = functions.firestore
    .document("notifications/{notificationId}")
    .onCreate(async (snapshot, context) => {
      const data = snapshot.data();
+
+     if(data.generatedBy === "cloud_function"){
+         return null;
+         }
 
      const allowedTypes = [
        "LOCATION_PERMISSION_DISABLED",
@@ -495,6 +505,7 @@ export const onTamperAlertCreated = functions.firestore
          data.clickAction || `/dashboard/${childId}`
        ),
        familyId: String(data.familyId || ""),
+       skipHistory: true,
      });
 
      return null;
@@ -532,6 +543,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
 
     const notificationDoc = {
         id: notificationId,
+        generatedBy: "cloud_function",
         userId: uid,
         familyId: payload.familyId || '',
         childId: payload.childId,
@@ -546,7 +558,12 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         route: payload.clickAction
     };
 
-    await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
+    if (!payload.skipHistory) {
+      await db
+        .collection("notifications")
+        .doc(notificationId)
+        .set(notificationDoc, { merge: true });
+    }
 
     // 3. Send FCM to all registered devices
     // New Path: users/{uid}/notificationTokens

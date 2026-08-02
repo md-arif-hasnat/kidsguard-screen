@@ -688,7 +688,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(childId)
             .collection(FirebaseConfig.COL_ACTIVITY)
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(500)
+            .limit(50)
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e(TAG, "Error listening for activity history", e)
