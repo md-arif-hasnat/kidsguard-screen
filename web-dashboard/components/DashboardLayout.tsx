@@ -152,13 +152,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex flex-1 items-center justify-end gap-2 md:gap-3">
-            <div className="hidden lg:mr-2 lg:block">
-              <img
-                src="/navbar-logo.png"
-                alt="KidsGuard"
-                className="h-8 w-auto"
-              />
-            </div>
+
 
             <div
               className="
