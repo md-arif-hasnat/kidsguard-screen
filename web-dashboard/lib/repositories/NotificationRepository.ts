@@ -111,7 +111,7 @@ export class NotificationRepository {
 
     // New Path: Root notifications collection filtered by userId
     const ref = collection(db, "notifications");
-    const q = query(ref, where("userId", "==", uid), orderBy("createdAt", "desc"), limit(50));
+    const q = query(ref, where("userId", "==", uid), orderBy("createdAt", "desc"), limit(500));
 
     return onSnapshot(q, (snapshot) => {
         console.log(

@@ -343,6 +343,9 @@ exports.onTamperAlertCreated = functions.firestore
     .document("notifications/{notificationId}")
     .onCreate(async (snapshot, context) => {
     const data = snapshot.data();
+    if (data.generatedBy === "cloud_function") {
+        return null;
+    }
     if (data.type !== "TAMPER_ALERT") {
         return null;
     }
@@ -365,6 +368,7 @@ exports.onTamperAlertCreated = functions.firestore
         eventId: context.params.notificationId,
         clickAction: data.clickAction || `/dashboard/${childId}`,
         familyId: data.familyId || "",
+        skipHistory: true,
     });
     return null;
 });
@@ -372,6 +376,9 @@ exports.onPermissionAlertCreated = functions.firestore
     .document("notifications/{notificationId}")
     .onCreate(async (snapshot, context) => {
     const data = snapshot.data();
+    if (data.generatedBy === "cloud_function") {
+        return null;
+    }
     const allowedTypes = [
         "LOCATION_PERMISSION_DISABLED",
         "BACKGROUND_LOCATION_DISABLED",
@@ -395,6 +402,7 @@ exports.onPermissionAlertCreated = functions.firestore
         eventId: context.params.notificationId,
         clickAction: String(data.clickAction || `/dashboard/${childId}`),
         familyId: String(data.familyId || ""),
+        skipHistory: true,
     });
     return null;
 });
@@ -417,6 +425,7 @@ async function notifyParent(uid, payload) {
     const notificationId = payload.eventId ? `${payload.eventId}_${uid}` : db.collection('notifications').doc().id;
     const notificationDoc = {
         id: notificationId,
+        generatedBy: "cloud_function",
         userId: uid,
         familyId: payload.familyId || '',
         childId: payload.childId,
@@ -430,7 +439,12 @@ async function notifyParent(uid, payload) {
         clickAction: payload.clickAction,
         route: payload.clickAction
     };
-    await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
+    if (!payload.skipHistory) {
+        await db
+            .collection("notifications")
+            .doc(notificationId)
+            .set(notificationDoc, { merge: true });
+    }
     const devicesSnap = await db.collection('users').doc(uid).collection('notificationTokens').get();
     if (devicesSnap.empty)
         return;
