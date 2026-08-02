@@ -369,6 +369,16 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             prefHelper.authorizedUninstall = false
             prefHelper.authorizedUninstallExpiresAt = 0L
         }
+        val deviceAdminSetupExpiresAt =
+            prefHelper.authorizedDeviceAdminSetupExpiresAt
+
+        if (deviceAdminSetupExpiresAt > System.currentTimeMillis()) {
+            return false
+        }
+
+        if (deviceAdminSetupExpiresAt != 0L) {
+            prefHelper.authorizedDeviceAdminSetupExpiresAt = 0L
+        }
 
         val settingsPackage =
             packageName == "com.android.settings" ||

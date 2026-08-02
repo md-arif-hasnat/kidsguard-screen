@@ -1,26 +1,72 @@
 package com.example.kidsguard.navigation
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.location.LocalLocationProvider
 import com.example.kidsguard.models.ActivityEvent
+import com.example.kidsguard.repository.AuthRepository
+import com.example.kidsguard.repository.ErrorLogRepository
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
-import com.example.kidsguard.repository.AuthRepository
+import com.example.kidsguard.routeintelligence.KnownRouteRepository
 import com.example.kidsguard.sync.RemoteSyncProvider
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
-import com.example.kidsguard.ui.screens.*
-import com.example.kidsguard.routeintelligence.KnownRouteRepository
-import com.example.kidsguard.repository.ErrorLogRepository
+import com.example.kidsguard.ui.screens.ActivityFeedScreen
+import com.example.kidsguard.ui.screens.AppBlockedScreen
+import com.example.kidsguard.ui.screens.BrowserDebugScreen
+import com.example.kidsguard.ui.screens.ChildDetailScreen
+import com.example.kidsguard.ui.screens.ChildListScreen
+import com.example.kidsguard.ui.screens.ChildSetupScreen
+import com.example.kidsguard.ui.screens.ChildSetupWizardScreen
+import com.example.kidsguard.ui.screens.DailySummaryScreen
+import com.example.kidsguard.ui.screens.DeveloperMenuScreen
+import com.example.kidsguard.ui.screens.DiagnosticsScreen
+import com.example.kidsguard.ui.screens.ErrorLogScreen
+import com.example.kidsguard.ui.screens.HomeScreen
+import com.example.kidsguard.ui.screens.InternetProtectionScreen
+import com.example.kidsguard.ui.screens.KnownRoutesScreen
+import com.example.kidsguard.ui.screens.LiveEnforcementScreen
+import com.example.kidsguard.ui.screens.LocationHistoryScreen
+import com.example.kidsguard.ui.screens.LockedScreen
+import com.example.kidsguard.ui.screens.MapScreen
+import com.example.kidsguard.ui.screens.NotificationsScreen
+import com.example.kidsguard.ui.screens.ParentDashboardScreen
+import com.example.kidsguard.ui.screens.ParentLoginScreen
+import com.example.kidsguard.ui.screens.ParentSettingsScreen
+import com.example.kidsguard.ui.screens.ParentSetupScreen
+import com.example.kidsguard.ui.screens.PolicyTesterScreen
+import com.example.kidsguard.ui.screens.ProtectionModesScreen
+import com.example.kidsguard.ui.screens.ReleaseChecklistScreen
+import com.example.kidsguard.ui.screens.RemoteCommandScreen
+import com.example.kidsguard.ui.screens.RoleSelectionScreen
+import com.example.kidsguard.ui.screens.RouteDeviationsScreen
+import com.example.kidsguard.ui.screens.RouteHistoryScreen
+import com.example.kidsguard.ui.screens.RouteReplayScreen
+import com.example.kidsguard.ui.screens.SafeZoneEditorScreen
+import com.example.kidsguard.ui.screens.SafeZoneListScreen
+import com.example.kidsguard.ui.screens.SettingsScreen
+import com.example.kidsguard.ui.screens.SosHistoryScreen
+import com.example.kidsguard.ui.screens.TrackingStatusScreen
+import com.example.kidsguard.ui.screens.UpdateDialog
+import com.example.kidsguard.ui.screens.WebBlockedScreen
+import com.example.kidsguard.ui.screens.WhatsNewDialog
+import com.example.kidsguard.ui.screens.YouTubeDebugScreen
 import kotlinx.coroutines.flow.MutableStateFlow
+
 
 @Composable
 fun KidsGuardApp(
-    currentScreen: Screen, 
-    onScreenChange: (Screen) -> Unit, 
+    currentScreen: Screen,
+    onScreenChange: (Screen) -> Unit,
     repository: SafeZoneRepository,
     locationRepository: LocationRepository,
     sosRepository: com.example.kidsguard.repository.SosRepository,
@@ -52,16 +98,16 @@ fun KidsGuardApp(
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
     val locationProvider = remember { LocalLocationProvider(context) }
-    
+
     var selectedRouteId by remember { mutableStateOf<String?>(null) }
     var selectedZone by remember { mutableStateOf<com.example.kidsguard.models.SafeZone?>(null) }
     val selectedChildIdFlow = remember { MutableStateFlow<String?>(prefHelper.selectedChildId) }
     val selectedChildId by selectedChildIdFlow.collectAsState()
-    
+
     LaunchedEffect(selectedChildId) {
         prefHelper.selectedChildId = selectedChildId
     }
-    
+
     // Initial redirection based on role and pairing status
     val userRole = prefHelper.userRole
     val pairedId = prefHelper.pairedChildId
@@ -69,7 +115,7 @@ fun KidsGuardApp(
     // Update Dialog State
     val updateState by updateRepository.updateState.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(updateState.isUpdateAvailable) {
         if (updateState.isUpdateAvailable) {
             showUpdateDialog = true
@@ -106,7 +152,8 @@ fun KidsGuardApp(
             when (userRole) {
                 "NONE" -> Screen.RoleSelection
                 "PARENT" -> {
-                    val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                    val currentUser =
+                        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
                     if (currentUser == null) {
                         Screen.ParentLogin
                     } else if (pairedId == null) {
@@ -115,16 +162,28 @@ fun KidsGuardApp(
                         Screen.ParentDashboard
                     }
                 }
+
                 "CHILD" -> {
                     if (pairedId == null) {
                         Screen.ChildSetup
                     } else {
-                        val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context) &&
-                            com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context) &&
-                            com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context) &&
-                            com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(context) &&
-                            com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context)
-                        
+                        val hasAllPermissions =
+                            com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(
+                                context
+                            ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(
+                                        context
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(
+                                        context
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(
+                                        context
+                                    ) &&
+                                    com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
+                                        context
+                                    )
+
                         if (!hasAllPermissions) {
                             Screen.PermissionChecklist
                         } else {
@@ -132,6 +191,7 @@ fun KidsGuardApp(
                         }
                     }
                 }
+
                 else -> currentScreen
             }
         } else {
@@ -147,15 +207,20 @@ fun KidsGuardApp(
                         // Reset identity for fresh pairing if not already paired
                         prefHelper.removedByParent = false
                         prefHelper.childId = java.util.UUID.randomUUID().toString()
-                        android.util.Log.i("KidsGuardApp", "Generated fresh childId for new setup: ${prefHelper.childId}")
+                        android.util.Log.i(
+                            "KidsGuardApp",
+                            "Generated fresh childId for new setup: ${prefHelper.childId}"
+                        )
                     }
 
                     prefHelper.userRole = role
-                    val nextScreen = when(role) {
+                    val nextScreen = when (role) {
                         "PARENT" -> {
-                            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                            val currentUser =
+                                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
                             if (currentUser == null) Screen.ParentLogin else if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
                         }
+
                         "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home
                         else -> Screen.RoleSelection
                     }
@@ -163,56 +228,82 @@ fun KidsGuardApp(
                 },
                 onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) }
             )
+
             Screen.ParentLogin -> ParentLoginScreen(
                 authRepository = authRepository,
                 onLoginSuccess = {
                     onParentLoginSuccess()
-                    val next = if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                    val next =
+                        if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
                     onScreenChange(next)
                 },
-                onBack = { 
+                onBack = {
                     prefHelper.userRole = "NONE"
                     onScreenChange(Screen.RoleSelection)
                 }
             )
+
             Screen.ChildSetup -> ChildSetupScreen(
                 prefHelper = prefHelper,
                 authRepository = authRepository,
                 repository = repository,
                 syncProvider = syncProvider,
                 onSetupComplete = {
-                    val hasAllPermissions = com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context) &&
-                        com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context) &&
-                        com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context) &&
-                        com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(context) &&
-                        com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context)
-                    
+                    val hasAllPermissions =
+                        com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context) &&
+                                com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(
+                                    context
+                                ) &&
+                                com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(
+                                    context
+                                ) &&
+                                com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(
+                                    context
+                                ) &&
+                                com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
+                                    context
+                                )
+
                     if (hasAllPermissions) {
-                        android.util.Log.i("KidsGuardApp", "All permissions granted, navigating to Home")
+                        android.util.Log.i(
+                            "KidsGuardApp",
+                            "All permissions granted, navigating to Home"
+                        )
                         onScreenChange(Screen.Home)
                     } else {
-                        android.util.Log.i("KidsGuardApp", "Missing permissions, navigating to PermissionChecklist")
+                        android.util.Log.i(
+                            "KidsGuardApp",
+                            "Missing permissions, navigating to PermissionChecklist"
+                        )
                         onScreenChange(Screen.PermissionChecklist)
                     }
                 },
-                onBack = { 
+                onBack = {
                     prefHelper.userRole = "NONE"
-                    onScreenChange(Screen.RoleSelection) 
+                    onScreenChange(Screen.RoleSelection)
                 }
             )
+
             Screen.ParentSetup -> ParentSetupScreen(
                 prefHelper = prefHelper,
                 authRepository = authRepository,
                 onSetupComplete = { onScreenChange(Screen.ParentDashboard) },
-                onBack = { 
+                onBack = {
                     prefHelper.userRole = "NONE"
-                    onScreenChange(Screen.RoleSelection) 
+                    onScreenChange(Screen.RoleSelection)
                 }
             )
+
             Screen.Home -> HomeScreen(
-                onActivate = { 
-                    repository.addEvent(ActivityEvent(type = "KID_MODE_ENABLED", title = "Kid Mode Enabled", description = "Manual activation"))
-                    onScreenChange(Screen.Locked) 
+                onActivate = {
+                    repository.addEvent(
+                        ActivityEvent(
+                            type = "KID_MODE_ENABLED",
+                            title = "Kid Mode Enabled",
+                            description = "Manual activation"
+                        )
+                    )
+                    onScreenChange(Screen.Locked)
                 },
                 onOpenSettings = { onScreenChange(Screen.Settings) },
                 onOpenDeveloperMenu = { onScreenChange(Screen.DeveloperMenu) },
@@ -224,15 +315,23 @@ fun KidsGuardApp(
                 sosRepository = sosRepository,
                 locationRepository = locationRepository
             )
+
             Screen.TrackingStatus -> TrackingStatusScreen(
                 onBack = { onScreenChange(Screen.Home) },
                 trackingRepository = trackingRepository,
                 trackingManager = trackingManager,
                 locationRepository = locationRepository
             )
-            Screen.PermissionChecklist -> PermissionChecklistScreen(
-                onBack = { onScreenChange(Screen.Home) }
+
+            Screen.PermissionChecklist -> ChildSetupWizardScreen(
+                onSetupComplete = {
+                    onScreenChange(Screen.Home)
+                },
+                onBack = {
+                    onScreenChange(Screen.Home)
+                }
             )
+
             Screen.ParentDashboard -> ParentDashboardScreen(
                 prefHelper = prefHelper,
                 authRepository = authRepository,
@@ -247,7 +346,7 @@ fun KidsGuardApp(
                 onOpenKnownRoutes = { onScreenChange(Screen.KnownRoutes) },
                 onOpenRouteDeviations = { onScreenChange(Screen.RouteDeviations) },
                 onOpenChildList = { onScreenChange(Screen.ChildList) },
-                onOpenChildDetail = { id -> 
+                onOpenChildDetail = { id ->
                     selectedChildIdFlow.value = id
                     onScreenChange(Screen.ChildDetail)
                 },
@@ -268,6 +367,7 @@ fun KidsGuardApp(
                 knownRouteRepository = knownRouteRepository,
                 selectedChildIdFlow = selectedChildIdFlow
             )
+
             Screen.ChildDetail -> {
                 selectedChildId?.let { id ->
                     ChildDetailScreen(
@@ -281,6 +381,7 @@ fun KidsGuardApp(
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
+
             Screen.InternetProtection -> {
                 selectedChildId?.let { id ->
                     InternetProtectionScreen(
@@ -290,6 +391,7 @@ fun KidsGuardApp(
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
+
             Screen.ProtectionModes -> {
                 selectedChildId?.let { id ->
                     ProtectionModesScreen(
@@ -299,6 +401,7 @@ fun KidsGuardApp(
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
+
             Screen.Notifications -> {
                 selectedChildId?.let { id ->
                     NotificationsScreen(
@@ -308,23 +411,28 @@ fun KidsGuardApp(
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
+
             Screen.SecurityAudit -> {
                 onScreenChange(Screen.ParentDashboard)
             }
+
             Screen.DailySummary -> DailySummaryScreen(
                 repository = dailySummaryRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
                 prefHelper = prefHelper,
                 syncProvider = syncProvider
             )
+
             Screen.KnownRoutes -> KnownRoutesScreen(
                 repository = knownRouteRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
+
             Screen.RouteDeviations -> RouteDeviationsScreen(
                 repository = knownRouteRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
+
             Screen.RouteHistory -> RouteHistoryScreen(
                 repository = routeRepository,
                 onRouteSelected = { id: String ->
@@ -335,6 +443,7 @@ fun KidsGuardApp(
                 prefHelper = prefHelper,
                 syncProvider = syncProvider
             )
+
             Screen.RouteReplay -> {
                 val route = selectedRouteId?.let { routeRepository.getRouteDetails(it) }
                 if (route != null) {
@@ -346,10 +455,11 @@ fun KidsGuardApp(
                     onScreenChange(Screen.RouteHistory)
                 }
             }
+
             Screen.SafeZoneList -> SafeZoneListScreen(
                 repository = repository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
-                onAddZone = { 
+                onAddZone = {
                     selectedZone = null
                     onScreenChange(Screen.SafeZoneEditor)
                 },
@@ -358,6 +468,7 @@ fun KidsGuardApp(
                     onScreenChange(Screen.SafeZoneEditor)
                 }
             )
+
             Screen.SafeZoneEditor -> {
                 SafeZoneEditorScreen(
                     zone = selectedZone,
@@ -365,12 +476,14 @@ fun KidsGuardApp(
                     onBack = { onScreenChange(Screen.SafeZoneList) }
                 )
             }
+
             Screen.ActivityFeed -> ActivityFeedScreen(
                 repository = repository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
                 prefHelper = prefHelper,
                 syncProvider = syncProvider
             )
+
             Screen.LocationHistory -> LocationHistoryScreen(
                 repository = locationRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) },
@@ -379,6 +492,7 @@ fun KidsGuardApp(
                 prefHelper = prefHelper,
                 syncProvider = syncProvider
             )
+
             Screen.LiveMap -> MapScreen(
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
@@ -387,18 +501,27 @@ fun KidsGuardApp(
                 syncProvider = syncProvider,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
+
             Screen.SosHistory -> SosHistoryScreen(
                 repository = sosRepository,
                 onBack = { onScreenChange(Screen.ParentDashboard) }
             )
+
             Screen.Locked -> LockedScreen(
-                onUnlock = { 
-                    repository.addEvent(ActivityEvent(type = "KID_MODE_DISABLED", title = "Kid Mode Disabled", description = "Unlocked by child"))
-                    onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home) 
+                onUnlock = {
+                    repository.addEvent(
+                        ActivityEvent(
+                            type = "KID_MODE_DISABLED",
+                            title = "Kid Mode Disabled",
+                            description = "Unlocked by child"
+                        )
+                    )
+                    onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
                 },
                 prefHelper = prefHelper,
                 repository = repository
             )
+
             Screen.Settings -> {
                 if (prefHelper.userRole == "PARENT") {
                     ParentSettingsScreen(
@@ -418,9 +541,10 @@ fun KidsGuardApp(
                     )
                 }
             }
+
             Screen.DeveloperMenu -> {
                 DeveloperMenuScreen(
-                    onBack = { 
+                    onBack = {
                         if (prefHelper.userRole == "NONE") {
                             onScreenChange(Screen.RoleSelection)
                         } else {
@@ -449,40 +573,52 @@ fun KidsGuardApp(
                     websitePolicyRepository = websitePolicyRepository
                 )
             }
+
             Screen.YouTubeDebug -> {
                 YouTubeDebugScreen(
                     repository = youtubeHistoryRepository,
                     onBack = { onScreenChange(Screen.DeveloperMenu) }
                 )
             }
+
             Screen.BrowserDebug -> {
                 BrowserDebugScreen(
                     repository = browserHistoryRepository,
                     onBack = { onScreenChange(Screen.DeveloperMenu) }
                 )
             }
+
             Screen.PolicyTester -> {
                 PolicyTesterScreen(
                     policyRepository = websitePolicyRepository,
-                    classifier = remember { com.example.kidsguard.utils.WebsiteCategoryClassifier(context) },
+                    classifier = remember {
+                        com.example.kidsguard.utils.WebsiteCategoryClassifier(
+                            context
+                        )
+                    },
                     onBack = { onScreenChange(Screen.DeveloperMenu) }
                 )
             }
+
             Screen.LiveEnforcement -> {
                 LiveEnforcementScreen(
                     onBack = { onScreenChange(Screen.DeveloperMenu) }
                 )
             }
+
             Screen.Diagnostics -> DiagnosticsScreen(
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
             )
+
             Screen.ReleaseChecklist -> ReleaseChecklistScreen(
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
             )
+
             Screen.ErrorLogs -> ErrorLogScreen(
                 repository = errorLogRepository,
                 onBack = { onScreenChange(Screen.DeveloperMenu) }
             )
+
             Screen.ChildList -> ChildListScreen(
                 onBack = { onScreenChange(Screen.ParentDashboard) },
                 onAddChild = { onScreenChange(Screen.ParentSetup) },
@@ -493,20 +629,27 @@ fun KidsGuardApp(
                     onScreenChange(Screen.ParentDashboard)
                 }
             )
+
             Screen.AppBlocked -> AppBlockedScreen(
                 packageName = blockedPackage,
                 reason = blockedReason,
                 onBackToHome = { onScreenChange(Screen.Home) },
                 onRequestAccess = { pkg, reason ->
                     wellbeingManager.requestAccess(pkg, reason)
-                    android.widget.Toast.makeText(context, "Access request sent to parent.", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        context,
+                        "Access request sent to parent.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             )
+
             Screen.WebBlocked -> WebBlockedScreen(
                 url = blockedUrl,
                 onRequestAccess = { blockedUrl?.let { onRequestWebAccess(it) } },
                 onBackToHome = { onScreenChange(Screen.Home) }
             )
+
             Screen.RemoteCommand -> RemoteCommandScreen(
                 mode = remoteCommandMode,
                 message = remoteMessage,

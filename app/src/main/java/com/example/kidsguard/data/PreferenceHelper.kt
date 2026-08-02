@@ -43,6 +43,7 @@ class PreferenceHelper(context: Context) {
         }
         private set(value) = prefs.edit().putString("device_id", value).apply()
 
+
     var childId: String
         get() {
             // Priority: 1. pairedChildId, 2. existing saved child_id, 3. deviceId
@@ -57,6 +58,20 @@ class PreferenceHelper(context: Context) {
             return fallback
         }
         set(value) = prefs.edit().putString("child_id", value).apply()
+
+    var authorizedDeviceAdminSetupExpiresAt: Long
+        get() = prefs.getLong(
+            "authorized_device_admin_setup_expires_at",
+            0L
+        )
+        set(value) {
+            prefs.edit()
+                .putLong(
+                    "authorized_device_admin_setup_expires_at",
+                    value
+                )
+                .apply()
+        }
 
     fun resetIdentity() {
         val newId = java.util.UUID.randomUUID().toString()
