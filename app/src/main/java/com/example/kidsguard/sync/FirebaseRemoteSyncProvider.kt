@@ -95,11 +95,11 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(update.childId)
             .collection("locations")
             .document()
-        
+
         Log.d("LocationUpload", "PATH=${historyRef.path}")
         Log.d("LocationUpload", "PAYLOAD=$update")
         Log.d("LocationUpload", "FULL_ADDRESS=${update.fullAddress}")
-        
+
         batch.set(historyRef, update)
 
         // 2. Update latest location in children collection
@@ -123,14 +123,14 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         // 4. Update devices collection (Unified device status)
         val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
             .document(update.childId)
-        
+
         val currentLocationPayload = mutableMapOf(
             "latitude" to update.latitude,
             "longitude" to update.longitude,
             "accuracy" to update.accuracy,
             "updatedAt" to com.google.firebase.Timestamp.now()
         )
-        
+
         update.fullAddress?.let { currentLocationPayload["fullAddress"] = it }
         update.street?.let { currentLocationPayload["street"] = it }
         update.city?.let { currentLocationPayload["city"] = it }
@@ -688,7 +688,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document(childId)
             .collection(FirebaseConfig.COL_ACTIVITY)
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(50)
+            .limit(500)
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e(TAG, "Error listening for activity history", e)
@@ -864,14 +864,14 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         return try {
             val path = "${FirebaseConfig.COL_CHILDREN}/${usage.childId}/appUsage/${usage.date}"
             Log.d("AppUsageSync", "Uploading usage to Firestore: $path")
-            
+
             db.collection(FirebaseConfig.COL_CHILDREN)
                 .document(usage.childId)
                 .collection("appUsage")
                 .document(usage.date)
                 .set(usage, com.google.firebase.firestore.SetOptions.merge())
                 .await()
-                
+
             Log.i("AppUsageSync", "Upload success: $path")
             _lastSyncTimestamp.value = System.currentTimeMillis()
             Result.success(Unit)
@@ -1032,50 +1032,52 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             awaitClose { registration.remove() }
         }
 
-    override fun listenToLockSchedule(childId: String): Flow<com.example.kidsguard.models.LockSchedule?> = callbackFlow {
-        if (childId.isBlank()) {
-            trySend(null)
-            return@callbackFlow
-        }
-        val ref = db.collection(FirebaseConfig.COL_CHILDREN).document(childId)
-            .collection("settings").document("lockSchedule")
-        
-        Log.i("LockScheduleSync", "Attaching listener to: ${ref.path}")
-        
-        val listener = ref.addSnapshotListener { snap, e ->
-            if (e != null) {
-                Log.e("LockScheduleSync", "Error listening to lock schedule", e)
-                return@addSnapshotListener
-            }
-            if (snap != null && snap.exists()) {
-                val data = snap.data
-                try {
-                    val daysRaw = data?.get("days") as? List<*>
-                    val daysList = daysRaw?.mapNotNull { (it as? Number)?.toInt() } ?: emptyList()
-                    
-                    val schedule = com.example.kidsguard.models.LockSchedule(
-                        enabled = data?.get("enabled") as? Boolean ?: false,
-                        startMinutes = (data?.get("startMinutes") as? Number)?.toInt() ?: 0,
-                        endMinutes = (data?.get("endMinutes") as? Number)?.toInt() ?: 0,
-                        days = daysList,
-                        timezone = data?.get("timezone") as? String ?: "",
-                        updatedAt = readMillis(data?.get("updatedAt")) ?: 0L
-                    )
-                    Log.d("LockScheduleSync", "Parsed schedule: $schedule")
-                    trySend(schedule)
-                } catch (err: Exception) {
-                    Log.e("LockScheduleSync", "Failed to parse lock schedule", err)
-                }
-            } else {
-                Log.d("LockScheduleSync", "Lock schedule document missing")
+    override fun listenToLockSchedule(childId: String): Flow<com.example.kidsguard.models.LockSchedule?> =
+        callbackFlow {
+            if (childId.isBlank()) {
                 trySend(null)
+                return@callbackFlow
+            }
+            val ref = db.collection(FirebaseConfig.COL_CHILDREN).document(childId)
+                .collection("settings").document("lockSchedule")
+
+            Log.i("LockScheduleSync", "Attaching listener to: ${ref.path}")
+
+            val listener = ref.addSnapshotListener { snap, e ->
+                if (e != null) {
+                    Log.e("LockScheduleSync", "Error listening to lock schedule", e)
+                    return@addSnapshotListener
+                }
+                if (snap != null && snap.exists()) {
+                    val data = snap.data
+                    try {
+                        val daysRaw = data?.get("days") as? List<*>
+                        val daysList =
+                            daysRaw?.mapNotNull { (it as? Number)?.toInt() } ?: emptyList()
+
+                        val schedule = com.example.kidsguard.models.LockSchedule(
+                            enabled = data?.get("enabled") as? Boolean ?: false,
+                            startMinutes = (data?.get("startMinutes") as? Number)?.toInt() ?: 0,
+                            endMinutes = (data?.get("endMinutes") as? Number)?.toInt() ?: 0,
+                            days = daysList,
+                            timezone = data?.get("timezone") as? String ?: "",
+                            updatedAt = readMillis(data?.get("updatedAt")) ?: 0L
+                        )
+                        Log.d("LockScheduleSync", "Parsed schedule: $schedule")
+                        trySend(schedule)
+                    } catch (err: Exception) {
+                        Log.e("LockScheduleSync", "Failed to parse lock schedule", err)
+                    }
+                } else {
+                    Log.d("LockScheduleSync", "Lock schedule document missing")
+                    trySend(null)
+                }
+            }
+            awaitClose {
+                Log.i("LockScheduleSync", "Removing listener for lock schedule")
+                listener.remove()
             }
         }
-        awaitClose { 
-            Log.i("LockScheduleSync", "Removing listener for lock schedule")
-            listener.remove() 
-        }
-    }
 
     // Future placeholders for Messaging
     fun registerFcmToken(uid: String, token: String, role: String) {

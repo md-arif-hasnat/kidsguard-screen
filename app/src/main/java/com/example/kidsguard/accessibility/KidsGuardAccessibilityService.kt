@@ -154,8 +154,30 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 TAG_RUNTIME,
                 "KIDSGUARD_TAMPER_BLOCKED package=$packageName class=$className"
             )
+            val tamperReason = when {
+                className.contains("Uninstall", ignoreCase = true) ||
+                        className.contains("PackageInstaller", ignoreCase = true) -> {
+                    "KIDSGUARD_UNINSTALL_ATTEMPT"
+                }
 
-            sendTamperAlert("KIDSGUARD_SETTINGS_TAMPER_ATTEMPT")
+                className.contains("Accessibility", ignoreCase = true) -> {
+                    "ACCESSIBILITY_DISABLED"
+                }
+
+                className.contains("DeviceAdmin", ignoreCase = true) -> {
+                    "DEVICE_ADMIN_DISABLED"
+                }
+
+                else -> {
+                    "KIDSGUARD_SETTINGS_TAMPER_ATTEMPT"
+                }
+            }
+
+
+
+            sendTamperAlert(
+                reason = tamperReason
+            )
 
             performGlobalAction(GLOBAL_ACTION_BACK)
             return
@@ -233,21 +255,16 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     private var lastTamperAlertTime = 0L
 
     private fun sendTamperAlert(reason: String) {
-        youtubeRepository.addDebugLog(
-            "TAMPER_ALERT_ATTEMPT reason=$reason"
-        )
         val now = System.currentTimeMillis()
 
-        // Prevent repeated alerts from the same Settings screen
-
-        if (now - lastTamperAlertTime < 120_000L) {
+        if (now - prefHelper.lastTamperAlertAt < 60_000L) {
             youtubeRepository.addDebugLog(
                 "TAMPER_ALERT_SKIPPED_DUPLICATE reason=$reason"
             )
             return
         }
 
-        lastTamperAlertTime = now
+        prefHelper.lastTamperAlertAt = now
 
         val childId = prefHelper.childId
         val familyId = prefHelper.familyId
@@ -268,14 +285,46 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         youtubeRepository.addDebugLog(
             "TAMPER_PARENT_UID=${prefHelper.parentUid ?: "NULL"}"
         )
+        val childName =
+            prefHelper.childName?.takeIf { it.isNotBlank() } ?: "Child"
+
+        val alertTitle: String
+        val alertBody: String
+
+        when (reason) {
+            "KIDSGUARD_UNINSTALL_ATTEMPT" -> {
+                alertTitle = "$childName: Uninstall Attempt"
+                alertBody = "$childName tried to uninstall KidsGuard."
+            }
+
+            "ACCESSIBILITY_DISABLED" -> {
+                alertTitle = "$childName: Accessibility Disabled"
+                alertBody = "$childName turned off the KidsGuard Accessibility Service."
+            }
+
+            "DEVICE_ADMIN_DISABLED" -> {
+                alertTitle = "$childName: Device Admin Disabled"
+                alertBody = "$childName tried to disable KidsGuard device protection."
+            }
+
+            "KIDSGUARD_SETTINGS_TAMPER_ATTEMPT" -> {
+                alertTitle = "$childName: Protection Settings Changed"
+                alertBody = "$childName tried to change KidsGuard protection settings."
+            }
+
+            else -> {
+                alertTitle = "$childName: Security Alert"
+                alertBody = "$childName tried to disable or remove KidsGuard protection."
+            }
+        }
 
         val notification = mapOf(
             "type" to "TAMPER_ALERT",
-            "title" to "Security Alert",
-            "body" to "Someone tried to disable or remove KidsGuard protection.",
+            "title" to alertTitle,
+            "body" to alertBody,
             "reason" to reason,
             "childId" to childId,
-            "childName" to prefHelper.childName,
+            "childName" to childName,
             "familyId" to familyId,
             "userId" to prefHelper.parentUid,
             "createdAt" to FieldValue.serverTimestamp(),
@@ -284,7 +333,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         )
 
         val timeBucket = now / 120_000L
-        val alertId = "tamper_${childId}_${reason}_$timeBucket"
+        val alertId = "tamper_${childId}_$timeBucket"
 
         FirebaseFirestore.getInstance()
             .collection(FirebaseConfig.COL_NOTIFICATIONS)
@@ -374,7 +423,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             screenText.contains("uninstall") ||
                     screenText.contains("deactivate") ||
                     screenText.contains("stop kidsguard") ||
-                    screenText.contains("turn off") ||
+                    //screenText.contains("turn off") ||
                     className.contains("DeviceAdmin", ignoreCase = true)
         //className.contains("InstalledApp", ignoreCase = true) ||
         //className.contains("AppInfo", ignoreCase = true)

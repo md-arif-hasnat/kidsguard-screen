@@ -156,12 +156,20 @@ class PreferenceHelper(context: Context) {
         set(value) = prefs.edit()
             .putBoolean("authorized_uninstall", value)
             .apply()
-    
+
     var authorizedUninstallExpiresAt: Long
         get() = prefs.getLong("authorized_uninstall_expires_at", 0L)
         set(value) {
             prefs.edit()
                 .putLong("authorized_uninstall_expires_at", value)
+                .apply()
+        }
+
+    var lastTamperAlertAt: Long
+        get() = prefs.getLong("last_tamper_alert_at", 0L)
+        set(value) {
+            prefs.edit()
+                .putLong("last_tamper_alert_at", value)
                 .apply()
         }
 
