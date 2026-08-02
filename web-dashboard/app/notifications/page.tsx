@@ -1,76 +1,132 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import DashboardLayout from '@/components/DashboardLayout';
+import React, { useEffect, useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import {
   Bell,
   MapPin,
   AlertTriangle,
   Battery,
   Smartphone,
-  CheckCircle2,
   Loader2,
-  Trash2,
   ChevronRight,
   ShieldCheck,
   Zap,
-  CloudOff
-} from 'lucide-react';
-import { observeAuth } from '@/lib/auth';
-import { NotificationRepository, NotificationHistoryItem } from '@/lib/repositories/NotificationRepository';
-import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
-import { clsx } from 'clsx';
-import Link from 'next/link';
+} from "lucide-react";
+import { observeAuth } from "@/lib/auth";
+import {
+  NotificationRepository,
+  NotificationHistoryItem,
+} from "@/lib/repositories/NotificationRepository";
+import { clsx } from "clsx";
+import Link from "next/link";
+
+const PAGE_SIZE = 20;
 
 export default function NotificationsPage() {
   const [user, setUser] = useState<any>(null);
-  const [notifications, setNotifications] = useState<NotificationHistoryItem[]>([]);
-  const [childrenStatus, setChildrenStatus] = useState<Record<string, ChildStatus>>({});
+
+  const [notifications, setNotifications] = useState<
+    NotificationHistoryItem[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
 
+  const [visibleCount, setVisibleCount] =
+    useState(PAGE_SIZE);
+
   useEffect(() => {
-    const unsubAuth = observeAuth((authUser) => {
-        console.log("PARENT_AUTH_UID =", authUser?.uid);
+    let unsubscribeNotifications: (() => void) | undefined;
+
+    const unsubscribeAuth = observeAuth((authUser) => {
+      console.log("PARENT_AUTH_UID =", authUser?.uid);
+
       setUser(authUser);
+
+      if (unsubscribeNotifications) {
+        unsubscribeNotifications();
+        unsubscribeNotifications = undefined;
+      }
+
       if (authUser) {
-        const unsubNotifs = NotificationRepository.listenToNotifications(authUser.uid, (data) => {
-          setNotifications(data);
-          setLoading(false);
-        });
-        return () => unsubNotifs();
+        unsubscribeNotifications =
+          NotificationRepository.listenToNotifications(
+            authUser.uid,
+            (data) => {
+              setNotifications(data);
+              setLoading(false);
+            }
+          );
       } else {
-          setLoading(false);
+        setNotifications([]);
+        setLoading(false);
       }
     });
-    return () => unsubAuth();
+
+    return () => {
+      if (unsubscribeNotifications) {
+        unsubscribeNotifications();
+      }
+
+      unsubscribeAuth();
+    };
   }, []);
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'SAFE_ZONE': return <MapPin className="text-emerald-500" />;
-      case 'SOS': return <AlertTriangle className="text-rose-500" />;
-      case 'BATTERY': return <Battery className="text-orange-500" />;
-      case 'DEVICE': return <Smartphone className="text-blue-500" />;
-      case 'PAIRING': return <ShieldCheck className="text-primary-500" />;
-      case 'APP_INSTALLED': return <Zap className="text-purple-500" />;
-      case 'APP_ACCESS_REQUEST': return <AlertTriangle className="text-orange-500" />;
-      default: return <Bell className="text-slate-400" />;
+      case "SAFE_ZONE":
+        return <MapPin className="text-emerald-500" />;
+
+      case "SOS":
+        return <AlertTriangle className="text-rose-500" />;
+
+      case "BATTERY":
+        return <Battery className="text-orange-500" />;
+
+      case "DEVICE":
+        return <Smartphone className="text-blue-500" />;
+
+      case "PAIRING":
+        return <ShieldCheck className="text-primary-500" />;
+
+      case "APP_INSTALLED":
+        return <Zap className="text-purple-500" />;
+
+      case "APP_ACCESS_REQUEST":
+        return <AlertTriangle className="text-orange-500" />;
+
+      case "TAMPER_ALERT":
+      case "LOCATION_PERMISSION_DISABLED":
+      case "BACKGROUND_LOCATION_DISABLED":
+        return <AlertTriangle className="text-rose-500" />;
+
+      default:
+        return <Bell className="text-slate-400" />;
     }
   };
 
   const handleMarkAllRead = async () => {
-    if (user) {
-      await NotificationRepository.markAllAsRead(user.uid);
+    if (!user) {
+      return;
     }
+
+    await NotificationRepository.markAllAsRead(user.uid);
   };
 
   const handleMarkRead = async (id: string) => {
-    if (user) {
-        await NotificationRepository.markAsRead(user.uid, id);
+    if (!user) {
+      return;
     }
+
+    await NotificationRepository.markAsRead(
+      user.uid,
+      id
+    );
   };
 
-  function getNotificationTarget(notification: NotificationHistoryItem) {
+  function getNotificationTarget(
+    notification: NotificationHistoryItem
+  ) {
     const childId =
       notification.childId ||
       (notification as any).targetId ||
@@ -85,9 +141,9 @@ export default function NotificationsPage() {
 
     const type = String(
       notification.type ||
-      (notification as any).eventType ||
-      (notification as any).data?.type ||
-      ""
+        (notification as any).eventType ||
+        (notification as any).data?.type ||
+        ""
     ).toUpperCase();
 
     if (
@@ -95,53 +151,130 @@ export default function NotificationsPage() {
       childId &&
       sosId
     ) {
-      return `/sos?childId=${encodeURIComponent(childId)}&sosId=${encodeURIComponent(sosId)}`;
+      return `/sos?childId=${encodeURIComponent(
+        childId
+      )}&sosId=${encodeURIComponent(sosId)}`;
     }
 
     if (
       type.includes("CHILD_PAIRED") &&
       childId
     ) {
-      return `/dashboard/${encodeURIComponent(childId)}`;
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}`;
     }
 
-    if (type === "APP_INSTALLED" && childId) {
-      const pkg = (notification as any).packageName || (notification as any).data?.packageName || "";
-      return `/dashboard/${encodeURIComponent(childId)}?tab=installed-apps&pkg=${encodeURIComponent(pkg)}`;
+    if (
+      type === "APP_INSTALLED" &&
+      childId
+    ) {
+      const packageName =
+        (notification as any).packageName ||
+        (notification as any).data?.packageName ||
+        "";
+
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}?tab=installed-apps&pkg=${encodeURIComponent(
+        packageName
+      )}`;
     }
 
-    if (type === "APP_ACCESS_REQUEST" && childId) {
-      const pkg = (notification as any).packageName || (notification as any).data?.packageName || "";
-      return `/dashboard/${encodeURIComponent(childId)}?tab=installed-apps&pkg=${encodeURIComponent(pkg)}`;
+    if (
+      type === "APP_ACCESS_REQUEST" &&
+      childId
+    ) {
+      const packageName =
+        (notification as any).packageName ||
+        (notification as any).data?.packageName ||
+        "";
+
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}?tab=installed-apps&pkg=${encodeURIComponent(
+        packageName
+      )}`;
     }
 
     if (childId) {
-      // Standard fallback for any child-related notification
-      return `/dashboard/${encodeURIComponent(childId)}`;
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}`;
     }
 
-    // Default fallbacks
     return notification.clickAction || "/";
   }
+
+  const getCreatedTime = (
+    notification: NotificationHistoryItem
+  ) => {
+    const createdAt = notification.createdAt as any;
+
+    if (!createdAt) {
+      return "Just now";
+    }
+
+    if (
+      typeof createdAt.seconds === "number"
+    ) {
+      return new Date(
+        createdAt.seconds * 1000
+      ).toLocaleTimeString();
+    }
+
+    if (
+      typeof createdAt.toDate === "function"
+    ) {
+      return createdAt
+        .toDate()
+        .toLocaleTimeString();
+    }
+
+    const parsedDate = new Date(createdAt);
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toLocaleTimeString();
+    }
+
+    return "Just now";
+  };
 
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-[60vh]">
-          <Loader2 className="animate-spin text-primary-600" size={48} />
+        <div className="flex h-[60vh] items-center justify-center">
+          <Loader2
+            className="animate-spin text-primary-600"
+            size={48}
+          />
         </div>
       </DashboardLayout>
     );
   }
 
+  const visibleNotifications =
+    notifications.slice(0, visibleCount);
+
+  const hasMore =
+    visibleCount < notifications.length;
+
   return (
     <DashboardLayout>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Safety Alerts</h1>
-          <p className="text-slate-500 text-sm md:text-base mt-1">Real-time notifications from your family network.</p>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+            Safety Alerts
+          </h1>
+
+          <p className="mt-1 text-sm text-slate-500 md:text-base">
+            Real-time notifications from your family
+            network.
+          </p>
         </div>
+
         <button
+          type="button"
           onClick={handleMarkAllRead}
           className="text-sm font-bold text-primary-600 hover:underline"
         >
@@ -150,57 +283,124 @@ export default function NotificationsPage() {
       </div>
 
       <div className="max-w-4xl space-y-4">
-        {notifications.length > 0 ? notifications.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => handleMarkRead(item.id)}
-            className={clsx(
-                "group bg-white p-4 md:p-5 rounded-2xl border transition-all hover:shadow-md cursor-pointer flex items-start gap-4",
-                item.read ? "border-slate-100 opacity-70" : "border-primary-100 bg-primary-50/20 shadow-sm"
-            )}
-          >
-            <div className={clsx(
-                "w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0 border",
-                item.read ? "bg-slate-50 border-slate-100" : "bg-white border-primary-100 shadow-sm"
-            )}>
-              {getIcon(item.type)}
-            </div>
+        {notifications.length > 0 ? (
+          <>
+            {visibleNotifications.map((item) => (
+              <div
+                key={item.id}
+                onClick={() =>
+                  handleMarkRead(item.id)
+                }
+                className={clsx(
+                  "group flex cursor-pointer items-start gap-4 rounded-2xl border bg-white p-4 transition-all hover:shadow-md md:p-5",
+                  item.read
+                    ? "border-slate-100 opacity-70"
+                    : "border-primary-100 bg-primary-50/20 shadow-sm"
+                )}
+              >
+                <div
+                  className={clsx(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border md:h-12 md:w-12",
+                    item.read
+                      ? "border-slate-100 bg-slate-50"
+                      : "border-primary-100 bg-white shadow-sm"
+                  )}
+                >
+                  {getIcon(item.type)}
+                </div>
 
-            <div className="flex-1 min-w-0">
-               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                  <h3 className={clsx("font-bold text-slate-900 truncate text-sm md:text-base", !item.read && "text-primary-900")}>
-                    {item.title}
-                  </h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">
-                    {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleTimeString() : 'Just now'}
-                  </span>
-               </div>
-               <p className="text-xs md:text-sm text-slate-600 mt-1 line-clamp-2 leading-relaxed">{item.body}</p>
-
-               <div className="mt-3 flex items-center gap-4">
-                    <Link
-                        href={getNotificationTarget(item)}
-                        className="text-[10px] md:text-[11px] font-black text-primary-600 uppercase tracking-widest flex items-center gap-1 hover:underline"
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <h3
+                      className={clsx(
+                        "truncate text-sm font-bold text-slate-900 md:text-base",
+                        !item.read &&
+                          "text-primary-900"
+                      )}
                     >
-                        View Details
-                        <ChevronRight size={12} />
+                      {item.title}
+                    </h3>
+
+                    <span className="whitespace-nowrap text-[10px] font-bold uppercase text-slate-400">
+                      {getCreatedTime(item)}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 md:text-sm">
+                    {item.body}
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-4">
+                    <Link
+                      href={getNotificationTarget(
+                        item
+                      )}
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                      className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary-600 hover:underline md:text-[11px]"
+                    >
+                      View Details
+                      <ChevronRight size={12} />
                     </Link>
+
                     {!item.read && (
-                        <div className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary-500" />
-                            <span className="text-[10px] font-bold text-primary-500 uppercase">New</span>
-                        </div>
+                      <div className="flex items-center gap-1">
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+
+                        <span className="text-[10px] font-bold uppercase text-primary-500">
+                          New
+                        </span>
+                      </div>
                     )}
-               </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {hasMore && (
+              <div className="pt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount(
+                      (current) =>
+                        current + PAGE_SIZE
+                    )
+                  }
+                  className="rounded-xl border border-primary-200 bg-white px-6 py-3 text-sm font-bold text-primary-600 shadow-sm transition hover:bg-primary-50"
+                >
+                  Load More
+                </button>
+
+                <p className="mt-2 text-xs text-slate-400">
+                  Showing{" "}
+                  {Math.min(
+                    visibleCount,
+                    notifications.length
+                  )}{" "}
+                  of {notifications.length} alerts
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rounded-3xl border border-slate-100 bg-white py-20 text-center">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-slate-50">
+              <Bell
+                size={40}
+                className="text-slate-300"
+              />
             </div>
-          </div>
-        )) : (
-          <div className="py-20 text-center bg-white rounded-3xl border border-slate-100">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Bell size={40} className="text-slate-300" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-800">No Notifications Yet</h2>
-            <p className="text-slate-500 max-w-sm mx-auto mt-2">You will receive alerts here when safety events occur across your devices.</p>
+
+            <h2 className="text-xl font-bold text-slate-800">
+              No Notifications Yet
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-sm text-slate-500">
+              You will receive alerts here when safety
+              events occur across your devices.
+            </p>
           </div>
         )}
       </div>

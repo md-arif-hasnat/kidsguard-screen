@@ -510,6 +510,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     const settings = settingsSnap.data();
 
     const typeMap: Record<string, string> = {
+
         'SAFE_ZONE': 'safeZone',
         'SOS': 'sos',
         'SOS_RESOLVED': 'sos',
