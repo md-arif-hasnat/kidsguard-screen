@@ -5,7 +5,8 @@ import Sidebar from "./Sidebar";
 import PWAInstallBanner from "./PWAInstallBanner";
 import PWAUpdateBanner from "./PWAUpdateBanner";
 import NotificationPrompt from "./NotificationPrompt";
-import { Bell, Search, Menu, Languages } from "lucide-react";
+import { Bell, Search, Menu, ArrowLeft, Languages } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { NotificationRepository } from "@/lib/repositories/NotificationRepository";
 import {
   useParentProfile,
@@ -42,6 +43,12 @@ const translations = {
 } as const;
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+      const router = useRouter();
+      const pathname = usePathname();
+
+      const showBackButton =
+        pathname !== "/" &&
+        pathname !== "/dashboard";
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [language, setLanguage] = useState<LanguageCode>("en");
@@ -128,22 +135,43 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             lg:sticky lg:top-0 lg:z-30 lg:box-border lg:pt-0
           "
         >
-          <div className="hidden items-center md:flex">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3">
+            {showBackButton && (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                aria-label="Go back"
+                title="Back"
+                className="
+                  flex h-11 w-11 shrink-0
+                  items-center justify-center
+                  rounded-2xl border border-[#e5e5e7]
+                  bg-[#f5f5f7] text-[#1d1d1f]
+                  transition-all
+                  hover:bg-[#ebebed]
+                  hover:text-[#0071e3]
+                  active:scale-95
+                "
+              >
+                <ArrowLeft size={21} />
+              </button>
+            )}
+          
             <div
               className="
-                flex w-64 items-center gap-3
+                hidden w-64 items-center gap-3
                 rounded-2xl border border-[#e5e5e7]
                 bg-[#f5f5f7] px-4 py-2.5
-                lg:w-96
+                md:flex lg:w-80 xl:w-96
               "
             >
-              <Search size={18} className="text-[#86868b]" />
+              <Search size={18} className="shrink-0 text-[#86868b]" />
 
               <input
                 type="text"
                 placeholder={text.search}
                 className="
-                  w-full border-none bg-transparent
+                  min-w-0 flex-1 border-none bg-transparent
                   text-sm font-medium text-[#1d1d1f]
                   outline-none placeholder:text-[#86868b]
                 "
