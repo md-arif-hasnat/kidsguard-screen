@@ -82,6 +82,13 @@ export interface LockSchedule {
   updatedBy: string;
 }
 
+export interface OfflineAlertSettings {
+  enabled: boolean;
+  thresholdMinutes: number;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
 export class ChildRepository {
   static listenToChildStatus(childId: string, onUpdate: (status: ChildStatus | null) => void) {
     if (!db || !childId) return () => {};
@@ -110,6 +117,126 @@ export class ChildRepository {
       onUpdate(null);
     });
   }
+
+static listenToOfflineAlertSettings(
+  childId: string,
+  onUpdate: (settings: OfflineAlertSettings) => void
+) {
+  if (!db || !childId) {
+    onUpdate({
+      enabled: true,
+      thresholdMinutes: 30,
+    });
+
+    return () => {};
+  }
+
+  const ref = doc(
+    db,
+    "children",
+    childId,
+    "settings",
+    "offlineAlert"
+  );
+
+  return onSnapshot(
+    ref,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as Partial<OfflineAlertSettings>;
+
+        onUpdate({
+          enabled: data.enabled !== false,
+          thresholdMinutes:
+            Number(data.thresholdMinutes) > 0
+              ? Number(data.thresholdMinutes)
+              : 30,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy,
+        });
+      } else {
+        onUpdate({
+          enabled: true,
+          thresholdMinutes: 30,
+        });
+      }
+    },
+    (error) => {
+      console.error(
+        "Error listening to offline alert settings:",
+        error
+      );
+
+      onUpdate({
+        enabled: true,
+        thresholdMinutes: 30,
+      });
+    }
+  );
+}
+
+static async setOfflineAlertSettings(
+  childId: string,
+  settings: {
+    enabled: boolean;
+    thresholdMinutes: number;
+  },
+  callerRole?: FamilyRole
+): Promise<void> {
+  if (
+    callerRole &&
+    !RoleHelper.canManageChildren(callerRole)
+  ) {
+    throw new PermissionError();
+  }
+
+  if (!childId?.trim()) {
+    throw new Error("Missing childId");
+  }
+
+  if (!db) {
+    throw new Error("Firestore is not initialized");
+  }
+
+  const enabled = Boolean(settings.enabled);
+
+  const requestedMinutes = Number(
+    settings.thresholdMinutes
+  );
+
+  const thresholdMinutes = enabled
+    ? Math.min(
+        24 * 60,
+        Math.max(
+          10,
+          Number.isFinite(requestedMinutes)
+            ? Math.round(requestedMinutes)
+            : 30
+        )
+      )
+    : 30;
+
+  const ref = doc(
+    db,
+    "children",
+    childId,
+    "settings",
+    "offlineAlert"
+  );
+
+  await setDoc(
+    ref,
+    {
+      enabled,
+      thresholdMinutes,
+      updatedAt: serverTimestamp(),
+      updatedBy: "PARENT",
+    },
+    {
+      merge: true,
+    }
+  );
+}
 
   static async updateLockSchedule(childId: string, schedule: Omit<LockSchedule, 'updatedAt' | 'updatedBy'>, callerRole?: FamilyRole): Promise<void> {
     if (callerRole && !RoleHelper.canManageChildren(callerRole)) throw new PermissionError();

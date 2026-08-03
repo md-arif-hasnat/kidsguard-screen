@@ -395,6 +395,267 @@ interface NotificationPayload {
     skipHistory?: boolean;
 }
 
+
+function formatOfflineDuration(totalMinutes: number): string {
+  if (totalMinutes < 60) {
+    return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (minutes === 0) {
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
+function formatBerlinTime(timestampMs: number): string {
+  return new Date(timestampMs).toLocaleString("en-GB", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Checks every child device every 5 minutes.
+ *
+ * Offline alerts follow each child's custom setting:
+ * children/{childId}/settings/offlineAlert
+ *
+ * Runtime state is stored separately:
+ * children/{childId}/system/offlineState
+ */
+export const checkOfflineChildren = functions.pubsub
+  .schedule("every 5 minutes")
+  .timeZone("Europe/Berlin")
+  .onRun(async () => {
+    const now = Date.now();
+    const childrenSnapshot = await db.collection("children").get();
+
+    for (const childDocument of childrenSnapshot.docs) {
+      const childId = childDocument.id;
+
+      try {
+        const statusRef = db
+          .collection("children")
+          .doc(childId)
+          .collection("status")
+          .doc("current");
+
+        const settingsRef = db
+          .collection("children")
+          .doc(childId)
+          .collection("settings")
+          .doc("offlineAlert");
+
+        const offlineStateRef = db
+          .collection("children")
+          .doc(childId)
+          .collection("system")
+          .doc("offlineState");
+
+        const [statusSnapshot, settingsSnapshot, stateSnapshot] =
+          await Promise.all([
+            statusRef.get(),
+            settingsRef.get(),
+            offlineStateRef.get(),
+          ]);
+
+        if (!statusSnapshot.exists) {
+          console.warn(
+            `Offline check skipped: no status found for child ${childId}`
+          );
+          continue;
+        }
+
+        const status = statusSnapshot.data() || {};
+        const settings = settingsSnapshot.data() || {};
+        const state = stateSnapshot.data() || {};
+
+        const enabled = settings.enabled !== false;
+
+        const requestedThreshold = Number(
+          settings.thresholdMinutes
+        );
+
+        const thresholdMinutes =
+          Number.isFinite(requestedThreshold) &&
+          requestedThreshold >= 10
+            ? requestedThreshold
+            : 30;
+
+        const lastSeen = Number(status.lastSeen || 0);
+        const childName =
+          status.childName ||
+          childDocument.data().name ||
+          "Child";
+
+        if (!enabled || lastSeen <= 0) {
+          continue;
+        }
+
+        const elapsedMs = now - lastSeen;
+        const elapsedMinutes = Math.floor(
+          elapsedMs / (60 * 1000)
+        );
+
+        const isPastOfflineThreshold =
+          elapsedMinutes >= thresholdMinutes;
+
+        const offlineAlertSent =
+          state.offlineAlertSent === true;
+
+        /*
+         * Device has been offline longer than the configured threshold.
+         * Send only one alert for this offline period.
+         */
+        if (
+          isPastOfflineThreshold &&
+          !offlineAlertSent
+        ) {
+          await offlineStateRef.set(
+            {
+              offlineAlertSent: true,
+              offlineSince: lastSeen,
+              offlineAlertSentAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+              lastCheckedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+            },
+            {
+              merge: true,
+            }
+          );
+
+          try {
+            await broadcastToParents(childId, {
+              title: `${childName} is offline`,
+              body:
+                `${childName}'s device has been offline since ` +
+                `${formatBerlinTime(lastSeen)} ` +
+                `(${formatOfflineDuration(elapsedMinutes)}).`,
+              type: "DEVICE_OFFLINE",
+              childId,
+              eventId: `offline-${childId}-${lastSeen}`,
+              clickAction: `/dashboard/${childId}`,
+            });
+
+            console.log(
+              `Offline alert sent for ${childName} (${childId})`
+            );
+          } catch (error) {
+            await offlineStateRef.set(
+              {
+                offlineAlertSent: false,
+                offlineAlertErrorAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+              },
+              {
+                merge: true,
+              }
+            );
+
+            throw error;
+          }
+
+          continue;
+        }
+
+        /*
+         * Send Back Online only when a real offline alert
+         * had previously been sent.
+         */
+        if (
+          !isPastOfflineThreshold &&
+          offlineAlertSent
+        ) {
+          const offlineSince = Number(
+            state.offlineSince || lastSeen
+          );
+
+          const offlineDurationMinutes = Math.max(
+            1,
+            Math.floor(
+              (lastSeen - offlineSince) / (60 * 1000)
+            )
+          );
+
+          await offlineStateRef.set(
+            {
+              offlineAlertSent: false,
+              offlineSince:
+                admin.firestore.FieldValue.delete(),
+              backOnlineAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+              lastCheckedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+            },
+            {
+              merge: true,
+            }
+          );
+
+          try {
+            await broadcastToParents(childId, {
+              title: `${childName} is back online`,
+              body:
+                `${childName}'s device reconnected at ` +
+                `${formatBerlinTime(lastSeen)} after being offline for ` +
+                `${formatOfflineDuration(offlineDurationMinutes)}.`,
+              type: "DEVICE_BACK_ONLINE",
+              childId,
+              eventId: `online-${childId}-${lastSeen}`,
+              clickAction: `/dashboard/${childId}`,
+            });
+
+            console.log(
+              `Back-online alert sent for ${childName} (${childId})`
+            );
+          } catch (error) {
+            await offlineStateRef.set(
+              {
+                offlineAlertSent: true,
+                offlineSince,
+                backOnlineErrorAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+              },
+              {
+                merge: true,
+              }
+            );
+
+            throw error;
+          }
+
+          continue;
+        }
+
+        await offlineStateRef.set(
+          {
+            lastCheckedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        console.error(
+          `Offline check failed for child ${childId}:`,
+          error
+        );
+      }
+    }
+
+    return null;
+  });
+
 /**
  * Sends a notification to all parents linked to a child.
  */

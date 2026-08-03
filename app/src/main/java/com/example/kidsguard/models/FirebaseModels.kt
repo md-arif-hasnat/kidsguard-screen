@@ -21,7 +21,6 @@ data class DeviceDoc(
 @Keep
 data class PairingCodeDoc(
     var code: String = "",
-    var childId: String = "",
     var deviceId: String = "",
     var childName: String = "",
     var deviceName: String = "",

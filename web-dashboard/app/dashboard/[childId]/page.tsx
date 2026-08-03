@@ -38,7 +38,7 @@ import {
   AppWindow,
   Youtube
 } from 'lucide-react';
-import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
+import { ChildRepository, ChildStatus, OfflineAlertSettings } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
 import { DailySummaryRepository, DailySummary } from '@/lib/repositories/DailySummaryRepository';
@@ -134,6 +134,17 @@ export default function ChildDashboard() {
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  const [offlineAlertSettings, setOfflineAlertSettings] =
+    useState<OfflineAlertSettings>({
+      enabled: true,
+      thresholdMinutes: 30
+    });
+
+  const [offlineAlertSaving, setOfflineAlertSaving] =
+    useState(false);
+
+  const [offlineAlertSaved, setOfflineAlertSaved] =
+    useState(false);
 
   const tabsRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -235,6 +246,13 @@ export default function ChildDashboard() {
     }
 
     const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
+
+    const unsubOfflineAlert =
+      ChildRepository.listenToOfflineAlertSettings(
+        childId,
+        setOfflineAlertSettings
+      );
+
     const unsubLocation = LocationRepository.listenToLatestLocation(childId, (loc) => {
         console.log(`WEB DEBUG: Received child location for ${childId}:`, loc);
         setLocation(loc);
@@ -256,6 +274,7 @@ export default function ChildDashboard() {
 
     return () => {
       unsubStatus();
+      unsubOfflineAlert();
       unsubLocation();
       unsubActivity();
       unsubSummary();
@@ -342,6 +361,37 @@ export default function ChildDashboard() {
       alert("Failed to update child avatar.");
     }
   };
+const handleSaveOfflineAlertSettings = async () => {
+  try {
+    setOfflineAlertSaving(true);
+    setOfflineAlertSaved(false);
+
+    await ChildRepository.setOfflineAlertSettings(
+      childId,
+      {
+        enabled: offlineAlertSettings.enabled,
+        thresholdMinutes:
+          offlineAlertSettings.thresholdMinutes,
+      },
+      role
+    );
+
+    setOfflineAlertSaved(true);
+
+    window.setTimeout(() => {
+      setOfflineAlertSaved(false);
+    }, 2000);
+  } catch (error) {
+    console.error(
+      "Failed to save offline alert settings:",
+      error
+    );
+
+    alert("Failed to save offline alert settings.");
+  } finally {
+    setOfflineAlertSaving(false);
+  }
+};
 
   const displayZones = isFirebaseConfigured ? safeZones.map(z => ({
     id: z.id,
@@ -639,6 +689,125 @@ export default function ChildDashboard() {
 
                 <div className="space-y-8">
                 {canControl && <RemoteControlPanel childId={childId} />}
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100">
+                      <CloudOff
+                        size={20}
+                        className="text-slate-600"
+                      />
+                    </div>
+
+                    <div>
+                      <h2 className="font-bold text-slate-900">
+                        Offline Alert
+                      </h2>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        Notify me when {displayData.name}&apos;s
+                        device stays offline longer than the selected
+                        time.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label
+                    htmlFor="offline-alert-delay"
+                    className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+                  >
+                    Alert after
+                  </label>
+
+                  <select
+                    id="offline-alert-delay"
+                    value={
+                      offlineAlertSettings.enabled
+                        ? String(
+                            offlineAlertSettings.thresholdMinutes
+                          )
+                        : "never"
+                    }
+                    onChange={(event) => {
+                      const value = event.target.value;
+
+                      if (value === "never") {
+                        setOfflineAlertSettings((current) => ({
+                          ...current,
+                          enabled: false,
+                        }));
+
+                        return;
+                      }
+
+                      setOfflineAlertSettings((current) => ({
+                        ...current,
+                        enabled: true,
+                        thresholdMinutes: Number(value),
+                      }));
+                    }}
+                    disabled={!canManageWellbeing}
+                    className="
+                      w-full rounded-xl border border-slate-200
+                      bg-slate-50 px-4 py-3
+                      text-sm font-bold text-slate-700
+                      outline-none transition
+                      focus:border-primary-400
+                      focus:ring-2 focus:ring-primary-100
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
+                    "
+                  >
+                    <option value="10">10 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes — Default</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                    <option value="300">5 hours</option>
+                    <option value="never">Never</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveOfflineAlertSettings}
+                    disabled={
+                      !canManageWellbeing ||
+                      offlineAlertSaving
+                    }
+                    className="
+                      mt-4 flex w-full items-center
+                      justify-center gap-2 rounded-xl
+                      bg-slate-900 px-4 py-3
+                      text-sm font-bold text-white
+                      transition hover:bg-slate-800
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
+                  >
+                    {offlineAlertSaving ? (
+                      <>
+                        <Loader2
+                          size={16}
+                          className="animate-spin"
+                        />
+                        Saving...
+                      </>
+                    ) : offlineAlertSaved ? (
+                      <>
+                        <CheckCircle2 size={16} />
+                        Saved
+                      </>
+                    ) : (
+                      "Save Offline Alert"
+                    )}
+                  </button>
+
+                  {!canManageWellbeing && (
+                    <p className="mt-3 text-center text-xs italic text-slate-400">
+                      Only Parents or Owners can change this setting.
+                    </p>
+                  )}
+                </section>
 
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-6">
