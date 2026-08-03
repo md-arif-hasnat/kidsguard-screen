@@ -4,29 +4,38 @@ import android.Manifest
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,17 +45,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.kidsguard.admin.KidsGuardAdminReceiver
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
+
+private val AppleBackground = Color(0xFFF5F5F7)
+private val AppleCard = Color(0xFFFFFFFF)
+private val AppleText = Color(0xFF1D1D1F)
+private val AppleSecondaryText = Color(0xFF6E6E73)
+private val AppleBorder = Color(0xFFD2D2D7)
+private val AppleButton = Color(0xFF1D1D1F)
+private val AppleBlue = Color(0xFF0071E3)
+private val AppleGreen = Color(0xFF34C759)
+private val AppleLightGreen = Color(0xFFEAF8EE)
 
 private enum class SetupStepId {
     LOCATION,
@@ -118,7 +140,7 @@ fun ChildSetupWizardScreen(
                 id = SetupStepId.BATTERY_OPTIMIZATION,
                 title = "Disable Battery Optimization",
                 description = "Keeps KidsGuard running reliably in the background.",
-                required = true
+                required = false
             ),
             SetupStep(
                 id = SetupStepId.USAGE_ACCESS,
@@ -196,7 +218,7 @@ fun ChildSetupWizardScreen(
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.RECORD_AUDIO
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) == PackageManager.PERMISSION_GRANTED
             }
         }
     }
@@ -327,7 +349,7 @@ fun ChildSetupWizardScreen(
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.RECORD_AUDIO
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) == PackageManager.PERMISSION_GRANTED
             ) {
                 goToNextStep()
             }
@@ -370,12 +392,11 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.DEVICE_ADMIN -> {
-                val prefHelper =
-                    com.example.kidsguard.data.PreferenceHelper(context)
+                val prefHelper = PreferenceHelper(context)
 
                 prefHelper.authorizedDeviceAdminSetupExpiresAt =
                     System.currentTimeMillis() + 2 * 60 * 1000L
-                
+
                 deviceAdminLauncher.launch(
                     KidsGuardAdminReceiver.getRequestIntent(context)
                 )
@@ -392,12 +413,34 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.BATTERY_OPTIMIZATION -> {
-                batteryOptimizationLauncher.launch(
-                    Intent(
-                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        Uri.parse("package:${context.packageName}")
-                    )
+                val directIntent = Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:${context.packageName}")
                 )
+
+                val fallbackIntent = Intent(
+                    Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                )
+
+                try {
+                    if (
+                        directIntent.resolveActivity(
+                            context.packageManager
+                        ) != null
+                    ) {
+                        batteryOptimizationLauncher.launch(
+                            directIntent
+                        )
+                    } else {
+                        batteryOptimizationLauncher.launch(
+                            fallbackIntent
+                        )
+                    }
+                } catch (_: Exception) {
+                    batteryOptimizationLauncher.launch(
+                        fallbackIntent
+                    )
+                }
             }
 
             SetupStepId.USAGE_ACCESS -> {
@@ -414,12 +457,10 @@ fun ChildSetupWizardScreen(
         }
     }
 
-    val stepGranted = remember(
-        currentStep,
-        permissionRefreshKey
-    ) {
-        isStepGranted(step.id)
-    }
+    // permissionRefreshKey read করলে settings থেকে ফিরে এসে state refresh হবে।
+    permissionRefreshKey
+
+    val stepGranted = isStepGranted(step.id)
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -451,17 +492,39 @@ fun ChildSetupWizardScreen(
     }
 
     Scaffold(
+        containerColor = AppleBackground,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = AppleBackground,
+                    titleContentColor = AppleText,
+                    navigationIconContentColor = AppleText
+                ),
                 title = {
-                    Text("Child Device Setup")
+                    Text(
+                        text = "Child Device Setup",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 },
                 navigationIcon = {
                     OutlinedButton(
                         onClick = onBack,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(start = 12.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = AppleText,
+                            containerColor = Color.Transparent
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = AppleBorder
+                        )
                     ) {
-                        Text("Back")
+                        Text(
+                            text = "Back",
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             )
@@ -470,116 +533,179 @@ fun ChildSetupWizardScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(AppleBackground)
                 .padding(innerPadding)
-                .padding(20.dp),
+                .padding(horizontal = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(22.dp))
+
             Text(
                 text = if (step.required) {
-                    "Required Setup"
+                    "REQUIRED SETUP"
                 } else {
-                    "Optional Setup"
+                    "OPTIONAL SETUP"
                 },
-                style = MaterialTheme.typography.labelLarge,
-                color = if (step.required) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.secondary
-                }
+                color = AppleSecondaryText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.2.sp
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = "Step ${currentStep + 1} of ${steps.size}",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Step ${currentStep + 1} of ${steps.size}",
+                    color = AppleText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "$progressPercent% completed",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Text(
+                    text = "$progressPercent%",
+                    color = AppleSecondaryText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp),
+                color = AppleText,
+                trackColor = AppleBorder
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(34.dp))
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = AppleBorder,
+                        shape = RoundedCornerShape(28.dp)
+                    ),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = AppleCard
                 ),
                 elevation = CardDefaults.cardElevation(
-                    defaultElevation = 4.dp
+                    defaultElevation = 0.dp
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(
+                        horizontal = 24.dp,
+                        vertical = 30.dp
+                    ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .background(
+                                color = if (stepGranted) {
+                                    AppleLightGreen
+                                } else {
+                                    AppleBackground
+                                },
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (stepGranted) "✓" else "${currentStep + 1}",
+                            color = if (stepGranted) {
+                                AppleGreen
+                            } else {
+                                AppleText
+                            },
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(22.dp))
+
                     Text(
                         text = step.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
+                        color = AppleText,
+                        fontSize = 26.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = step.description,
-                        style = MaterialTheme.typography.bodyLarge,
+                        color = AppleSecondaryText,
+                        fontSize = 16.sp,
+                        lineHeight = 23.sp,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(26.dp))
 
                     Text(
                         text = if (stepGranted) {
-                            "✓ Enabled"
+                            "Enabled"
                         } else {
                             "Waiting for permission"
                         },
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
                         color = if (stepGranted) {
-                            MaterialTheme.colorScheme.primary
+                            AppleGreen
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                            AppleSecondaryText
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
                         onClick = {
-                            if (stepGranted) {
-                                goToNextStep()
-                            } else {
+                            if (!stepGranted) {
                                 requestCurrentStep()
                             }
                         },
                         enabled = !stepGranted,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp),
-                        shape = RoundedCornerShape(16.dp)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppleButton,
+                            contentColor = Color.White,
+                            disabledContainerColor = AppleLightGreen,
+                            disabledContentColor = AppleGreen
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 0.dp,
+                            disabledElevation = 0.dp
+                        )
                     ) {
                         Text(
                             text = if (stepGranted) {
                                 "Enabled"
                             } else {
                                 "Enable"
-                            }
+                            },
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
@@ -596,15 +722,25 @@ fun ChildSetupWizardScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp),
-                            shape = RoundedCornerShape(16.dp)
+                                .height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = AppleText
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = AppleBorder
+                            )
                         ) {
                             Text(
-                                if (isLastStep) {
+                                text = if (isLastStep) {
                                     "Skip & Finish"
                                 } else {
                                     "Skip"
-                                }
+                                },
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -619,9 +755,14 @@ fun ChildSetupWizardScreen(
                 } else {
                     "This feature is optional and can be enabled later."
                 },
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.padding(
+                    horizontal = 16.dp,
+                    vertical = 24.dp
+                ),
+                color = AppleSecondaryText,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Center
             )
         }
     }

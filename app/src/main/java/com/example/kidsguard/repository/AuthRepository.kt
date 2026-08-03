@@ -207,7 +207,7 @@ class AuthRepository(private val context: Context) {
 
         val pairingDoc = PairingCodeDoc(
             code = code,
-            childId = prefs.childId,
+            //childId = prefs.childId,
             deviceId = prefs.deviceId,
             childName = prefs.childName,
             deviceName = prefs.deviceName,
@@ -326,7 +326,7 @@ class AuthRepository(private val context: Context) {
                     pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true
                 ) {
 
-                    Log.i(TAG, "ANDROID: Valid pair code found for child: ${pairingData.childId}")
+                    Log.i(TAG, "ANDROID: Valid pair code found for child: ${pairingData.childName}")
                     // Create or update family
                     val familyId = createOrUpdateFamily(pairingData.deviceId)
 

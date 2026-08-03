@@ -1,57 +1,56 @@
 package com.example.kidsguard.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+private val KidsGuardLightColorScheme = lightColorScheme(
+    primary = Color(0xFF0071E3),
     onPrimary = Color.White,
+
+    primaryContainer = Color(0xFFE8F2FF),
+    onPrimaryContainer = Color(0xFF003E7A),
+
+    secondary = Color(0xFF6E6E73),
     onSecondary = Color.White,
+
+    secondaryContainer = Color(0xFFF0F0F2),
+    onSecondaryContainer = Color(0xFF1D1D1F),
+
+    tertiary = Color(0xFF34C759),
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+
+    background = Color(0xFFF5F5F7),
+    onBackground = Color(0xFF1D1D1F),
+
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF1D1D1F),
+
+    surfaceVariant = Color(0xFFF0F0F2),
+    onSurfaceVariant = Color(0xFF6E6E73),
+
+    outline = Color(0xFFD2D2D7),
+    outlineVariant = Color(0xFFE5E5E7),
+
+    error = Color(0xFFFF3B30),
+    onError = Color.White,
+
+    inverseSurface = Color(0xFF1D1D1F),
+    inverseOnSurface = Color(0xFFF5F5F7),
+    inversePrimary = Color(0xFF64A8FF),
+
+    scrim = Color.Black
 )
 
 @Composable
 fun KidsGuardTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = false,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = KidsGuardLightColorScheme,
         typography = Typography,
         content = content
     )
