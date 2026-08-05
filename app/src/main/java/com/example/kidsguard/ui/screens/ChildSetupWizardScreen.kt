@@ -2,6 +2,7 @@ package com.example.kidsguard.ui.screens
 
 import android.Manifest
 import android.app.AppOpsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -377,9 +378,33 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.ACCESSIBILITY -> {
-                accessibilityLauncher.launch(
-                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                val componentName = ComponentName(
+                    context.packageName,
+                    "${context.packageName}.accessibility.KidsGuardAccessibilityService"
                 )
+
+                val directIntent = Intent(
+                    "android.settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS"
+                ).apply {
+                    putExtra(
+                        "android.intent.extra.COMPONENT_NAME",
+                        componentName.flattenToString()
+                    )
+                }
+
+                val fallbackIntent = Intent(
+                    Settings.ACTION_ACCESSIBILITY_SETTINGS
+                )
+
+                try {
+                    if (directIntent.resolveActivity(context.packageManager) != null) {
+                        accessibilityLauncher.launch(directIntent)
+                    } else {
+                        accessibilityLauncher.launch(fallbackIntent)
+                    }
+                } catch (e: Exception) {
+                    accessibilityLauncher.launch(fallbackIntent)
+                }
             }
 
             SetupStepId.OVERLAY -> {
@@ -413,33 +438,19 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.BATTERY_OPTIMIZATION -> {
-                val directIntent = Intent(
+                val intent = Intent(
                     Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                     Uri.parse("package:${context.packageName}")
                 )
 
-                val fallbackIntent = Intent(
-                    Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-                )
-
                 try {
-                    if (
-                        directIntent.resolveActivity(
-                            context.packageManager
-                        ) != null
-                    ) {
-                        batteryOptimizationLauncher.launch(
-                            directIntent
-                        )
-                    } else {
-                        batteryOptimizationLauncher.launch(
-                            fallbackIntent
-                        )
-                    }
-                } catch (_: Exception) {
-                    batteryOptimizationLauncher.launch(
-                        fallbackIntent
+                    batteryOptimizationLauncher.launch(intent)
+                } catch (e: Exception) {
+                    val fallbackIntent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:${context.packageName}")
                     )
+                    batteryOptimizationLauncher.launch(fallbackIntent)
                 }
             }
 
@@ -677,11 +688,13 @@ fun ChildSetupWizardScreen(
 
                     Button(
                         onClick = {
-                            if (!stepGranted) {
+                            if (stepGranted) {
+                                goToNextStep()
+                            } else {
                                 requestCurrentStep()
                             }
                         },
-                        enabled = !stepGranted,
+                        enabled = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),

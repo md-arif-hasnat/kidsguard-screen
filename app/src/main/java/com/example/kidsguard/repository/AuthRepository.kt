@@ -207,7 +207,7 @@ class AuthRepository(private val context: Context) {
 
         val pairingDoc = PairingCodeDoc(
             code = code,
-            //childId = prefs.childId,
+            childId = prefs.childId,
             deviceId = prefs.deviceId,
             childName = prefs.childName,
             deviceName = prefs.deviceName,

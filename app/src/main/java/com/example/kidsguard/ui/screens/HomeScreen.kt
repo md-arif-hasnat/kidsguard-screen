@@ -23,8 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Emergency
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -498,31 +496,7 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onOpenLocationHistory,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Icon(Icons.Default.History, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("History", maxLines = 1)
-                }
-                OutlinedButton(
-                    onClick = onOpenTrackingStatus,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Icon(Icons.Default.GpsFixed, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Tracking", maxLines = 1)
-                }
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
