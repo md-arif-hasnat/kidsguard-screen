@@ -176,9 +176,10 @@ fun KidsGuardApp(
                                     ) &&
                                     com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(
                                         context
-                                    ) &&
-                                    com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(
-                                        context
+                                        //)
+                                        //&&
+                                        //com.example.kidsguard.utils.PermissionUtils.isBatteryOptimizationIgnored(
+                                        //    context
                                     ) &&
                                     com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                         context
