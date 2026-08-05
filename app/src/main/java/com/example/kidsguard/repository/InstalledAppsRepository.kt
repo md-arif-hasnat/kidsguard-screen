@@ -17,6 +17,7 @@ class InstalledAppsRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "AppInstallMonitor"
+        private const val KEY_BASELINE_READY = "__baseline_ready__"
     }
 
     private fun getChildId(): String? {
@@ -121,7 +122,15 @@ class InstalledAppsRepository(private val context: Context) {
         Log.i(TAG, "InstalledAppsScan: failed packages=$failed")
 
         if (isFullRescan) {
-            cleanUpUninstalledApps(childId, currentLaunchablePackages)
+            cleanUpUninstalledApps(
+                childId,
+                currentLaunchablePackages
+            )
+            prefs.edit()
+                .putBoolean(KEY_BASELINE_READY, true)
+                .apply()
+
+            Log.i(TAG, "Installed apps baseline completed")
         }
     }
 
@@ -152,7 +161,9 @@ class InstalledAppsRepository(private val context: Context) {
             return
         }
 
-        val isNewInstall = !prefs.contains(packageName)
+        //val isNewInstall = !prefs.contains(packageName)
+        val baselineReady = prefs.getBoolean(KEY_BASELINE_READY, false)
+        val isNewInstall = baselineReady && !prefs.contains(packageName)
 
         try {
             val info = pm.getPackageInfo(packageName, 0)
