@@ -21,8 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Emergency
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -32,6 +34,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -93,10 +98,13 @@ fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context.findActivity()
+    var topMenuExpanded by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showSosConfirm by remember { mutableStateOf(false) }
+    var showApplicationStatus by remember { mutableStateOf(false) }
 
     val activeSos by sosRepository.activeSos.collectAsState()
+
     val activeSosAlert by sosRepository.activeSosAlert.collectAsState()
 
     var sosMessage by remember { mutableStateOf("") }
@@ -166,12 +174,105 @@ fun HomeScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("KidsGuard Child Mode") },
+                title = { Text("KidsGuard Home") },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
                 actions = {
-                    IconButton(onClick = { showPinDialog = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    Box {
+                        IconButton(
+                            onClick = { topMenuExpanded = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Menu"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = topMenuExpanded,
+                            onDismissRequest = { topMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Permission Checklist") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+
+                                    )
+                                },
+                                onClick = {
+                                    topMenuExpanded = false
+                                    onOpenPermissionChecklist()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Application Status") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    topMenuExpanded = false
+                                    showApplicationStatus = true
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("History") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    topMenuExpanded = false
+                                    onOpenLocationHistory()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Tracking") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.GpsFixed,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    topMenuExpanded = false
+                                    onOpenTrackingStatus()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Settings") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = {
+                                    topMenuExpanded = false
+                                    showPinDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -180,6 +281,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(innerPadding)
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -337,6 +439,7 @@ fun HomeScreen(
                 }
             }
 
+            /*
             Spacer(modifier = Modifier.height(16.dp))
 
             // Permission Quick Check
@@ -368,6 +471,7 @@ fun HomeScreen(
                     Icon(Icons.Default.ChevronRight, contentDescription = null)
                 }
             }
+            */
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -498,41 +602,7 @@ fun HomeScreen(
 
 
 
-            Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "Application Status",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Start
-            )
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    StatusItem(
-                        label = "Lock Engine",
-                        value = if (prefHelper.isLocked) "LOCKED" else "READY",
-                        active = !prefHelper.isLocked
-                    )
-                    StatusItem(label = "Tracking Service", value = "ACTIVE", active = true)
-                    StatusItem(
-                        label = "App Usage Sync",
-                        value = if (isAppUsageActive) "ACTIVE" else "INACTIVE",
-                        active = isAppUsageActive
-                    )
-                    if (prefHelper.isScheduleEnabled) {
-                        StatusItem(
-                            label = "Schedule",
-                            value = "${prefHelper.scheduleStartTime} - ${prefHelper.scheduleEndTime}",
-                            active = isCurrentTimeInSchedule(prefHelper)
-                        )
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -540,7 +610,58 @@ fun HomeScreen(
                 text = if (com.example.kidsguard.BuildConfig.DEBUG) "v${com.example.kidsguard.BuildConfig.VERSION_NAME} (Debug) - ${android.os.Build.MODEL}" else "v${com.example.kidsguard.BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)
+            )
+        }
+
+        if (showApplicationStatus) {
+            AlertDialog(
+                onDismissRequest = {
+                    showApplicationStatus = false
+                },
+                title = {
+                    Text("Application Status")
+                },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatusItem(
+                            label = "Lock Engine",
+                            value = if (prefHelper.isLocked) "LOCKED" else "READY",
+                            active = !prefHelper.isLocked
+                        )
+
+                        StatusItem(
+                            label = "Tracking Service",
+                            value = "ACTIVE",
+                            active = true
+                        )
+
+                        StatusItem(
+                            label = "App Usage Sync",
+                            value = if (isAppUsageActive) "ACTIVE" else "INACTIVE",
+                            active = isAppUsageActive
+                        )
+
+                        if (prefHelper.isScheduleEnabled) {
+                            StatusItem(
+                                label = "Schedule",
+                                value = "${prefHelper.scheduleStartTime} - ${prefHelper.scheduleEndTime}",
+                                active = isCurrentTimeInSchedule(prefHelper)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showApplicationStatus = false
+                        }
+                    ) {
+                        Text("Close")
+                    }
+                }
             )
         }
 
