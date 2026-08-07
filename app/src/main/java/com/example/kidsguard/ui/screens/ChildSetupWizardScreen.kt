@@ -58,6 +58,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.kidsguard.admin.KidsGuardAdminReceiver
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.utils.NotificationAccessHelper
 import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
 
@@ -78,6 +79,7 @@ private enum class SetupStepId {
     OVERLAY,
     DEVICE_ADMIN,
     NOTIFICATIONS,
+    NOTIFICATION_ACCESS,
     BATTERY_OPTIMIZATION,
     USAGE_ACCESS,
     MICROPHONE
@@ -123,6 +125,12 @@ fun ChildSetupWizardScreen(
                 id = SetupStepId.OVERLAY,
                 title = "Display Over Other Apps",
                 description = "Required for remote lock and full-screen protection.",
+                required = true
+            ),
+            SetupStep(
+                id = SetupStepId.NOTIFICATION_ACCESS,
+                title = "Enable Notification Access",
+                description = "Required for YouTube thumbnails, channel details and media monitoring.",
                 required = true
             ),
             SetupStep(
@@ -205,6 +213,10 @@ fun ChildSetupWizardScreen(
             SetupStepId.NOTIFICATIONS -> {
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                         PermissionUtils.hasNotificationPermission(context)
+            }
+
+            SetupStepId.NOTIFICATION_ACCESS -> {
+                NotificationAccessHelper.isEnabled(context)
             }
 
             SetupStepId.BATTERY_OPTIMIZATION -> {
@@ -414,6 +426,10 @@ fun ChildSetupWizardScreen(
                         Uri.parse("package:${context.packageName}")
                     )
                 )
+            }
+
+            SetupStepId.NOTIFICATION_ACCESS -> {
+                NotificationAccessHelper.openSettings(context)
             }
 
             SetupStepId.DEVICE_ADMIN -> {

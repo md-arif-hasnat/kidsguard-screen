@@ -27,7 +27,12 @@ class KidsGuardNotificationListener : NotificationListenerService() {
         if (sbn?.packageName != "com.google.android.youtube") return
 
         val snapshot =
-            MediaSessionMetadataReader.readYouTubeSession(applicationContext)
+            MediaSessionMetadataReader.readYouTubeSession(
+                context = applicationContext,
+                debugLog = { message ->
+                    youtubeRepository.addDebugLog(message)
+                }
+            )
 
         if (snapshot == null) {
             Log.d(

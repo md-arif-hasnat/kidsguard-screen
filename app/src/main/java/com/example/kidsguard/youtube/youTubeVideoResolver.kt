@@ -27,6 +27,19 @@ object YouTubeVideoResolver {
             RegexOption.IGNORE_CASE
         )
 
+    // নিশ্চিত (high-confidence) accept threshold
+    private const val MIN_CONFIDENCE_WITH_CHANNEL = 0.60f
+    private const val MIN_CONFIDENCE_NO_CHANNEL = 0.75f
+
+    // low-confidence "best guess" fallback threshold — এর নিচে হলে কিছুই দেওয়া হবে না
+    private const val MIN_GUESS_CONFIDENCE = 0.30f
+
+    // channel থাকলে, একদম অমিল চ্যানেল হলে reject করার threshold
+    private const val CHANNEL_MISMATCH_REJECT_THRESHOLD = 0.15f
+
+    const val SOURCE_SEARCH_API = "YOUTUBE_SEARCH_API"
+    const val SOURCE_LOW_CONFIDENCE_GUESS = "LOW_CONFIDENCE_GUESS"
+
     fun buildRequest(
         title: String?,
         channel: String?,
@@ -79,9 +92,27 @@ object YouTubeVideoResolver {
             )
         }
 
+        extractVideoId(request.title)?.let { videoId ->
+            return buildResolvedVideo(
+                videoId = videoId,
+                source = "TITLE",
+                confidence = 0.60f
+            )
+        }
+
         return null
     }
 
+    /**
+     * Search API ফলাফল থেকে video resolve করে।
+     *
+     * দুই স্তরের confidence:
+     *  - >= MIN_CONFIDENCE_*  → নিশ্চিত (SOURCE_SEARCH_API), channel mismatch হলে reject
+     *  - >= MIN_GUESS_CONFIDENCE কিন্তু নিশ্চিত থ্রেশহোল্ডের নিচে → best-guess
+     *    (SOURCE_LOW_CONFIDENCE_GUESS) — videoId/URL/thumbnail তবুও দেওয়া হয়,
+     *    কিন্তু caller চাইলে source দেখে আলাদা treat করতে পারবে
+     *  - তার নিচে → null (কিছুই না)
+     */
     fun resolveFromSearch(
         request: YouTubeResolveRequest,
         response: YouTubeSearchResponse
@@ -123,9 +154,36 @@ object YouTubeVideoResolver {
 
         val videoId = bestMatch.first
         val confidence = bestMatch.second
+        val hasChannel = !request.channel.isNullOrBlank()
+        val minConfidence =
+            if (hasChannel) MIN_CONFIDENCE_WITH_CHANNEL else MIN_CONFIDENCE_NO_CHANNEL
 
-        if (confidence < 0.55f) {
-            return null
+        val finalSource: String
+        val finalConfidence: Float
+
+        when {
+            confidence >= minConfidence -> {
+                // hard channel-mismatch reject — score threshold পার হলেও
+                // channel সম্পূর্ণ অমিল হলে ভুল ভিডিও accept করব না
+                if (hasChannel) {
+                    val channelScore = calculateSimilarity(
+                        request.channel!!,
+                        bestMatch.third.snippet?.channelTitle.orEmpty()
+                    )
+                    if (channelScore < CHANNEL_MISMATCH_REJECT_THRESHOLD) {
+                        return null
+                    }
+                }
+                finalSource = SOURCE_SEARCH_API
+                finalConfidence = confidence
+            }
+
+            confidence >= MIN_GUESS_CONFIDENCE -> {
+                finalSource = SOURCE_LOW_CONFIDENCE_GUESS
+                finalConfidence = confidence
+            }
+
+            else -> return null
         }
 
         return ResolvedYouTubeVideo(
@@ -140,9 +198,8 @@ object YouTubeVideoResolver {
                     ?.medium
                     ?.url
                 ?: buildThumbnailUrl(videoId),
-
-            source = "YOUTUBE_SEARCH_API",
-            confidence = confidence
+            source = finalSource,
+            confidence = finalConfidence
         )
     }
 

@@ -1,11 +1,17 @@
 package com.example.kidsguard.utils
 
+import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.kidsguard.models.YouTubeMetadataCandidate
 import com.example.kidsguard.models.YouTubeScreenType
 import com.example.kidsguard.repository.YouTubeHistoryRepository
 
 object YouTubeMetadataExtractor {
+    private var lastProcessedTitle: String? = null
+    private var lastProcessedTitleTime: Long = 0L
+    private const val TITLE_DEBOUNCE_MS = 15_000L
+    private var lastCandidateTitle: String? = null
+    private var lastCandidateTime: Long = 0L
 
     private val WATCH_TITLE_IDS = listOf(
         "com.google.android.youtube:id/title",
@@ -38,7 +44,9 @@ object YouTubeMetadataExtractor {
         }
 
         if (candidate == null) {
-            if (screenType != YouTubeScreenType.FEED && screenType != YouTubeScreenType.SEARCH_RESULTS && screenType != YouTubeScreenType.UNKNOWN) {
+            if (screenType != YouTubeScreenType.FEED && screenType != YouTubeScreenType.SEARCH_RESULTS
+                && screenType != YouTubeScreenType.UNKNOWN
+            ) {
                 repo.addDebugLog("METADATA_MISSING screen=$screenType")
                 repo.addDebugLog("TITLE_MISSING")
             }
@@ -51,6 +59,20 @@ object YouTubeMetadataExtractor {
                 repo.addDebugLog("CHANNEL_MISSING")
             }
         }
+        val now = System.currentTimeMillis()
+
+        if (
+            lastCandidateTitle == candidate.videoTitle &&
+            now - lastCandidateTime < 3000L
+        ) {
+            repo.addDebugLog(
+                msg = "CANDIDATE_DEBOUNCED: ${candidate.videoTitle}"
+            )
+            return null
+        }
+
+        lastCandidateTitle = candidate.videoTitle
+        lastCandidateTime = now
 
         val enriched = enrichWithVideoId(rootNode, candidate, repo)
         return enriched
@@ -91,27 +113,66 @@ object YouTubeMetadataExtractor {
 
         repo.addDebugLog("VIDEO_ID_NOT_FOUND")
         return candidate
+
     }
 
 
     private fun findVideoIdInTree(node: AccessibilityNodeInfo): String? {
-        val contentDesc = node.contentDescription?.toString()
-        if (contentDesc != null) {
-            val id = YouTubeMediaUrlBuilder.extractVideoId(contentDesc)
-            if (YouTubeValidator.isValidVideoId(id)) return id
+        val candidates = buildList {
+            node.viewIdResourceName?.let(::add)
+            node.contentDescription?.toString()?.let(::add)
+            node.text?.toString()?.let(::add)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                node.hintText?.toString()?.let(::add)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                node.tooltipText?.toString()?.let(::add)
+                node.paneTitle?.toString()?.let(::add)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                node.stateDescription?.toString()?.let(::add)
+            }
+
+            add(node.toString())
         }
 
-        val text = node.text?.toString()
-        if (text != null) {
-            val id = YouTubeMediaUrlBuilder.extractVideoId(text)
-            if (YouTubeValidator.isValidVideoId(id)) return id
+        for (candidate in candidates) {
+            val id = YouTubeMediaUrlBuilder.extractVideoId(candidate)
+            if (YouTubeValidator.isValidVideoId(id)) {
+                return id
+            }
         }
 
-        val shareNodes =
-            node.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/share_button")
-        shareNodes?.firstOrNull()?.contentDescription?.toString()?.let {
-            val id = YouTubeMediaUrlBuilder.extractVideoId(it)
-            if (YouTubeValidator.isValidVideoId(id)) return id
+        val possibleIds = listOf(
+            "com.google.android.youtube:id/share_button",
+            "com.google.android.youtube:id/copy_link",
+            "com.google.android.youtube:id/menu_item_view",
+            "com.google.android.youtube:id/player_overflow_button",
+            "com.google.android.youtube:id/watch_panel"
+        )
+
+        for (viewId in possibleIds) {
+            val nodes = node.findAccessibilityNodeInfosByViewId(viewId)
+
+            for (targetNode in nodes) {
+                val values = listOfNotNull(
+                    targetNode.contentDescription?.toString(),
+                    targetNode.text?.toString(),
+                    targetNode.viewIdResourceName,
+                    targetNode.toString()
+                )
+
+                for (value in values) {
+                    val id = YouTubeMediaUrlBuilder.extractVideoId(value)
+
+                    if (YouTubeValidator.isValidVideoId(id)) {
+                        return id
+                    }
+                }
+            }
         }
 
         for (i in 0 until node.childCount) {

@@ -539,11 +539,12 @@ const handleSaveOfflineAlertSettings = async () => {
           >
               <TabButton active={activeTab === 'overview'} onClick={() => handleTabChange('overview')} icon={LayoutDashboard} label="Overview" />
               <TabButton active={activeTab === 'location'} onClick={() => handleTabChange('location')} icon={MapPin} label="Location" />
-              <TabButton active={activeTab === 'app-activity'} onClick={() => handleTabChange('app-activity')} icon={BarChart3} label="App Activity" />
-              <TabButton active={activeTab === 'installed-apps'} onClick={() => handleTabChange('installed-apps')} icon={AppWindow} label="Installed Apps" />
               <TabButton active={activeTab === 'safe-zones'} onClick={() => handleTabChange('safe-zones')} icon={Shield} label="Safe Zones" />
-              <TabButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={History} label="History" />
               <TabButton active={activeTab === 'youtube-history'} onClick={() => handleTabChange('youtube-history')} icon={Youtube} label="YouTube" />
+              <TabButton active={activeTab === 'installed-apps'} onClick={() => handleTabChange('installed-apps')} icon={AppWindow} label="Installed Apps" />
+              <TabButton active={activeTab === 'app-activity'} onClick={() => handleTabChange('app-activity')} icon={BarChart3} label="App Activity" />
+              <TabButton active={activeTab === 'history'} onClick={() => handleTabChange('history')} icon={History} label="History" />
+              <TabButton active={activeTab === 'internet'} onClick={() => handleTabChange('internet')} icon={GlobeIcon} label="Internet" />
               <TabButton active={activeTab === 'browser-history'} onClick={() => handleTabChange('browser-history')} icon={GlobeIcon} label="Browser" />
               <TabButton active={activeTab === 'web-rules'} onClick={() => handleTabChange('web-rules')} icon={ShieldAlert} label="Web Rules" />
 
@@ -551,7 +552,6 @@ const handleSaveOfflineAlertSettings = async () => {
 
               <TabButton active={activeTab === 'intelligence'} onClick={() => handleTabChange('intelligence')} icon={Brain} label="Intelligence" />
               <TabButton active={activeTab === 'wellbeing'} onClick={() => handleTabChange('wellbeing')} icon={ClockIcon} label="Wellbeing" />
-              <TabButton active={activeTab === 'internet'} onClick={() => handleTabChange('internet')} icon={GlobeIcon} label="Internet" />
               <TabButton active={activeTab === 'modes'} onClick={() => handleTabChange('modes')} icon={Shield} label="Modes" />
               <TabButton active={activeTab === 'health'} onClick={() => handleTabChange('health')} icon={Smartphone} label="Device Health" />
           </div>
@@ -625,66 +625,9 @@ const handleSaveOfflineAlertSettings = async () => {
                     )}
                 </section>
 
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
-                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                        <ShieldCheckIcon className="text-primary-600" />
-                        Live Telemetry Panel
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
-                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
-                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
-                        <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
-                    </div>
-                </section>
 
-                <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
-                    <div className="flex items-center gap-2 mb-4">
-                    <ShieldCheckIcon size={24} />
-                    <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
-                    </div>
-                    {displayData.summary ? (
-                    <div className="flex flex-col md:flex-row items-start gap-6">
-                        <div className="text-4xl font-black bg-white/20 w-20 h-20 md:w-24 md:h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
-                        {displayData.summary.score}
-                        </div>
-                        <div>
-                        <p className="text-primary-100 font-medium leading-relaxed italic text-sm md:text-base">
-                            &quot;{displayData.summary.text}&quot;
-                        </p>
-                        <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
-                            View Full Report
-                            <ChevronRight size={16} />
-                        </button>
-                        </div>
-                    </div>
-                    ) : (
-                    <div className="py-4 text-center">
-                        <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
-                    </div>
-                    )}
-                </section>
 
-                <section className="bg-rose-50 rounded-2xl p-6 md:p-8 border border-rose-100">
-                    <h2 className="text-xl font-black text-rose-800 mb-2">Danger Zone</h2>
-                    <p className="text-rose-600 text-sm font-medium mb-6">
-                        Remove this device from your family. Monitoring will stop immediately and the child app will return to setup.
-                    </p>
-                    {RoleHelper.canRemoveChild(role) ? (
-                      <button
-                          onClick={() => setShowRemoveDialog(true)}
-                          className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all flex items-center gap-2 text-sm"
-                      >
-                          <ShieldAlert size={18} />
-                          Remove Device
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-slate-400 italic text-xs font-bold">
-                        <Shield size={14} />
-                        Only Family Owners can remove devices.
-                      </div>
-                    )}
-                </section>
+
                 </div>
 
                 <div className="space-y-8">
@@ -808,6 +751,67 @@ const handleSaveOfflineAlertSettings = async () => {
                     </p>
                   )}
                 </section>
+                <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
+                                    <div className="flex items-center gap-2 mb-4">
+                                    <ShieldCheckIcon size={24} />
+                                    <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
+                                    </div>
+                                    {displayData.summary ? (
+                                    <div className="flex flex-col md:flex-row items-start gap-6">
+                                        <div className="text-4xl font-black bg-white/20 w-20 h-20 md:w-24 md:h-24 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
+                                        {displayData.summary.score}
+                                        </div>
+                                        <div>
+                                        <p className="text-primary-100 font-medium leading-relaxed italic text-sm md:text-base">
+                                            &quot;{displayData.summary.text}&quot;
+                                        </p>
+                                        <button className="mt-4 text-sm font-bold flex items-center gap-1 hover:text-primary-200 transition-colors">
+                                            View Full Report
+                                            <ChevronRight size={16} />
+                                        </button>
+                                        </div>
+                                    </div>
+                                    ) : (
+                                    <div className="py-4 text-center">
+                                        <p className="text-primary-100 italic text-sm">No safety summary generated for today yet. Data is analyzed every evening.</p>
+                                    </div>
+                                    )}
+                                </section>
+
+                                <section className="bg-rose-50 rounded-2xl p-6 md:p-8 border border-rose-100">
+                                    <h2 className="text-xl font-black text-rose-800 mb-2">Danger Zone</h2>
+                                    <p className="text-rose-600 text-sm font-medium mb-6">
+                                        Remove this device from your family. Monitoring will stop immediately and the child app will return to setup.
+                                    </p>
+                                    {RoleHelper.canRemoveChild(role) ? (
+                                      <button
+                                          onClick={() => setShowRemoveDialog(true)}
+                                          className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all flex items-center gap-2 text-sm"
+                                      >
+                                          <ShieldAlert size={18} />
+                                          Remove Device
+                                      </button>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-slate-400 italic text-xs font-bold">
+                                        <Shield size={14} />
+                                        Only Family Owners can remove devices.
+                                      </div>
+                                    )}
+                                </section>
+
+
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+                                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                        <ShieldCheckIcon className="text-primary-600" />
+                                        Live Telemetry Panel
+                                    </h2>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
+                                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
+                                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
+                                        <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
+                                    </div>
+                                </section>
 
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-6">

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -177,7 +178,7 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("KidsGuard Home") },
+                title = { Text("KidsGuard Child Device") },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
@@ -604,13 +605,16 @@ fun HomeScreen(
 
 
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(1.5f))
 
             Text(
-                text = if (com.example.kidsguard.BuildConfig.DEBUG) "v${com.example.kidsguard.BuildConfig.VERSION_NAME} (Debug) - ${android.os.Build.MODEL}" else "v${com.example.kidsguard.BuildConfig.VERSION_NAME}",
+                text = if (com.example.kidsguard.BuildConfig.DEBUG) "v${com.example.kidsguard.BuildConfig.VERSION_NAME} " +
+                        "(Debug) - ${android.os.Build.MODEL}" else "v${com.example.kidsguard.BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)
+                modifier = Modifier
+                    .padding(bottom = 0.dp)
+                    .offset(y = 0.dp)
             )
         }
 
