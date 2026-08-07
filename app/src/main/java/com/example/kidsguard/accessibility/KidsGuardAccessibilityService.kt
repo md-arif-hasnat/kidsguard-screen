@@ -84,6 +84,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private val PACKAGE_YOUTUBE = "com.google.android.youtube"
 
+
     private val BROWSER_PACKAGES = setOf(
         "com.android.chrome",
         "org.mozilla.firefox",
@@ -102,6 +103,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
         try {
             youtubeRepository = YouTubeHistoryRepository.getInstance(applicationContext)
+            com.example.kidsguard.youtube.YouTubeApiClient.init(applicationContext)
             youtubeRepository.addDebugLog("SERVICE_CREATED")
             //youtubeRepository.lastServiceVersion = com.example.kidsguard.BuildConfig.VERSION_NAME
             //youtubeRepository.lastServiceCode = com.example.kidsguard.BuildConfig.VERSION_CODE
@@ -540,7 +542,23 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         } else {
 
             val mediaSnapshot =
-                MediaSessionMetadataReader.readYouTubeSession(applicationContext)
+                MediaSessionMetadataReader.readYouTubeSession(
+                    context = applicationContext,
+                    debugLog = { message ->
+                        youtubeRepository.addDebugLog(message)
+                    }
+                )
+
+            youtubeRepository.addDebugLog(
+                "MEDIA_SNAPSHOT_RAW " +
+                        "null=${mediaSnapshot == null} " +
+                        "title=${mediaSnapshot?.title} " +
+                        "artist=${mediaSnapshot?.artist} " +
+                        "mediaId=${mediaSnapshot?.mediaId} " +
+                        "mediaUri=${mediaSnapshot?.mediaUri} " +
+                        "artworkUri=${mediaSnapshot?.artworkUri}"
+            )
+
 
             if (
                 mediaSnapshot?.title.isNullOrBlank().not() &&
@@ -598,19 +616,30 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
                 updateYouTubeSession(mediaCandidate)
 
-                if (directResolved == null && resolveRequest != null) {
-                    serviceScope.launch {
+                if (
+                    directResolved == null &&
+                    resolveRequest != null &&
+                    activeYouTubeSession?.apiResolutionAttempted != true
+                ) {
+                    // Gate immediately, session-identity based - not time based.
+                    // Prevents duplicate concurrent launches from rapid accessibility ticks.
+                    activeYouTubeSession?.apiResolutionAttempted = true
 
+                    serviceScope.launch {
                         youtubeRepository.addDebugLog(
                             "YOUTUBE_API_SEARCH_STARTED title=${resolveRequest.title}"
                         )
 
+                        // বাকি অংশ অপরিবর্তিত থাকবে (searchVideos কল, resolveFromSearch, enrichSavedActivity)
+
                         val searchResponse =
-                            YouTubeApiClient.searchVideos(resolveRequest)
+                            YouTubeApiClient.searchVideos(resolveRequest) { message ->
+                                youtubeRepository.addDebugLog(message)
+                            }
 
                         if (searchResponse == null) {
                             youtubeRepository.addDebugLog(
-                                "YOUTUBE_API_SEARCH_NO_RESPONSE"
+                                msg = "YOUTUBE_API_SEARCH_NO_RESPONSE error=${YouTubeApiClient.lastError}"
                             )
                             return@launch
                         }
@@ -647,6 +676,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
                         youtubeRepository.enrichSavedActivity(
                             title = resolveRequest.title,
+                            channelName = resolveRequest.channel,
                             videoId = apiResolved.videoId,
                             youtubeUrl = apiResolved.youtubeUrl,
                             thumbnailUrl = apiResolved.thumbnailUrl,
@@ -658,6 +688,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                         youtubeRepository.addDebugLog(
                             "YOUTUBE_API_RESOLVED " +
                                     "id=${apiResolved.videoId} " +
+                                    "thumb=${apiResolved.thumbnailUrl} " +
                                     "confidence=${apiResolved.confidence}"
                         )
                     }
@@ -676,20 +707,28 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private fun updateYouTubeSession(candidate: YouTubeMetadataCandidate) {
         val current = activeYouTubeSession
-        // val now = System.currentTimeMillis()
+        val now = System.currentTimeMillis()
 
+        // নতুন আলাদা ভিডিও detect হলে আগের session শেষ হবে
         if (
             current != null &&
-            current.title == candidate.videoTitle
-        //&& now - current.lastSeenAt > 30_000
+            current.title != candidate.videoTitle
         ) {
+            youtubeRepository.addDebugLog(
+                "VIDEO_CHANGED old=${current.title} new=${candidate.videoTitle}"
+            )
+
             finishYouTubeSession()
         }
 
         val active = activeYouTubeSession
 
-        if (active != null && active.title == candidate.videoTitle) {
-            // active.lastSeenAt = now
+        // একই ভিডিও চলতে থাকলে পুরোনো session update হবে
+        if (
+            active != null &&
+            active.title == candidate.videoTitle
+        ) {
+            active.lastSeenAt = now
             active.screenType = candidate.screenType
 
             if (active.videoId == null && candidate.videoId != null) {
@@ -700,12 +739,25 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 active.linkConfidence = candidate.linkConfidence
 
                 youtubeRepository.addDebugLog(
-                    "Session Enriched ID=${candidate.videoId}"
+                    "SESSION_ENRICHED id=${candidate.videoId}"
                 )
             }
-        } else {
-            finishYouTubeSession()
 
+            if (
+                active.thumbnailUrl.isNullOrBlank() &&
+                !candidate.thumbnailUrl.isNullOrBlank()
+            ) {
+                active.thumbnailUrl = candidate.thumbnailUrl
+            }
+
+            if (
+                active.youtubeUrl.isNullOrBlank() &&
+                !candidate.youtubeUrl.isNullOrBlank()
+            ) {
+                active.youtubeUrl = candidate.youtubeUrl
+            }
+        } else {
+            // active session নেই, তাই নতুন session শুরু হবে
             activeYouTubeSession = YouTubeWatchSession(
                 videoId = candidate.videoId,
                 youtubeUrl = candidate.youtubeUrl,
@@ -716,6 +768,10 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 linkConfidence = candidate.linkConfidence,
                 screenType = candidate.screenType,
                 lastDetectionConfidence = candidate.confidence
+            )
+
+            youtubeRepository.addDebugLog(
+                "NEW_SESSION_STARTED title=${candidate.videoTitle}"
             )
         }
 
@@ -728,7 +784,12 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         val session = activeYouTubeSession ?: return
         // Try to enrich the Accessibility session with Android MediaSession metadata.
         val mediaSnapshot =
-            MediaSessionMetadataReader.readYouTubeSession(applicationContext)
+            MediaSessionMetadataReader.readYouTubeSession(
+                context = applicationContext,
+                debugLog = { message ->
+                    youtubeRepository.addDebugLog(message)
+                }
+            )
 
         if (mediaSnapshot != null) {
             youtubeRepository.addDebugLog(
@@ -745,11 +806,17 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         val duration = (now - session.startedAt) / 1000
 
-        val threshold = if (session.screenType == YouTubeScreenType.SHORTS) 2 else 5
+// ভিডিও ১ সেকেন্ড বা তার বেশি দেখা হলে history save হবে
+        val threshold = 1L
 
-        youtubeRepository.addDebugLog("HISTORY_SAVE_ATTEMPT: ${session.title}")
+        youtubeRepository.addDebugLog(
+            "HISTORY_SAVE_ATTEMPT: ${session.title}"
+        )
 
-        if (duration >= threshold && !session.title.isNullOrBlank()) {
+        if (
+            duration >= threshold &&
+            !session.title.isNullOrBlank()
+        ) {
             val activity = YouTubeActivity(
                 id = UUID.randomUUID().toString(),
                 videoTitle = session.title!!,
@@ -763,15 +830,30 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 endedAt = now,
                 watchDurationSeconds = duration
             )
+
             youtubeRepository.save(activity)
-            youtubeRepository.addDebugLog("SAVE_HISTORY: ${session.title} (${duration}s)")
-            com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(applicationContext)
+
+            youtubeRepository.addDebugLog(
+                "SAVE_HISTORY: ${session.title} (${duration}s)"
+            )
+
+            com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(
+                applicationContext
+            )
         } else {
-            val reason =
-                if (session.title.isNullOrBlank()) "EMPTY_TITLE" else "SHORT_DURATION (${duration}s)"
+            val reason = if (session.title.isNullOrBlank()) {
+                "EMPTY_TITLE"
+            } else {
+                "SHORT_DURATION (${duration}s)"
+            }
+
             youtubeRepository.droppedCount++
-            youtubeRepository.addDebugLog("SAVE_ABORT reason=$reason")
+
+            youtubeRepository.addDebugLog(
+                "SAVE_ABORT reason=$reason"
+            )
         }
+
         activeYouTubeSession = null
     }
 

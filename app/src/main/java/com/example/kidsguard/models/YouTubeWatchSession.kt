@@ -33,6 +33,7 @@ data class YouTubeMetadataCandidate(
 @Keep
 data class YouTubeWatchSession(
     val sessionId: String = UUID.randomUUID().toString(),
+    var apiResolutionAttempted: Boolean = false,
     var videoId: String? = null,
     var youtubeUrl: String? = null,
     var title: String? = null,
