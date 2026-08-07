@@ -763,7 +763,10 @@ const handleSaveOfflineAlertSettings = async () => {
                 </section>
 
                 {canManageWellbeing && (
-                    <LockSchedulePanel childId={childId} />
+                    <LockSchedulePanel
+                        childId={childId}
+                        canEdit={canManageWellbeing}
+                    />
                 )}
 
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
