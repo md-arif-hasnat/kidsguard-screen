@@ -2,6 +2,7 @@ import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getMessaging, Messaging } from "firebase/messaging";
+//import { getFunctions, Functions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,6 +18,7 @@ let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
 let messaging: Messaging | undefined;
+//let cloudFunctions: Functions | undefined;
 
 export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey &&
@@ -30,6 +32,7 @@ if (isFirebaseConfigured) {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   auth = getAuth(app);
   db = getFirestore(app);
+ // cloudFunctions = getFunctions(app);
 
   // Messaging only works in the browser
   if (typeof window !== "undefined") {

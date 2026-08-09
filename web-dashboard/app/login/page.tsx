@@ -11,6 +11,7 @@ import {
   loginWithGoogle,
   loginWithApple,
   signIn,
+  signOut,
   setupRecaptcha,
   loginWithPhone,
   resetPassword
@@ -46,19 +47,39 @@ export default function Login() {
   };
 
   useEffect(() => {
-    const unsub = observeAuth((user) => {
-        if (user && !loading) { // Only auto-redirect if we aren't already in a manual login flow
-            safeRedirect();
-        }
-    });
-    return () => unsub();
+      const unsub = observeAuth((user) => {
+          if (user && !loading) {
+              const isPasswordUser = user.providerData.some(
+                  (provider) => provider.providerId === "password"
+              );
+
+              if (isPasswordUser && !user.emailVerified) {
+                  void signOut();
+                  setError(
+                      "Please verify your email before accessing the dashboard."
+                  );
+                  return;
+              }
+
+              safeRedirect();
+          }
+      });
+
+      return () => unsub();
   }, [router, loading]);
 
   const handlePostLogin = async (user: any, provider: string) => {
     setLoading(true);
     setLoadingMessage("Setting up your family vault...");
     try {
-      let profile = await ParentRepository.createOrUpdateProfile(user, provider);
+        if (provider === "password" && !user.emailVerified) {
+            await signOut();
+            setError("Verification email sent. Please verify your email, then log in.");
+            setLoading(false);
+            return;
+        }
+
+        let profile = await ParentRepository.createOrUpdateProfile(user, provider);
 
       if (!profile.familyId) {
           setLoadingMessage("Creating new family vault...");

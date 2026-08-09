@@ -2,6 +2,7 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.kidsguard.BuildConfig
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.DeviceDoc
 import com.example.kidsguard.models.FamilyDoc
@@ -58,8 +59,18 @@ class AuthRepository(private val context: Context) {
     suspend fun signInWithEmail(email: String, password: String): Boolean {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
-            prefs.firebaseUid = result.user?.uid
-            true
+            val user = result.user ?: throw IllegalStateException("User not found")
+
+            user.reload().await()
+
+            if (!user.isEmailVerified) {
+                auth.signOut()
+                prefs.firebaseUid = null
+                false
+            } else {
+                prefs.firebaseUid = user.uid
+                true
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Email Sign-in failed", e)
             false
@@ -69,12 +80,21 @@ class AuthRepository(private val context: Context) {
     suspend fun signUpWithEmail(email: String, password: String): Boolean {
         return try {
             val result = auth.createUserWithEmailAndPassword(email, password).await()
-            prefs.firebaseUid = result.user?.uid
+            val user = result.user ?: throw IllegalStateException("User creation failed")
+
+            user.sendEmailVerification().await()
+            prefs.firebaseUid = user.uid
+
             true
         } catch (e: Exception) {
             Log.e(TAG, "Email Sign-up failed", e)
             false
         }
+    }
+
+    fun signOut() {
+        auth.signOut()
+        prefs.firebaseUid = null
     }
 
     suspend fun registerDevice(): Boolean {
@@ -141,7 +161,7 @@ class AuthRepository(private val context: Context) {
                             "platform" to "Android",
                             "deviceName" to prefs.deviceName,
                             "lastSeen" to Timestamp.now(),
-                            "appVersion" to "1.0.0"
+                            "appVersion" to BuildConfig.VERSION_NAME
                         ), com.google.firebase.firestore.SetOptions.merge()
                     )
                     .await()

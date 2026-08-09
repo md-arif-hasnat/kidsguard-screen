@@ -1,4 +1,5 @@
 import { db } from "../firebase";
+//import { httpsCallable } from "firebase/functions";
 import {
   doc,
   onSnapshot,
@@ -69,6 +70,13 @@ export interface FamilySettings {
   country: string;
   language: string;
   dataRetentionDays?: number; // Phase AI
+
+}
+
+export interface FamilySubscription {
+    status: "PENDING" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
+    baseChildSlots: number;
+    extraChildSlots: number;
 }
 
 export interface FamilyData {
@@ -78,11 +86,82 @@ export interface FamilyData {
   invites?: FamilyInvite[];
   childDeviceIds: string[];
   emergencyContacts?: EmergencyContact[];
+  subscription?: FamilySubscription;
   settings: FamilySettings;
   createdAt: any;
 }
 
 export class FamilyRepository {
+      private static async callAcceptPairingCode(
+        familyId: string,
+        pairingCode: string,
+        parentName: string
+      ): Promise<{
+        success: boolean;
+        childId: string;
+        deviceId: string;
+        childName: string;
+      }> {
+        const currentUser = auth?.currentUser;
+        const projectId =
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+        if (!currentUser || !projectId) {
+          throw new Error(
+            "User or Firebase project is unavailable."
+          );
+        }
+
+        const idToken = await currentUser.getIdToken();
+
+        const response = await fetch(
+          `https://us-central1-${projectId}.cloudfunctions.net/acceptPairingCode`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              data: {
+                familyId,
+                pairingCode,
+                parentName
+              }
+            })
+          }
+        );
+
+        const payload = await response.json();
+
+        if (!response.ok || payload.error) {
+          throw new Error(
+            payload.error?.message ||
+            "Secure pairing request failed."
+          );
+        }
+
+        return payload.result;
+      }
+    /*
+      private static getAcceptPairingCallable() {
+        if (!cloudFunctions) return null;
+
+        return httpsCallable<
+          {
+            familyId: string;
+            pairingCode: string;
+            parentName: string;
+          },
+          {
+            success: boolean;
+            childId: string;
+            deviceId: string;
+            childName: string;
+          }
+        >(cloudFunctions, "acceptPairingCode");
+      }
+  */
   static listenToFamily(familyId: string, onUpdate: (data: FamilyData | null) => void) {
     if (!db || !familyId) return () => {};
 
@@ -114,6 +193,11 @@ export class FamilyRepository {
         assignedChildren: ["*"]
       }],
       childDeviceIds: [],
+      subscription: {
+          status: "PENDING",
+          baseChildSlots: 2,
+          extraChildSlots: 0
+      },
       settings: {
         name: `${parentDisplayName || 'New'} Family`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -139,7 +223,8 @@ export class FamilyRepository {
     return familyId;
   }
 
-  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole, invitedBy: string, invitedByName?: string, callerRole?: FamilyRole): Promise<string> {
+  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole,
+      invitedBy: string, invitedByName?: string, callerRole?: FamilyRole): Promise<string> {
     if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
     if (!db) throw new Error("Firestore not initialized");
     const inviteId = uuidv4();
@@ -395,8 +480,56 @@ export class FamilyRepository {
 
   static async pairChild(familyId: string, pairingCode: string, parentName: string = "Parent"): Promise<boolean> {
     if (!db) return false;
+    //const parentUid = auth?.currentUser?.uid;
     const parentUid = auth?.currentUser?.uid;
+        if (!parentUid) {
+          console.error(
+            "WEB: Parent must be signed in before pairing."
+          );
+          return false;
+        }
 
+        try {
+          const result =
+            await this.callAcceptPairingCode(
+              familyId,
+              pairingCode,
+              parentName
+            );
+
+          if (!result.success) {
+            return false;
+          }
+
+          await AuditRepository.log({
+            actorUid: parentUid,
+            actorEmail:
+              auth?.currentUser?.email || "unknown",
+            familyId,
+            action: AuditAction.CHILD_PAIRED,
+            targetType: "CHILD",
+            targetId: result.childId,
+            severity: AuditSeverity.NOTICE,
+            metadata: {
+              childName:
+                result.childName || result.childId
+            }
+          });
+
+          console.log(
+            `WEB: Secure pairing successful for child ${result.childId}`
+          );
+
+          return true;
+        } catch (error) {
+          console.error(
+            "WEB: Secure pairing failed:",
+            error
+          );
+          return false;
+        }
+
+        /*if (!db) return false;
     console.log(`WEB: Searching for pair code: ${pairingCode}`);
     const codePath = `pairingCodes/${pairingCode}`;
     console.log(`WEB: Target Firestore path: ${codePath}`);
@@ -478,5 +611,6 @@ export class FamilyRepository {
 
     console.log(`WEB: Pairing successful for child ${childId}`);
     return true;
+    */
   }
 }
