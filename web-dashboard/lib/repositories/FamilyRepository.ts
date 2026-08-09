@@ -83,6 +83,7 @@ export interface FamilyData {
   familyId: string;
   ownerId: string;
   members: FamilyMember[];
+  memberUids?: string[];
   invites?: FamilyInvite[];
   childDeviceIds: string[];
   emergencyContacts?: EmergencyContact[];
@@ -162,6 +163,53 @@ export class FamilyRepository {
         >(cloudFunctions, "acceptPairingCode");
       }
   */
+    private static async callAcceptFamilyInvitation(
+      inviteId: string,
+      displayName: string
+    ): Promise<{
+      success: boolean;
+      familyId: string;
+    }> {
+      const currentUser = auth?.currentUser;
+      const projectId =
+        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+      if (!currentUser || !projectId) {
+        throw new Error(
+          "User or Firebase project is unavailable."
+        );
+      }
+
+      const idToken = await currentUser.getIdToken();
+
+      const response = await fetch(
+        `https://us-central1-${projectId}.cloudfunctions.net/acceptFamilyInvitation`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            data: {
+              inviteId,
+              displayName
+            }
+          })
+        }
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok || payload.error) {
+        throw new Error(
+          payload.error?.message ||
+          "Secure invitation request failed."
+        );
+      }
+
+      return payload.result;
+    }
   static listenToFamily(familyId: string, onUpdate: (data: FamilyData | null) => void) {
     if (!db || !familyId) return () => {};
 
@@ -192,6 +240,7 @@ export class FamilyRepository {
         joinedAt: Timestamp.now(),
         assignedChildren: ["*"]
       }],
+      memberUids: [parentId],
       childDeviceIds: [],
       subscription: {
           status: "PENDING",
@@ -289,6 +338,43 @@ export class FamilyRepository {
   static async acceptInvite(inviteId: string, uid: string, email: string, displayName: string): Promise<string> {
     if (!db) throw new Error("Firestore not initialized");
 
+        const currentUser = auth?.currentUser;
+
+        if (!currentUser || currentUser.uid !== uid) {
+          throw new Error(
+            "Authenticated user does not match invitation user."
+          );
+        }
+
+        const result =
+          await this.callAcceptFamilyInvitation(
+            inviteId,
+            displayName
+          );
+
+        if (!result.success) {
+          throw new Error(
+            "Secure invitation acceptance failed."
+          );
+        }
+
+        await AuditRepository.log({
+          actorUid: uid,
+          actorEmail: email,
+          familyId: result.familyId,
+          action: AuditAction.INVITE_ACCEPTED,
+          targetType: "MEMBER",
+          targetId: uid,
+          severity: AuditSeverity.NOTICE,
+          metadata: {
+            acceptedSecurely: true
+          }
+        });
+
+        return result.familyId;
+
+        /* LEGACY DIRECT INVITATION ACCEPTANCE - DISABLED
+
     const inviteRef = doc(db, "familyInvitations", inviteId);
     const inviteSnap = await getDoc(inviteRef);
     if (!inviteSnap.exists()) throw new Error("Invitation not found");
@@ -320,7 +406,8 @@ export class FamilyRepository {
     };
 
     await updateDoc(familyRef, {
-      members: arrayUnion(newMember)
+      members: arrayUnion(newMember),
+      memberUids: arrayUnion(uid)
     });
 
     // 3. Update family invites summary
@@ -349,6 +436,7 @@ export class FamilyRepository {
     });
 
     return invite.familyId;
+      */
   }
 
   static async revokeInvite(familyId: string, inviteId: string, callerRole?: FamilyRole): Promise<void> {

@@ -1,0 +1,330 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+        function isEmailVerified() {
+          return isSignedIn() &&
+            request.auth.token.email_verified == true;
+        }
+
+        function familyData(familyId) {
+          return get(
+            /databases/$(database)/documents/families/$(familyId)
+          ).data;
+        }
+
+        function isFamilyOwner(familyId) {
+          return isSignedIn() &&
+            familyData(familyId).ownerId == request.auth.uid;
+        }
+            function isDeviceOwner(deviceId) {
+              return isSignedIn() &&
+                get(
+                  /databases/$(database)/documents/devices/$(deviceId)
+                ).data.firebaseUid == request.auth.uid;
+            }
+
+            function isChildIdentity(childId) {
+              return isSignedIn() &&
+                get(
+                  /databases/$(database)/documents/children/$(childId)
+                ).data.firebaseUid == request.auth.uid;
+            }
+
+            function canReadChild(childId) {
+              let child = get(
+                /databases/$(database)/documents/children/$(childId)
+              ).data;
+
+              return isSignedIn() &&
+                (
+                  child.firebaseUid == request.auth.uid ||
+                  isFamilyMember(child.familyId)
+                );
+            }
+                function isParentForChild(childId) {
+                  let child = get(
+                    /databases/$(database)/documents/children/$(childId)
+                  ).data;
+
+                  return isEmailVerified() &&
+                    isFamilyMember(child.familyId);
+                }
+
+        function isFamilyMember(familyId) {
+          let family = familyData(familyId);
+
+          return isSignedIn() &&
+            (
+              family.ownerId == request.auth.uid ||
+              (
+                family.keys().hasAny(['memberUids']) &&
+                family.memberUids is list &&
+                request.auth.uid in family.memberUids
+              )
+            );
+        }
+    match /parents/{parentId} {
+      allow read: if isEmailVerified() &&
+        request.auth.uid == parentId;
+
+      allow create: if isEmailVerified() &&
+        request.auth.uid == parentId &&
+        request.resource.data.uid == request.auth.uid;
+
+      allow update, delete: if isEmailVerified() &&
+        request.auth.uid == parentId;
+
+      match /{document=**} {
+        allow read, write: if isEmailVerified() &&
+          request.auth.uid == parentId;
+      }
+    }
+        match /families/{familyId} {
+          allow read: if isFamilyMember(familyId);
+
+          allow create: if isEmailVerified() &&
+            request.resource.data.ownerId == request.auth.uid &&
+            request.resource.data.memberUids == [request.auth.uid] &&
+            request.resource.data.childDeviceIds is list &&
+            request.resource.data.childDeviceIds.size() == 0 &&
+            request.resource.data.subscription.baseChildSlots == 2 &&
+            request.resource.data.subscription.extraChildSlots == 0 &&
+            request.resource.data.subscription.status == 'PENDING';
+
+          allow update: if isFamilyOwner(familyId) &&
+            request.resource.data.ownerId == resource.data.ownerId &&
+            request.resource.data.childDeviceIds ==
+              resource.data.childDeviceIds &&
+            request.resource.data.subscription ==
+              resource.data.subscription;
+
+          allow delete: if false;
+                match /safeZones/{zoneId} {
+                  allow read: if isFamilyMember(familyId);
+                  allow write: if isFamilyOwner(familyId);
+                }
+        }
+            match /devices/{deviceId} {
+              allow create: if isSignedIn() &&
+                request.resource.data.firebaseUid == request.auth.uid &&
+                request.resource.data.deviceId == deviceId;
+
+                    allow read, delete: if isDeviceOwner(deviceId);
+
+                    allow update: if isDeviceOwner(deviceId) &&
+                      request.resource.data.firebaseUid ==
+                        resource.data.firebaseUid &&
+                      request.resource.data.deviceId ==
+                        resource.data.deviceId;
+            }
+
+            match /pairingCodes/{code} {
+              allow create: if isSignedIn() &&
+                code.matches('^[0-9]{6}$') &&
+                request.resource.data.code == code &&
+                request.resource.data.firebaseUid == request.auth.uid &&
+                request.resource.data.childId is string &&
+                request.resource.data.deviceId is string &&
+                isDeviceOwner(request.resource.data.deviceId) &&
+                request.resource.data.used == false &&
+                request.resource.data.expiresAt > request.time;
+
+              allow read, delete: if isSignedIn() &&
+                resource.data.firebaseUid == request.auth.uid;
+
+              // Only Admin Cloud Functions can update/consume a code.
+              allow update: if false;
+            }
+
+                match /children/{childId} {
+                  allow read: if canReadChild(childId);
+
+                  // Root child records are managed by Admin Cloud Functions.
+                  allow create, update, delete: if false;
+
+                  match /status/{statusId} {
+                    allow read: if canReadChild(childId);
+
+                    allow create, update: if isSignedIn() &&
+                      request.resource.data.childId == childId &&
+                      request.resource.data.deviceId is string &&
+                      isDeviceOwner(request.resource.data.deviceId);
+
+                    allow delete: if false;
+                  }
+                        match /safeZones/{zoneId} {
+                          allow read: if canReadChild(childId);
+                          allow write: if isParentForChild(childId);
+                        }
+
+                        match /locations/{locationId} {
+                          allow read: if canReadChild(childId);
+
+                          allow create: if isChildIdentity(childId);
+
+                          allow update, delete: if false;
+                        }
+
+                        match /activities/{activityId} {
+                          allow read: if canReadChild(childId);
+
+                          allow create: if isChildIdentity(childId);
+
+                          allow update, delete: if false;
+                        }
+                              match /remoteCommands/{commandId} {
+                                allow read: if canReadChild(childId);
+
+                                allow create, delete: if isParentForChild(childId);
+
+                                allow update: if isParentForChild(childId) ||
+                                  isChildIdentity(childId);
+                              }
+                                    match /installedApps/{appId} {
+                                      allow read: if canReadChild(childId);
+                                      allow write: if isChildIdentity(childId);
+                                    }
+
+                                    match /appUsage/{document=**} {
+                                      allow read: if canReadChild(childId);
+                                      allow write: if isChildIdentity(childId);
+                                    }
+
+                                    match /youtubeHistory/{historyId} {
+                                      allow read: if canReadChild(childId);
+                                      allow write: if isChildIdentity(childId);
+                                    }
+
+                                    match /webActivity/{document=**} {
+                                      allow read: if canReadChild(childId);
+                                      allow write: if isChildIdentity(childId);
+                                    }
+                                          match /appControls/{controlId} {
+                                            allow read: if canReadChild(childId);
+                                            allow write: if isParentForChild(childId);
+                                          }
+
+                                          match /settings/{settingId} {
+                                            allow read: if canReadChild(childId);
+                                            allow write: if isParentForChild(childId);
+                                          }
+
+                                          match /webRules/{ruleId} {
+                                            allow read: if canReadChild(childId);
+                                            allow write: if isParentForChild(childId);
+                                          }
+
+                                          match /protectionModes/{modeId} {
+                                            allow read: if canReadChild(childId);
+
+                                            allow write: if isParentForChild(childId) ||
+                                              isChildIdentity(childId);
+                                          }
+
+                                          match /accessRequests/{requestId} {
+                                            allow read: if canReadChild(childId);
+
+                                            allow create: if isChildIdentity(childId);
+
+                                            allow update: if isParentForChild(childId) ||
+                                              isChildIdentity(childId);
+
+                                            allow delete: if isParentForChild(childId);
+                                          }
+                }
+                    match /notifications/{notificationId} {
+                      allow read: if isEmailVerified() &&
+                        resource.data.userId == request.auth.uid;
+
+                      allow create, delete: if false;
+
+                      allow update: if isEmailVerified() &&
+                        resource.data.userId == request.auth.uid &&
+                        request.resource.data.userId ==
+                          resource.data.userId &&
+                        request.resource.data
+                          .diff(resource.data)
+                          .affectedKeys()
+                          .hasOnly(['read']) &&
+                        request.resource.data.read == true;
+                    }
+                        match /auditLogs/{auditId} {
+                          allow create: if isEmailVerified() &&
+                            request.resource.data.actorUid ==
+                              request.auth.uid &&
+                            request.resource.data.familyId is string &&
+                            isFamilyMember(
+                              request.resource.data.familyId
+                            );
+
+                          allow read: if isEmailVerified() &&
+                            resource.data.familyId is string &&
+                            isFamilyMember(resource.data.familyId);
+
+                          allow update, delete: if false;
+                        }
+                            match /users/{userId} {
+                              allow read, write: if isSignedIn() &&
+                                request.auth.uid == userId;
+
+                              match /{document=**} {
+                                allow read, write: if isSignedIn() &&
+                                  request.auth.uid == userId;
+                              }
+                            }
+                                match /appReleases/{releaseId} {
+                                  // Required by the public download/update page.
+                                  allow read: if true;
+
+                                  // Releases are published only by trusted Admin tools.
+                                  allow write: if false;
+                                }
+
+                                    match /familyInvitations/{inviteId} {
+                                      allow create: if isEmailVerified() &&
+                                        request.resource.data.familyId is string &&
+                                        isFamilyOwner(
+                                          request.resource.data.familyId
+                                        ) &&
+                                        request.resource.data.invitedBy ==
+                                          request.auth.uid &&
+                                        request.resource.data.status == 'PENDING' &&
+                                        request.resource.data.email is string &&
+                                        request.resource.data.expiresAt >
+                                          request.time &&
+                                        request.resource.data.role in [
+                                          'PARENT',
+                                          'GUARDIAN',
+                                          'VIEWER'
+                                        ];
+
+                                      allow read: if isEmailVerified() &&
+                                        (
+                                          isFamilyOwner(resource.data.familyId) ||
+                                          (
+                                            request.auth.token.email is string &&
+                                            request.auth.token.email.lower() ==
+                                              resource.data.email.lower()
+                                          )
+                                        );
+
+                                      // Family Owner may revoke/update an invitation.
+                                      // Acceptance is handled only by Admin Cloud Function.
+                                      allow update: if isFamilyOwner(
+                                        resource.data.familyId
+                                      );
+
+                                      allow delete: if false;
+                                    }
+                                
+    // Rules will be added collection by collection.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
