@@ -11,6 +11,14 @@ service cloud.firestore {
             request.auth.token.email_verified == true;
         }
 
+            function isAdmin() {
+              return isEmailVerified() &&
+                get(
+                  /databases/$(database)/documents/parents/$(request.auth.uid)
+                ).data.role == 'ADMIN';
+            }
+
+
         function familyData(familyId) {
           return get(
             /databases/$(database)/documents/families/$(familyId)
@@ -51,8 +59,8 @@ service cloud.firestore {
                     /databases/$(database)/documents/children/$(childId)
                   ).data;
 
-                  return isEmailVerified() &&
-                    isFamilyMember(child.familyId);
+                        return isEmailVerified() &&
+                          isFamilyManager(child.familyId);
                 }
 
         function isFamilyMember(familyId) {
@@ -68,16 +76,45 @@ service cloud.firestore {
               )
             );
         }
+            function isFamilyManager(familyId) {
+              let family = familyData(familyId);
+
+              return isEmailVerified() &&
+                (
+                  family.ownerId == request.auth.uid ||
+                  (
+                    family.keys().hasAny(['managerUids']) &&
+                    family.managerUids is list &&
+                    request.auth.uid in family.managerUids
+                  )
+                );
+            }
     match /parents/{parentId} {
       allow read: if isEmailVerified() &&
         request.auth.uid == parentId;
 
-      allow create: if isEmailVerified() &&
-        request.auth.uid == parentId &&
-        request.resource.data.uid == request.auth.uid;
+            allow create: if isEmailVerified() &&
+              request.auth.uid == parentId &&
+              request.resource.data.uid == request.auth.uid &&
+              (
+                !request.resource.data.keys().hasAny(['role']) ||
+                request.resource.data.role in [
+                  'OWNER',
+                  'PARENT',
+                  'GUARDIAN',
+                  'VIEWER'
+                ]
+              );
 
-      allow update, delete: if isEmailVerified() &&
-        request.auth.uid == parentId;
+            allow update: if isEmailVerified() &&
+              request.auth.uid == parentId &&
+              !request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasAny(['uid', 'role']);
+
+            allow delete: if isEmailVerified() &&
+              request.auth.uid == parentId;
 
       match /{document=**} {
         allow read, write: if isEmailVerified() &&
@@ -90,19 +127,24 @@ service cloud.firestore {
           allow create: if isEmailVerified() &&
             request.resource.data.ownerId == request.auth.uid &&
             request.resource.data.memberUids == [request.auth.uid] &&
+            request.resource.data.managerUids == [request.auth.uid] &&
             request.resource.data.childDeviceIds is list &&
             request.resource.data.childDeviceIds.size() == 0 &&
             request.resource.data.subscription.baseChildSlots == 2 &&
             request.resource.data.subscription.extraChildSlots == 0 &&
             request.resource.data.subscription.status == 'PENDING';
 
-          allow update: if isFamilyOwner(familyId) &&
-            request.resource.data.ownerId == resource.data.ownerId &&
-            request.resource.data.childDeviceIds ==
-              resource.data.childDeviceIds &&
-            request.resource.data.subscription ==
-              resource.data.subscription;
-
+                allow update: if isFamilyOwner(familyId) &&
+                  request.resource.data.ownerId ==
+                    resource.data.ownerId &&
+                  !request.resource.data
+                    .diff(resource.data)
+                    .affectedKeys()
+                    .hasAny([
+                      'ownerId',
+                      'childDeviceIds',
+                      'subscription'
+                    ]);
           allow delete: if false;
                 match /safeZones/{zoneId} {
                   allow read: if isFamilyMember(familyId);
@@ -150,10 +192,18 @@ service cloud.firestore {
                   match /status/{statusId} {
                     allow read: if canReadChild(childId);
 
-                    allow create, update: if isSignedIn() &&
-                      request.resource.data.childId == childId &&
-                      request.resource.data.deviceId is string &&
-                      isDeviceOwner(request.resource.data.deviceId);
+                            allow create: if isSignedIn() &&
+                              request.resource.data.childId == childId &&
+                              request.resource.data.deviceId is string &&
+                              isDeviceOwner(request.resource.data.deviceId);
+
+                            allow update: if isSignedIn() &&
+                              resource.data.childId == childId &&
+                              request.resource.data.childId ==
+                                resource.data.childId &&
+                              request.resource.data.deviceId ==
+                                resource.data.deviceId &&
+                              isDeviceOwner(resource.data.deviceId);
 
                     allow delete: if false;
                   }
@@ -176,7 +226,35 @@ service cloud.firestore {
                           allow create: if isChildIdentity(childId);
 
                           allow update, delete: if false;
+
                         }
+                              match /sosEvents/{eventId} {
+                                allow read: if canReadChild(childId);
+
+                                allow create: if isChildIdentity(childId);
+
+                                allow update: if isChildIdentity(childId) ||
+                                  isParentForChild(childId);
+
+                                allow delete: if false;
+                              }
+                                    match /dailySummaries/{summaryId} {
+                                      allow read: if canReadChild(childId);
+
+                                      // Generated only by trusted Admin Cloud Functions.
+                                      allow write: if false;
+                                    }
+
+                                    match /routeDeviations/{deviationId} {
+                                      allow read: if canReadChild(childId);
+
+                                      allow create: if isChildIdentity(childId);
+
+                                      allow update: if isChildIdentity(childId) ||
+                                        isParentForChild(childId);
+
+                                      allow delete: if false;
+                                    }
                               match /remoteCommands/{commandId} {
                                 allow read: if canReadChild(childId);
 
@@ -236,6 +314,23 @@ service cloud.firestore {
 
                                             allow delete: if isParentForChild(childId);
                                           }
+                      match /appAccessRequests/{requestId} {
+                        allow read: if canReadChild(childId);
+
+                        allow create: if isChildIdentity(childId);
+
+                        allow update: if isParentForChild(childId) ||
+                          isChildIdentity(childId);
+
+                        allow delete: if isParentForChild(childId);
+                      }
+
+                      match /analytics/{analyticsId} {
+                        allow read: if canReadChild(childId);
+
+                        // Generated only by trusted Admin Cloud Functions.
+                        allow write: if false;
+                      }
                 }
                     match /notifications/{notificationId} {
                       allow read: if isEmailVerified() &&
@@ -321,6 +416,44 @@ service cloud.firestore {
 
                                       allow delete: if false;
                                     }
+
+                                        match /supportTickets/{ticketId} {
+                                          allow create: if isEmailVerified() &&
+                                            request.resource.data.parentUid ==
+                                              request.auth.uid &&
+                                            request.resource.data.ticketId == ticketId &&
+                                            request.resource.data.status == 'OPEN' &&
+                                            request.resource.data.replies is list &&
+                                            request.resource.data.replies.size() == 0;
+
+                                          allow read: if isEmailVerified() &&
+                                            (
+                                              resource.data.parentUid ==
+                                                request.auth.uid ||
+                                              isAdmin()
+                                            );
+
+                                          allow update: if isAdmin() ||
+                                            (
+                                              isEmailVerified() &&
+                                              resource.data.parentUid ==
+                                                request.auth.uid &&
+                                              request.resource.data.parentUid ==
+                                                resource.data.parentUid &&
+                                              request.resource.data.ticketId ==
+                                                resource.data.ticketId &&
+                                              request.resource.data
+                                                .diff(resource.data)
+                                                .affectedKeys()
+                                                .hasOnly([
+                                                  'replies',
+                                                  'updatedAt',
+                                                  'status'
+                                                ])
+                                            );
+
+                                          allow delete: if isAdmin();
+                                        }
                                 
     // Rules will be added collection by collection.
     match /{document=**} {

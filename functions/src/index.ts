@@ -1483,6 +1483,10 @@ export const acceptFamilyInvitation =
                 admin.firestore.FieldValue.arrayUnion(uid),
               invites: updatedInvites
             };
+                if (role !== 'VIEWER') {
+                  familyUpdate.managerUids =
+                    admin.firestore.FieldValue.arrayUnion(uid);
+                }
 
             if (!memberUids.includes(uid)) {
               familyUpdate.members =

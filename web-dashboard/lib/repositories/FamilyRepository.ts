@@ -84,6 +84,7 @@ export interface FamilyData {
   ownerId: string;
   members: FamilyMember[];
   memberUids?: string[];
+  managerUids?: string[];
   invites?: FamilyInvite[];
   childDeviceIds: string[];
   emergencyContacts?: EmergencyContact[];
@@ -241,6 +242,7 @@ export class FamilyRepository {
         assignedChildren: ["*"]
       }],
       memberUids: [parentId],
+      managerUids: [parentId],
       childDeviceIds: [],
       subscription: {
           status: "PENDING",
@@ -469,8 +471,25 @@ export class FamilyRepository {
     const updatedMembers = data.members.map(m =>
       m.uid === memberUid ? { ...m, role: newRole } : m
     );
+const currentManagerUids =
+  data.managerUids ?? [data.ownerId];
 
-    await updateDoc(familyRef, { members: updatedMembers });
+const updatedManagerUids =
+  newRole === FamilyRole.VIEWER
+    ? currentManagerUids.filter(
+        uid => uid !== memberUid
+      )
+    : Array.from(
+        new Set([
+          ...currentManagerUids,
+          memberUid
+        ])
+      );
+
+    await updateDoc(familyRef, {
+      members: updatedMembers,
+      managerUids: updatedManagerUids
+    });
 
     await AuditRepository.log({
       actorUid: "current_user",
