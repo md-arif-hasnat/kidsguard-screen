@@ -1304,6 +1304,232 @@ export const acceptPairingCode = functions.https.onCall(
   }
 );
 
+export const acceptFamilyInvitation =
+  functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'You must be signed in to accept an invitation.'
+      );
+    }
+
+    const inviteId =
+      typeof data?.inviteId === 'string'
+        ? data.inviteId.trim()
+        : '';
+
+    const displayName =
+      typeof data?.displayName === 'string' &&
+      data.displayName.trim()
+        ? data.displayName.trim()
+        : 'Parent';
+
+    const email =
+      typeof context.auth.token.email === 'string'
+        ? context.auth.token.email.toLowerCase()
+        : '';
+
+    if (
+      !inviteId ||
+      !email ||
+      context.auth.token.email_verified !== true
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'A verified email and valid invitation are required.'
+      );
+    }
+
+    const uid = context.auth.uid;
+    const inviteRef = db
+      .collection('familyInvitations')
+      .doc(inviteId);
+
+    const inviteSnapshot = await inviteRef.get();
+
+    if (!inviteSnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Invitation not found.'
+      );
+    }
+
+    const inviteData = inviteSnapshot.data() || {};
+
+    if (inviteData.status !== 'PENDING') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Invitation is ${inviteData.status || 'invalid'}.`
+      );
+    }
+
+    if (
+      typeof inviteData.email !== 'string' ||
+      inviteData.email.toLowerCase() !== email
+    ) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'This invitation was sent to another email address.'
+      );
+    }
+
+    const expiresAtMillis =
+      typeof inviteData.expiresAt?.toMillis === 'function'
+        ? inviteData.expiresAt.toMillis()
+        : 0;
+
+    if (expiresAtMillis <= Date.now()) {
+      throw new functions.https.HttpsError(
+        'deadline-exceeded',
+        'This invitation has expired.'
+      );
+    }
+
+    const familyId = inviteData.familyId;
+    const role = inviteData.role;
+
+    if (
+      typeof familyId !== 'string' ||
+      !familyId ||
+      !['PARENT', 'GUARDIAN', 'VIEWER'].includes(role)
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Invitation data is incomplete or invalid.'
+      );
+    }
+
+        const acceptedFamilyId = await db.runTransaction(
+          async (transaction) => {
+            const latestInviteSnapshot =
+              await transaction.get(inviteRef);
+
+            const familyRef = db
+              .collection('families')
+              .doc(familyId);
+
+            const familySnapshot =
+              await transaction.get(familyRef);
+
+            if (!latestInviteSnapshot.exists) {
+              throw new functions.https.HttpsError(
+                'not-found',
+                'Invitation no longer exists.'
+              );
+            }
+
+            if (!familySnapshot.exists) {
+              throw new functions.https.HttpsError(
+                'not-found',
+                'Family not found.'
+              );
+            }
+
+            const latestInviteData =
+              latestInviteSnapshot.data() || {};
+
+            if (
+              latestInviteData.status !== 'PENDING' ||
+              latestInviteData.familyId !== familyId ||
+              typeof latestInviteData.email !== 'string' ||
+              latestInviteData.email.toLowerCase() !== email
+            ) {
+              throw new functions.https.HttpsError(
+                'failed-precondition',
+                'Invitation changed or is no longer valid.'
+              );
+            }
+
+            const latestExpiry =
+              typeof latestInviteData.expiresAt?.toMillis ===
+              'function'
+                ? latestInviteData.expiresAt.toMillis()
+                : 0;
+
+            if (latestExpiry <= Date.now()) {
+              throw new functions.https.HttpsError(
+                'deadline-exceeded',
+                'This invitation has expired.'
+              );
+            }
+
+            const familyData =
+              familySnapshot.data() || {};
+
+            const memberUids = Array.isArray(
+              familyData.memberUids
+            )
+              ? familyData.memberUids
+              : [];
+
+            const familyInvites = Array.isArray(
+              familyData.invites
+            )
+              ? familyData.invites
+              : [];
+
+            const updatedInvites = familyInvites.map(
+              (invite: any) =>
+                invite?.id === inviteId
+                  ? {
+                      ...invite,
+                      status: 'ACCEPTED'
+                    }
+                  : invite
+            );
+
+            const familyUpdate: any = {
+              memberUids:
+                admin.firestore.FieldValue.arrayUnion(uid),
+              invites: updatedInvites
+            };
+
+            if (!memberUids.includes(uid)) {
+              familyUpdate.members =
+                admin.firestore.FieldValue.arrayUnion({
+                  uid,
+                  email,
+                  displayName,
+                  role,
+                  joinedAt:
+                    admin.firestore.Timestamp.now(),
+                  invitedBy:
+                    latestInviteData.invitedBy || null,
+                  assignedChildren: ['*']
+                });
+            }
+
+            transaction.update(familyRef, familyUpdate);
+
+            transaction.update(inviteRef, {
+              status: 'ACCEPTED',
+              acceptedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+              acceptedByUid: uid
+            });
+
+            const parentRef = db
+              .collection('parents')
+              .doc(uid);
+
+            transaction.set(
+              parentRef,
+              {
+                familyId
+              },
+              { merge: true }
+            );
+
+            return familyId;
+          }
+        );
+
+        return {
+          success: true,
+          familyId: acceptedFamilyId
+        };
+  });
+
 
 
 
