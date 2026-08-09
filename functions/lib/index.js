@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -320,6 +320,163 @@ class EmailService {
         return Promise.resolve();
     }
 }
+function formatOfflineDuration(totalMinutes) {
+    if (totalMinutes < 60) {
+        return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
+    }
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (minutes === 0) {
+        return `${hours} hour${hours === 1 ? "" : "s"}`;
+    }
+    return `${hours}h ${minutes}m`;
+}
+function formatBerlinTime(timestampMs) {
+    return new Date(timestampMs).toLocaleString("en-GB", {
+        timeZone: "Europe/Berlin",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+exports.checkOfflineChildren = functions.pubsub
+    .schedule("every 5 minutes")
+    .timeZone("Europe/Berlin")
+    .onRun(async () => {
+    const now = Date.now();
+    const childrenSnapshot = await db.collection("children").get();
+    for (const childDocument of childrenSnapshot.docs) {
+        const childId = childDocument.id;
+        try {
+            const statusRef = db
+                .collection("children")
+                .doc(childId)
+                .collection("status")
+                .doc("current");
+            const settingsRef = db
+                .collection("children")
+                .doc(childId)
+                .collection("settings")
+                .doc("offlineAlert");
+            const offlineStateRef = db
+                .collection("children")
+                .doc(childId)
+                .collection("system")
+                .doc("offlineState");
+            const [statusSnapshot, settingsSnapshot, stateSnapshot] = await Promise.all([
+                statusRef.get(),
+                settingsRef.get(),
+                offlineStateRef.get(),
+            ]);
+            if (!statusSnapshot.exists) {
+                console.warn(`Offline check skipped: no status found for child ${childId}`);
+                continue;
+            }
+            const status = statusSnapshot.data() || {};
+            const settings = settingsSnapshot.data() || {};
+            const state = stateSnapshot.data() || {};
+            const enabled = settings.enabled !== false;
+            const requestedThreshold = Number(settings.thresholdMinutes);
+            const thresholdMinutes = Number.isFinite(requestedThreshold) &&
+                requestedThreshold >= 10
+                ? requestedThreshold
+                : 30;
+            const lastSeen = Number(status.lastSeen || 0);
+            const childName = status.childName ||
+                childDocument.data().name ||
+                "Child";
+            if (!enabled || lastSeen <= 0) {
+                continue;
+            }
+            const elapsedMs = now - lastSeen;
+            const elapsedMinutes = Math.floor(elapsedMs / (60 * 1000));
+            const isPastOfflineThreshold = elapsedMinutes >= thresholdMinutes;
+            const offlineAlertSent = state.offlineAlertSent === true;
+            if (isPastOfflineThreshold &&
+                !offlineAlertSent) {
+                await offlineStateRef.set({
+                    offlineAlertSent: true,
+                    offlineSince: lastSeen,
+                    offlineAlertSentAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, {
+                    merge: true,
+                });
+                try {
+                    await broadcastToParents(childId, {
+                        title: `${childName} is offline`,
+                        body: `${childName}'s device has been offline since ` +
+                            `${formatBerlinTime(lastSeen)} ` +
+                            `(${formatOfflineDuration(elapsedMinutes)}).`,
+                        type: "DEVICE_OFFLINE",
+                        childId,
+                        eventId: `offline-${childId}-${lastSeen}`,
+                        clickAction: `/dashboard/${childId}`,
+                    });
+                    console.log(`Offline alert sent for ${childName} (${childId})`);
+                }
+                catch (error) {
+                    await offlineStateRef.set({
+                        offlineAlertSent: false,
+                        offlineAlertErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, {
+                        merge: true,
+                    });
+                    throw error;
+                }
+                continue;
+            }
+            if (!isPastOfflineThreshold &&
+                offlineAlertSent) {
+                const offlineSince = Number(state.offlineSince || lastSeen);
+                const offlineDurationMinutes = Math.max(1, Math.floor((lastSeen - offlineSince) / (60 * 1000)));
+                await offlineStateRef.set({
+                    offlineAlertSent: false,
+                    offlineSince: admin.firestore.FieldValue.delete(),
+                    backOnlineAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, {
+                    merge: true,
+                });
+                try {
+                    await broadcastToParents(childId, {
+                        title: `${childName} is back online`,
+                        body: `${childName}'s device reconnected at ` +
+                            `${formatBerlinTime(lastSeen)} after being offline for ` +
+                            `${formatOfflineDuration(offlineDurationMinutes)}.`,
+                        type: "DEVICE_BACK_ONLINE",
+                        childId,
+                        eventId: `online-${childId}-${lastSeen}`,
+                        clickAction: `/dashboard/${childId}`,
+                    });
+                    console.log(`Back-online alert sent for ${childName} (${childId})`);
+                }
+                catch (error) {
+                    await offlineStateRef.set({
+                        offlineAlertSent: true,
+                        offlineSince,
+                        backOnlineErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, {
+                        merge: true,
+                    });
+                    throw error;
+                }
+                continue;
+            }
+            await offlineStateRef.set({
+                lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {
+                merge: true,
+            });
+        }
+        catch (error) {
+            console.error(`Offline check failed for child ${childId}:`, error);
+        }
+    }
+    return null;
+});
 async function broadcastToParents(childId, payload) {
     const familyQuery = await db.collection('families')
         .where('childDeviceIds', 'array-contains', childId)
@@ -558,4 +715,177 @@ async function notifyParent(uid, payload) {
         console.error(`Error sending FCM to parent ${uid}:`, error);
     }
 }
+function getAllowedChildSlots(familyData) {
+    const subscription = familyData?.subscription;
+    const baseChildSlots = Number.isInteger(subscription?.baseChildSlots) &&
+        subscription.baseChildSlots >= 0
+        ? subscription.baseChildSlots
+        : 2;
+    const extraChildSlots = Number.isInteger(subscription?.extraChildSlots) &&
+        subscription.extraChildSlots >= 0
+        ? subscription.extraChildSlots
+        : 0;
+    return baseChildSlots + extraChildSlots;
+}
+exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in to pair a child.');
+    }
+    const pairingCode = typeof data?.pairingCode === 'string'
+        ? data.pairingCode.trim()
+        : '';
+    const familyId = typeof data?.familyId === 'string'
+        ? data.familyId.trim()
+        : '';
+    if (!/^\d{6}$/.test(pairingCode) || !familyId) {
+        throw new functions.https.HttpsError('invalid-argument', 'A valid 6-digit pairing code and familyId are required.');
+    }
+    const uid = context.auth.uid;
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+    }
+    const familyData = familySnapshot.data() || {};
+    const members = Array.isArray(familyData.members)
+        ? familyData.members
+        : [];
+    const canPairChild = familyData.ownerId === uid ||
+        members.some((member) => member?.uid === uid &&
+            (member?.role === 'OWNER' || member?.role === 'PARENT'));
+    if (!canPairChild) {
+        throw new functions.https.HttpsError('permission-denied', 'You do not have permission to add a child to this family.');
+    }
+    const pairingRef = db.collection('pairingCodes').doc(pairingCode);
+    const pairingSnapshot = await pairingRef.get();
+    if (!pairingSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pairing code not found.');
+    }
+    const pairingData = pairingSnapshot.data() || {};
+    if (pairingData.used === true) {
+        throw new functions.https.HttpsError('already-exists', 'This pairing code has already been used.');
+    }
+    const expiresAtMillis = typeof pairingData.expiresAt?.toMillis === 'function'
+        ? pairingData.expiresAt.toMillis()
+        : 0;
+    if (expiresAtMillis <= Date.now()) {
+        throw new functions.https.HttpsError('deadline-exceeded', 'This pairing code has expired.');
+    }
+    if (typeof pairingData.childId !== 'string' ||
+        !pairingData.childId ||
+        typeof pairingData.firebaseUid !== 'string' ||
+        !pairingData.firebaseUid) {
+        throw new functions.https.HttpsError('failed-precondition', 'Pairing code data is incomplete.');
+    }
+    const childId = pairingData.childId;
+    const deviceId = typeof pairingData.deviceId === 'string' &&
+        pairingData.deviceId
+        ? pairingData.deviceId
+        : pairingData.childDeviceId;
+    if (typeof deviceId !== 'string' || !deviceId) {
+        throw new functions.https.HttpsError('failed-precondition', 'Pairing code does not contain a valid deviceId.');
+    }
+    const parentName = typeof data?.parentName === 'string' &&
+        data.parentName.trim()
+        ? data.parentName.trim()
+        : 'Parent';
+    const currentChildIds = Array.isArray(familyData.childDeviceIds)
+        ? familyData.childDeviceIds.filter((id) => typeof id === 'string')
+        : [];
+    const childAlreadyPaired = currentChildIds.includes(childId);
+    const allowedChildSlots = getAllowedChildSlots(familyData);
+    if (!childAlreadyPaired &&
+        currentChildIds.length >= allowedChildSlots) {
+        throw new functions.https.HttpsError('resource-exhausted', `Your subscription allows ${allowedChildSlots} child device(s).`);
+    }
+    const pairingResult = await db.runTransaction(async (transaction) => {
+        const latestFamilySnapshot = await transaction.get(familyRef);
+        const latestPairingSnapshot = await transaction.get(pairingRef);
+        if (!latestFamilySnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Family not found during pairing.');
+        }
+        if (!latestPairingSnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Pairing code not found during pairing.');
+        }
+        const latestFamilyData = latestFamilySnapshot.data() || {};
+        const latestPairingData = latestPairingSnapshot.data() || {};
+        const latestMembers = Array.isArray(latestFamilyData.members)
+            ? latestFamilyData.members
+            : [];
+        const stillAllowedToPair = latestFamilyData.ownerId === uid ||
+            latestMembers.some((member) => member?.uid === uid &&
+                (member?.role === 'OWNER' || member?.role === 'PARENT'));
+        if (!stillAllowedToPair) {
+            throw new functions.https.HttpsError('permission-denied', 'You no longer have permission to add a child.');
+        }
+        if (latestPairingData.used === true) {
+            throw new functions.https.HttpsError('already-exists', 'This pairing code has already been used.');
+        }
+        const latestExpiry = typeof latestPairingData.expiresAt?.toMillis === 'function'
+            ? latestPairingData.expiresAt.toMillis()
+            : 0;
+        if (latestExpiry <= Date.now()) {
+            throw new functions.https.HttpsError('deadline-exceeded', 'This pairing code has expired.');
+        }
+        const latestChildId = latestPairingData.childId;
+        const latestDeviceId = latestPairingData.deviceId ||
+            latestPairingData.childDeviceId;
+        if (typeof latestChildId !== 'string' ||
+            !latestChildId ||
+            typeof latestDeviceId !== 'string' ||
+            !latestDeviceId ||
+            latestPairingData.firebaseUid !== pairingData.firebaseUid) {
+            throw new functions.https.HttpsError('failed-precondition', 'Pairing data changed or is incomplete.');
+        }
+        const latestChildIds = Array.isArray(latestFamilyData.childDeviceIds)
+            ? latestFamilyData.childDeviceIds.filter((id) => typeof id === 'string')
+            : [];
+        const latestAllowedSlots = getAllowedChildSlots(latestFamilyData);
+        if (!latestChildIds.includes(latestChildId) &&
+            latestChildIds.length >= latestAllowedSlots) {
+            throw new functions.https.HttpsError('resource-exhausted', `Your subscription allows ${latestAllowedSlots} child device(s).`);
+        }
+        const childRef = db
+            .collection('children')
+            .doc(latestChildId);
+        const existingChildSnapshot = await transaction.get(childRef);
+        if (existingChildSnapshot.exists) {
+            const existingChildData = existingChildSnapshot.data() || {};
+            if (typeof existingChildData.familyId === 'string' &&
+                existingChildData.familyId &&
+                existingChildData.familyId !== familyId) {
+                throw new functions.https.HttpsError('already-exists', 'This child is already paired with another family.');
+            }
+        }
+        transaction.update(familyRef, {
+            childDeviceIds: admin.firestore.FieldValue.arrayUnion(latestChildId)
+        });
+        transaction.set(childRef, {
+            childId: latestChildId,
+            deviceId: latestDeviceId,
+            firebaseUid: latestPairingData.firebaseUid,
+            name: latestPairingData.childName || 'Unnamed Child',
+            avatarId: latestPairingData.avatarId || 'avatar_1',
+            familyId,
+            pairedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastSeen: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        transaction.update(pairingRef, {
+            used: true,
+            familyId,
+            parentUid: uid,
+            parentName,
+            pairedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return {
+            childId: latestChildId,
+            deviceId: latestDeviceId,
+            childName: latestPairingData.childName || 'Unnamed Child'
+        };
+    });
+    return {
+        success: true,
+        ...pairingResult
+    };
+});
 //# sourceMappingURL=index.js.map

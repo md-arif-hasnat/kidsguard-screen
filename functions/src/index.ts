@@ -384,7 +384,8 @@ class EmailService {
 interface NotificationPayload {
     title: string;
     body: string;
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
+    //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -978,3 +979,333 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         console.error(`Error sending FCM to parent ${uid}:`, error);
     }
 }
+
+function getAllowedChildSlots(familyData: any): number {
+    const subscription = familyData?.subscription;
+
+    const baseChildSlots =
+        Number.isInteger(subscription?.baseChildSlots) &&
+        subscription.baseChildSlots >= 0
+            ? subscription.baseChildSlots
+            : 2;
+
+    const extraChildSlots =
+        Number.isInteger(subscription?.extraChildSlots) &&
+        subscription.extraChildSlots >= 0
+            ? subscription.extraChildSlots
+            : 0;
+
+    return baseChildSlots + extraChildSlots;
+}
+
+export const acceptPairingCode = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'You must be signed in to pair a child.'
+      );
+    }
+    const pairingCode =
+      typeof data?.pairingCode === 'string'
+        ? data.pairingCode.trim()
+        : '';
+
+    const familyId =
+      typeof data?.familyId === 'string'
+        ? data.familyId.trim()
+        : '';
+
+    if (!/^\d{6}$/.test(pairingCode) || !familyId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid 6-digit pairing code and familyId are required.'
+      );
+    }
+
+// authenticated user ওই family-এর Parent/Owner কি না, সেটা backend-এ যাচাই করব।
+    const uid = context.auth.uid;
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+
+    if (!familySnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Family not found.'
+      );
+    }
+
+    const familyData = familySnapshot.data() || {};
+    const members = Array.isArray(familyData.members)
+      ? familyData.members
+      : [];
+
+    const canPairChild =
+      familyData.ownerId === uid ||
+      members.some(
+        (member: any) =>
+          member?.uid === uid &&
+          (member?.role === 'OWNER' || member?.role === 'PARENT')
+      );
+
+    if (!canPairChild) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You do not have permission to add a child to this family.'
+      );
+    }
+
+// pairing code Firestore-এ আছে, ব্যবহৃত হয়নি এবং expire করেনি—এগুলো যাচাই করব।
+
+    const pairingRef = db.collection('pairingCodes').doc(pairingCode);
+    const pairingSnapshot = await pairingRef.get();
+
+    if (!pairingSnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Pairing code not found.'
+      );
+    }
+
+    const pairingData = pairingSnapshot.data() || {};
+
+    if (pairingData.used === true) {
+      throw new functions.https.HttpsError(
+        'already-exists',
+        'This pairing code has already been used.'
+      );
+    }
+
+    const expiresAtMillis =
+      typeof pairingData.expiresAt?.toMillis === 'function'
+        ? pairingData.expiresAt.toMillis()
+        : 0;
+
+    if (expiresAtMillis <= Date.now()) {
+      throw new functions.https.HttpsError(
+        'deadline-exceeded',
+        'This pairing code has expired.'
+      );
+    }
+
+    if (
+      typeof pairingData.childId !== 'string' ||
+      !pairingData.childId ||
+      typeof pairingData.firebaseUid !== 'string' ||
+      !pairingData.firebaseUid
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Pairing code data is incomplete.'
+      );
+    }
+
+//subscription slot check
+    const childId = pairingData.childId;
+        const deviceId =
+          typeof pairingData.deviceId === 'string' &&
+          pairingData.deviceId
+            ? pairingData.deviceId
+            : pairingData.childDeviceId;
+
+        if (typeof deviceId !== 'string' || !deviceId) {
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            'Pairing code does not contain a valid deviceId.'
+          );
+        }
+
+        const parentName =
+          typeof data?.parentName === 'string' &&
+          data.parentName.trim()
+            ? data.parentName.trim()
+            : 'Parent';
+
+    const currentChildIds = Array.isArray(familyData.childDeviceIds)
+      ? familyData.childDeviceIds.filter(
+          (id: unknown): id is string => typeof id === 'string'
+        )
+      : [];
+
+    const childAlreadyPaired = currentChildIds.includes(childId);
+    const allowedChildSlots = getAllowedChildSlots(familyData);
+
+    if (
+      !childAlreadyPaired &&
+      currentChildIds.length >= allowedChildSlots
+    ) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        `Your subscription allows ${allowedChildSlots} child device(s).`
+      );
+    }
+    const pairingResult = await db.runTransaction(async (transaction) => {
+      const latestFamilySnapshot = await transaction.get(familyRef);
+      const latestPairingSnapshot = await transaction.get(pairingRef);
+
+      if (!latestFamilySnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Family not found during pairing.'
+        );
+      }
+
+      if (!latestPairingSnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Pairing code not found during pairing.'
+        );
+      }
+          const latestFamilyData = latestFamilySnapshot.data() || {};
+          const latestPairingData = latestPairingSnapshot.data() || {};
+
+          const latestMembers = Array.isArray(latestFamilyData.members)
+            ? latestFamilyData.members
+            : [];
+
+          const stillAllowedToPair =
+            latestFamilyData.ownerId === uid ||
+            latestMembers.some(
+              (member: any) =>
+                member?.uid === uid &&
+                (member?.role === 'OWNER' || member?.role === 'PARENT')
+            );
+
+          if (!stillAllowedToPair) {
+            throw new functions.https.HttpsError(
+              'permission-denied',
+              'You no longer have permission to add a child.'
+            );
+          }
+
+          if (latestPairingData.used === true) {
+            throw new functions.https.HttpsError(
+              'already-exists',
+              'This pairing code has already been used.'
+            );
+          }
+
+          const latestExpiry =
+            typeof latestPairingData.expiresAt?.toMillis === 'function'
+              ? latestPairingData.expiresAt.toMillis()
+              : 0;
+
+          if (latestExpiry <= Date.now()) {
+            throw new functions.https.HttpsError(
+              'deadline-exceeded',
+              'This pairing code has expired.'
+            );
+          }
+
+          const latestChildId = latestPairingData.childId;
+          const latestDeviceId =
+            latestPairingData.deviceId ||
+            latestPairingData.childDeviceId;
+
+          if (
+            typeof latestChildId !== 'string' ||
+            !latestChildId ||
+            typeof latestDeviceId !== 'string' ||
+            !latestDeviceId ||
+            latestPairingData.firebaseUid !== pairingData.firebaseUid
+          ) {
+            throw new functions.https.HttpsError(
+              'failed-precondition',
+              'Pairing data changed or is incomplete.'
+            );
+          }
+
+          const latestChildIds = Array.isArray(
+            latestFamilyData.childDeviceIds
+          )
+            ? latestFamilyData.childDeviceIds.filter(
+                (id: unknown): id is string => typeof id === 'string'
+              )
+            : [];
+
+          const latestAllowedSlots =
+            getAllowedChildSlots(latestFamilyData);
+
+          if (
+            !latestChildIds.includes(latestChildId) &&
+            latestChildIds.length >= latestAllowedSlots
+          ) {
+            throw new functions.https.HttpsError(
+              'resource-exhausted',
+              `Your subscription allows ${latestAllowedSlots} child device(s).`
+            );
+          }
+            const childRef = db
+              .collection('children')
+              .doc(latestChildId);
+
+                    const existingChildSnapshot =
+                      await transaction.get(childRef);
+
+                    if (existingChildSnapshot.exists) {
+                      const existingChildData =
+                        existingChildSnapshot.data() || {};
+
+                      if (
+                        typeof existingChildData.familyId === 'string' &&
+                        existingChildData.familyId &&
+                        existingChildData.familyId !== familyId
+                      ) {
+                        throw new functions.https.HttpsError(
+                          'already-exists',
+                          'This child is already paired with another family.'
+                        );
+                      }
+                    }
+
+            transaction.update(familyRef, {
+              childDeviceIds:
+                admin.firestore.FieldValue.arrayUnion(latestChildId)
+            });
+
+            transaction.set(
+              childRef,
+              {
+                childId: latestChildId,
+                deviceId: latestDeviceId,
+                firebaseUid: latestPairingData.firebaseUid,
+                name: latestPairingData.childName || 'Unnamed Child',
+                avatarId: latestPairingData.avatarId || 'avatar_1',
+                familyId,
+                pairedAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+                lastSeen:
+                  admin.firestore.FieldValue.serverTimestamp()
+              },
+              { merge: true }
+            );
+
+            transaction.update(pairingRef, {
+              used: true,
+              familyId,
+              parentUid: uid,
+              parentName,
+              pairedAt:
+                admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return {
+              childId: latestChildId,
+              deviceId: latestDeviceId,
+              childName:
+                latestPairingData.childName || 'Unnamed Child'
+            };
+    });
+
+        return {
+          success: true,
+          ...pairingResult
+        };
+  }
+);
+
+
+
+
+
+
