@@ -979,6 +979,10 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             memberUids: admin.firestore.FieldValue.arrayUnion(uid),
             invites: updatedInvites
         };
+        if (role !== 'VIEWER') {
+            familyUpdate.managerUids =
+                admin.firestore.FieldValue.arrayUnion(uid);
+        }
         if (!memberUids.includes(uid)) {
             familyUpdate.members =
                 admin.firestore.FieldValue.arrayUnion({
