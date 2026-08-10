@@ -116,7 +116,7 @@ service cloud.firestore {
             allow delete: if isEmailVerified() &&
               request.auth.uid == parentId;
 
-      match /{document=**} {
+      match /{subcollection}/{documentId}/{nested=**} {
         allow read, write: if isEmailVerified() &&
           request.auth.uid == parentId;
       }
