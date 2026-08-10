@@ -25,6 +25,7 @@
     "undici": "5.28.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
     "@types/google.maps": "^3.55.2",
     "@types/node": "^20",
     "@types/react": "^18",
