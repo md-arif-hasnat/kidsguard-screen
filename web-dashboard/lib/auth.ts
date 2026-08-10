@@ -42,7 +42,13 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
   if (!auth) return null;
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(result.user);
+    await sendEmailVerification(
+      result.user,
+      {
+        url: `${window.location.origin}/login`,
+        handleCodeInApp: false
+      }
+    );
     return result.user;
   } catch (error) {
     console.error("Signup failed:", error);
