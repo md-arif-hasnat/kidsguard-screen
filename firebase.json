@@ -2,7 +2,7 @@
   "firestore": {
     "database": "(default)",
     "location": "europe-west10",
-    "rules": "firestore.rules",
+    "rules": "firestore.rules.production",
     "indexes": "firestore.indexes.json"
   },
   "functions": [
