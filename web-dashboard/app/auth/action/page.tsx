@@ -18,16 +18,19 @@ export default function EmailActionPage() {
       const mode = params.get("mode");
       const oobCode = params.get("oobCode");
 
-      if (
-        !auth ||
-        mode !== "verifyEmail" ||
-        !oobCode
-      ) {
-        setMessage(
-          "This verification link is invalid."
-        );
-        return;
-      }
+            if (!auth || !mode || !oobCode) {
+              setMessage(
+                "This verification link is invalid."
+              );
+              return;
+            }
+
+            if (mode !== "verifyEmail") {
+              window.location.replace(
+                `https://kidsguard-0626.firebaseapp.com/__/auth/action${window.location.search}`
+              );
+              return;
+            }
 
       try {
         await applyActionCode(auth, oobCode);
