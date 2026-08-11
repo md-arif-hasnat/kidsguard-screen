@@ -93,9 +93,18 @@ service cloud.firestore {
       allow read: if isEmailVerified() &&
         request.auth.uid == parentId;
 
-            allow create: if isEmailVerified() &&
+            allow create: if isSignedIn() &&
               request.auth.uid == parentId &&
               request.resource.data.uid == request.auth.uid &&
+              (
+                isEmailVerified() ||
+                request.resource.data.keys().hasAll([
+                  'legalConsentAcceptedAt',
+                  'termsVersion',
+                  'privacyVersion',
+                  'adultConfirmedAt'
+                ])
+              ) &&
               (
                 !request.resource.data.keys().hasAny(['role']) ||
                 request.resource.data.role in [
