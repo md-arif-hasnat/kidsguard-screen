@@ -15,6 +15,10 @@ export interface ParentProfile {
   lastActiveDate?: string; // Phase AQ (YYYY-MM-DD)
   createdAt: any;
   lastLoginAt: any;
+  legalConsentAcceptedAt?: any;
+  termsVersion?: string;
+  privacyVersion?: string;
+  adultConfirmedAt?: any;
 }
 
 export class ParentRepository {
