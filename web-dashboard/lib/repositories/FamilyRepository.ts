@@ -252,7 +252,7 @@ export class FamilyRepository {
       settings: {
         name: `${parentDisplayName || 'New'} Family`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        country: "US", // Default
+        country: "DE", // Default production country
         language: "en",
         dataRetentionDays: 365 // Default to 1 year
       },
