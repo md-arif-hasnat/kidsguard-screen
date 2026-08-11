@@ -3,6 +3,7 @@ import { db } from "../firebase";
 
 export interface BillingConfig {
   baseChildSlots: number;
+  maxChildSlots: number;
   basePriceCents: number;
   extraChildPriceCents: number;
   trialDays: number;

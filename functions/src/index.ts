@@ -982,23 +982,34 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
 }
 
 function getAllowedChildSlots(familyData: any): number {
-    const subscription = familyData?.subscription;
+  const subscription = familyData?.subscription;
 
-    const baseChildSlots =
-        Number.isInteger(subscription?.baseChildSlots) &&
-        subscription.baseChildSlots >= 0
-            ? subscription.baseChildSlots
-            : 2;
+  const baseChildSlots =
+    Number.isInteger(subscription?.baseChildSlots) &&
+    subscription.baseChildSlots >= 1
+      ? subscription.baseChildSlots
+      : 1;
 
-    const extraChildSlots =
-        Number.isInteger(subscription?.extraChildSlots) &&
-        subscription.extraChildSlots >= 0
-            ? subscription.extraChildSlots
-            : 0;
+  const extraChildSlots =
+    Number.isInteger(subscription?.extraChildSlots) &&
+    subscription.extraChildSlots >= 0
+      ? subscription.extraChildSlots
+      : 0;
 
-    return baseChildSlots + extraChildSlots;
+  const maxChildSlots =
+    Number.isInteger(subscription?.maxChildSlots) &&
+    subscription.maxChildSlots >= 1
+      ? subscription.maxChildSlots
+      : 10;
+
+  const totalAllowedSlots =
+    baseChildSlots + extraChildSlots;
+
+  return Math.min(
+    maxChildSlots,
+    Math.max(1, totalAllowedSlots)
+  );
 }
-
 export const acceptPairingCode = functions.https.onCall(
   async (data, context) => {
     if (!context.auth) {
