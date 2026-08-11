@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { onSchedule } from "firebase-functions/v2/scheduler";
 
 admin.initializeApp();
 
@@ -1533,6 +1534,62 @@ export const acceptFamilyInvitation =
           familyId: acceptedFamilyId
         };
   });
+
+export const cleanupUnverifiedAccounts = onSchedule(
+  {
+    schedule: "every day 03:00",
+    timeZone: "Europe/Berlin",
+  },
+  async () => {
+    const authService = admin.auth();
+    const firestore = admin.firestore();
+    const cutoffTime = Date.now() - 48 * 60 * 60 * 1000;
+
+    let pageToken: string | undefined;
+
+    do {
+      const result = await authService.listUsers(1000, pageToken);
+
+      for (const user of result.users) {
+        const isPasswordUser = user.providerData.some(
+          (provider) => provider.providerId === "password"
+        );
+
+        const createdAt = new Date(
+          user.metadata.creationTime
+        ).getTime();
+
+        const shouldDelete =
+          isPasswordUser &&
+          !user.emailVerified &&
+          createdAt < cutoffTime;
+
+        if (!shouldDelete) continue;
+
+        try {
+          await firestore
+            .collection("parents")
+            .doc(user.uid)
+            .delete();
+
+          await authService.deleteUser(user.uid);
+
+          console.log(
+            `Deleted unverified account: ${user.uid}`
+          );
+        } catch (error) {
+          console.error(
+            `Failed to delete unverified account: ${user.uid}`,
+            error
+          );
+        }
+      }
+
+      pageToken = result.pageToken;
+    } while (pageToken);
+  }
+);
+
 
 
 
