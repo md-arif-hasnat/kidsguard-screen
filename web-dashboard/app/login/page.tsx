@@ -40,6 +40,7 @@ export default function Login() {
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<any>(null);
   const redirectingRef = useRef(false);
+  const authFlowInProgressRef = useRef(false);
 
   // Consolidated redirect function
   const safeRedirect = () => {
@@ -50,7 +51,7 @@ export default function Login() {
 
   useEffect(() => {
       const unsub = observeAuth((user) => {
-          if (user && !loading) {
+          if (user && !loading && !authFlowInProgressRef.current) {
               const isPasswordUser = user.providerData.some(
                   (provider) => provider.providerId === "password"
               );
@@ -76,6 +77,7 @@ export default function Login() {
     try {
         if (provider === "password" && !user.emailVerified) {
             await signOut();
+            authFlowInProgressRef.current = false;
             setError("Verification email sent. Please verify your email, then log in.");
             setLoading(false);
             return;
@@ -98,6 +100,7 @@ export default function Login() {
       setLoadingMessage("Ready! Launching dashboard...");
       safeRedirect();
     } catch (err: any) {
+        authFlowInProgressRef.current = false;
       console.error("Post-login error:", err);
       setError(err.message || "Error setting up parent profile");
       setLoading(false);
@@ -112,6 +115,7 @@ export default function Login() {
         );
         return;
       }
+    authFlowInProgressRef.current = true;
     setLoading(true);
     setError(null);
     setLoadingMessage(isSignUp ? "Creating your account..." : "Authenticating...");
@@ -136,6 +140,7 @@ export default function Login() {
         await handlePostLogin(user, "password");
       }
     } catch (err: any) {
+        authFlowInProgressRef.current = false;
       setError(err.message || "An error occurred during authentication");
       setLoading(false);
     }
