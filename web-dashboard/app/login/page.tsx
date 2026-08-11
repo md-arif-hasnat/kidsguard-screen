@@ -49,6 +49,32 @@ export default function Login() {
     redirectingRef.current = true;
     router.replace('/');
   };
+const getFriendlyAuthError = (err: any): string => {
+  switch (err?.code) {
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "The email or password you entered is incorrect.";
+
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+
+    case "auth/email-already-in-use":
+      return "An account already exists with this email address.";
+
+    case "auth/weak-password":
+      return "Your password must contain at least 6 characters.";
+
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait a moment and try again.";
+
+    case "auth/network-request-failed":
+      return "Network connection failed. Please check your internet connection.";
+
+    default:
+      return "Authentication failed. Please check your details and try again.";
+  }
+};
 
   useEffect(() => {
       const unsub = observeAuth((user) => {
@@ -101,7 +127,12 @@ export default function Login() {
           localStorage.setItem("kidsguard_family_id", profile.familyId);
       }
 
-      setLoadingMessage("Ready! Launching dashboard...");
+      setError(null);
+      setAuthSuccess("Login successful! Redirecting to your dashboard...");
+      setLoading(false);
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
       safeRedirect();
     } catch (err: any) {
         authFlowInProgressRef.current = false;
@@ -156,9 +187,9 @@ export default function Login() {
       }
     } catch (err: any) {
         authFlowInProgressRef.current = false;
-      setError(err.message || "An error occurred during authentication");
+      setError(getFriendlyAuthError(err));
       setLoading(false);
-    }
+}
   };
 
   const handleGoogleLogin = async () => {
