@@ -35,6 +35,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Signing in...');
   const [error, setError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const router = useRouter();
 
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
@@ -76,11 +77,14 @@ export default function Login() {
     setLoadingMessage("Setting up your family vault...");
     try {
         if (provider === "password" && !user.emailVerified) {
-            await signOut();
-            authFlowInProgressRef.current = false;
-            setError("Verification email sent. Please verify your email, then log in.");
-            setLoading(false);
-            return;
+          await signOut();
+          authFlowInProgressRef.current = false;
+          setError(null);
+          setAuthSuccess(
+            "Account created successfully! Please check your email and verify your account."
+          );
+          setLoading(false);
+          return;
         }
 
         let profile = await ParentRepository.createOrUpdateProfile(user, provider);
@@ -118,6 +122,7 @@ export default function Login() {
     authFlowInProgressRef.current = true;
     setLoading(true);
     setError(null);
+    setAuthSuccess(null);
     setLoadingMessage(isSignUp ? "Creating your account..." : "Authenticating...");
 
     try {
@@ -323,7 +328,22 @@ export default function Login() {
             Protect • Guide • Grow
           </p>
         </div>
-
+        {authSuccess && (
+          <div className="p-4 rounded-2xl mb-6 flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm animate-in slide-in-from-top-2 duration-300">
+            <CheckCircle2
+              size={20}
+              className="shrink-0 mt-0.5 text-emerald-500"
+            />
+            <div>
+              <p className="font-black text-sm uppercase tracking-tight">
+                Registration Successful
+              </p>
+              <p className="font-bold text-sm mt-1">
+                {authSuccess}
+              </p>
+            </div>
+          </div>
+        )}
         {error && (
             <div className={clsx(
                 "p-4 rounded-2xl mb-6 flex items-start gap-3 animate-in slide-in-from-top-2 duration-300 border shadow-sm",
