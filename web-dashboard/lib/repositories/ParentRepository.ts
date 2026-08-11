@@ -19,6 +19,14 @@ export interface ParentProfile {
   termsVersion?: string;
   privacyVersion?: string;
   adultConfirmedAt?: any;
+  subscriptionStatus?: 'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
+  trialStartedAt?: any;
+  trialEndsAt?: any;
+  planId?: string;
+  basePriceCents?: number;
+  includedChildren?: number;
+  extraChildPriceCents?: number;
+  currency?: 'EUR';
 }
 
 export class ParentRepository {

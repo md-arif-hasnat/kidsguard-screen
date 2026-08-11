@@ -120,7 +120,18 @@ service cloud.firestore {
               !request.resource.data
                 .diff(resource.data)
                 .affectedKeys()
-                .hasAny(['uid', 'role']);
+                .hasAny([
+                  'uid',
+                  'role',
+                  'subscriptionStatus',
+                  'trialStartedAt',
+                  'trialEndsAt',
+                  'planId',
+                  'basePriceCents',
+                  'includedChildren',
+                  'extraChildPriceCents',
+                  'currency'
+                ]);
 
             allow delete: if isEmailVerified() &&
               request.auth.uid == parentId;
@@ -130,6 +141,12 @@ service cloud.firestore {
           request.auth.uid == parentId;
       }
     }
+
+    match /billingConfig/{configId} {
+      allow read: if isEmailVerified();
+      allow create, update, delete: if isAdmin();
+    }
+
         match /families/{familyId} {
           allow read: if isFamilyMember(familyId);
 
