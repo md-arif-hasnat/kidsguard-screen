@@ -127,14 +127,24 @@ export default function Login() {
 
       if (user) {
         if (isSignUp) {
-          await ParentRepository.createOrUpdateProfile(user, "password");
-
           await ParentRepository.updateProfile(user.uid, {
+            uid: user.uid,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            displayName: user.displayName || "Parent",
+            provider: "password",
+            familyId: null,
+            role: "OWNER",
+            region: "DE",
+            createdAt: serverTimestamp(),
+            lastLoginAt: serverTimestamp(),
             legalConsentAcceptedAt: serverTimestamp(),
             termsVersion: "2026-08-11",
             privacyVersion: "2026-08-11",
             adultConfirmedAt: serverTimestamp(),
           });
+
+          await ParentRepository.createOrUpdateProfile(user, "password");
         }
 
         await handlePostLogin(user, "password");
