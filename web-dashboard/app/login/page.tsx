@@ -144,7 +144,7 @@ export default function Login() {
             adultConfirmedAt: serverTimestamp(),
           });
 
-          await ParentRepository.createOrUpdateProfile(user, "password");
+
         }
 
         await handlePostLogin(user, "password");
