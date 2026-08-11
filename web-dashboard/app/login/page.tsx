@@ -551,7 +551,29 @@ export default function Login() {
         )}
       </div>
 
-      <p className="mt-8 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] opacity-50">© 2026 KidsGuard Safety Inc.</p>
+      <div className="mt-8 flex flex-col items-center gap-3 text-center text-[10px] font-bold text-slate-500">
+        <div className="flex items-center gap-4">
+          <a
+            href="/privacy"
+            className="transition-colors hover:text-slate-300 hover:underline"
+          >
+            Privacy Policy
+          </a>
+
+          <span aria-hidden="true">•</span>
+
+          <a
+            href="/terms"
+            className="transition-colors hover:text-slate-300 hover:underline"
+          >
+            Terms of Service
+          </a>
+        </div>
+
+        <p className="uppercase tracking-[0.2em] opacity-60">
+          © 2026 KidsGuard · Operated by United Foreign Trade
+        </p>
+      </div>
     </div>
   );
 }
