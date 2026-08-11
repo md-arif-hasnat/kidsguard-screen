@@ -367,7 +367,7 @@ const getFriendlyAuthError = (err: any): string => {
             />
             <div>
               <p className="font-black text-sm uppercase tracking-tight">
-                Registration Successful
+                Login Successful
               </p>
               <p className="font-bold text-sm mt-1">
                 {authSuccess}
