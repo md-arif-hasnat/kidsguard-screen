@@ -19,6 +19,7 @@ import {
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { FamilyRepository } from '@/lib/repositories/FamilyRepository';
 import { ConfirmationResult } from 'firebase/auth';
+import { serverTimestamp } from 'firebase/firestore';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -26,6 +27,7 @@ export default function Login() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [showPhoneLogin, setShowPhoneLogin] = useState(false);
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -104,6 +106,12 @@ export default function Login() {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+      if (isSignUp && !acceptedLegalTerms) {
+        setError(
+          "You must accept the Terms of Service and Privacy Policy to create an account."
+        );
+        return;
+      }
     setLoading(true);
     setError(null);
     setLoadingMessage(isSignUp ? "Creating your account..." : "Authenticating...");
@@ -114,6 +122,17 @@ export default function Login() {
         : await loginWithEmail(email, password);
 
       if (user) {
+        if (isSignUp) {
+          await ParentRepository.createOrUpdateProfile(user, "password");
+
+          await ParentRepository.updateProfile(user.uid, {
+            legalConsentAcceptedAt: serverTimestamp(),
+            termsVersion: "2026-08-11",
+            privacyVersion: "2026-08-11",
+            adultConfirmedAt: serverTimestamp(),
+          });
+        }
+
         await handlePostLogin(user, "password");
       }
     } catch (err: any) {
@@ -370,10 +389,42 @@ export default function Login() {
                     />
                   </div>
                 </div>
+                          {isSignUp && (
+                            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <input
+                                type="checkbox"
+                                checked={acceptedLegalTerms}
+                                disabled={loading}
+                                onChange={(e) => setAcceptedLegalTerms(e.target.checked)}
+                                className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
+                              />
 
+                              <span className="text-xs leading-relaxed text-slate-600">
+                                I confirm that I am at least 18 years old and agree to the{" "}
+                                <a
+                                  href="/terms"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-bold text-primary-600 hover:underline"
+                                >
+                                  Terms of Service
+                                </a>{" "}
+                                and{" "}
+                                <a
+                                  href="/privacy"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-bold text-primary-600 hover:underline"
+                                >
+                                  Privacy Policy
+                                </a>
+                                .
+                              </span>
+                            </label>
+                          )}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (isSignUp && !acceptedLegalTerms)}
                   className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : "Send Reset Link"}
