@@ -389,39 +389,7 @@ export default function Login() {
                     />
                   </div>
                 </div>
-                          {isSignUp && (
-                            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <input
-                                type="checkbox"
-                                checked={acceptedLegalTerms}
-                                disabled={loading}
-                                onChange={(e) => setAcceptedLegalTerms(e.target.checked)}
-                                className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
-                              />
 
-                              <span className="text-xs leading-relaxed text-slate-600">
-                                I confirm that I am at least 18 years old and agree to the{" "}
-                                <a
-                                  href="/terms"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-bold text-primary-600 hover:underline"
-                                >
-                                  Terms of Service
-                                </a>{" "}
-                                and{" "}
-                                <a
-                                  href="/privacy"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-bold text-primary-600 hover:underline"
-                                >
-                                  Privacy Policy
-                                </a>
-                                .
-                              </span>
-                            </label>
-                          )}
                 <button
                   type="submit"
                   disabled={loading || (isSignUp && !acceptedLegalTerms)}
@@ -488,7 +456,39 @@ export default function Login() {
                   </div>
                 )}
               </div>
+              {isSignUp && (
+                                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                            <input
+                                              type="checkbox"
+                                              checked={acceptedLegalTerms}
+                                              disabled={loading}
+                                              onChange={(e) => setAcceptedLegalTerms(e.target.checked)}
+                                              className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
+                                            />
 
+                                            <span className="text-xs leading-relaxed text-slate-600">
+                                              I confirm that I am at least 18 years old and agree to the{" "}
+                                              <a
+                                                href="/terms"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="font-bold text-primary-600 hover:underline"
+                                              >
+                                                Terms of Service
+                                              </a>{" "}
+                                              and{" "}
+                                              <a
+                                                href="/privacy"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="font-bold text-primary-600 hover:underline"
+                                              >
+                                                Privacy Policy
+                                              </a>
+                                              .
+                                            </span>
+                                          </label>
+                                        )}
               <button
                 type="submit"
                 disabled={loading}
