@@ -74,9 +74,20 @@ export interface FamilySettings {
 }
 
 export interface FamilySubscription {
-    status: "PENDING" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
-    baseChildSlots: number;
-    extraChildSlots: number;
+  status: "PENDING" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
+  baseChildSlots: number;
+  extraChildSlots: number;
+  billingInterval?: "MONTHLY";
+  currency?: "EUR";
+  basePriceCents?: number;
+  extraChildPriceCents?: number;
+  trialStartsAt?: any;
+  trialEndsAt?: any;
+  currentPeriodEndsAt?: any;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+  cancelAtPeriodEnd?: boolean;
 }
 
 export interface FamilyData {
