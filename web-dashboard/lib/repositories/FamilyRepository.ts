@@ -736,6 +736,46 @@ const updatedManagerUids =
     */
   }
 
+static async requestFamilyDeletion(): Promise<boolean> {
+  const currentUser = auth?.currentUser;
+  const projectId =
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  if (!currentUser || !projectId) {
+    throw new Error(
+      "Please sign in with the Family Owner account."
+    );
+  }
+
+  const idToken =
+    await currentUser.getIdToken(true);
+
+  const response = await fetch(
+    `https://us-central1-${projectId}.cloudfunctions.net/requestFamilyDeletion`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        data: {},
+      }),
+    }
+  );
+
+  const payload = await response.json();
+
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error?.message ||
+        "Could not schedule account deletion."
+    );
+  }
+
+  return payload.result?.success === true;
+}
+
     static async cancelPendingDeletion(): Promise<boolean> {
       const currentUser = auth?.currentUser;
       const projectId =
