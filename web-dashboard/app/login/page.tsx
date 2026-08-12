@@ -1,7 +1,21 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Lock, Mail, Loader2, AlertCircle, Phone, Smartphone, Chrome, Apple, CheckCircle2 } from 'lucide-react';
+import {
+  Shield,
+  Lock,
+  Mail,
+  Loader2,
+  AlertCircle,
+  Phone,
+  Smartphone,
+  Chrome,
+  Apple,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Circle,
+} from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import {
@@ -24,6 +38,7 @@ import { serverTimestamp } from 'firebase/firestore';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -36,6 +51,26 @@ export default function Login() {
   const [loadingMessage, setLoadingMessage] = useState('Signing in...');
   const [error, setError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
+  const passwordChecks = {
+    minLength: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const passwordScore = Object.values(
+    passwordChecks
+  ).filter(Boolean).length;
+
+  const isStrongPassword = passwordScore === 5;
+
+  const passwordStrength =
+    passwordScore <= 2
+      ? "Weak"
+      : passwordScore <= 4
+        ? "Medium"
+        : "Strong";
   const router = useRouter();
 
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
@@ -175,6 +210,12 @@ const getFriendlyAuthError = (err: any): string => {
         );
         return;
       }
+  if (isSignUp && !isStrongPassword) {
+    setError(
+      "Password must contain at least 8 characters, including uppercase, lowercase, number, and special character."
+    );
+    return;
+  }
     authFlowInProgressRef.current = true;
     setLoading(true);
     setError(null);
@@ -524,16 +565,117 @@ const getFriendlyAuthError = (err: any): string => {
                 <div className="relative">
                   <Lock className="absolute left-3 top-3.5 text-slate-400" size={20} />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     disabled={loading}
-                    minLength={6}
+                    minLength={isSignUp ? 8 : 6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-bold text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-12 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-bold text-slate-700"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading}
+                    aria-label={
+                      showPassword
+                        ? "Hide password"
+                        : "Show password"
+                    }
+                    className="absolute right-3 top-3.5 text-slate-400 transition-colors hover:text-primary-600 disabled:opacity-50"
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} />
+                    ) : (
+                      <Eye size={20} />
+                    )}
+                  </button>
                 </div>
+                {isSignUp && password.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-500">
+                        Password Strength
+                      </span>
+
+                      <span
+                        className={clsx(
+                          "text-xs font-black",
+                          passwordStrength === "Weak" &&
+                            "text-rose-600",
+                          passwordStrength === "Medium" &&
+                            "text-amber-600",
+                          passwordStrength === "Strong" &&
+                            "text-emerald-600"
+                        )}
+                      >
+                        {passwordStrength}
+                      </span>
+                    </div>
+
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={clsx(
+                          "h-full rounded-full transition-all duration-300",
+                          passwordStrength === "Weak" &&
+                            "bg-rose-500",
+                          passwordStrength === "Medium" &&
+                            "bg-amber-500",
+                          passwordStrength === "Strong" &&
+                            "bg-emerald-500"
+                        )}
+                        style={{
+                          width: `${passwordScore * 20}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+            {isSignUp && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {[
+                  {
+                    label: "8+ characters",
+                    valid: passwordChecks.minLength,
+                  },
+                  {
+                    label: "Uppercase A–Z",
+                    valid: passwordChecks.uppercase,
+                  },
+                  {
+                    label: "Lowercase a–z",
+                    valid: passwordChecks.lowercase,
+                  },
+                  {
+                    label: "Number 0–9",
+                    valid: passwordChecks.number,
+                  },
+                  {
+                    label: "Special @#$",
+                    valid: passwordChecks.special,
+                  },
+                ].map((requirement) => (
+                  <div
+                    key={requirement.label}
+                    className={clsx(
+                      "flex items-center gap-1.5 text-[11px] font-bold transition-colors",
+                      requirement.valid
+                        ? "text-emerald-600"
+                        : "text-slate-400"
+                    )}
+                  >
+                    {requirement.valid ? (
+                      <CheckCircle2 size={15} />
+                    ) : (
+                      <Circle size={15} />
+                    )}
+
+                    <span>{requirement.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
                 {!isSignUp && (
                   <div className="flex justify-end">
                     <button
@@ -582,7 +724,11 @@ const getFriendlyAuthError = (err: any): string => {
                                         )}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={
+                  loading ||
+                  (isSignUp &&
+                    (!isStrongPassword || !acceptedLegalTerms))
+                }
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
               >
                 {isSignUp ? "Create Account" : "Sign In"}
