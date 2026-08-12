@@ -46,8 +46,19 @@ export default function Login() {
   // Consolidated redirect function
   const safeRedirect = () => {
     if (redirectingRef.current) return;
+
     redirectingRef.current = true;
-    router.replace('/');
+
+    const returnPath =
+      sessionStorage.getItem(
+        "kidsguard_return_after_login"
+      );
+
+    sessionStorage.removeItem(
+      "kidsguard_return_after_login"
+    );
+
+    router.replace(returnPath || "/");
   };
 const getFriendlyAuthError = (err: any): string => {
   switch (err?.code) {
