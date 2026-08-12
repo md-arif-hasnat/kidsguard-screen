@@ -18,6 +18,20 @@ service cloud.firestore {
                 ).data.role == 'ADMIN';
             }
 
+            function isPlatformAdmin() {
+              let adminPath =
+                /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
+
+              return isEmailVerified() &&
+                exists(adminPath) &&
+                get(adminPath).data.active == true &&
+                get(adminPath).data.role in [
+                  'SUPER_ADMIN',
+                  'PLATFORM_ADMIN',
+                  'DEV_ADMIN'
+                ];
+            }
+
 
         function familyData(familyId) {
           return get(
@@ -88,6 +102,14 @@ service cloud.firestore {
                     request.auth.uid in family.managerUids
                   )
                 );
+            }
+
+            match /platformAdmins/{adminId} {
+              allow get: if isEmailVerified() &&
+                request.auth.uid == adminId;
+
+              allow list: if false;
+              allow create, update, delete: if false;
             }
     match /parents/{parentId} {
       allow read: if isEmailVerified() &&
@@ -407,7 +429,17 @@ service cloud.firestore {
                                   allow read: if true;
 
                                   // Releases are published only by trusted Admin tools.
-                                  allow write: if false;
+                                  allow create, update, delete:
+                                      if isPlatformAdmin();
+                                }
+
+                                match /appConfig/{configId} {
+                                  // Android/Web clients need the active update configuration.
+                                  allow read: if true;
+
+                                  // Only active internal admins may change release configuration.
+                                  allow create, update, delete:
+                                    if isPlatformAdmin();
                                 }
 
                                     match /familyInvitations/{inviteId} {
