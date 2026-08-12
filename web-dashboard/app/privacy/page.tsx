@@ -190,13 +190,50 @@ export default function PrivacyPolicyPage() {
             9. Account and data deletion
           </h2>
 
-          <p className="mt-3">
-            A parent or legal guardian may request account deletion, child
-            profile deletion, or deletion of associated personal information
-            by contacting us. Certain records may be retained when legally
-            required or necessary for fraud prevention, security, or dispute
-            resolution.
-          </p>
+          <div className="mt-3 space-y-3">
+            <p>
+              The Family Owner may request deletion of the
+              KidsGuard account, family profile, connected child
+              profiles, devices, and associated personal data
+              directly from the app or through our online
+              deletion page.
+            </p>
+
+            <p>
+              Once deletion is requested, permanent deletion is
+              scheduled for 30 days later. The Family Owner may
+              cancel the request by signing in again before the
+              scheduled deletion date.
+            </p>
+
+            <p>
+              After the 30-day recovery period, the account and
+              associated family data will be permanently deleted,
+              unless specific records must be retained to comply
+              with applicable tax, accounting, fraud-prevention,
+              security, dispute-resolution, or other legal
+              obligations. Any retained records will be limited
+              to what is legally necessary and kept only for the
+              required retention period.
+            </p>
+
+            <p>
+              Family members cannot delete the entire family
+              account. They may contact support to request removal
+              of their own profile or to leave the family.
+            </p>
+
+            <p>
+              You can submit an account deletion request at{" "}
+              <a
+                href="/delete-account"
+                className="font-semibold text-blue-400 hover:underline"
+              >
+                KidsGuard Account Deletion
+              </a>
+              .
+            </p>
+          </div>
         </section>
 
         <section className="mt-8">
