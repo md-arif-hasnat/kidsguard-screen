@@ -112,7 +112,21 @@ const getFriendlyAuthError = (err: any): string => {
           setLoading(false);
           return;
         }
+        try {
+          const deletionWasCancelled =
+            await FamilyRepository.cancelPendingDeletion();
 
+          if (deletionWasCancelled) {
+            console.log(
+              "Pending family deletion cancelled after login."
+            );
+          }
+        } catch (cancelError) {
+          console.warn(
+            "Could not check or cancel pending deletion:",
+            cancelError
+          );
+        }
         let profile = await ParentRepository.createOrUpdateProfile(user, provider);
 
       if (!profile.familyId) {

@@ -169,7 +169,11 @@ service cloud.firestore {
                     .hasAny([
                       'ownerId',
                       'childDeviceIds',
-                      'subscription'
+                      'subscription',
+                      'deletionStatus',
+                      'deletionRequestedAt',
+                      'deletionScheduledAt',
+                      'deletionRequestedBy'
                     ]);
           allow delete: if false;
                 match /safeZones/{zoneId} {

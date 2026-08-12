@@ -23,9 +23,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.cleanupDeletedFamilies = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 admin.initializeApp();
 const db = admin.firestore();
 exports.onActivityCreated = functions.firestore
@@ -718,14 +719,19 @@ async function notifyParent(uid, payload) {
 function getAllowedChildSlots(familyData) {
     const subscription = familyData?.subscription;
     const baseChildSlots = Number.isInteger(subscription?.baseChildSlots) &&
-        subscription.baseChildSlots >= 0
+        subscription.baseChildSlots >= 1
         ? subscription.baseChildSlots
-        : 2;
+        : 1;
     const extraChildSlots = Number.isInteger(subscription?.extraChildSlots) &&
         subscription.extraChildSlots >= 0
         ? subscription.extraChildSlots
         : 0;
-    return baseChildSlots + extraChildSlots;
+    const maxChildSlots = Number.isInteger(subscription?.maxChildSlots) &&
+        subscription.maxChildSlots >= 1
+        ? subscription.maxChildSlots
+        : 10;
+    const totalAllowedSlots = baseChildSlots + extraChildSlots;
+    return Math.min(maxChildSlots, Math.max(1, totalAllowedSlots));
 }
 exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -1013,5 +1019,315 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
         success: true,
         familyId: acceptedFamilyId
     };
+});
+exports.cleanupUnverifiedAccounts = (0, scheduler_1.onSchedule)({
+    schedule: "every day 03:00",
+    timeZone: "Europe/Berlin",
+}, async () => {
+    const authService = admin.auth();
+    const firestore = admin.firestore();
+    const cutoffTime = Date.now() - 48 * 60 * 60 * 1000;
+    let pageToken;
+    do {
+        const result = await authService.listUsers(1000, pageToken);
+        for (const user of result.users) {
+            const isPasswordUser = user.providerData.some((provider) => provider.providerId === "password");
+            const createdAt = new Date(user.metadata.creationTime).getTime();
+            const shouldDelete = isPasswordUser &&
+                !user.emailVerified &&
+                createdAt < cutoffTime;
+            if (!shouldDelete)
+                continue;
+            try {
+                await firestore
+                    .collection("parents")
+                    .doc(user.uid)
+                    .delete();
+                await authService.deleteUser(user.uid);
+                console.log(`Deleted unverified account: ${user.uid}`);
+            }
+            catch (error) {
+                console.error(`Failed to delete unverified account: ${user.uid}`, error);
+            }
+        }
+        pageToken = result.pageToken;
+    } while (pageToken);
+});
+async function deleteLinkedDocuments(collectionName, fieldName, value) {
+    while (true) {
+        const snapshot = await db
+            .collection(collectionName)
+            .where(fieldName, '==', value)
+            .limit(100)
+            .get();
+        if (snapshot.empty) {
+            break;
+        }
+        for (const document of snapshot.docs) {
+            await db.recursiveDelete(document.ref);
+        }
+    }
+}
+async function deleteAuthUserIfExists(uid) {
+    try {
+        await admin.auth().deleteUser(uid);
+    }
+    catch (error) {
+        if (error?.code !== 'auth/user-not-found') {
+            throw error;
+        }
+    }
+}
+exports.requestFamilyDeletion = functions.https.onCall(async (_data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified.');
+    }
+    const uid = context.auth.uid;
+    const authTime = Number(context.auth.token.auth_time || 0);
+    const tokenAgeSeconds = Math.floor(Date.now() / 1000) - authTime;
+    if (tokenAgeSeconds > 600) {
+        throw new functions.https.HttpsError('failed-precondition', 'Please sign in again before deleting your account.');
+    }
+    const parentRef = db.collection('parents').doc(uid);
+    const parentSnapshot = await parentRef.get();
+    if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Parent profile not found.');
+    }
+    const familyId = parentSnapshot.data()?.familyId;
+    if (typeof familyId !== 'string' ||
+        !familyId) {
+        throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+    }
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+    }
+    const familyData = familySnapshot.data() || {};
+    if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the family owner can delete the family.');
+    }
+    if (familyData.deletionStatus ===
+        'PENDING_DELETION') {
+        return {
+            success: true,
+            alreadyPending: true,
+            deletionScheduledAt: familyData.deletionScheduledAt
+        };
+    }
+    const requestedAt = admin.firestore.Timestamp.now();
+    const scheduledAt = admin.firestore.Timestamp.fromMillis(requestedAt.toMillis() +
+        30 * 24 * 60 * 60 * 1000);
+    await familyRef.update({
+        deletionStatus: 'PENDING_DELETION',
+        deletionRequestedAt: requestedAt,
+        deletionScheduledAt: scheduledAt,
+        deletionRequestedBy: uid
+    });
+    return {
+        success: true,
+        alreadyPending: false,
+        deletionScheduledAt: scheduledAt
+    };
+});
+exports.cancelFamilyDeletion = functions.https.onCall(async (_data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    const uid = context.auth.uid;
+    const parentSnapshot = await db
+        .collection('parents')
+        .doc(uid)
+        .get();
+    if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Parent profile not found.');
+    }
+    const familyId = parentSnapshot.data()?.familyId;
+    if (typeof familyId !== 'string' ||
+        !familyId) {
+        throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+    }
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+    }
+    const familyData = familySnapshot.data() || {};
+    if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the family owner can cancel family deletion.');
+    }
+    if (familyData.deletionStatus !==
+        'PENDING_DELETION') {
+        return {
+            success: true,
+            wasPending: false
+        };
+    }
+    await familyRef.update({
+        deletionStatus: 'ACTIVE',
+        deletionRequestedAt: admin.firestore.FieldValue.delete(),
+        deletionScheduledAt: admin.firestore.FieldValue.delete(),
+        deletionRequestedBy: admin.firestore.FieldValue.delete()
+    });
+    return {
+        success: true,
+        wasPending: true
+    };
+});
+exports.cleanupDeletedFamilies = (0, scheduler_1.onSchedule)({
+    schedule: "every day 04:00",
+    timeZone: "Europe/Berlin",
+}, async () => {
+    const now = admin.firestore.Timestamp.now();
+    const pendingFamilies = await db
+        .collection("families")
+        .where("deletionStatus", "==", "PENDING_DELETION")
+        .limit(100)
+        .get();
+    for (const familyDocument of pendingFamilies.docs) {
+        try {
+            const familyData = familyDocument.data() || {};
+            const scheduledAt = familyData.deletionScheduledAt;
+            if (typeof scheduledAt?.toMillis !==
+                "function" ||
+                scheduledAt.toMillis() > now.toMillis()) {
+                continue;
+            }
+            const familyId = familyDocument.id;
+            const ownerUid = familyData.ownerId;
+            if (typeof ownerUid !== "string" ||
+                !ownerUid) {
+                console.error(`Deletion skipped: family ${familyId} has no ownerId.`);
+                continue;
+            }
+            const pairingSnapshot = await db
+                .collection("pairingCodes")
+                .where("familyId", "==", familyId)
+                .get();
+            const childIds = new Set(Array.isArray(familyData.childDeviceIds)
+                ? familyData.childDeviceIds.filter((id) => typeof id === "string")
+                : []);
+            const childAuthUids = new Set();
+            const deviceIds = new Set();
+            for (const pairingDocument of pairingSnapshot.docs) {
+                const pairingData = pairingDocument.data();
+                if (typeof pairingData.childId ===
+                    "string") {
+                    childIds.add(pairingData.childId);
+                }
+                if (typeof pairingData.firebaseUid ===
+                    "string") {
+                    childAuthUids.add(pairingData.firebaseUid);
+                }
+                if (typeof pairingData.deviceId ===
+                    "string") {
+                    deviceIds.add(pairingData.deviceId);
+                }
+            }
+            for (const childId of childIds) {
+                const childRef = db
+                    .collection("children")
+                    .doc(childId);
+                const [childSnapshot, statusSnapshot] = await Promise.all([
+                    childRef.get(),
+                    childRef
+                        .collection("status")
+                        .doc("current")
+                        .get(),
+                ]);
+                const childData = childSnapshot.data() || {};
+                const statusData = statusSnapshot.data() || {};
+                const childFirebaseUid = childData.firebaseUid ||
+                    statusData.firebaseUid;
+                const childDeviceId = childData.deviceId ||
+                    statusData.deviceId;
+                if (typeof childFirebaseUid === "string") {
+                    childAuthUids.add(childFirebaseUid);
+                }
+                if (typeof childDeviceId === "string") {
+                    deviceIds.add(childDeviceId);
+                }
+                if (childSnapshot.exists) {
+                    await db.recursiveDelete(childRef);
+                }
+                const childLinkedCollections = [
+                    "notifications",
+                    "sosEvents",
+                    "dailySummaries",
+                    "routeDeviations",
+                    "auditLogs",
+                ];
+                for (const collectionName of childLinkedCollections) {
+                    await deleteLinkedDocuments(collectionName, "childId", childId);
+                }
+            }
+            for (const deviceId of deviceIds) {
+                const deviceRef = db
+                    .collection("devices")
+                    .doc(deviceId);
+                const deviceSnapshot = await deviceRef.get();
+                if (deviceSnapshot.exists) {
+                    await db.recursiveDelete(deviceRef);
+                }
+            }
+            const familyLinkedCollections = [
+                "pairingCodes",
+                "notifications",
+                "auditLogs",
+                "supportTickets",
+                "familyInvitations",
+                "safeZones",
+                "sosEvents",
+                "dailySummaries",
+                "routeDeviations",
+            ];
+            for (const collectionName of familyLinkedCollections) {
+                await deleteLinkedDocuments(collectionName, "familyId", familyId);
+            }
+            const members = Array.isArray(familyData.members)
+                ? familyData.members
+                : [];
+            for (const member of members) {
+                const memberUid = member?.uid;
+                if (typeof memberUid !== "string" ||
+                    !memberUid ||
+                    memberUid === ownerUid) {
+                    continue;
+                }
+                const memberRef = db
+                    .collection("parents")
+                    .doc(memberUid);
+                const memberSnapshot = await memberRef.get();
+                if (memberSnapshot.exists &&
+                    memberSnapshot.data()?.familyId ===
+                        familyId) {
+                    await memberRef.update({
+                        familyId: null,
+                        role: admin.firestore.FieldValue.delete(),
+                    });
+                }
+            }
+            await deleteLinkedDocuments("notifications", "userId", ownerUid);
+            for (const childUid of childAuthUids) {
+                await deleteAuthUserIfExists(childUid);
+            }
+            await db.recursiveDelete(familyDocument.ref);
+            const ownerRef = db
+                .collection("parents")
+                .doc(ownerUid);
+            const ownerSnapshot = await ownerRef.get();
+            if (ownerSnapshot.exists) {
+                await db.recursiveDelete(ownerRef);
+            }
+            await deleteAuthUserIfExists(ownerUid);
+            console.log(`Family ${familyId} permanently deleted.`);
+        }
+        catch (error) {
+            console.error(`Failed to permanently delete family ${familyDocument.id}:`, error);
+        }
+    }
 });
 //# sourceMappingURL=index.js.map
