@@ -266,6 +266,24 @@ object YouTubeVideoResolver {
         return "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
     }
 
+    /**
+     * exact videoId resolve করা যায়নি এমন ক্ষেত্রে ব্যবহারের জন্য —
+     * এটা কোনো নির্দিষ্ট ভিডিওর লিংক না, বরং title+channel দিয়ে
+     * YouTube search result page এর URL, যাতে অন্তত একটা clickable
+     * লিংক থাকে "কিছুই নেই" এর বদলে।
+     */
+    fun buildSearchFallbackUrl(title: String, channel: String?): String {
+        val query = buildString {
+            append(title)
+            channel?.takeIf { it.isNotBlank() }?.let {
+                append(" ")
+                append(it)
+            }
+        }
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        return "https://www.youtube.com/results?search_query=$encoded"
+    }
+
     private fun buildResolvedVideo(
         videoId: String,
         source: String,

@@ -102,6 +102,10 @@ export interface FamilyData {
   subscription?: FamilySubscription;
   settings: FamilySettings;
   createdAt: any;
+  deletionStatus?: 'ACTIVE' | 'PENDING_DELETION';
+  deletionRequestedAt?: any;
+  deletionScheduledAt?: any;
+  deletionRequestedBy?: string;
 }
 
 export class FamilyRepository {
@@ -731,4 +735,42 @@ const updatedManagerUids =
     return true;
     */
   }
+
+    static async cancelPendingDeletion(): Promise<boolean> {
+      const currentUser = auth?.currentUser;
+      const projectId =
+        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+      if (!currentUser || !projectId) {
+        return false;
+      }
+
+      const idToken =
+        await currentUser.getIdToken(true);
+
+      const response = await fetch(
+        `https://us-central1-${projectId}.cloudfunctions.net/cancelFamilyDeletion`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            data: {},
+          }),
+        }
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok || payload.error) {
+        throw new Error(
+          payload.error?.message ||
+            "Could not cancel pending deletion."
+        );
+      }
+
+      return payload.result?.wasPending === true;
+    }
 }

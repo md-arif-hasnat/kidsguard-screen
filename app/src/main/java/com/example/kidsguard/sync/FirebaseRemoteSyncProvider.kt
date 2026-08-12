@@ -1,6 +1,7 @@
 package com.example.kidsguard.sync
 
 import android.util.Log
+import com.example.kidsguard.BuildConfig
 import com.example.kidsguard.models.SosEvent
 import com.example.kidsguard.models.SosStatus
 import com.example.kidsguard.repository.ErrorLogRepository
@@ -331,7 +332,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
         alertId: String
     ): Flow<com.example.kidsguard.models.SosAlert?> {
         // This is tricky because we need the childId now. 
-        // However, the caller usually knows the childId or it's stored in prefHelper.
+        // However, the caller usually knows the childId 'or' it's stored in prefHelper.
         // Let's change the interface or implement a workaround.
         return flowOf(null)
     }
@@ -1099,7 +1100,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                         "platform" to "Android",
                         "deviceName" to android.os.Build.MODEL,
                         "lastSeen" to com.google.firebase.Timestamp.now(),
-                        "appVersion" to "1.0.0"
+                        "appVersion" to BuildConfig.VERSION_NAME
                     ), com.google.firebase.firestore.SetOptions.merge()
                 )
                 .addOnSuccessListener {

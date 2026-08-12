@@ -11,14 +11,107 @@ import com.example.kidsguard.sync.FirebaseConfig
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 
 class AuthRepository(private val context: Context) {
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
+    private val functions by lazy {
+        FirebaseFunctions.getInstance("us-central1")
+    }
     private val prefs = PreferenceHelper(context)
     private val errorLogger = ErrorLogRepository(context)
+    suspend fun requestFamilyDeletion(): Result<String> {
+        return try {
+            val currentUser = auth.currentUser
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "You must be signed in."
+                    )
+                )
+
+            currentUser.getIdToken(true).await()
+
+            val result = functions
+                .getHttpsCallable(
+                    "requestFamilyDeletion"
+                )
+                .call()
+                .await()
+
+            val data = result.getData() as? Map<*, *>
+            val success = data?.get("success") as? Boolean
+                ?: false
+
+            if (!success) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Account deletion request failed."
+                    )
+                )
+            }
+
+            Result.success(
+                "Your family account is scheduled for permanent deletion in 30 days."
+            )
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Family deletion request failed",
+                e
+            )
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cancelFamilyDeletion(): Result<Boolean> {
+        return try {
+            val currentUser = auth.currentUser
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "You must be signed in."
+                    )
+                )
+
+            currentUser.getIdToken(true).await()
+
+            val result = functions
+                .getHttpsCallable(
+                    "cancelFamilyDeletion"
+                )
+                .call()
+                .await()
+
+            val data =
+                result.getData() as? Map<*, *>
+
+            val success =
+                data?.get("success") as? Boolean
+                    ?: false
+
+            if (!success) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Deletion cancellation failed."
+                    )
+                )
+            }
+
+            Result.success(
+                data["wasPending"] as? Boolean
+                    ?: false
+            )
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Family deletion cancellation failed",
+                e
+            )
+            Result.failure(e)
+        }
+    }
 
     companion object {
         private const val TAG = "AuthRepository"
@@ -69,6 +162,27 @@ class AuthRepository(private val context: Context) {
                 false
             } else {
                 prefs.firebaseUid = user.uid
+
+                val cancellationResult =
+                    cancelFamilyDeletion()
+
+                cancellationResult
+                    .onSuccess { wasPending ->
+                        if (wasPending) {
+                            Log.i(
+                                TAG,
+                                "Pending family deletion was cancelled after login."
+                            )
+                        }
+                    }
+                    .onFailure { error ->
+                        Log.w(
+                            TAG,
+                            "Could not check or cancel pending family deletion.",
+                            error
+                        )
+                    }
+
                 true
             }
         } catch (e: Exception) {

@@ -31,6 +31,7 @@ import com.example.kidsguard.web.WebProtectionManager
 import com.example.kidsguard.wellbeing.AppBlockReason
 import com.example.kidsguard.wellbeing.WellbeingManager
 import com.example.kidsguard.youtube.YouTubeApiClient
+import com.example.kidsguard.youtube.YouTubeResolveRequest
 import com.example.kidsguard.youtube.YouTubeVideoResolver
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -641,6 +642,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                             youtubeRepository.addDebugLog(
                                 msg = "YOUTUBE_API_SEARCH_NO_RESPONSE error=${YouTubeApiClient.lastError}"
                             )
+                            applyFallbackSearchUrl(resolveRequest, screenType)
                             return@launch
                         }
 
@@ -654,6 +656,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                             youtubeRepository.addDebugLog(
                                 "YOUTUBE_API_NO_MATCH title=${resolveRequest.title}"
                             )
+                            applyFallbackSearchUrl(resolveRequest, screenType)
                             return@launch
                         }
 
@@ -704,6 +707,52 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             }
         }
     }
+
+    /**
+     * exact videoId resolve করা সম্ভব হয়নি — session ও saved history কে
+     * অন্তত একটা search-based URL দিয়ে enrich করা হচ্ছে, যাতে "কিছুই নেই"
+     * অবস্থা না থাকে। videoId/thumbnail এখানে ইচ্ছাকৃতভাবে null রাখা হচ্ছে,
+     * কারণ এটা কোনো নিশ্চিত ভিডিও ম্যাচ না।
+     */
+    private fun applyFallbackSearchUrl(
+        resolveRequest: YouTubeResolveRequest,
+        screenType: YouTubeScreenType
+    ) {
+        val fallbackUrl = YouTubeVideoResolver.buildSearchFallbackUrl(
+            title = resolveRequest.title,
+            channel = resolveRequest.channel
+        )
+
+        val fallbackCandidate = YouTubeMetadataCandidate(
+            videoTitle = resolveRequest.title,
+            channelName = resolveRequest.channel,
+            videoId = null,
+            youtubeUrl = fallbackUrl,
+            thumbnailUrl = null,
+            linkSource = "SEARCH_FALLBACK_URL",
+            linkConfidence = 0f,
+            screenType = screenType,
+            confidence = 0f,
+            extractionStrategy = "SEARCH_FALLBACK"
+        )
+
+        updateYouTubeSession(fallbackCandidate)
+
+        youtubeRepository.enrichSavedActivity(
+            title = resolveRequest.title,
+            channelName = resolveRequest.channel,
+            videoId = null,
+            youtubeUrl = fallbackUrl,
+            thumbnailUrl = null,
+            linkSource = "SEARCH_FALLBACK_URL",
+            linkConfidence = 0f
+        )
+
+        youtubeRepository.addDebugLog(
+            "SEARCH_FALLBACK_URL_APPLIED url=$fallbackUrl"
+        )
+    }
+
 
     private fun updateYouTubeSession(candidate: YouTubeMetadataCandidate) {
         val current = activeYouTubeSession
@@ -820,7 +869,10 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             val activity = YouTubeActivity(
                 id = UUID.randomUUID().toString(),
                 videoTitle = session.title!!,
-                channelName = session.channel ?: "Unknown channel",
+                channelName = session.channel
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "Unknown channel",
                 videoId = session.videoId,
                 youtubeUrl = session.youtubeUrl,
                 thumbnailUrl = session.thumbnailUrl,
