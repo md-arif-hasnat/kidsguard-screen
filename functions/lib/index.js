@@ -1728,98 +1728,139 @@ exports.requestFamilyDataExport = functions
     if (!familySnapshot.exists) {
         throw new functions.https.HttpsError('not-found', 'Family not found.');
     }
-    if (familySnapshot.data()?.ownerId !== uid) {
-        throw new functions.https.HttpsError('permission-denied', 'Only the Family Owner can request this export.');
-    }
-    const parentsSnapshot = await db
-        .collection('parents')
-        .where('familyId', '==', familyId)
-        .get();
-    const childrenSnapshot = await db
-        .collection('children')
-        .where('familyId', '==', familyId)
-        .get();
-    const devicesSnapshot = await db
-        .collection('devices')
-        .where('familyId', '==', familyId)
-        .get();
-    const familyExport = await exportDocumentWithSubcollections(familySnapshot);
-    const parentsExport = await Promise.all(parentsSnapshot.docs.map(exportDocumentWithSubcollections));
-    const childrenExport = await Promise.all(childrenSnapshot.docs.map(exportDocumentWithSubcollections));
-    const devicesExport = await Promise.all(devicesSnapshot.docs.map(exportDocumentWithSubcollections));
-    const parentNotifications = await Promise.all(parentsSnapshot.docs.map(async (parentDocument) => {
-        const snapshot = await db
-            .collection('notifications')
-            .where('userId', '==', parentDocument.id)
-            .get();
-        return Promise.all(snapshot.docs.map(exportDocumentWithSubcollections));
-    }));
-    const generatedAt = new Date();
-    const expiresAt = new Date(generatedAt.getTime() +
-        15 * 60 * 1000);
-    const exportPayload = {
-        exportVersion: 1,
-        generatedAt: generatedAt.toISOString(),
-        requestedBy: uid,
-        familyId,
-        family: familyExport,
-        parents: parentsExport,
-        children: childrenExport,
-        devices: devicesExport,
-        notifications: parentNotifications.flat()
-    };
-    const jsonContent = JSON.stringify(exportPayload, null, 2);
-    const htmlContent = createReadableExportHtml(exportPayload);
-    const timestamp = generatedAt
-        .toISOString()
-        .replace(/[:.]/g, '-');
-    const fileName = `kidsguard-family-data-${timestamp}.zip`;
-    const storagePath = `family-exports/${familyId}/${uid}/${fileName}`;
-    const file = bucket.file(storagePath);
-    const downloadToken = (0, crypto_1.randomUUID)();
-    await new Promise((resolve, reject) => {
-        const output = file.createWriteStream({
-            resumable: false,
-            metadata: {
-                contentType: 'application/zip',
-                cacheControl: 'private, no-store, max-age=0',
-                metadata: {
-                    temporary: 'true',
-                    expiresAt: expiresAt.toISOString(),
-                    familyId,
-                    requestedBy: uid,
-                    firebaseStorageDownloadTokens: downloadToken
-                }
+    const exportRateLimitRef = db
+        .collection('familyExportRateLimits')
+        .doc(uid);
+    const exportRateLimitMs = 15 * 60 * 1000;
+    await db.runTransaction(async (transaction) => {
+        const rateLimitSnapshot = await transaction.get(exportRateLimitRef);
+        const lastRequestedAt = rateLimitSnapshot
+            .data()
+            ?.lastRequestedAt;
+        if (lastRequestedAt instanceof
+            admin.firestore.Timestamp) {
+            const elapsedMs = Date.now() -
+                lastRequestedAt.toMillis();
+            if (elapsedMs < exportRateLimitMs) {
+                const remainingMinutes = Math.max(1, Math.ceil((exportRateLimitMs -
+                    elapsedMs) /
+                    60000));
+                throw new functions.https.HttpsError('resource-exhausted', `Please wait ${remainingMinutes} minute(s) before requesting another export.`);
             }
+        }
+        transaction.set(exportRateLimitRef, {
+            uid,
+            familyId,
+            lastRequestedAt: admin.firestore.Timestamp.now()
+        }, {
+            merge: true
         });
-        const archive = new archiver_1.ZipArchive({
-            zlib: {
-                level: 9
-            }
-        });
-        output.on('finish', resolve);
-        output.on('error', reject);
-        archive.on('error', reject);
-        archive.pipe(output);
-        archive.append(htmlContent, {
-            name: 'KidsGuard-Family-Data.html'
-        });
-        archive.append(jsonContent, {
-            name: 'KidsGuard-Family-Data.json'
-        });
-        void archive.finalize();
     });
-    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/` +
-        `${encodeURIComponent(bucket.name)}/o/` +
-        `${encodeURIComponent(storagePath)}` +
-        `?alt=media&token=` +
-        `${encodeURIComponent(downloadToken)}`;
-    return {
-        success: true,
-        fileName,
-        downloadUrl,
-        expiresAt: expiresAt.toISOString()
-    };
+    try {
+        const parentsSnapshot = await db
+            .collection('parents')
+            .where('familyId', '==', familyId)
+            .get();
+        const childrenSnapshot = await db
+            .collection('children')
+            .where('familyId', '==', familyId)
+            .get();
+        const devicesSnapshot = await db
+            .collection('devices')
+            .where('familyId', '==', familyId)
+            .get();
+        const familyExport = await exportDocumentWithSubcollections(familySnapshot);
+        const parentsExport = await Promise.all(parentsSnapshot.docs.map(exportDocumentWithSubcollections));
+        const childrenExport = await Promise.all(childrenSnapshot.docs.map(exportDocumentWithSubcollections));
+        const devicesExport = await Promise.all(devicesSnapshot.docs.map(exportDocumentWithSubcollections));
+        const parentNotifications = await Promise.all(parentsSnapshot.docs.map(async (parentDocument) => {
+            const snapshot = await db
+                .collection('notifications')
+                .where('userId', '==', parentDocument.id)
+                .get();
+            return Promise.all(snapshot.docs.map(exportDocumentWithSubcollections));
+        }));
+        const generatedAt = new Date();
+        const expiresAt = new Date(generatedAt.getTime() +
+            15 * 60 * 1000);
+        const exportPayload = {
+            exportVersion: 1,
+            generatedAt: generatedAt.toISOString(),
+            requestedBy: uid,
+            familyId,
+            family: familyExport,
+            parents: parentsExport,
+            children: childrenExport,
+            devices: devicesExport,
+            notifications: parentNotifications.flat()
+        };
+        const jsonContent = JSON.stringify(exportPayload, null, 2);
+        const htmlContent = createReadableExportHtml(exportPayload);
+        const timestamp = generatedAt
+            .toISOString()
+            .replace(/[:.]/g, '-');
+        const fileName = `kidsguard-family-data-${timestamp}.zip`;
+        const storagePath = `family-exports/${familyId}/${uid}/${fileName}`;
+        const file = bucket.file(storagePath);
+        const downloadToken = (0, crypto_1.randomUUID)();
+        await new Promise((resolve, reject) => {
+            const output = file.createWriteStream({
+                resumable: false,
+                metadata: {
+                    contentType: 'application/zip',
+                    cacheControl: 'private, no-store, max-age=0',
+                    metadata: {
+                        temporary: 'true',
+                        expiresAt: expiresAt.toISOString(),
+                        familyId,
+                        requestedBy: uid,
+                        firebaseStorageDownloadTokens: downloadToken
+                    }
+                }
+            });
+            const archive = new archiver_1.ZipArchive({
+                zlib: {
+                    level: 9
+                }
+            });
+            output.on('finish', resolve);
+            output.on('error', reject);
+            archive.on('error', reject);
+            archive.pipe(output);
+            archive.append(htmlContent, {
+                name: 'KidsGuard-Family-Data.html'
+            });
+            archive.append(jsonContent, {
+                name: 'KidsGuard-Family-Data.json'
+            });
+            void archive.finalize();
+        });
+        const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/` +
+            `${encodeURIComponent(bucket.name)}/o/` +
+            `${encodeURIComponent(storagePath)}` +
+            `?alt=media&token=` +
+            `${encodeURIComponent(downloadToken)}`;
+        return {
+            success: true,
+            fileName,
+            downloadUrl,
+            expiresAt: expiresAt.toISOString()
+        };
+    }
+    catch (error) {
+        try {
+            await exportRateLimitRef.delete();
+        }
+        catch (cleanupError) {
+            console.error('Failed to clear export rate limit:', cleanupError);
+        }
+        console.error('Family data export failed:', error);
+        if (error instanceof
+            functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', 'The family data export could not be completed. Please try again.');
+    }
 });
 exports.requestFamilyDeletion = functions.https.onCall(async (_data, context) => {
     if (!context.auth) {
@@ -1921,7 +1962,7 @@ exports.cancelFamilyDeletion = functions.https.onCall(async (_data, context) => 
     };
 });
 exports.cleanupExpiredFamilyExports = (0, scheduler_1.onSchedule)({
-    schedule: "every 60 minutes",
+    schedule: "every 15 minutes",
     timeZone: "Europe/Berlin",
 }, async () => {
     const [files] = await storageBucket.getFiles({
