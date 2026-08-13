@@ -2581,15 +2581,69 @@ export const requestFamilyDataExport =
         );
       }
 
-      if (
-        familySnapshot.data()?.ownerId !== uid
-      ) {
-        throw new functions.https.HttpsError(
-          'permission-denied',
-          'Only the Family Owner can request this export.'
-        );
-      }
+      const exportRateLimitRef = db
+        .collection('familyExportRateLimits')
+        .doc(uid);
 
+      const exportRateLimitMs =
+        15 * 60 * 1000;
+
+      await db.runTransaction(
+        async (transaction) => {
+          const rateLimitSnapshot =
+            await transaction.get(
+              exportRateLimitRef
+            );
+
+          const lastRequestedAt =
+            rateLimitSnapshot
+              .data()
+              ?.lastRequestedAt;
+
+          if (
+            lastRequestedAt instanceof
+              admin.firestore.Timestamp
+          ) {
+            const elapsedMs =
+              Date.now() -
+              lastRequestedAt.toMillis();
+
+            if (elapsedMs < exportRateLimitMs) {
+              const remainingMinutes =
+                Math.max(
+                  1,
+                  Math.ceil(
+                    (
+                      exportRateLimitMs -
+                      elapsedMs
+                    ) /
+                    60000
+                  )
+                );
+
+              throw new functions.https.HttpsError(
+                'resource-exhausted',
+                `Please wait ${remainingMinutes} minute(s) before requesting another export.`
+              );
+            }
+          }
+
+          transaction.set(
+            exportRateLimitRef,
+            {
+              uid,
+              familyId,
+              lastRequestedAt:
+                admin.firestore.Timestamp.now()
+            },
+            {
+              merge: true
+            }
+          );
+        }
+      );
+
+try {
       const parentsSnapshot = await db
         .collection('parents')
         .where('familyId', '==', familyId)
@@ -2752,8 +2806,35 @@ const htmlContent =
         expiresAt:
           expiresAt.toISOString()
       };
-    }
-  );
+      } catch (error) {
+        try {
+          await exportRateLimitRef.delete();
+        } catch (cleanupError) {
+          console.error(
+            'Failed to clear export rate limit:',
+            cleanupError
+          );
+        }
+
+        console.error(
+          'Family data export failed:',
+          error
+        );
+
+        if (
+          error instanceof
+            functions.https.HttpsError
+        ) {
+          throw error;
+        }
+
+        throw new functions.https.HttpsError(
+          'internal',
+          'The family data export could not be completed. Please try again.'
+        );
+      }
+      }
+      );
 
 
 export const requestFamilyDeletion =
@@ -2946,7 +3027,7 @@ export const cancelFamilyDeletion =
 export const cleanupExpiredFamilyExports =
 onSchedule(
   {
-    schedule: "every 60 minutes",
+    schedule: "every 15 minutes",
     timeZone: "Europe/Berlin",
   },
   async () => {
