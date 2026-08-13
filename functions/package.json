@@ -14,12 +14,14 @@
   },
   "main": "lib/index.js",
   "dependencies": {
+    "archiver": "^8.0.0",
     "firebase-admin": "^11.8.0",
     "firebase-functions": "^4.3.1"
   },
   "devDependencies": {
-    "@types/node": "18.18.0",
+    "@types/archiver": "^8.0.0",
     "@types/minimatch": "5.1.2",
+    "@types/node": "18.18.0",
     "firebase-functions-test": "^3.1.0",
     "typescript": "5.4.5"
   },

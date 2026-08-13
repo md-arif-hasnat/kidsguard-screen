@@ -23,6 +23,110 @@ class AuthRepository(private val context: Context) {
     }
     private val prefs = PreferenceHelper(context)
     private val errorLogger = ErrorLogRepository(context)
+
+    data class FamilyDataExportResult(
+        val fileName: String,
+        val downloadUrl: String,
+        val expiresAt: String
+    )
+
+    suspend fun sendPasswordResetEmail(
+        email: String
+    ): Result<Unit> {
+        return try {
+            val normalizedEmail =
+                email.trim().lowercase()
+
+            if (normalizedEmail.isBlank()) {
+                return Result.failure(
+                    IllegalArgumentException(
+                        "Please enter your email address."
+                    )
+                )
+            }
+
+            auth.sendPasswordResetEmail(
+                normalizedEmail
+            ).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Password reset email failed",
+                e
+            )
+            Result.failure(e)
+        }
+    }
+
+    suspend fun requestFamilyDataExport():
+            Result<FamilyDataExportResult> {
+        return try {
+            val currentUser = auth.currentUser
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "You must be signed in."
+                    )
+                )
+
+            currentUser.getIdToken(true).await()
+
+            val result = functions
+                .getHttpsCallable(
+                    "requestFamilyDataExport"
+                )
+
+                .call()
+                .await()
+
+            val data =
+                result.getData() as? Map<*, *>
+
+            val success =
+                data?.get("success") as? Boolean
+                    ?: false
+
+            val fileName =
+                data?.get("fileName") as? String
+
+            val downloadUrl =
+                data?.get("downloadUrl") as? String
+
+            val expiresAt =
+                data?.get("expiresAt") as? String
+
+            if (
+                !success ||
+                fileName.isNullOrBlank() ||
+                downloadUrl.isNullOrBlank() ||
+                expiresAt.isNullOrBlank()
+            ) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Family data export failed."
+                    )
+                )
+            }
+
+            Result.success(
+                FamilyDataExportResult(
+                    fileName = fileName,
+                    downloadUrl = downloadUrl,
+                    expiresAt = expiresAt
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Family data export failed",
+                e
+            )
+            Result.failure(e)
+        }
+    }
+
+
     suspend fun requestFamilyDeletion(): Result<String> {
         return try {
             val currentUser = auth.currentUser
@@ -40,6 +144,7 @@ class AuthRepository(private val context: Context) {
                 )
                 .call()
                 .await()
+
 
             val data = result.getData() as? Map<*, *>
             val success = data?.get("success") as? Boolean
