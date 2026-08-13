@@ -23,12 +23,121 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupDeletedFamilies = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
+const crypto_1 = require("crypto");
+const archiver_1 = require("archiver");
 admin.initializeApp();
 const db = admin.firestore();
+const bucket = admin.storage().bucket();
+const storageBucket = admin.storage().bucket();
+function serializeExportValue(value) {
+    if (value instanceof
+        admin.firestore.Timestamp) {
+        return value.toDate().toISOString();
+    }
+    if (value instanceof
+        admin.firestore.GeoPoint) {
+        return {
+            latitude: value.latitude,
+            longitude: value.longitude,
+        };
+    }
+    if (Array.isArray(value)) {
+        return value.map(serializeExportValue);
+    }
+    if (value !== null &&
+        typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [
+            key,
+            serializeExportValue(nestedValue),
+        ]));
+    }
+    return value;
+}
+async function exportDocumentTree(documentRef) {
+    const documentSnapshot = await documentRef.get();
+    if (!documentSnapshot.exists) {
+        return null;
+    }
+    const exportedDocument = {
+        id: documentSnapshot.id,
+        path: documentSnapshot.ref.path,
+        data: serializeExportValue(documentSnapshot.data() || {}),
+    };
+    const subcollections = await documentRef.listCollections();
+    if (subcollections.length > 0) {
+        const exportedSubcollections = {};
+        for (const subcollection of subcollections) {
+            const subcollectionSnapshot = await subcollection.get();
+            const exportedDocuments = await Promise.all(subcollectionSnapshot.docs.map((nestedDocument) => exportDocumentTree(nestedDocument.ref)));
+            exportedSubcollections[subcollection.id] = exportedDocuments.filter((value) => value !== null);
+        }
+        exportedDocument.subcollections =
+            exportedSubcollections;
+    }
+    return exportedDocument;
+}
+async function exportLinkedDocuments(collectionName, fieldName, fieldValue) {
+    const snapshot = await db
+        .collection(collectionName)
+        .where(fieldName, "==", fieldValue)
+        .get();
+    const exportedDocuments = await Promise.all(snapshot.docs.map((document) => exportDocumentTree(document.ref)));
+    return exportedDocuments.filter((value) => value !== null);
+}
+async function getExportFamilyOwner(context) {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be signed in.");
+    }
+    if (context.auth.token.email_verified !==
+        true) {
+        throw new functions.https.HttpsError("permission-denied", "Your email must be verified.");
+    }
+    const uid = context.auth.uid;
+    const parentSnapshot = await db
+        .collection("parents")
+        .doc(uid)
+        .get();
+    if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError("not-found", "Parent profile not found.");
+    }
+    const familyId = parentSnapshot.data()?.familyId;
+    if (typeof familyId !== "string" ||
+        !familyId) {
+        throw new functions.https.HttpsError("failed-precondition", "No family is connected to this account.");
+    }
+    const familyRef = db
+        .collection("families")
+        .doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError("not-found", "Family not found.");
+    }
+    if (familySnapshot.data()?.ownerId !== uid) {
+        throw new functions.https.HttpsError("permission-denied", "Only the Family Owner can export family data.");
+    }
+    return {
+        uid,
+        familyId,
+        familyRef,
+        familySnapshot,
+    };
+}
+function mergeExportDocuments(...documentGroups) {
+    const uniqueDocuments = new Map();
+    for (const group of documentGroups) {
+        for (const document of group) {
+            const path = typeof document.path === "string"
+                ? document.path
+                : JSON.stringify(document);
+            uniqueDocuments.set(path, document);
+        }
+    }
+    return Array.from(uniqueDocuments.values());
+}
 exports.onActivityCreated = functions.firestore
     .document('children/{childId}/activities/{activityId}')
     .onCreate(async (snapshot, context) => {
@@ -1078,6 +1187,640 @@ async function deleteAuthUserIfExists(uid) {
         }
     }
 }
+function escapeExportHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+function formatExportLabel(key) {
+    return key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function formatExportDisplayValue(value) {
+    if (value === null ||
+        value === undefined ||
+        value === '') {
+        return 'Not provided';
+    }
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+    if (typeof value === 'string' ||
+        typeof value === 'number') {
+        return String(value);
+    }
+    return JSON.stringify(value);
+}
+function renderExportFields(data, excludedKeys = []) {
+    const rows = Object.entries(data)
+        .filter(([key]) => !excludedKeys.includes(key))
+        .filter(([, value]) => !Array.isArray(value) &&
+        (value === null ||
+            typeof value !== 'object'))
+        .map(([key, value]) => `
+      <div class="field-row">
+        <div class="field-label">
+          ${escapeExportHtml(formatExportLabel(key))}
+        </div>
+
+        <div class="field-value">
+          ${escapeExportHtml(formatExportDisplayValue(value))}
+        </div>
+      </div>
+    `)
+        .join('');
+    return rows || `
+    <p class="empty">
+      No general information available.
+    </p>
+  `;
+}
+function renderExportDocumentCards(documents, emptyMessage) {
+    if (!Array.isArray(documents) ||
+        documents.length === 0) {
+        return `
+      <p class="empty">
+        ${escapeExportHtml(emptyMessage)}
+      </p>
+    `;
+    }
+    return documents
+        .map((document, index) => {
+        const data = document?.data &&
+            typeof document.data === 'object'
+            ? document.data
+            : {};
+        const displayName = data.displayName ||
+            data.name ||
+            data.childName ||
+            data.deviceName ||
+            data.email ||
+            `Record ${index + 1}`;
+        return `
+        <article class="record-card">
+          <h3>
+            ${escapeExportHtml(displayName)}
+          </h3>
+
+          ${renderExportFields(data)}
+
+          <div class="field-row">
+            <div class="field-label">
+              Record ID
+            </div>
+
+            <div class="field-value">
+              ${escapeExportHtml(document?.id || 'Not provided')}
+            </div>
+          </div>
+        </article>
+      `;
+    })
+        .join('');
+}
+function renderNotificationReport(notifications) {
+    if (!Array.isArray(notifications) ||
+        notifications.length === 0) {
+        return `
+      <p class="empty">
+        No notifications or alerts found.
+      </p>
+    `;
+    }
+    const typeCounts = {};
+    for (const notification of notifications) {
+        const data = notification?.data &&
+            typeof notification.data === 'object'
+            ? notification.data
+            : {};
+        const type = typeof data.type === 'string' &&
+            data.type.trim()
+            ? data.type
+            : 'OTHER';
+        typeCounts[type] =
+            (typeCounts[type] || 0) + 1;
+    }
+    const summaryRows = Object.entries(typeCounts)
+        .sort((first, second) => second[1] - first[1])
+        .map(([type, count]) => `
+      <div class="type-row">
+        <span>
+          ${escapeExportHtml(formatExportLabel(type))}
+        </span>
+
+        <strong>
+          ${count}
+        </strong>
+      </div>
+    `)
+        .join('');
+    const recentNotifications = notifications.slice(0, 100);
+    const notificationCards = recentNotifications
+        .map((notification, index) => {
+        const data = notification?.data &&
+            typeof notification.data === 'object'
+            ? notification.data
+            : {};
+        const title = data.title ||
+            data.type ||
+            `Notification ${index + 1}`;
+        return `
+          <article class="record-card">
+            <h3>
+              ${escapeExportHtml(formatExportLabel(String(title)))}
+            </h3>
+
+            ${renderExportFields(data)}
+
+            <div class="field-row">
+              <div class="field-label">
+                Record ID
+              </div>
+
+              <div class="field-value">
+                ${escapeExportHtml(notification?.id ||
+            'Not provided')}
+              </div>
+            </div>
+          </article>
+        `;
+    })
+        .join('');
+    return `
+    <h3>Alert summary by type</h3>
+
+    <div class="type-summary">
+      ${summaryRows}
+    </div>
+
+    <h3 class="subheading">
+      First ${recentNotifications.length}
+      notification records
+    </h3>
+
+    <p class="note">
+      The complete set of
+      ${notifications.length} notification records
+      is available in the JSON file included in
+      this ZIP archive.
+    </p>
+
+    <div class="record-grid">
+      ${notificationCards}
+    </div>
+  `;
+}
+function createReadableExportHtml(exportPayload) {
+    const familyData = exportPayload.family?.data &&
+        typeof exportPayload.family.data === 'object'
+        ? exportPayload.family.data
+        : {};
+    const parents = Array.isArray(exportPayload.parents)
+        ? exportPayload.parents
+        : [];
+    const children = Array.isArray(exportPayload.children)
+        ? exportPayload.children
+        : [];
+    const devices = Array.isArray(exportPayload.devices)
+        ? exportPayload.devices
+        : [];
+    const notifications = Array.isArray(exportPayload.notifications)
+        ? exportPayload.notifications
+        : [];
+    const childCount = children.length;
+    const parentCount = parents.length;
+    const deviceCount = devices.length;
+    const notificationCount = notifications.length;
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>KidsGuard Family Data Export</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f4f7fb;
+      color: #172033;
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 32px 18px 60px;
+    }
+
+    header,
+    details {
+      background: white;
+      border: 1px solid #dce3ee;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, .05);
+    }
+
+    header {
+      padding: 26px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      color: #2457d6;
+    }
+
+    .warning {
+      padding: 12px;
+      border-radius: 8px;
+      background: #fff4e5;
+      color: #7a4700;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .card {
+      background: #edf3ff;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .number {
+      display: block;
+      font-size: 24px;
+      font-weight: bold;
+      color: #2457d6;
+    }
+
+    details {
+      margin-top: 14px;
+      padding: 18px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: bold;
+      color: #172033;
+    }
+
+    .section-content {
+      margin-top: 18px;
+    }
+
+    .record-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .record-card {
+      padding: 18px;
+      border: 1px solid #dce3ee;
+      border-radius: 12px;
+      background: #f8faff;
+    }
+
+    .record-card h3 {
+      margin: 0 0 14px;
+      color: #2457d6;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(130px, 220px) 1fr;
+      gap: 14px;
+      padding: 9px 0;
+      border-bottom: 1px solid #e6ebf2;
+    }
+
+    .field-row:last-child {
+      border-bottom: 0;
+    }
+
+    .field-label {
+      font-weight: bold;
+      color: #536079;
+    }
+
+    .field-value {
+      overflow-wrap: anywhere;
+      color: #172033;
+    }
+
+    .type-summary {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+
+    .type-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #edf3ff;
+    }
+
+    .subheading {
+      margin-top: 26px;
+    }
+
+    .note {
+      padding: 12px;
+      border-radius: 8px;
+      background: #eef8ff;
+      color: #31536f;
+    }
+
+    .empty {
+      color: #68758a;
+      font-style: italic;
+    }
+
+    @media (max-width: 600px) {
+      .field-row {
+        grid-template-columns: 1fr;
+        gap: 3px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>KidsGuard Family Data Export</h1>
+      <p>
+        Generated:
+        ${escapeExportHtml(exportPayload.generatedAt)}
+      </p>
+
+      <p class="warning">
+        This report contains private family and child data.
+        Store it securely and do not share it publicly.
+      </p>
+
+      <div class="summary">
+        <div class="card">
+          <span class="number">${parentCount}</span>
+          Parents
+        </div>
+        <div class="card">
+          <span class="number">${childCount}</span>
+          Children
+        </div>
+        <div class="card">
+          <span class="number">${deviceCount}</span>
+          Devices
+        </div>
+        <div class="card">
+          <span class="number">${notificationCount}</span>
+          Notifications
+        </div>
+      </div>
+    </header>
+
+    <details open>
+      <summary>Family information</summary>
+
+      <div class="section-content">
+        <article class="record-card">
+          ${renderExportFields(familyData, [
+        'members',
+        'invites',
+        'childDeviceIds',
+        'memberUids',
+        'managerUids'
+    ])}
+        </article>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        Parent profiles (${parentCount})
+      </summary>
+
+      <div class="section-content record-grid">
+        ${renderExportDocumentCards(parents, 'No parent profiles found.')}
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        Child profiles and activity (${childCount})
+      </summary>
+
+      <div class="section-content record-grid">
+        ${renderExportDocumentCards(children, 'No child profiles found.')}
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        Registered devices (${deviceCount})
+      </summary>
+
+      <div class="section-content record-grid">
+        ${renderExportDocumentCards(devices, 'No registered devices found.')}
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        Notifications and alerts
+        (${notificationCount})
+      </summary>
+
+      <div class="section-content">
+        ${renderNotificationReport(notifications)}
+      </div>
+    </details>
+  </main>
+</body>
+</html>`;
+}
+function makeExportValueJsonSafe(value) {
+    if (value instanceof admin.firestore.Timestamp) {
+        return value.toDate().toISOString();
+    }
+    if (value instanceof admin.firestore.GeoPoint) {
+        return {
+            latitude: value.latitude,
+            longitude: value.longitude
+        };
+    }
+    if (value instanceof
+        admin.firestore.DocumentReference) {
+        return value.path;
+    }
+    if (Array.isArray(value)) {
+        return value.map(makeExportValueJsonSafe);
+    }
+    if (value !== null &&
+        typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [
+            key,
+            makeExportValueJsonSafe(nestedValue)
+        ]));
+    }
+    return value;
+}
+async function exportDocumentWithSubcollections(documentSnapshot) {
+    const exportedDocument = {
+        id: documentSnapshot.id,
+        data: makeExportValueJsonSafe(documentSnapshot.data() || {}),
+        subcollections: {}
+    };
+    const subcollections = await documentSnapshot.ref.listCollections();
+    for (const subcollection of subcollections) {
+        const snapshot = await subcollection.get();
+        exportedDocument.subcollections[subcollection.id] = snapshot.docs.map((nestedDocument) => ({
+            id: nestedDocument.id,
+            data: makeExportValueJsonSafe(nestedDocument.data())
+        }));
+    }
+    return exportedDocument;
+}
+exports.requestFamilyDataExport = functions
+    .runWith({
+    timeoutSeconds: 300,
+    memory: '1GB'
+})
+    .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified.');
+    }
+    const uid = context.auth.uid;
+    const parentSnapshot = await db
+        .collection('parents')
+        .doc(uid)
+        .get();
+    if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Parent profile not found.');
+    }
+    const familyId = parentSnapshot.data()?.familyId;
+    if (typeof familyId !== 'string' ||
+        !familyId) {
+        throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+    }
+    const familySnapshot = await db
+        .collection('families')
+        .doc(familyId)
+        .get();
+    if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+    }
+    if (familySnapshot.data()?.ownerId !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the Family Owner can request this export.');
+    }
+    const parentsSnapshot = await db
+        .collection('parents')
+        .where('familyId', '==', familyId)
+        .get();
+    const childrenSnapshot = await db
+        .collection('children')
+        .where('familyId', '==', familyId)
+        .get();
+    const devicesSnapshot = await db
+        .collection('devices')
+        .where('familyId', '==', familyId)
+        .get();
+    const familyExport = await exportDocumentWithSubcollections(familySnapshot);
+    const parentsExport = await Promise.all(parentsSnapshot.docs.map(exportDocumentWithSubcollections));
+    const childrenExport = await Promise.all(childrenSnapshot.docs.map(exportDocumentWithSubcollections));
+    const devicesExport = await Promise.all(devicesSnapshot.docs.map(exportDocumentWithSubcollections));
+    const parentNotifications = await Promise.all(parentsSnapshot.docs.map(async (parentDocument) => {
+        const snapshot = await db
+            .collection('notifications')
+            .where('userId', '==', parentDocument.id)
+            .get();
+        return Promise.all(snapshot.docs.map(exportDocumentWithSubcollections));
+    }));
+    const generatedAt = new Date();
+    const expiresAt = new Date(generatedAt.getTime() +
+        15 * 60 * 1000);
+    const exportPayload = {
+        exportVersion: 1,
+        generatedAt: generatedAt.toISOString(),
+        requestedBy: uid,
+        familyId,
+        family: familyExport,
+        parents: parentsExport,
+        children: childrenExport,
+        devices: devicesExport,
+        notifications: parentNotifications.flat()
+    };
+    const jsonContent = JSON.stringify(exportPayload, null, 2);
+    const htmlContent = createReadableExportHtml(exportPayload);
+    const timestamp = generatedAt
+        .toISOString()
+        .replace(/[:.]/g, '-');
+    const fileName = `kidsguard-family-data-${timestamp}.zip`;
+    const storagePath = `family-exports/${familyId}/${uid}/${fileName}`;
+    const file = bucket.file(storagePath);
+    const downloadToken = (0, crypto_1.randomUUID)();
+    await new Promise((resolve, reject) => {
+        const output = file.createWriteStream({
+            resumable: false,
+            metadata: {
+                contentType: 'application/zip',
+                cacheControl: 'private, no-store, max-age=0',
+                metadata: {
+                    temporary: 'true',
+                    expiresAt: expiresAt.toISOString(),
+                    familyId,
+                    requestedBy: uid,
+                    firebaseStorageDownloadTokens: downloadToken
+                }
+            }
+        });
+        const archive = new archiver_1.ZipArchive({
+            zlib: {
+                level: 9
+            }
+        });
+        output.on('finish', resolve);
+        output.on('error', reject);
+        archive.on('error', reject);
+        archive.pipe(output);
+        archive.append(htmlContent, {
+            name: 'KidsGuard-Family-Data.html'
+        });
+        archive.append(jsonContent, {
+            name: 'KidsGuard-Family-Data.json'
+        });
+        void archive.finalize();
+    });
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/` +
+        `${encodeURIComponent(bucket.name)}/o/` +
+        `${encodeURIComponent(storagePath)}` +
+        `?alt=media&token=` +
+        `${encodeURIComponent(downloadToken)}`;
+    return {
+        success: true,
+        fileName,
+        downloadUrl,
+        expiresAt: expiresAt.toISOString()
+    };
+});
 exports.requestFamilyDeletion = functions.https.onCall(async (_data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
@@ -1176,6 +1919,38 @@ exports.cancelFamilyDeletion = functions.https.onCall(async (_data, context) => 
         success: true,
         wasPending: true
     };
+});
+exports.cleanupExpiredFamilyExports = (0, scheduler_1.onSchedule)({
+    schedule: "every 60 minutes",
+    timeZone: "Europe/Berlin",
+}, async () => {
+    const [files] = await storageBucket.getFiles({
+        prefix: "family-exports/",
+    });
+    const now = Date.now();
+    for (const file of files) {
+        try {
+            const [metadata] = await file.getMetadata();
+            const expiresAt = metadata.metadata?.expiresAt;
+            if (typeof expiresAt !== "string") {
+                console.warn(`Export file has no expiry: ${file.name}`);
+                continue;
+            }
+            const expiryTime = new Date(expiresAt).getTime();
+            if (Number.isNaN(expiryTime) ||
+                expiryTime > now) {
+                continue;
+            }
+            await file.delete();
+            console.log(`Expired export deleted: ${file.name}`);
+        }
+        catch (error) {
+            if (error?.code === 404) {
+                continue;
+            }
+            console.error(`Failed to delete export ${file.name}:`, error);
+        }
+    }
 });
 exports.cleanupDeletedFamilies = (0, scheduler_1.onSchedule)({
     schedule: "every day 04:00",

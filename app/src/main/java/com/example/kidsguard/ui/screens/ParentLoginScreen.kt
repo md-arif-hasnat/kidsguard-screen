@@ -1,5 +1,6 @@
 package com.example.kidsguard.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,9 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.kidsguard.R
 import com.example.kidsguard.repository.AuthRepository
 import kotlinx.coroutines.launch
 
@@ -52,6 +55,15 @@ fun ParentLoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var isSignUp by remember { mutableStateOf(false) }
+
+    var isResettingPassword by remember {
+        mutableStateOf(false)
+    }
+
+    var resetMessage by remember {
+        mutableStateOf<String?>(null)
+    }
+
 
     Scaffold(
         topBar = {
@@ -73,11 +85,13 @@ fun ParentLoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary
+            Image(
+                painter = painterResource(
+                    id = R.drawable.masterlogo
+                ),
+                contentDescription = "KidsGuard logo",
+                modifier = Modifier.size(110.dp),
+                contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
@@ -87,9 +101,15 @@ fun ParentLoginScreen(
             )
             Spacer(modifier = Modifier.height(32.dp))
 
+
+
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it; error = null },
+                onValueChange = {
+                    email = it
+                    error = null
+                    resetMessage = null
+                },
                 label = { Text("Email Address") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
@@ -107,6 +127,63 @@ fun ParentLoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
+            if (!isSignUp) {
+                TextButton(
+                    onClick = {
+                        if (email.isBlank()) {
+                            error =
+                                "Please enter your email address first."
+                            return@TextButton
+                        }
+
+                        isResettingPassword = true
+                        error = null
+                        resetMessage = null
+
+                        scope.launch {
+                            authRepository
+                                .sendPasswordResetEmail(email)
+                                .onSuccess {
+                                    resetMessage =
+                                        "Password reset email sent. Please check your inbox and spam folder."
+                                }
+                                .onFailure { exception ->
+                                    error =
+                                        exception.message
+                                            ?: "Could not send password reset email."
+                                }
+
+                            isResettingPassword = false
+                        }
+                    },
+                    enabled =
+                        !isLoading &&
+                                !isResettingPassword,
+                    modifier = Modifier.align(
+                        Alignment.End
+                    )
+                ) {
+                    if (isResettingPassword) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Forgot Password?")
+                    }
+                }
+            }
+
+            if (resetMessage != null) {
+                Text(
+                    text = resetMessage!!,
+                    color = Color(0xFF15803D),
+                    style =
+                        MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
             if (error != null) {
                 Text(
@@ -159,8 +236,23 @@ fun ParentLoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = { isSignUp = !isSignUp }) {
-                Text(if (isSignUp) "Already have an account? Login" else "Don't have an account? Sign Up")
+            TextButton(
+                onClick = {
+                    isSignUp = !isSignUp
+                    error = null
+                    resetMessage = null
+                },
+                enabled =
+                    !isLoading &&
+                            !isResettingPassword
+            ) {
+                Text(
+                    if (isSignUp) {
+                        "Already have an account? Login"
+                    } else {
+                        "Don't have an account? Sign Up"
+                    }
+                )
             }
         }
     }

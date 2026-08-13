@@ -1,5 +1,7 @@
 package com.example.kidsguard.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
@@ -57,9 +60,19 @@ fun ParentSettingsScreen(
     var showLogoutDialog by remember {
         mutableStateOf(false)
     }
+    var showExportDataDialog by remember {
+        mutableStateOf(false)
+    }
 
     var showDeleteAccountDialog by remember {
         mutableStateOf(false)
+    }
+    var isExportingData by remember {
+        mutableStateOf(false)
+    }
+
+    var exportDataError by remember {
+        mutableStateOf<String?>(null)
     }
 
     var isDeletingAccount by remember {
@@ -71,6 +84,7 @@ fun ParentSettingsScreen(
     }
 
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -142,7 +156,9 @@ fun ParentSettingsScreen(
                 icon = Icons.Default.Download,
                 title = "Export Family Data",
                 subtitle = "Download all telemetry and logs",
-                onClick = { /* TODO */ }
+                onClick = {
+                    showExportDataDialog = true
+                }
             )
 
             ControlRow(
@@ -166,6 +182,110 @@ fun ParentSettingsScreen(
                 Text("Logout")
             }
         }
+        if (showExportDataDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isExportingData) {
+                        showExportDataDialog = false
+                        exportDataError = null
+                    }
+                },
+                icon = {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = {
+                    Text("Export Family Data?")
+                },
+                text = {
+                    Column(
+                        verticalArrangement =
+                            Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            "KidsGuard will prepare a copy of your family data, including child profiles, devices, locations, alerts and activity records."
+                        )
+
+                        Text(
+                            "Only the Family Owner can request this export.",
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        exportDataError?.let { message ->
+                            Text(
+                                text = message,
+                                color =
+                                    MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !isExportingData,
+                        onClick = {
+                            coroutineScope.launch {
+                                isExportingData = true
+                                exportDataError = null
+
+                                authRepository
+                                    .requestFamilyDataExport()
+                                    .onSuccess { exportResult ->
+                                        try {
+                                            val downloadIntent = Intent(
+                                                Intent.ACTION_VIEW,
+                                                Uri.parse(
+                                                    exportResult.downloadUrl
+                                                )
+                                            )
+
+                                            context.startActivity(
+                                                downloadIntent
+                                            )
+
+                                            showExportDataDialog = false
+                                        } catch (e: Exception) {
+                                            exportDataError =
+                                                "The download link could not be opened."
+                                        }
+                                    }
+                                    .onFailure { error ->
+                                        exportDataError =
+                                            error.message
+                                                ?: "Family data export failed."
+                                    }
+
+                                isExportingData = false
+                            }
+                        }
+                    ) {
+                        if (isExportingData) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Prepare Export")
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !isExportingData,
+                        onClick = {
+                            showExportDataDialog = false
+                            exportDataError = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         if (showDeleteAccountDialog) {
             AlertDialog(
                 onDismissRequest = {
