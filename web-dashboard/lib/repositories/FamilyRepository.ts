@@ -180,12 +180,13 @@ export class FamilyRepository {
       }
   */
     private static async callAcceptFamilyInvitation(
-      inviteId: string,
-      token: string,
-      displayName: string
+        inviteId: string,
+        token: string,
+        displayName: string,
+        dateOfBirth: string
     ): Promise<{
-      success: boolean;
-      familyId: string;
+        success: boolean;
+        familyId: string;
     }> {
       const currentUser = auth?.currentUser;
       const projectId =
@@ -208,11 +209,12 @@ export class FamilyRepository {
             Authorization: `Bearer ${idToken}`
           },
           body: JSON.stringify({
-            data: {
-              inviteId,
-              token,
-              displayName
-            }
+              data: {
+                  inviteId,
+                  token,
+                  displayName,
+                  dateOfBirth
+              }
           })
         }
       );
@@ -369,11 +371,12 @@ export class FamilyRepository {
   }
 
   static async acceptInvite(
-    inviteId: string,
-    token: string,
-    uid: string,
-    email: string,
-    displayName: string
+      inviteId: string,
+      token: string,
+      uid: string,
+      email: string,
+      displayName: string,
+      dateOfBirth: string
   ): Promise<string> {
 
     if (!db) throw new Error("Firestore not initialized");
@@ -386,11 +389,13 @@ export class FamilyRepository {
           );
         }
 
-        const result = await this.callAcceptFamilyInvitation(
-          inviteId,
-          token,
-          displayName
-        );
+        const result =
+            await this.callAcceptFamilyInvitation(
+                inviteId,
+                token,
+                displayName,
+                dateOfBirth
+            );
 
         if (!result.success) {
           throw new Error(

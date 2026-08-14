@@ -1010,21 +1010,33 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
     const inviteId = typeof data?.inviteId === 'string'
         ? data.inviteId.trim()
         : '';
-    const displayName = typeof data?.displayName === 'string' &&
-        data.displayName.trim()
-        ? data.displayName.trim()
-        : 'Parent';
     const token = typeof data?.token === 'string'
         ? data.token.trim()
         : '';
-    const email = typeof context.auth.token.email === 'string'
-        ? context.auth.token.email.toLowerCase()
+    const displayName = typeof data?.displayName === 'string'
+        ? data.displayName.trim()
         : '';
-    if (!inviteId ||
-        !token ||
-        !email ||
-        context.auth.token.email_verified !== true) {
-        throw new functions.https.HttpsError('failed-precondition', 'A verified email and valid invitation are required.');
+    const dateOfBirth = typeof data?.dateOfBirth === 'string'
+        ? data.dateOfBirth.trim()
+        : '';
+    const email = typeof context.auth?.token.email ===
+        'string'
+        ? context.auth.token.email
+            .trim()
+            .toLowerCase()
+        : '';
+    const parsedBirthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+    const isValidBirthDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) &&
+        !Number.isNaN(parsedBirthDate.getTime()) &&
+        parsedBirthDate
+            .toISOString()
+            .slice(0, 10) === dateOfBirth &&
+        parsedBirthDate.getTime() <=
+            Date.now();
+    if (displayName.length < 2 ||
+        displayName.length > 80 ||
+        !isValidBirthDate) {
+        throw new functions.https.HttpsError('invalid-argument', 'A valid full name and date of birth are required.');
     }
     const uid = context.auth.uid;
     const inviteRef = db
@@ -1132,11 +1144,16 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             .collection('parents')
             .doc(uid);
         transaction.set(parentRef, {
+            uid,
+            email,
             familyId,
             role,
-            email,
             displayName,
-            lastLoginAt: admin.firestore.FieldValue.serverTimestamp()
+            dateOfBirth,
+            lastLoginAt: admin.firestore.FieldValue
+                .serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue
+                .serverTimestamp()
         }, { merge: true });
         return familyId;
     });
