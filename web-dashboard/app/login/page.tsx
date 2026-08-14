@@ -193,16 +193,48 @@ const getFriendlyAuthError = (err: any): string => {
         }
         let profile = await ParentRepository.createOrUpdateProfile(user, provider);
 
-      if (!profile.familyId) {
+        const pendingReturnPath =
+          sessionStorage.getItem(
+            "kidsguard_return_after_login"
+          );
+
+        const isInvitationFlow =
+          pendingReturnPath?.startsWith("/invite/") === true;
+
+      const hasAnyFamily = Boolean(
+        profile.ownedFamilyId ||
+        profile.activeFamilyId ||
+        profile.familyId ||
+        profile.familyIds?.length
+      );
+
+      if (!hasAnyFamily && !isInvitationFlow) {
           setLoadingMessage("Creating new family vault...");
           const familyId = await FamilyRepository.createFamily(user.uid, user.email, user.displayName);
-          await ParentRepository.updateProfile(user.uid, {
-              familyId,
-              role: 'OWNER'
-          });
+          await ParentRepository.updateProfile(user.uid,
+              {
+                familyId, // Legacy compatibility
+                familyIds: [familyId],
+                activeFamilyId: familyId,
+                ownedFamilyId: familyId,
+                role: 'OWNER'
+              }
+      );
           localStorage.setItem("kidsguard_family_id", familyId);
       } else {
-          localStorage.setItem("kidsguard_family_id", profile.familyId);
+        const selectedFamilyId =
+          profile.activeFamilyId ||
+          profile.ownedFamilyId ||
+          profile.familyId ||
+          profile.familyIds?.[0] ||
+          null;
+
+        if (selectedFamilyId) {
+          localStorage.setItem(
+            "kidsguard_family_id",
+            selectedFamilyId
+          );
+        }
       }
 
       setError(null);
@@ -256,7 +288,9 @@ const getFriendlyAuthError = (err: any): string => {
             displayName: user.displayName || "Parent",
             provider: "password",
             familyId: null,
-            role: "OWNER",
+            familyIds: [],
+            activeFamilyId: null,
+            ownedFamilyId: null,
             region: "DE",
             createdAt: serverTimestamp(),
             lastLoginAt: serverTimestamp(),

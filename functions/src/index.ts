@@ -4,6 +4,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { randomUUID } from 'crypto';
 
 import { ZipArchive } from 'archiver';
+import { Resend } from 'resend';
 
 admin.initializeApp();
 
@@ -217,6 +218,14 @@ async function getExportFamilyOwner(
     familyRef,
     familySnapshot,
   };
+}
+function escapeEmailHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function mergeExportDocuments(
@@ -1820,8 +1829,9 @@ export const acceptFamilyInvitation =
               {
                 uid,
                 email,
-                familyId,
-                role,
+                familyIds:
+                  admin.firestore.FieldValue.arrayUnion(familyId),
+                activeFamilyId: familyId,
                 displayName,
                 dateOfBirth,
                 lastLoginAt:
@@ -3406,6 +3416,153 @@ export const cleanupDeletedFamilies = onSchedule(
     }
   }
 );
+
+export const sendFamilyInvitationEmail =
+  functions
+    .runWith({
+      secrets: ['RESEND_API_KEY']
+    })
+    .firestore
+    .document(
+      'familyInvitations/{inviteId}'
+    )
+    .onCreate(
+      async (snapshot, context) => {
+        const invitation = snapshot.data();
+
+        const email =
+          typeof invitation.email === 'string'
+            ? invitation.email.trim()
+            : '';
+
+        const token =
+          typeof invitation.tokenHash === 'string'
+            ? invitation.tokenHash.trim()
+            : '';
+
+        if (
+          !email ||
+          !token ||
+          invitation.status !== 'PENDING'
+        ) {
+          console.warn(
+            'Invitation email skipped:',
+            context.params.inviteId
+          );
+          return;
+        }
+
+        const familyName =
+          invitation.familyName ||
+          'KidsGuard Family';
+
+        const inviterName =
+          invitation.invitedByName ||
+          'A family member';
+
+        const role =
+          invitation.role ||
+          'PARENT';
+
+        const inviteLink =
+          `https://kidsguard-screen.vercel.app/` +
+          `invite/${context.params.inviteId}` +
+          `?token=${encodeURIComponent(token)}`;
+
+        const resend =
+          new Resend(
+            process.env.RESEND_API_KEY
+          );
+
+        const { data, error } =
+          await resend.emails.send({
+            from:
+              'KidsGuard <onboarding@resend.dev>',
+
+            to: [email],
+
+            subject:
+              `${inviterName} invited you to ${familyName}`,
+
+            html: `
+              <div style="
+                max-width:600px;
+                margin:auto;
+                padding:32px;
+                font-family:Arial,sans-serif;
+                color:#172033;
+              ">
+                <h1 style="color:#2457d6;">
+                  KidsGuard Family Invitation
+                </h1>
+
+                <p>
+                  <strong>
+                    ${escapeEmailHtml(inviterName)}
+                  </strong>
+                  invited you to join
+                  <strong>
+                    ${escapeEmailHtml(familyName)}
+                  </strong>.
+                </p>
+
+                <p>
+                  Assigned role:
+                  <strong>
+                    ${escapeEmailHtml(role)}
+                  </strong>
+                </p>
+
+                <a
+                  href="${escapeEmailHtml(inviteLink)}"
+                  style="
+                    display:inline-block;
+                    margin:20px 0;
+                    padding:14px 24px;
+                    background:#2457d6;
+                    color:white;
+                    text-decoration:none;
+                    border-radius:10px;
+                    font-weight:bold;
+                  "
+                >
+                  View Invitation
+                </a>
+
+                <p style="
+                  color:#64748b;
+                  font-size:13px;
+                ">
+                  This invitation expires in 7 days.
+                  Please sign in using the email address
+                  that received this invitation.
+                </p>
+              </div>
+            `
+          });
+
+        if (error) {
+          console.error(
+            'Invitation email failed:',
+            error
+          );
+
+          throw new Error(
+            `Resend failed: ${error.message}`
+          );
+        }
+
+        console.log(
+          'Invitation email sent:',
+          {
+            inviteId:
+              context.params.inviteId,
+            email,
+            resendId: data?.id
+          }
+        );
+      }
+    );
 
 
 

@@ -23,12 +23,13 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const crypto_1 = require("crypto");
 const archiver_1 = require("archiver");
+const resend_1 = require("resend");
 admin.initializeApp();
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
@@ -125,6 +126,14 @@ async function getExportFamilyOwner(context) {
         familyRef,
         familySnapshot,
     };
+}
+function escapeEmailHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 function mergeExportDocuments(...documentGroups) {
     const uniqueDocuments = new Map();
@@ -1146,8 +1155,8 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
         transaction.set(parentRef, {
             uid,
             email,
-            familyId,
-            role,
+            familyIds: admin.firestore.FieldValue.arrayUnion(familyId),
+            activeFamilyId: familyId,
             displayName,
             dateOfBirth,
             lastLoginAt: admin.firestore.FieldValue
@@ -2178,5 +2187,105 @@ exports.cleanupDeletedFamilies = (0, scheduler_1.onSchedule)({
             console.error(`Failed to permanently delete family ${familyDocument.id}:`, error);
         }
     }
+});
+exports.sendFamilyInvitationEmail = functions
+    .runWith({
+    secrets: ['RESEND_API_KEY']
+})
+    .firestore
+    .document('familyInvitations/{inviteId}')
+    .onCreate(async (snapshot, context) => {
+    const invitation = snapshot.data();
+    const email = typeof invitation.email === 'string'
+        ? invitation.email.trim()
+        : '';
+    const token = typeof invitation.tokenHash === 'string'
+        ? invitation.tokenHash.trim()
+        : '';
+    if (!email ||
+        !token ||
+        invitation.status !== 'PENDING') {
+        console.warn('Invitation email skipped:', context.params.inviteId);
+        return;
+    }
+    const familyName = invitation.familyName ||
+        'KidsGuard Family';
+    const inviterName = invitation.invitedByName ||
+        'A family member';
+    const role = invitation.role ||
+        'PARENT';
+    const inviteLink = `https://kidsguard-screen.vercel.app/` +
+        `invite/${context.params.inviteId}` +
+        `?token=${encodeURIComponent(token)}`;
+    const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+        from: 'KidsGuard <onboarding@resend.dev>',
+        to: [email],
+        subject: `${inviterName} invited you to ${familyName}`,
+        html: `
+              <div style="
+                max-width:600px;
+                margin:auto;
+                padding:32px;
+                font-family:Arial,sans-serif;
+                color:#172033;
+              ">
+                <h1 style="color:#2457d6;">
+                  KidsGuard Family Invitation
+                </h1>
+
+                <p>
+                  <strong>
+                    ${escapeEmailHtml(inviterName)}
+                  </strong>
+                  invited you to join
+                  <strong>
+                    ${escapeEmailHtml(familyName)}
+                  </strong>.
+                </p>
+
+                <p>
+                  Assigned role:
+                  <strong>
+                    ${escapeEmailHtml(role)}
+                  </strong>
+                </p>
+
+                <a
+                  href="${escapeEmailHtml(inviteLink)}"
+                  style="
+                    display:inline-block;
+                    margin:20px 0;
+                    padding:14px 24px;
+                    background:#2457d6;
+                    color:white;
+                    text-decoration:none;
+                    border-radius:10px;
+                    font-weight:bold;
+                  "
+                >
+                  View Invitation
+                </a>
+
+                <p style="
+                  color:#64748b;
+                  font-size:13px;
+                ">
+                  This invitation expires in 7 days.
+                  Please sign in using the email address
+                  that received this invitation.
+                </p>
+              </div>
+            `
+    });
+    if (error) {
+        console.error('Invitation email failed:', error);
+        throw new Error(`Resend failed: ${error.message}`);
+    }
+    console.log('Invitation email sent:', {
+        inviteId: context.params.inviteId,
+        email,
+        resendId: data?.id
+    });
 });
 //# sourceMappingURL=index.js.map
