@@ -181,6 +181,7 @@ export class FamilyRepository {
   */
     private static async callAcceptFamilyInvitation(
       inviteId: string,
+      token: string,
       displayName: string
     ): Promise<{
       success: boolean;
@@ -209,6 +210,7 @@ export class FamilyRepository {
           body: JSON.stringify({
             data: {
               inviteId,
+              token,
               displayName
             }
           })
@@ -289,8 +291,19 @@ export class FamilyRepository {
     return familyId;
   }
 
-  static async sendInvite(familyId: string, familyName: string, email: string, role: FamilyRole,
-      invitedBy: string, invitedByName?: string, callerRole?: FamilyRole): Promise<string> {
+  static async sendInvite(
+    familyId: string,
+    familyName: string,
+    email: string,
+    role: FamilyRole,
+    invitedBy: string,
+    invitedByName?: string,
+    callerRole?: FamilyRole
+  ): Promise<{
+    inviteId: string;
+    token: string;
+  }> {
+
     if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
     if (!db) throw new Error("Firestore not initialized");
     const inviteId = uuidv4();
@@ -343,7 +356,10 @@ export class FamilyRepository {
     });
 
     console.log(`WEB: Invite created. Link: /invite/${inviteId}?token=${token}`);
-    return token;
+    return {
+      inviteId,
+      token
+    };
   }
 
   static async getInvite(inviteId: string): Promise<DetailedInvite | null> {
@@ -352,7 +368,14 @@ export class FamilyRepository {
     return snap.exists() ? snap.data() as DetailedInvite : null;
   }
 
-  static async acceptInvite(inviteId: string, uid: string, email: string, displayName: string): Promise<string> {
+  static async acceptInvite(
+    inviteId: string,
+    token: string,
+    uid: string,
+    email: string,
+    displayName: string
+  ): Promise<string> {
+
     if (!db) throw new Error("Firestore not initialized");
 
         const currentUser = auth?.currentUser;
@@ -363,11 +386,11 @@ export class FamilyRepository {
           );
         }
 
-        const result =
-          await this.callAcceptFamilyInvitation(
-            inviteId,
-            displayName
-          );
+        const result = await this.callAcceptFamilyInvitation(
+          inviteId,
+          token,
+          displayName
+        );
 
         if (!result.success) {
           throw new Error(

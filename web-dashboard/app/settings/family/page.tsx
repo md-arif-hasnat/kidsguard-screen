@@ -65,27 +65,52 @@ export default function FamilyManagementPage() {
     }
   }, [profile, family, role]);
 
-  const handleSendInvite = async (e: React.FormEvent) => {
+  const handleSendInvite = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
-    if (!family || !inviteEmail) return;
+
+    if (
+      !family ||
+      !inviteEmail.trim() ||
+      !profile
+    ) {
+      return;
+    }
+
     setInviting(true);
     setLastInviteLink(null);
+
     try {
-      const token = await FamilyRepository.sendInvite(
+      const normalizedEmail =
+        inviteEmail.trim().toLowerCase();
+
+      const {
+        inviteId,
+        token
+      } = await FamilyRepository.sendInvite(
         family.familyId,
         family.settings.name,
-        inviteEmail,
+        normalizedEmail,
         inviteRole,
-        profile!.uid,
-        profile?.displayName || "Family Owner",
+        profile.uid,
+        profile.displayName || "Family Owner",
         role
       );
 
-      const inviteId = (family?.invites ?? []).find(i => i.email === inviteEmail.toLowerCase())?.id || "latest";
-      const link = `${window.location.origin}/invite/${inviteId}?token=${token}`;
+      const link =
+        `${window.location.origin}` +
+        `/invite/${inviteId}` +
+        `?token=${encodeURIComponent(token)}`;
+
       setLastInviteLink(link);
-      setInviteEmail('');
+      setInviteEmail("");
     } catch (err) {
+      console.error(
+        "Failed to send invitation:",
+        err
+      );
+
       alert("Failed to send invite");
     } finally {
       setInviting(false);

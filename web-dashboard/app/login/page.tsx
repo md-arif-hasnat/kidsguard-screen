@@ -78,6 +78,24 @@ export default function Login() {
   const redirectingRef = useRef(false);
   const authFlowInProgressRef = useRef(false);
 
+  useEffect(() => {
+    const redirectPath =
+      new URLSearchParams(
+        window.location.search
+      ).get("redirect");
+
+    const isSafeInternalPath =
+      redirectPath?.startsWith("/") &&
+      !redirectPath.startsWith("//");
+
+    if (redirectPath && isSafeInternalPath) {
+      sessionStorage.setItem(
+        "kidsguard_return_after_login",
+        redirectPath
+      );
+    }
+  }, []);
+
   // Consolidated redirect function
   const safeRedirect = () => {
     if (redirectingRef.current) return;
@@ -232,6 +250,8 @@ const getFriendlyAuthError = (err: any): string => {
           await ParentRepository.updateProfile(user.uid, {
             uid: user.uid,
             email: user.email,
+
+
             phoneNumber: user.phoneNumber,
             displayName: user.displayName || "Parent",
             provider: "password",
