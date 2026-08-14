@@ -10,6 +10,9 @@ export interface ParentProfile {
   avatarId?: string;
   provider: string;
   familyId: string | null;
+  familyIds?: string[];
+  activeFamilyId?: string | null;
+  ownedFamilyId?: string | null;
   role?: string; // Optional cached role
   region?: 'DE' | 'BD' | 'US' | 'Global';
   lastActiveDate?: string; // Phase AQ (YYYY-MM-DD)
@@ -71,10 +74,7 @@ export class ParentRepository {
     };
 
     if (existing?.role) {
-        profile.role = existing.role;
-    } else if (!existing?.familyId) {
-        // Only auto-assign OWNER if they don't have a family yet (new creator)
-        profile.role = 'OWNER';
+      profile.role = existing.role;
     }
     // Note: If they have a familyId but no role, we leave it out of this setDoc
     // to avoid writing 'undefined' and let RoleHelper resolve it from family members.
@@ -82,6 +82,9 @@ export class ParentRepository {
     if (!existing) {
       profile.createdAt = serverTimestamp();
       profile.familyId = null;
+      profile.familyIds = [];
+      profile.activeFamilyId = null;
+      profile.ownedFamilyId = null;
       profile.region = 'DE'; // Default region for new users
     }
 

@@ -70,20 +70,35 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [authUser]);
 
   // 3. Sync with Family Data
+  const selectedFamilyId =
+    profile?.activeFamilyId ||
+    profile?.ownedFamilyId ||
+    profile?.familyId ||
+    profile?.familyIds?.[0] ||
+    null;
+
   useEffect(() => {
-    if (!profile?.familyId) {
-        if (profile) setLoading(false); // If profile loaded but no familyId (and not auto-provisioning), stop loading
-        return;
+    if (!selectedFamilyId) {
+      if (profile) {
+        setFamily(null);
+        setLoading(false);
+      }
+      return;
     }
 
     setLoading(true);
-    const unsub = FamilyRepository.listenToFamily(profile.familyId, (data) => {
-        setFamily(data);
-        setLoading(false);
-    });
+
+    const unsub =
+      FamilyRepository.listenToFamily(
+        selectedFamilyId,
+        (data) => {
+          setFamily(data);
+          setLoading(false);
+        }
+      );
 
     return () => unsub();
-  }, [profile?.familyId]);
+  }, [selectedFamilyId, profile]);
 
   // 4. Resolve Role (Single Source of Truth)
   const role = useMemo(() => {

@@ -29,7 +29,13 @@ export default function MapPage() {
   useEffect(() => {
     if (!isFirebaseConfigured || !profile) return;
 
-    const familyId = profile.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
+    const familyId =
+      profile.activeFamilyId ||
+      profile.ownedFamilyId ||
+      profile.familyId ||
+      profile.familyIds?.[0] ||
+      localStorage.getItem("kidsguard_family_id") ||
+      "mock-family-123";
 
     const unsubFamily = FamilyRepository.listenToFamily(familyId, (data) => {
     if (data) {
