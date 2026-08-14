@@ -1014,10 +1014,14 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
         data.displayName.trim()
         ? data.displayName.trim()
         : 'Parent';
+    const token = typeof data?.token === 'string'
+        ? data.token.trim()
+        : '';
     const email = typeof context.auth.token.email === 'string'
         ? context.auth.token.email.toLowerCase()
         : '';
     if (!inviteId ||
+        !token ||
         !email ||
         context.auth.token.email_verified !== true) {
         throw new functions.https.HttpsError('failed-precondition', 'A verified email and valid invitation are required.');
@@ -1031,6 +1035,10 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
         throw new functions.https.HttpsError('not-found', 'Invitation not found.');
     }
     const inviteData = inviteSnapshot.data() || {};
+    if (typeof inviteData.tokenHash !== 'string' ||
+        inviteData.tokenHash !== token) {
+        throw new functions.https.HttpsError('permission-denied', 'Invitation token is invalid.');
+    }
     if (inviteData.status !== 'PENDING') {
         throw new functions.https.HttpsError('failed-precondition', `Invitation is ${inviteData.status || 'invalid'}.`);
     }
@@ -1064,6 +1072,10 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             throw new functions.https.HttpsError('not-found', 'Family not found.');
         }
         const latestInviteData = latestInviteSnapshot.data() || {};
+        if (typeof latestInviteData.tokenHash !== 'string' ||
+            latestInviteData.tokenHash !== token) {
+            throw new functions.https.HttpsError('permission-denied', 'Invitation token is invalid.');
+        }
         if (latestInviteData.status !== 'PENDING' ||
             latestInviteData.familyId !== familyId ||
             typeof latestInviteData.email !== 'string' ||
@@ -1120,7 +1132,11 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             .collection('parents')
             .doc(uid);
         transaction.set(parentRef, {
-            familyId
+            familyId,
+            role,
+            email,
+            displayName,
+            lastLoginAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         return familyId;
     });

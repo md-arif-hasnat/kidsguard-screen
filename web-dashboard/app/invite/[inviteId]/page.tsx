@@ -57,7 +57,11 @@ export default function InviteAcceptancePage() {
     }, [inviteId, token]);
 
     const handleAccept = async () => {
-        if (!invite || !profile) return;
+        if (!invite || !profile || !token) {
+            setError("Invitation link is missing its security token");
+            return;
+            }
+
 
         if (profile.email !== invite.email) {
             setError("This invitation was sent to another email address.");
@@ -68,6 +72,7 @@ export default function InviteAcceptancePage() {
         try {
             await FamilyRepository.acceptInvite(
                 inviteId,
+                token,
                 profile.uid,
                 profile.email!,
                 profile.displayName || "Family Member"

@@ -1574,6 +1574,10 @@ export const acceptFamilyInvitation =
       data.displayName.trim()
         ? data.displayName.trim()
         : 'Parent';
+    const token =
+      typeof data?.token === 'string'
+        ? data.token.trim()
+        : '';
 
     const email =
       typeof context.auth.token.email === 'string'
@@ -1582,6 +1586,7 @@ export const acceptFamilyInvitation =
 
     if (
       !inviteId ||
+      !token ||
       !email ||
       context.auth.token.email_verified !== true
     ) {
@@ -1606,6 +1611,15 @@ export const acceptFamilyInvitation =
     }
 
     const inviteData = inviteSnapshot.data() || {};
+    if (
+      typeof inviteData.tokenHash !== 'string' ||
+      inviteData.tokenHash !== token
+    ) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Invitation token is invalid.'
+      );
+    }
 
     if (inviteData.status !== 'PENDING') {
       throw new functions.https.HttpsError(
@@ -1678,6 +1692,16 @@ export const acceptFamilyInvitation =
 
             const latestInviteData =
               latestInviteSnapshot.data() || {};
+
+            if (
+              typeof latestInviteData.tokenHash !== 'string' ||
+              latestInviteData.tokenHash !== token
+            ) {
+              throw new functions.https.HttpsError(
+                'permission-denied',
+                'Invitation token is invalid.'
+              );
+            }
 
             if (
               latestInviteData.status !== 'PENDING' ||
@@ -1770,7 +1794,12 @@ export const acceptFamilyInvitation =
             transaction.set(
               parentRef,
               {
-                familyId
+                familyId,
+                role,
+                email,
+                displayName,
+                lastLoginAt:
+                  admin.firestore.FieldValue.serverTimestamp()
               },
               { merge: true }
             );
