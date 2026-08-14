@@ -24,7 +24,11 @@ export default function InviteAcceptancePage() {
 
     const inviteId = params.inviteId as string;
     const token = searchParams.get('token');
+    const [fullName, setFullName] =
+        useState('');
 
+    const [dateOfBirth, setDateOfBirth] =
+        useState('');
     const [invite, setInvite] = useState<DetailedInvite | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,12 +60,41 @@ export default function InviteAcceptancePage() {
         if (inviteId) loadInvite();
     }, [inviteId, token]);
 
+
     const handleAccept = async () => {
         if (!invite || !profile || !token) {
             setError("Invitation link is missing its security token");
             return;
             }
+        const normalizedFullName =
+            fullName.trim();
 
+        if (normalizedFullName.length < 2) {
+            setError(
+                "Please enter your full name."
+            );
+            return;
+        }
+
+        if (!dateOfBirth) {
+            setError(
+                "Please enter your date of birth."
+            );
+            return;
+        }
+
+        const birthDate =
+            new Date(`${dateOfBirth}T00:00:00`);
+
+        if (
+            Number.isNaN(birthDate.getTime()) ||
+            birthDate.getTime() > Date.now()
+        ) {
+            setError(
+                "Please enter a valid date of birth."
+            );
+            return;
+        }
 
         if (profile.email !== invite.email) {
             setError("This invitation was sent to another email address.");
@@ -72,10 +105,11 @@ export default function InviteAcceptancePage() {
         try {
             await FamilyRepository.acceptInvite(
                 inviteId,
-                token,
+                token!,
                 profile.uid,
                 profile.email!,
-                profile.displayName || "Family Member"
+                normalizedFullName,
+                dateOfBirth
             );
             setSuccess(true);
             setTimeout(() => {
@@ -161,6 +195,55 @@ export default function InviteAcceptancePage() {
                                 <div className="flex items-center justify-center gap-2 py-2">
                                     <span className="text-sm font-bold text-slate-400">Assigned Role:</span>
                                     <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">{invite?.role}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-4 text-left">
+                                <div>
+                                    <label
+                                        htmlFor="fullName"
+                                        className="block text-xs font-black uppercase text-slate-500 mb-2"
+                                    >
+                                        Full Name
+                                    </label>
+
+                                    <input
+                                        id="fullName"
+                                        type="text"
+                                        value={fullName}
+                                        onChange={(event) =>
+                                            setFullName(event.target.value)
+                                        }
+                                        placeholder="Enter your full name"
+                                        autoComplete="name"
+                                        maxLength={80}
+                                        required
+                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="dateOfBirth"
+                                        className="block text-xs font-black uppercase text-slate-500 mb-2"
+                                    >
+                                        Date of Birth
+                                    </label>
+
+                                    <input
+                                        id="dateOfBirth"
+                                        type="date"
+                                        value={dateOfBirth}
+                                        onChange={(event) =>
+                                            setDateOfBirth(event.target.value)
+                                        }
+                                        max={
+                                            new Date()
+                                                .toISOString()
+                                                .split('T')[0]
+                                        }
+                                        required
+                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                                    />
                                 </div>
                             </div>
 
