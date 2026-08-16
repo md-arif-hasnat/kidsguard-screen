@@ -10,27 +10,45 @@ export class RoleHelper {
    * 3. Check profile.role (cached role from parents collection).
    * 4. Default to VIEWER.
    */
-  static resolveRole(family: FamilyData | null, uid: string | undefined, profile?: ParentProfile | null): FamilyRole {
-    if (!uid) return FamilyRole.VIEWER;
-
-    // 1. Check ownerId (Highest authority & backward compatibility)
-    if (family?.ownerId === uid) return FamilyRole.OWNER;
-
-    // 2. Check if user is in members array
-    if (family?.members) {
-        const member = family.members.find(m => m.uid === uid);
-        if (member) return member.role;
+  static resolveRole(
+    family: FamilyData | null,
+    uid: string | undefined,
+    profile?: ParentProfile | null
+  ): FamilyRole {
+    if (!uid) {
+      return FamilyRole.VIEWER;
     }
 
-    // 3. Fallback to cached profile role
-    if (profile?.role === 'OWNER') return FamilyRole.OWNER;
-    if (profile?.role === 'PARENT') return FamilyRole.PARENT;
-    if (profile?.role === 'GUARDIAN') return FamilyRole.GUARDIAN;
-
-    // 4. Optimization: if they have a familyId but the family data hasn't loaded yet,
-    // and they were the creator (profile.role === 'OWNER'), return OWNER.
-    if (!family && profile?.familyId && profile.role === 'OWNER') {
+    // Loaded Family data is always authoritative.
+    if (family) {
+      if (family.ownerId === uid) {
         return FamilyRole.OWNER;
+      }
+
+      const member = family.members?.find(
+        item => item.uid === uid
+      );
+
+      if (member) {
+        return member.role;
+      }
+
+      // A user missing from the loaded Family must not
+      // inherit permissions from a stale Parent profile.
+      return FamilyRole.VIEWER;
+    }
+
+    // Temporary fallback while Family data is loading.
+    if (profile?.role === "OWNER") {
+      return FamilyRole.OWNER;
+    }
+
+    if (profile?.role === "PARENT") {
+      return FamilyRole.PARENT;
+    }
+
+    if (profile?.role === "GUARDIAN") {
+      return FamilyRole.GUARDIAN;
     }
 
     return FamilyRole.VIEWER;
