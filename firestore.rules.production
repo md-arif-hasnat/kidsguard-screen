@@ -40,7 +40,7 @@ service cloud.firestore {
         }
 
         function isFamilyOwner(familyId) {
-          return isSignedIn() &&
+          return isEmailVerified() &&
             familyData(familyId).ownerId == request.auth.uid;
         }
             function isDeviceOwner(deviceId) {
@@ -51,14 +51,10 @@ service cloud.firestore {
             }
 
             function isChildIdentity(childId) {
-              let child = get(
-                /databases/$(database)/documents/children/$(childId)
-              ).data;
-
               return isSignedIn() &&
-                child.firebaseUid == request.auth.uid &&
-                child.familyId is string &&
-                child.familyId.size() > 0;
+                get(
+                  /databases/$(database)/documents/children/$(childId)
+                ).data.firebaseUid == request.auth.uid;
             }
 
             function canReadChild(childId) {
@@ -84,7 +80,7 @@ service cloud.firestore {
         function isFamilyMember(familyId) {
           let family = familyData(familyId);
 
-          return isSignedIn() &&
+          return isEmailVerified() &&
             (
               family.ownerId == request.auth.uid ||
               (

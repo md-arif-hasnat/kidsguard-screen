@@ -1879,7 +1879,7 @@ export const acceptFamilyInvitation =
                 admin.firestore.FieldValue.arrayUnion(uid),
               invites: updatedInvites
             };
-                if (role !== 'VIEWER') {
+                if (role === 'PARENT') {
                   familyUpdate.managerUids =
                     admin.firestore.FieldValue.arrayUnion(uid);
                 }
@@ -4038,7 +4038,8 @@ export const onFamilyMembershipSync =
         members
           .filter(
             (member: any) =>
-              member.role !== 'VIEWER'
+              member.role === 'OWNER' ||
+              member.role === 'PARENT'
           )
           .map(
             (member: any) => member.uid
