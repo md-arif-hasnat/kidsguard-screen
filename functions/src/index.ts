@@ -1230,24 +1230,33 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     }
 }
 
-function getAllowedChildSlots(familyData: any): number {
-  const subscription = familyData?.subscription;
+function getAllowedChildSlots(
+  familyData: any
+): number {
+  const subscription =
+    familyData?.subscription;
 
   const baseChildSlots =
-    Number.isInteger(subscription?.baseChildSlots) &&
-    subscription.baseChildSlots >= 1
+    Number.isInteger(
+      subscription?.baseChildSlots
+    ) &&
+    subscription.baseChildSlots >= 2
       ? subscription.baseChildSlots
       : 2;
 
   const extraChildSlots =
-    Number.isInteger(subscription?.extraChildSlots) &&
+    Number.isInteger(
+      subscription?.extraChildSlots
+    ) &&
     subscription.extraChildSlots >= 0
       ? subscription.extraChildSlots
       : 0;
 
   const maxChildSlots =
-    Number.isInteger(subscription?.maxChildSlots) &&
-    subscription.maxChildSlots >= 1
+    Number.isInteger(
+      subscription?.maxChildSlots
+    ) &&
+    subscription.maxChildSlots >= 2
       ? subscription.maxChildSlots
       : 10;
 
