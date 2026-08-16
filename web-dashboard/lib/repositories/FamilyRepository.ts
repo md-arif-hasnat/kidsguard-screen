@@ -179,15 +179,78 @@ export class FamilyRepository {
         >(cloudFunctions, "acceptPairingCode");
       }
   */
-    private static async callAcceptFamilyInvitation(
-        inviteId: string,
-        token: string,
-        displayName: string,
-        dateOfBirth: string
-    ): Promise<{
-        success: boolean;
-        familyId: string;
-    }> {
+  private static async callAcceptFamilyInvitation(
+    inviteId: string,
+    token: string,
+    displayName: string,
+    dateOfBirth: string
+  ): Promise<{
+    success: boolean;
+    familyId: string;
+  }> {
+    const currentUser = auth?.currentUser;
+    const projectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+    if (!currentUser || !projectId) {
+      throw new Error(
+        "User or Firebase project is unavailable."
+      );
+    }
+
+    const idToken =
+      await currentUser.getIdToken();
+
+    const response = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/acceptFamilyInvitation`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          data: {
+            inviteId,
+            token,
+            displayName,
+            dateOfBirth
+          }
+        })
+      }
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.error?.message ||
+        "Secure invitation request failed."
+      );
+    }
+
+    return payload.result;
+  }
+
+
+    static async removeChildFromFamily(
+      _familyId: string,
+      childId: string,
+      _parentUid: string = "current_user",
+      _parentEmail: string = "parent@kidsguard.app",
+      callerRole?: FamilyRole
+    ): Promise<void> {
+      if (
+        callerRole &&
+        !RoleHelper.canRemoveChild(callerRole)
+      ) {
+        throw new PermissionError();
+      }
+
+      if (!childId) {
+        throw new Error("A valid child ID is required.");
+      }
+
       const currentUser = auth?.currentUser;
       const projectId =
         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -198,10 +261,11 @@ export class FamilyRepository {
         );
       }
 
-      const idToken = await currentUser.getIdToken();
+      const idToken =
+        await currentUser.getIdToken(true);
 
       const response = await fetch(
-        `https://us-central1-${projectId}.cloudfunctions.net/acceptFamilyInvitation`,
+        `https://us-central1-${projectId}.cloudfunctions.net/removeChildFromFamily`,
         {
           method: "POST",
           headers: {
@@ -209,12 +273,9 @@ export class FamilyRepository {
             Authorization: `Bearer ${idToken}`
           },
           body: JSON.stringify({
-              data: {
-                  inviteId,
-                  token,
-                  displayName,
-                  dateOfBirth
-              }
+            data: {
+              childId
+            }
           })
         }
       );
@@ -224,11 +285,15 @@ export class FamilyRepository {
       if (!response.ok || payload.error) {
         throw new Error(
           payload.error?.message ||
-          "Secure invitation request failed."
+          "Secure child removal failed."
         );
       }
 
-      return payload.result;
+      if (payload.result?.success !== true) {
+        throw new Error(
+          "The child could not be removed."
+        );
+      }
     }
   static listenToFamily(familyId: string, onUpdate: (data: FamilyData | null) => void) {
     if (!db || !familyId) return () => {};
@@ -597,57 +662,67 @@ const updatedManagerUids =
     });
   }
 
-  static async removeMember(familyId: string, memberUid: string, callerRole?: FamilyRole): Promise<void> {
-    if (callerRole && !RoleHelper.canRemoveMembers(callerRole)) throw new PermissionError();
-    if (!db) return;
-    const familyRef = doc(db, "families", familyId);
-    const snap = await getDoc(familyRef);
-    if (!snap.exists()) return;
+  static async removeMember(
+    _familyId: string,
+    memberUid: string,
+    callerRole?: FamilyRole
+  ): Promise<void> {
+    if (
+      callerRole &&
+      !RoleHelper.canRemoveMembers(callerRole)
+    ) {
+      throw new PermissionError();
+    }
 
-    const data = snap.data() as FamilyData;
-    const updatedMembers = data.members.filter(m => m.uid !== memberUid);
+    if (!memberUid) {
+      throw new Error(
+        "A valid member UID is required."
+      );
+    }
 
-    await updateDoc(familyRef, { members: updatedMembers });
+    const currentUser = auth?.currentUser;
+    const projectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
-    await AuditRepository.log({
-      actorUid: "current_user",
-      actorEmail: "admin",
-      familyId,
-      action: AuditAction.MEMBER_REMOVED,
-      targetType: 'MEMBER',
-      targetId: memberUid,
-      severity: AuditSeverity.WARNING
-    });
-  }
+    if (!currentUser || !projectId) {
+      throw new Error(
+        "User or Firebase project is unavailable."
+      );
+    }
 
-  static async removeChildFromFamily(familyId: string, childId: string, parentUid: string = "current_user", parentEmail: string = "parent@kidsguard.app", callerRole?: FamilyRole): Promise<void> {
-    if (callerRole && !RoleHelper.canRemoveChild(callerRole)) throw new PermissionError();
-    if (!db || !familyId || !childId) return;
-    const familyRef = doc(db, "families", familyId);
-    const snap = await getDoc(familyRef);
-    if (!snap.exists()) return;
+    const idToken =
+      await currentUser.getIdToken(true);
 
-    const data = snap.data() as FamilyData;
-    const updatedChildren = (data.childDeviceIds || []).filter(id => id !== childId);
+    const response = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/removeFamilyMember`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          data: {
+            memberUid
+          }
+        })
+      }
+    );
 
-    await updateDoc(familyRef, { childDeviceIds: updatedChildren });
+    const payload = await response.json();
 
-    // Also update the child doc to remove the familyId link
-    const childRef = doc(db, "children", childId);
-    await updateDoc(childRef, {
-        familyId: null,
-        updatedAt: serverTimestamp()
-    });
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.error?.message ||
+        "Secure member removal failed."
+      );
+    }
 
-    await AuditRepository.log({
-      actorUid: parentUid,
-      actorEmail: parentEmail,
-      familyId,
-      action: AuditAction.CHILD_REMOVED,
-      targetType: 'CHILD',
-      targetId: childId,
-      severity: AuditSeverity.WARNING
-    });
+    if (payload.result?.success !== true) {
+      throw new Error(
+        "The family member could not be removed."
+      );
+    }
   }
 
   static async updateFamilySettings(familyId: string, settings: Partial<FamilySettings>, callerRole?: FamilyRole): Promise<void> {
