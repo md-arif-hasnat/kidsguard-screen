@@ -308,7 +308,58 @@ export class FamilyRepository {
 
     if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
     if (!db) throw new Error("Firestore not initialized");
+    const currentUser = auth?.currentUser;
+    const projectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+    if (!currentUser || !projectId) {
+      throw new Error(
+        "You must be signed in to send an invitation."
+      );
+    }
+
+    const idToken =
+      await currentUser.getIdToken(true);
+
+    const emailCheckResponse = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/checkInvitationEmail`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          data: {
+            email: email.trim().toLowerCase(),
+          },
+        }),
+      }
+    );
+
+    const emailCheckPayload =
+      await emailCheckResponse.json();
+
+    if (
+      !emailCheckResponse.ok ||
+      emailCheckPayload.error
+    ) {
+      throw new Error(
+        emailCheckPayload.error?.message ||
+          "Could not verify this email address."
+      );
+    }
+
+    if (
+      emailCheckPayload.result?.available !== true
+    ) {
+      throw new Error(
+        emailCheckPayload.result?.message ||
+          "An account already exists with this email address. Please use another email."
+      );
+    }
     const inviteId = uuidv4();
+
     const token = uuidv4().replace(/-/g, ''); // Simple token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry

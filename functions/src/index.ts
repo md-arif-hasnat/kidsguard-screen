@@ -1360,6 +1360,7 @@ export const acceptPairingCode = functions.https.onCall(
       );
     }
 
+
 //subscription slot check
     const childId = pairingData.childId;
         const deviceId =
@@ -1563,6 +1564,60 @@ export const acceptPairingCode = functions.https.onCall(
         };
   }
 );
+
+//email দিয়ে Firebase Auth account আগে থেকেই থাকলেই invitation block হবে
+export const checkInvitationEmail =
+  functions.https.onCall(
+    async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+          "unauthenticated",
+          "You must be signed in."
+        );
+      }
+
+      const email =
+        typeof data?.email === "string"
+          ? data.email.trim().toLowerCase()
+          : "";
+
+      if (
+        !email ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "Please enter a valid email address."
+        );
+      }
+
+      try {
+        await admin.auth().getUserByEmail(email);
+
+        return {
+          available: false,
+          message:
+            "This email is already linked to another family. Please use a different email address."
+        };
+      } catch (error: any) {
+        if (error?.code === "auth/user-not-found") {
+          return {
+            available: true
+          };
+        }
+
+        console.error(
+          "Invitation email check failed:",
+          error
+        );
+
+        throw new functions.https.HttpsError(
+          "internal",
+          "Could not verify this email address."
+        );
+      }
+    }
+  );
 
 export const acceptFamilyInvitation =
   functions.https.onCall(async (data, context) => {
