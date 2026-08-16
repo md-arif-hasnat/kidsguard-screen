@@ -51,10 +51,14 @@ service cloud.firestore {
             }
 
             function isChildIdentity(childId) {
+              let child = get(
+                /databases/$(database)/documents/children/$(childId)
+              ).data;
+
               return isSignedIn() &&
-                get(
-                  /databases/$(database)/documents/children/$(childId)
-                ).data.firebaseUid == request.auth.uid;
+                child.firebaseUid == request.auth.uid &&
+                child.familyId is string &&
+                child.familyId.size() > 0;
             }
 
             function canReadChild(childId) {
