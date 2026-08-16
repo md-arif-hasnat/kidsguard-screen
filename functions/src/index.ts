@@ -1398,7 +1398,7 @@ export const acceptPairingCode = functions.https.onCall(
     ) {
       throw new functions.https.HttpsError(
         'resource-exhausted',
-        `Your subscription allows ${allowedChildSlots} child device(s).`
+        `Your current plan allows up to ${allowedChildSlots} child devices. Remove an existing child or add an extra child slot to continue.`
       );
     }
     const pairingResult = await db.runTransaction(async (transaction) => {
@@ -1485,8 +1485,8 @@ export const acceptPairingCode = functions.https.onCall(
               )
             : [];
 
-          const latestAllowedSlots =
-            getAllowedChildSlots(latestFamilyData);
+            const latestAllowedSlots =
+              getAllowedChildSlots(latestFamilyData);
 
           if (
             !latestChildIds.includes(latestChildId) &&
@@ -1494,7 +1494,7 @@ export const acceptPairingCode = functions.https.onCall(
           ) {
             throw new functions.https.HttpsError(
               'resource-exhausted',
-              `Your subscription allows ${latestAllowedSlots} child device(s).`
+              `Your current plan allows up to ${latestAllowedSlots} child devices. Remove an existing child or add an extra child slot to continue.`
             );
           }
             const childRef = db
