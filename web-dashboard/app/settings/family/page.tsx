@@ -51,6 +51,8 @@ export default function FamilyManagementPage() {
 
   // Invite Result
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [inviteError, setInviteError] =
+    useState<string | null>(null);
 
   // Debug Logging in Development
   useEffect(() => {
@@ -80,6 +82,7 @@ export default function FamilyManagementPage() {
 
     setInviting(true);
     setLastInviteLink(null);
+    setInviteError(null);
 
     try {
       const normalizedEmail =
@@ -111,10 +114,10 @@ export default function FamilyManagementPage() {
      err
    );
 
-   alert(
-     err?.message ||
-       "Failed to send invitation."
-   );
+   setInviteError(
+       err?.message ||
+         "Failed to send invitation."
+     );
  }
 finally {
       setInviting(false);
@@ -282,6 +285,17 @@ finally {
                         <p className="text-sm font-medium text-slate-500 italic">Only Owners and Parents can invite new members.</p>
                     </div>
                 )}
+            {inviteError && (
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-5">
+                <p className="text-sm font-black uppercase text-rose-700">
+                  Invitation failed
+                </p>
+
+                <p className="mt-2 text-sm font-medium text-rose-700">
+                  {inviteError}
+                </p>
+              </div>
+            )}
 
                 {lastInviteLink && (
                     <div className="mt-8 bg-emerald-50 border-2 border-emerald-100 rounded-2xl p-6 animate-in zoom-in-95 duration-200">
