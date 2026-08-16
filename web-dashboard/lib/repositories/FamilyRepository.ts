@@ -802,7 +802,14 @@ const updatedManagerUids =
             "WEB: Secure pairing failed:",
             error
           );
-          return false;
+
+          if (error instanceof Error) {
+            throw error;
+          }
+
+          throw new Error(
+            "Secure pairing failed."
+          );
         }
 
         /*if (!db) return false;
