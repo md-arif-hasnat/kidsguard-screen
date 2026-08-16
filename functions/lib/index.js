@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -1011,6 +1011,34 @@ exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
         success: true,
         ...pairingResult
     };
+});
+exports.checkInvitationEmail = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be signed in.");
+    }
+    const email = typeof data?.email === "string"
+        ? data.email.trim().toLowerCase()
+        : "";
+    if (!email ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new functions.https.HttpsError("invalid-argument", "Please enter a valid email address.");
+    }
+    try {
+        await admin.auth().getUserByEmail(email);
+        return {
+            available: false,
+            message: "This email is already linked to another family. Please use a different email address."
+        };
+    }
+    catch (error) {
+        if (error?.code === "auth/user-not-found") {
+            return {
+                available: true
+            };
+        }
+        console.error("Invitation email check failed:", error);
+        throw new functions.https.HttpsError("internal", "Could not verify this email address.");
+    }
 });
 exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) => {
     if (!context.auth) {

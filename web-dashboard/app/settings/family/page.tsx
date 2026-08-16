@@ -105,14 +105,18 @@ export default function FamilyManagementPage() {
 
       setLastInviteLink(link);
       setInviteEmail("");
-    } catch (err) {
-      console.error(
-        "Failed to send invitation:",
-        err
-      );
+ } catch (err: any) {
+   console.error(
+     "Failed to send invitation:",
+     err
+   );
 
-      alert("Failed to send invite");
-    } finally {
+   alert(
+     err?.message ||
+       "Failed to send invitation."
+   );
+ }
+finally {
       setInviting(false);
     }
   };
