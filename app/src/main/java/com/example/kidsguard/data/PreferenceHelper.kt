@@ -230,7 +230,7 @@ class PreferenceHelper(context: Context) {
             .remove("setup_completed")
             .remove("parent_name")
             .remove("paired_at")
-            .remove("user_role")
+            //.remove("user_role")
             .remove("is_locked")
             .putBoolean("removed_by_parent", true)
             .apply()

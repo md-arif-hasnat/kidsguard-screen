@@ -41,8 +41,8 @@ import com.example.kidsguard.tracking.LocalTrackingScheduler
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.theme.KidsGuardTheme
 import com.example.kidsguard.update.UpdateRepository
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -142,7 +142,8 @@ class MainActivity : ComponentActivity() {
         wellbeingManager =
             com.example.kidsguard.wellbeing.WellbeingManager(this, prefHelper, syncProvider)
         webManager = com.example.kidsguard.web.WebProtectionManager(this, prefHelper, syncProvider)
-        youtubeHistoryRepository = com.example.kidsguard.repository.YouTubeHistoryRepository.getInstance(this)
+        youtubeHistoryRepository =
+            com.example.kidsguard.repository.YouTubeHistoryRepository.getInstance(this)
         browserHistoryRepository = com.example.kidsguard.repository.BrowserHistoryRepository(this)
         websitePolicyRepository = com.example.kidsguard.repository.WebsitePolicyRepository(this)
 
@@ -219,7 +220,7 @@ class MainActivity : ComponentActivity() {
             com.example.kidsguard.sync.YouTubeSyncWorker.schedule(this)
             com.example.kidsguard.sync.BrowserSyncWorker.schedule(this)
             com.example.kidsguard.repository.InstalledAppsRepository(this).initialScan()
-            
+
             lifecycleScope.launch(Dispatchers.IO) {
                 browserHistoryRepository.categorizeExistingUnknownRecords()
             }
@@ -441,7 +442,8 @@ class MainActivity : ComponentActivity() {
         prefHelper.clearPairing()
 
         // Return to Role Selection
-        currentScreenState.value = Screen.RoleSelection
+        currentScreenState.value = Screen.ChildSetup
+
 
         // Show message
         android.widget.Toast.makeText(
