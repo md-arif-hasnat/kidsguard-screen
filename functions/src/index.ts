@@ -1237,7 +1237,7 @@ function getAllowedChildSlots(familyData: any): number {
     Number.isInteger(subscription?.baseChildSlots) &&
     subscription.baseChildSlots >= 1
       ? subscription.baseChildSlots
-      : 1;
+      : 2;
 
   const extraChildSlots =
     Number.isInteger(subscription?.extraChildSlots) &&
@@ -1256,7 +1256,7 @@ function getAllowedChildSlots(familyData: any): number {
 
   return Math.min(
     maxChildSlots,
-    Math.max(1, totalAllowedSlots)
+    Math.max(2, totalAllowedSlots)
   );
 }
 export const acceptPairingCode = functions.https.onCall(
