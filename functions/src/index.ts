@@ -293,6 +293,14 @@ console.warn("Missing childId or packageName");
 return;
 }
 
+if (app?.notifyParent !== true) {
+  console.log("Skipping baseline app notification:", {
+    childId,
+    packageName
+  });
+  return;
+}
+
 const appName = String(
 app?.appName ||
 app?.name ||

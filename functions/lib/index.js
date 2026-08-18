@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
+exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupExpiredFamilyExports = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onInstalledAppCreated = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -170,6 +170,13 @@ exports.onInstalledAppCreated = functions.firestore
     const packageName = String(context.params.packageName || "");
     if (!childId || !packageName) {
         console.warn("Missing childId or packageName");
+        return;
+    }
+    if (app?.notifyParent !== true) {
+        console.log("Skipping baseline app notification:", {
+            childId,
+            packageName
+        });
         return;
     }
     const appName = String(app?.appName ||
@@ -837,19 +844,19 @@ async function notifyParent(uid, payload) {
 function getAllowedChildSlots(familyData) {
     const subscription = familyData?.subscription;
     const baseChildSlots = Number.isInteger(subscription?.baseChildSlots) &&
-        subscription.baseChildSlots >= 1
+        subscription.baseChildSlots >= 2
         ? subscription.baseChildSlots
-        : 1;
+        : 2;
     const extraChildSlots = Number.isInteger(subscription?.extraChildSlots) &&
         subscription.extraChildSlots >= 0
         ? subscription.extraChildSlots
         : 0;
     const maxChildSlots = Number.isInteger(subscription?.maxChildSlots) &&
-        subscription.maxChildSlots >= 1
+        subscription.maxChildSlots >= 2
         ? subscription.maxChildSlots
         : 10;
     const totalAllowedSlots = baseChildSlots + extraChildSlots;
-    return Math.min(maxChildSlots, Math.max(1, totalAllowedSlots));
+    return Math.min(maxChildSlots, Math.max(2, totalAllowedSlots));
 }
 exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -920,7 +927,7 @@ exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
     const allowedChildSlots = getAllowedChildSlots(familyData);
     if (!childAlreadyPaired &&
         currentChildIds.length >= allowedChildSlots) {
-        throw new functions.https.HttpsError('resource-exhausted', `Your subscription allows ${allowedChildSlots} child device(s).`);
+        throw new functions.https.HttpsError('resource-exhausted', `Your current plan allows up to ${allowedChildSlots} child devices. Remove an existing child or add an extra child slot to continue.`);
     }
     const pairingResult = await db.runTransaction(async (transaction) => {
         const latestFamilySnapshot = await transaction.get(familyRef);
@@ -967,7 +974,7 @@ exports.acceptPairingCode = functions.https.onCall(async (data, context) => {
         const latestAllowedSlots = getAllowedChildSlots(latestFamilyData);
         if (!latestChildIds.includes(latestChildId) &&
             latestChildIds.length >= latestAllowedSlots) {
-            throw new functions.https.HttpsError('resource-exhausted', `Your subscription allows ${latestAllowedSlots} child device(s).`);
+            throw new functions.https.HttpsError('resource-exhausted', `Your current plan allows up to ${latestAllowedSlots} child devices. Remove an existing child or add an extra child slot to continue.`);
         }
         const childRef = db
             .collection('children')
@@ -1044,6 +1051,9 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'You must be signed in to accept an invitation.');
     }
+    if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified before accepting an invitation.');
+    }
     const inviteId = typeof data?.inviteId === 'string'
         ? data.inviteId.trim()
         : '';
@@ -1113,12 +1123,26 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
         const familyRef = db
             .collection('families')
             .doc(familyId);
+        const parentRef = db
+            .collection('parents')
+            .doc(uid);
         const familySnapshot = await transaction.get(familyRef);
+        const parentSnapshot = await transaction.get(parentRef);
         if (!latestInviteSnapshot.exists) {
             throw new functions.https.HttpsError('not-found', 'Invitation no longer exists.');
         }
         if (!familySnapshot.exists) {
             throw new functions.https.HttpsError('not-found', 'Family not found.');
+        }
+        const existingParentData = parentSnapshot.exists
+            ? parentSnapshot.data() || {}
+            : {};
+        const existingFamilyId = existingParentData.familyId ||
+            existingParentData.activeFamilyId;
+        if (typeof existingFamilyId === 'string' &&
+            existingFamilyId &&
+            existingFamilyId !== familyId) {
+            throw new functions.https.HttpsError('already-exists', 'This account is already linked to another family.');
         }
         const latestInviteData = latestInviteSnapshot.data() || {};
         if (typeof latestInviteData.tokenHash !== 'string' ||
@@ -1155,7 +1179,7 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             memberUids: admin.firestore.FieldValue.arrayUnion(uid),
             invites: updatedInvites
         };
-        if (role !== 'VIEWER') {
+        if (role === 'PARENT') {
             familyUpdate.managerUids =
                 admin.firestore.FieldValue.arrayUnion(uid);
         }
@@ -1177,14 +1201,13 @@ exports.acceptFamilyInvitation = functions.https.onCall(async (data, context) =>
             acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
             acceptedByUid: uid
         });
-        const parentRef = db
-            .collection('parents')
-            .doc(uid);
         transaction.set(parentRef, {
             uid,
             email,
+            familyId,
             familyIds: admin.firestore.FieldValue.arrayUnion(familyId),
             activeFamilyId: familyId,
+            role,
             displayName,
             dateOfBirth,
             lastLoginAt: admin.firestore.FieldValue
@@ -2315,5 +2338,299 @@ exports.sendFamilyInvitationEmail = functions
         email,
         resendId: data?.id
     });
+});
+exports.removeChildFromFamily = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified.');
+    }
+    const uid = context.auth.uid;
+    const childId = typeof data?.childId === 'string'
+        ? data.childId.trim()
+        : '';
+    if (!childId) {
+        throw new functions.https.HttpsError('invalid-argument', 'A valid child ID is required.');
+    }
+    const parentRef = db
+        .collection('parents')
+        .doc(uid);
+    const childRef = db
+        .collection('children')
+        .doc(childId);
+    const auditRef = db
+        .collection('auditLogs')
+        .doc();
+    await db.runTransaction(async (transaction) => {
+        const parentSnapshot = await transaction.get(parentRef);
+        if (!parentSnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Parent profile not found.');
+        }
+        const parentData = parentSnapshot.data() || {};
+        const familyId = parentData.familyId ||
+            parentData.activeFamilyId;
+        if (typeof familyId !== 'string' ||
+            !familyId) {
+            throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+        }
+        const familyRef = db
+            .collection('families')
+            .doc(familyId);
+        const familySnapshot = await transaction.get(familyRef);
+        const childSnapshot = await transaction.get(childRef);
+        if (!familySnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Family not found.');
+        }
+        if (!childSnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Child not found.');
+        }
+        const familyData = familySnapshot.data() || {};
+        const childData = childSnapshot.data() || {};
+        if (familyData.ownerId !== uid) {
+            throw new functions.https.HttpsError('permission-denied', 'Only the family owner can remove a child.');
+        }
+        if (childData.familyId !== familyId) {
+            throw new functions.https.HttpsError('failed-precondition', 'This child is not connected to your family.');
+        }
+        const childIds = Array.isArray(familyData.childDeviceIds)
+            ? familyData.childDeviceIds
+            : [];
+        transaction.update(familyRef, {
+            childDeviceIds: childIds.filter((id) => id !== childId),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        transaction.update(childRef, {
+            familyId: null,
+            removedAt: admin.firestore.FieldValue.serverTimestamp(),
+            removedBy: uid,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        transaction.set(auditRef, {
+            actorUid: uid,
+            actorEmail: context.auth?.token.email || null,
+            familyId,
+            action: 'CHILD_REMOVED',
+            targetType: 'CHILD',
+            targetId: childId,
+            severity: 'WARNING',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    });
+    return {
+        success: true,
+        childId
+    };
+});
+exports.removeFamilyMember = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified.');
+    }
+    const uid = context.auth.uid;
+    const memberUid = typeof data?.memberUid === 'string'
+        ? data.memberUid.trim()
+        : '';
+    if (!memberUid) {
+        throw new functions.https.HttpsError('invalid-argument', 'A valid member UID is required.');
+    }
+    if (memberUid === uid) {
+        throw new functions.https.HttpsError('failed-precondition', 'The family owner cannot remove themselves.');
+    }
+    const ownerParentRef = db
+        .collection('parents')
+        .doc(uid);
+    const memberParentRef = db
+        .collection('parents')
+        .doc(memberUid);
+    const auditRef = db
+        .collection('auditLogs')
+        .doc();
+    await db.runTransaction(async (transaction) => {
+        const ownerParentSnapshot = await transaction.get(ownerParentRef);
+        if (!ownerParentSnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Owner profile not found.');
+        }
+        const ownerParentData = ownerParentSnapshot.data() || {};
+        const familyId = ownerParentData.familyId ||
+            ownerParentData.activeFamilyId;
+        if (typeof familyId !== 'string' ||
+            !familyId) {
+            throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+        }
+        const familyRef = db
+            .collection('families')
+            .doc(familyId);
+        const familySnapshot = await transaction.get(familyRef);
+        const memberParentSnapshot = await transaction.get(memberParentRef);
+        if (!familySnapshot.exists) {
+            throw new functions.https.HttpsError('not-found', 'Family not found.');
+        }
+        const familyData = familySnapshot.data() || {};
+        if (familyData.ownerId !== uid) {
+            throw new functions.https.HttpsError('permission-denied', 'Only the family owner can remove a member.');
+        }
+        const members = Array.isArray(familyData.members)
+            ? familyData.members
+            : [];
+        const memberUids = Array.isArray(familyData.memberUids)
+            ? familyData.memberUids
+            : [];
+        const managerUids = Array.isArray(familyData.managerUids)
+            ? familyData.managerUids
+            : [];
+        if (!members.some((member) => member?.uid === memberUid) &&
+            !memberUids.includes(memberUid)) {
+            throw new functions.https.HttpsError('not-found', 'Family member not found.');
+        }
+        transaction.update(familyRef, {
+            members: members.filter((member) => member?.uid !== memberUid),
+            memberUids: memberUids.filter((id) => id !== memberUid),
+            managerUids: managerUids.filter((id) => id !== memberUid),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        if (memberParentSnapshot.exists) {
+            transaction.set(memberParentRef, {
+                familyId: admin.firestore.FieldValue.delete(),
+                activeFamilyId: admin.firestore.FieldValue.delete(),
+                familyIds: admin.firestore.FieldValue.arrayRemove(familyId),
+                role: 'PARENT',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+        transaction.set(auditRef, {
+            actorUid: uid,
+            actorEmail: context.auth?.token.email || null,
+            familyId,
+            action: 'MEMBER_REMOVED',
+            targetType: 'MEMBER',
+            targetId: memberUid,
+            severity: 'WARNING',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    });
+    return {
+        success: true,
+        memberUid
+    };
+});
+exports.onFamilyMembershipSync = functions.firestore
+    .document('families/{familyId}')
+    .onUpdate(async (change, context) => {
+    const familyId = context.params.familyId;
+    const after = change.after.data() || {};
+    const rawMembers = Array.isArray(after.members)
+        ? after.members
+        : [];
+    const memberMap = new Map();
+    for (const member of rawMembers) {
+        if (member &&
+            typeof member.uid === 'string' &&
+            member.uid) {
+            memberMap.set(member.uid, member);
+        }
+    }
+    const members = Array.from(memberMap.values());
+    const expectedMemberUids = Array.from(memberMap.keys());
+    const expectedManagerUids = members
+        .filter((member) => member.role === 'OWNER' ||
+        member.role === 'PARENT')
+        .map((member) => member.uid);
+    const currentMemberUids = Array.isArray(after.memberUids)
+        ? after.memberUids
+        : [];
+    const currentManagerUids = Array.isArray(after.managerUids)
+        ? after.managerUids
+        : [];
+    const sameUidSet = (first, second) => {
+        if (first.length !== second.length) {
+            return false;
+        }
+        const secondSet = new Set(second);
+        return first.every(value => secondSet.has(value));
+    };
+    const familyNeedsUpdate = !sameUidSet(currentMemberUids, expectedMemberUids) ||
+        !sameUidSet(currentManagerUids, expectedManagerUids);
+    const allKnownUids = Array.from(new Set([
+        ...currentMemberUids.filter((uid) => typeof uid === 'string'),
+        ...expectedMemberUids
+    ]));
+    const parentSnapshots = await Promise.all(allKnownUids.map(uid => db
+        .collection('parents')
+        .doc(uid)
+        .get()));
+    const batch = db.batch();
+    let operationCount = 0;
+    if (familyNeedsUpdate) {
+        batch.update(change.after.ref, {
+            members,
+            memberUids: expectedMemberUids,
+            managerUids: expectedManagerUids,
+            updatedAt: admin.firestore.FieldValue
+                .serverTimestamp()
+        });
+        operationCount += 1;
+    }
+    for (let index = 0; index < allKnownUids.length; index += 1) {
+        const memberUid = allKnownUids[index];
+        const parentSnapshot = parentSnapshots[index];
+        if (!parentSnapshot.exists) {
+            continue;
+        }
+        const parentRef = parentSnapshot.ref;
+        const parentData = parentSnapshot.data() || {};
+        const validMember = memberMap.get(memberUid);
+        if (validMember) {
+            const familyIds = Array.isArray(parentData.familyIds)
+                ? parentData.familyIds
+                : [];
+            const needsParentUpdate = parentData.familyId !== familyId ||
+                parentData.activeFamilyId !==
+                    familyId ||
+                parentData.role !==
+                    validMember.role ||
+                !familyIds.includes(familyId);
+            if (needsParentUpdate) {
+                batch.set(parentRef, {
+                    familyId,
+                    activeFamilyId: familyId,
+                    familyIds: admin.firestore.FieldValue
+                        .arrayUnion(familyId),
+                    role: validMember.role,
+                    updatedAt: admin.firestore.FieldValue
+                        .serverTimestamp()
+                }, { merge: true });
+                operationCount += 1;
+            }
+        }
+        else {
+            const familyIds = Array.isArray(parentData.familyIds)
+                ? parentData.familyIds
+                : [];
+            const isStillLinked = parentData.familyId === familyId ||
+                parentData.activeFamilyId ===
+                    familyId ||
+                familyIds.includes(familyId);
+            if (isStillLinked) {
+                batch.set(parentRef, {
+                    familyId: admin.firestore.FieldValue
+                        .delete(),
+                    activeFamilyId: admin.firestore.FieldValue
+                        .delete(),
+                    familyIds: admin.firestore.FieldValue
+                        .arrayRemove(familyId),
+                    role: 'PARENT',
+                    updatedAt: admin.firestore.FieldValue
+                        .serverTimestamp()
+                }, { merge: true });
+                operationCount += 1;
+            }
+        }
+    }
+    if (operationCount > 0) {
+        await batch.commit();
+    }
 });
 //# sourceMappingURL=index.js.map
