@@ -16,42 +16,115 @@ class YouTubeSyncRepository(private val context: Context) {
     private val TAG = "YT_SYNC"
 
     suspend fun syncHistory(): Result<Int> {
-        val childId = prefHelper.childId
-        val familyId = prefHelper.familyId
+    val pairedChildId = prefHelper.pairedChildId.orEmpty()
+    val savedChildId = prefHelper.childId
 
-        if (childId.isBlank() || familyId.isNullOrBlank()) {
-            Log.w(TAG, "Sync aborted: childId ($childId) or familyId ($familyId) is missing")
-            return Result.failure(IllegalStateException("Pairing info missing"))
-        }
-
-        val unsynced = historyRepo.getUnsynced()
-        if (unsynced.isEmpty()) {
-            Log.d(TAG, "Sync: No unsynced YouTube activities found.")
-            return Result.success(0)
-        }
-
-        Log.i(TAG, "Sync: Starting upload for ${unsynced.size} items...")
-
-        var successCount = 0
-        for (activity in unsynced) {
-            try {
-                // Populate required fields for cloud sync
-                activity.deviceId = prefHelper.deviceId
-                activity.createdBy = childId
-                
-                val uploadSuccess = uploadActivity(familyId, childId, activity)
-                if (uploadSuccess) {
-                    historyRepo.markAsSynced(activity.id)
-                    successCount++
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to upload activity ${activity.id}: ${e.message}")
-            }
-        }
-
-        Log.i(TAG, "Sync: Completed. Uploaded: $successCount, Failed: ${unsynced.size - successCount}")
-        return Result.success(successCount)
+    val childId = when {
+        pairedChildId.isNotBlank() -> pairedChildId
+        savedChildId.isNotBlank() -> savedChildId
+        else -> ""
     }
+
+    val familyId = prefHelper.familyId.orEmpty()
+
+    historyRepo.addDebugLog(
+        "SYNC_STARTED childId=$childId familyId=$familyId " +
+                "pairedChildId=$pairedChildId"
+    )
+
+    if (childId.isBlank()) {
+        val error = IllegalStateException("Child ID is missing")
+        Log.e(TAG, "SYNC_ABORTED: childId is missing")
+        historyRepo.addDebugLog("SYNC_ABORTED reason=CHILD_ID_MISSING")
+        return Result.failure(error)
+    }
+
+    if (familyId.isBlank()) {
+        val error = IllegalStateException("Family ID is missing")
+        Log.e(TAG, "SYNC_ABORTED: familyId is missing")
+        historyRepo.addDebugLog("SYNC_ABORTED reason=FAMILY_ID_MISSING")
+        return Result.failure(error)
+    }
+
+    val unsynced = historyRepo.getUnsynced()
+
+    historyRepo.addDebugLog(
+        "SYNC_PENDING_COUNT=${unsynced.size}"
+    )
+
+    if (unsynced.isEmpty()) {
+        Log.d(TAG, "No unsynced YouTube activities found")
+        historyRepo.addDebugLog("SYNC_NOTHING_TO_UPLOAD")
+        return Result.success(0)
+    }
+
+    var successCount = 0
+    var failureCount = 0
+    var lastError: Throwable? = null
+
+    for (activity in unsynced) {
+        try {
+            activity.deviceId = prefHelper.deviceId
+            activity.createdBy = childId
+
+            historyRepo.addDebugLog(
+                "UPLOAD_STARTED id=${activity.id} title=${activity.videoTitle}"
+            )
+
+            val uploadSuccess = uploadActivity(
+                familyId = familyId,
+                childId = childId,
+                activity = activity
+            )
+
+            if (uploadSuccess) {
+                historyRepo.markAsSynced(activity.id)
+                successCount++
+
+                historyRepo.addDebugLog(
+                    "UPLOAD_SUCCESS id=${activity.id}"
+                )
+            } else {
+                failureCount++
+                lastError = IllegalStateException(
+                    "Firestore upload returned false for ${activity.id}"
+                )
+
+                historyRepo.addDebugLog(
+                    "UPLOAD_FAILED id=${activity.id}"
+                )
+            }
+        } catch (e: Exception) {
+            failureCount++
+            lastError = e
+
+            Log.e(
+                TAG,
+                "Failed to upload activity ${activity.id}",
+                e
+            )
+
+            historyRepo.addDebugLog(
+                "UPLOAD_EXCEPTION id=${activity.id} " +
+                        "error=${e.message ?: e.javaClass.simpleName}"
+            )
+        }
+    }
+
+    historyRepo.addDebugLog(
+        "SYNC_COMPLETED success=$successCount failed=$failureCount"
+    )
+
+    return if (failureCount == 0) {
+        Result.success(successCount)
+    } else {
+        Result.failure(
+            lastError ?: IllegalStateException(
+                "$failureCount YouTube activities failed to upload"
+            )
+        )
+    }
+}
 
     private suspend fun uploadActivity(familyId: String, childId: String, activity: YouTubeActivity): Boolean {
         val docRef = db.collection(FirebaseConfig.COL_FAMILIES)
@@ -87,8 +160,15 @@ class YouTubeSyncRepository(private val context: Context) {
             Log.d(TAG, "Upload success: ${activity.videoTitle}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Upload failed for ${activity.id}: ${e.message}")
-            false
-        }
+    Log.e(TAG, "Upload failed for ${activity.id}", e)
+
+    historyRepo.addDebugLog(
+        "FIRESTORE_UPLOAD_FAILED " +
+                "id=${activity.id} " +
+                "error=${e.message ?: e.javaClass.simpleName}"
+    )
+
+    false
+}
     }
 }
