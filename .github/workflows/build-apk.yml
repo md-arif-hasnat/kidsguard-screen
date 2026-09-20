@@ -5,6 +5,9 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -31,12 +34,68 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          VERSION_NAME=$(grep -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' app/build.gradle.kts | head -1 | sed -E 's/.*=[[:space:]]*([0-9]+).*/\1/')
+          if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
+            echo "Could not read versionName/versionCode"
+            exit 1
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Detected KidsGuard v$VERSION_NAME (code $VERSION_CODE)"
+
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Prepare release metadata
+        id: metadata
+        shell: bash
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          SIZE=$(du -h "$APK" | cut -f1)
+          COMMIT_SUBJECT=$(git log -1 --pretty=%s)
+          {
+            echo "## KidsGuard v$VERSION_NAME"
+            echo
+            echo "- **Version:** $VERSION_NAME"
+            echo "- **Version Code:** $VERSION_CODE"
+            echo "- **APK Size:** $SIZE"
+            echo "- **Feature / Change:** $COMMIT_SUBJECT"
+            echo
+            echo "### Release Notes"
+            echo
+            echo "- $COMMIT_SUBJECT"
+          } > release-notes-generated.md
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KidsGuard-debug-apk
+          name: KidsGuard-debug-apk-v${{ steps.version.outputs.version_name }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Create or update GitHub draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          APK_SIZE: ${{ steps.metadata.outputs.size }}
+        run: |
+          TAG="v$VERSION_NAME"
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG"               --draft=true               --title "KidsGuard v$VERSION_NAME"               --notes-file release-notes-generated.md               --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk"               --draft               --title "KidsGuard v$VERSION_NAME"               --notes-file release-notes-generated.md               --repo "$GITHUB_REPOSITORY"
+          fi
+
+          echo "Draft release ready: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
