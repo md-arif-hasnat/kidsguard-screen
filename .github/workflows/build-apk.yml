@@ -1,4 +1,4 @@
-name: Build KidsGuard APK
+name: Build and Release KidsGuard APK
 
 on:
   push:
@@ -46,19 +46,70 @@ jobs:
           fi
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "Detected KidsGuard v$VERSION_NAME (code $VERSION_CODE)"
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Check whether this version is already released
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        shell: bash
+        run: |
+          TAG="v$VERSION_NAME"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "KidsGuard $TAG already exists. No APK build will run."
+          else
+            echo "release_needed=true" >> "$GITHUB_OUTPUT"
+            echo "KidsGuard $TAG is new. Release build will run."
+          fi
+
+      - name: Verify release secrets
+        if: steps.guard.outputs.release_needed == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64 repository secret." && exit 1)
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD repository secret." && exit 1)
+          test -n "$ANDROID_KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS repository secret." && exit 1)
+          test -n "$ANDROID_KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD repository secret." && exit 1)
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || (echo "Missing FIREBASE_SERVICE_ACCOUNT_JSON repository secret." && exit 1)
+
+      - name: Prepare release signing key
+        if: steps.guard.outputs.release_needed == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/kidsguard-release.jks"
+          test -s "$RUNNER_TEMP/kidsguard-release.jks"
+
+      - name: Build signed release APK
+        if: steps.guard.outputs.release_needed == 'true'
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/kidsguard-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK
+        if: steps.guard.outputs.release_needed == 'true'
+        run: |
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          sha256sum "$APK"
 
       - name: Prepare release metadata
+        if: steps.guard.outputs.release_needed == 'true'
         id: metadata
-        shell: bash
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
         run: |
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APK="app/build/outputs/apk/release/app-release.apk"
           SIZE=$(du -h "$APK" | cut -f1)
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           {
@@ -67,35 +118,45 @@ jobs:
             echo "- **Version:** $VERSION_NAME"
             echo "- **Version Code:** $VERSION_CODE"
             echo "- **APK Size:** $SIZE"
-            echo "- **Feature / Change:** $COMMIT_SUBJECT"
+            echo "- **Change:** $COMMIT_SUBJECT"
             echo
             echo "### Release Notes"
             echo
             echo "- $COMMIT_SUBJECT"
           } > release-notes-generated.md
           echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
+        if: steps.guard.outputs.release_needed == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: KidsGuard-debug-apk-v${{ steps.version.outputs.version_name }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: KidsGuard-release-apk-v${{ steps.version.outputs.version_name }}
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      - name: Create or update GitHub draft release
+      - name: Create and publish GitHub Release
+        if: steps.guard.outputs.release_needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
-          APK_SIZE: ${{ steps.metadata.outputs.size }}
         run: |
           TAG="v$VERSION_NAME"
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APK="app/build/outputs/apk/release/app-release.apk"
+          gh release create "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk"             --title "KidsGuard v$VERSION_NAME"             --notes-file release-notes-generated.md             --repo "$GITHUB_REPOSITORY"
 
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG"               --draft=true               --title "KidsGuard v$VERSION_NAME"               --notes-file release-notes-generated.md               --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk"               --draft               --title "KidsGuard v$VERSION_NAME"               --notes-file release-notes-generated.md               --repo "$GITHUB_REPOSITORY"
-          fi
-
-          echo "Draft release ready: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+      - name: Sync release to Firestore
+        if: steps.guard.outputs.release_needed == 'true'
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/KidsGuard-v${{ steps.version.outputs.version_name }}.apk
+          APK_SIZE: ${{ steps.metadata.outputs.size }}
+          RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
+        run: |
+          npm ci
+          node scripts/publish-release.js
