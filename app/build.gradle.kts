@@ -30,8 +30,8 @@ android {
         applicationId = "secure.kidsguard.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "1.0.32"
+        versionCode = 33
+        versionName = "1.0.33"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
