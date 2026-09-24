@@ -545,6 +545,21 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         if (candidate != null) {
             updateYouTubeSession(candidate)
 
+            // Accessibility can identify a Short's title without exposing its
+            // video ID. Resolve it through the API as well, otherwise Shorts
+            // are saved and synced with no thumbnail.
+            if (candidate.videoId.isNullOrBlank()) {
+                YouTubeVideoResolver.buildRequest(
+                    title = candidate.videoTitle,
+                    channel = candidate.channelName,
+                    durationMs = null,
+                    mediaId = null,
+                    mediaUri = null
+                )?.let { request ->
+                    startApiResolution(request, candidate.screenType)
+                }
+            }
+
         } else {
 
             val mediaSnapshot =
@@ -624,87 +639,8 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
                 updateYouTubeSession(mediaCandidate)
 
-                if (
-                    directResolved == null &&
-                    resolveRequest != null &&
-                    activeYouTubeSession?.apiResolutionAttempted != true
-                ) {
-                    // Gate immediately, session-identity based - not time based.
-                    // Prevents duplicate concurrent launches from rapid accessibility ticks.
-                    activeYouTubeSession?.apiResolutionAttempted = true
-
-                    serviceScope.launch {
-                        youtubeRepository.addDebugLog(
-                            "YOUTUBE_API_SEARCH_STARTED title=${resolveRequest.title}"
-                        )
-
-                        // বাকি অংশ অপরিবর্তিত থাকবে (searchVideos কল, resolveFromSearch, enrichSavedActivity)
-
-                        val searchResponse =
-                            YouTubeApiClient.searchVideos(resolveRequest) { message ->
-                                youtubeRepository.addDebugLog(message)
-                            }
-
-                        if (searchResponse == null) {
-                            youtubeRepository.addDebugLog(
-                                msg = "YOUTUBE_API_SEARCH_NO_RESPONSE error=${YouTubeApiClient.lastError}"
-                            )
-                            applyFallbackSearchUrl(resolveRequest, screenType)
-                            return@launch
-                        }
-
-                        val apiResolved =
-                            YouTubeVideoResolver.resolveFromSearch(
-                                request = resolveRequest,
-                                response = searchResponse
-                            )
-
-                        if (apiResolved == null) {
-                            youtubeRepository.addDebugLog(
-                                "YOUTUBE_API_NO_MATCH title=${resolveRequest.title}"
-                            )
-                            applyFallbackSearchUrl(resolveRequest, screenType)
-                            return@launch
-                        }
-
-                        val apiCandidate = YouTubeMetadataCandidate(
-                            videoTitle = resolveRequest.title,
-                            channelName = resolveRequest.channel,
-                            videoId = apiResolved.videoId,
-                            youtubeUrl = apiResolved.youtubeUrl,
-                            thumbnailUrl = apiResolved.thumbnailUrl,
-                            linkSource = apiResolved.source,
-                            linkConfidence = apiResolved.confidence,
-                            screenType = screenType,
-                            confidence = apiResolved.confidence,
-                            extractionStrategy = "YOUTUBE_SEARCH_API"
-                        )
-
-                        withContext(Dispatchers.Main.immediate) {
-                            updateYouTubeSession(apiCandidate)
-                        }
-
-                        youtubeRepository.enrichSavedActivity(
-                            title = resolveRequest.title,
-                            channelName = resolveRequest.channel,
-                            videoId = apiResolved.videoId,
-                            youtubeUrl = apiResolved.youtubeUrl,
-                            thumbnailUrl = apiResolved.thumbnailUrl,
-                            linkSource = apiResolved.source,
-                            linkConfidence = apiResolved.confidence
-                        )
-
-                        com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(
-                            applicationContext
-                        )
-
-                        youtubeRepository.addDebugLog(
-                            "YOUTUBE_API_RESOLVED " +
-                                    "id=${apiResolved.videoId} " +
-                                    "thumb=${apiResolved.thumbnailUrl} " +
-                                    "confidence=${apiResolved.confidence}"
-                        )
-                    }
+                if (directResolved == null && resolveRequest != null) {
+                    startApiResolution(resolveRequest, screenType)
                 }
 
             } else {
@@ -715,6 +651,92 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                     finishYouTubeSession()
                 }
             }
+        }
+    }
+
+    private fun startApiResolution(
+        resolveRequest: YouTubeResolveRequest,
+        screenType: YouTubeScreenType
+    ) {
+        if (activeYouTubeSession?.apiResolutionAttempted == true) return
+
+        // Gate immediately to prevent duplicate launches from rapid events.
+        activeYouTubeSession?.apiResolutionAttempted = true
+
+        serviceScope.launch {
+            youtubeRepository.addDebugLog(
+                "YOUTUBE_API_SEARCH_STARTED title=${resolveRequest.title}"
+            )
+
+            val searchResponse =
+                YouTubeApiClient.searchVideos(resolveRequest) { message ->
+                    youtubeRepository.addDebugLog(message)
+                }
+
+            if (searchResponse == null) {
+                youtubeRepository.addDebugLog(
+                    "YOUTUBE_API_SEARCH_NO_RESPONSE error=${YouTubeApiClient.lastError}"
+                )
+                applyFallbackSearchUrl(resolveRequest, screenType)
+                return@launch
+            }
+
+            val apiResolved = YouTubeVideoResolver.resolveFromSearch(
+                request = resolveRequest,
+                response = searchResponse
+            )
+
+            if (apiResolved == null) {
+                youtubeRepository.addDebugLog(
+                    "YOUTUBE_API_NO_MATCH title=${resolveRequest.title}"
+                )
+                applyFallbackSearchUrl(resolveRequest, screenType)
+                return@launch
+            }
+
+            val apiCandidate = YouTubeMetadataCandidate(
+                videoTitle = resolveRequest.title,
+                channelName = resolveRequest.channel,
+                videoId = apiResolved.videoId,
+                youtubeUrl = apiResolved.youtubeUrl,
+                thumbnailUrl = apiResolved.thumbnailUrl,
+                linkSource = apiResolved.source,
+                linkConfidence = apiResolved.confidence,
+                screenType = screenType,
+                confidence = apiResolved.confidence,
+                extractionStrategy = "YOUTUBE_SEARCH_API"
+            )
+
+            withContext(Dispatchers.Main.immediate) {
+                if (activeYouTubeSession?.title == resolveRequest.title) {
+                    updateYouTubeSession(apiCandidate)
+                } else {
+                    youtubeRepository.addDebugLog(
+                        "API_SESSION_CHANGED enriching_saved_only title=${resolveRequest.title}"
+                    )
+                }
+            }
+
+            youtubeRepository.enrichSavedActivity(
+                title = resolveRequest.title,
+                channelName = resolveRequest.channel,
+                videoId = apiResolved.videoId,
+                youtubeUrl = apiResolved.youtubeUrl,
+                thumbnailUrl = apiResolved.thumbnailUrl,
+                linkSource = apiResolved.source,
+                linkConfidence = apiResolved.confidence
+            )
+
+            com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(
+                applicationContext
+            )
+
+            youtubeRepository.addDebugLog(
+                "YOUTUBE_API_RESOLVED " +
+                        "id=${apiResolved.videoId} " +
+                        "thumb=${apiResolved.thumbnailUrl} " +
+                        "confidence=${apiResolved.confidence}"
+            )
         }
     }
 
