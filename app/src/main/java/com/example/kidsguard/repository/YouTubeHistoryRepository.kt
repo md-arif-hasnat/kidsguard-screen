@@ -193,10 +193,24 @@ class YouTubeHistoryRepository private constructor(context: Context) {
             linkConfidence = linkConfidence ?: old.linkConfidence
         )
 
-        currentList[index] = updated
+        val metadataChanged =
+            updated.channelName != old.channelName ||
+                    updated.videoId != old.videoId ||
+                    updated.youtubeUrl != old.youtubeUrl ||
+                    updated.thumbnailUrl != old.thumbnailUrl ||
+                    updated.linkSource != old.linkSource ||
+                    updated.linkConfidence != old.linkConfidence
+
+        val finalUpdated = if (metadataChanged) {
+            updated.copy(isSynced = false)
+        } else {
+            updated
+        }
+
+        currentList[index] = finalUpdated
         Log.d(
             TAG,
-            "ENRICH_SUCCESS title=$title id=${updated.videoId} thumb=${updated.thumbnailUrl}"
+            "ENRICH_SUCCESS title=$title id=${finalUpdated.videoId} thumb=${finalUpdated.thumbnailUrl}"
         )
 
         _history.value = currentList
@@ -204,7 +218,7 @@ class YouTubeHistoryRepository private constructor(context: Context) {
 
         Log.i(
             TAG,
-            "History enriched: $title | videoId=${updated.videoId}"
+            "History enriched: $title | videoId=${finalUpdated.videoId}"
         )
     }
 
