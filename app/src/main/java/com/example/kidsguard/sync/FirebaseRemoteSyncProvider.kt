@@ -872,12 +872,31 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             val path = "${FirebaseConfig.COL_CHILDREN}/${usage.childId}/appUsage/${usage.date}"
             Log.d("AppUsageSync", "Uploading usage to Firestore: $path")
 
-            db.collection(FirebaseConfig.COL_CHILDREN)
+            val dailyRef = db.collection(FirebaseConfig.COL_CHILDREN)
                 .document(usage.childId)
                 .collection("appUsage")
                 .document(usage.date)
-                .set(usage, com.google.firebase.firestore.SetOptions.merge())
-                .await()
+
+            val batch = db.batch()
+            batch.set(dailyRef, usage, com.google.firebase.firestore.SetOptions.merge())
+
+            usage.apps.forEach { app ->
+                val appRef = dailyRef.collection("apps")
+                    .document(app.packageName.replace(".", "_"))
+                batch.set(
+                    appRef,
+                    mapOf(
+                        "packageName" to app.packageName,
+                        "appName" to app.appName,
+                        "totalTimeMs" to app.foregroundTimeMs,
+                        "lastUsed" to app.lastUsedAt,
+                        "date" to usage.date
+                    ),
+                    com.google.firebase.firestore.SetOptions.merge()
+                )
+            }
+
+            batch.commit().await()
 
             Log.i("AppUsageSync", "Upload success: $path")
             _lastSyncTimestamp.value = System.currentTimeMillis()

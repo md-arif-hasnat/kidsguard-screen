@@ -79,6 +79,16 @@ class BackgroundTrackingService : Service() {
         reverseGeocoder = ReverseGeocoder(appContext, errorLogRepository)
         syncProvider = FirebaseRemoteSyncProvider(appContext)
         safeZoneRepository = SafeZoneRepository() 
+        if (
+            prefHelper.childId.isNotBlank() &&
+            !prefHelper.familyId.isNullOrBlank()
+        ) {
+            safeZoneRepository.setSyncProvider(
+                syncProvider,
+                prefHelper.childId,
+                prefHelper.familyId
+            )
+        }
         trackingRepository = TrackingRepository(appContext)
         
         locationRepository = LocationRepository(

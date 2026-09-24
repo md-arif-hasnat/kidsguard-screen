@@ -297,7 +297,10 @@ service cloud.firestore {
 
                           allow create: if isChildIdentity(childId);
 
-                          allow update, delete: if false;
+                          allow update: if locationId == 'latest' &&
+                            isChildIdentity(childId);
+
+                          allow delete: if false;
                         }
 
                         match /activities/{activityId} {

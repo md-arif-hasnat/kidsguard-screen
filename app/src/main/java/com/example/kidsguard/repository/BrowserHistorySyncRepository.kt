@@ -49,8 +49,13 @@ class BrowserHistorySyncRepository(private val context: Context) {
             }
         }
 
-        Log.i(TAG, "Sync: Completed. Uploaded: $successCount, Failed: ${unsynced.size - successCount}")
-        return Result.success(successCount)
+        val failedCount = unsynced.size - successCount
+        Log.i(TAG, "Sync: Completed. Uploaded: $successCount, Failed: $failedCount")
+        return if (failedCount == 0) {
+            Result.success(successCount)
+        } else {
+            Result.failure(IllegalStateException("$failedCount browser history uploads failed"))
+        }
     }
 
     private suspend fun uploadHistoryItem(familyId: String, childId: String, item: BrowserHistory): Boolean {
