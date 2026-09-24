@@ -150,6 +150,34 @@ service cloud.firestore {
                   allow read: if isFamilyMember(familyId);
                   allow write: if isFamilyOwner(familyId);
                 }
+
+                match /children/{childId}/youtubeHistory/{historyId} {
+                  allow read: if canReadChild(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow create, update: if isChildIdentity(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow delete: if false;
+                }
+
+                match /children/{childId}/browserHistory/{historyId} {
+                  allow read: if canReadChild(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow create, update: if isChildIdentity(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow delete: if false;
+                }
         }
             match /devices/{deviceId} {
               allow create: if isSignedIn() &&

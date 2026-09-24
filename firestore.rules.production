@@ -216,6 +216,20 @@ service cloud.firestore {
 
                   allow delete: if false;
                 }
+
+                match /children/{childId}/browserHistory/{historyId} {
+                  allow read: if canReadChild(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow create, update: if isChildIdentity(childId) &&
+                    get(
+                      /databases/$(database)/documents/children/$(childId)
+                    ).data.familyId == familyId;
+
+                  allow delete: if false;
+                }
         }
             match /devices/{deviceId} {
               allow create: if isSignedIn() &&
