@@ -143,6 +143,24 @@ class ChildStatusManager(
                     trackingEnabled = trackingState.name != "IDLE",
                     kidGuardActive = prefHelper.isLocked,
                     currentZone = currentZone,
+                    lastLocation = lastLocation?.let { point ->
+                        SyncLocationUpdate(
+                            childId = childId,
+                            latitude = point.latitude,
+                            longitude = point.longitude,
+                            accuracy = point.accuracy,
+                            speed = point.speed,
+                            bearing = point.bearing,
+                            timestamp = point.timestamp,
+                            batteryLevel = batteryLevel,
+                            fullAddress = point.fullAddress ?: point.address,
+                            street = point.street,
+                            city = point.city,
+                            state = point.state,
+                            country = point.country,
+                            postalCode = point.postalCode
+                        )
+                    },
                     appVersion = "1.0.0",
                     androidVersion = android.os.Build.VERSION.RELEASE,
                     lastSeen = System.currentTimeMillis(),

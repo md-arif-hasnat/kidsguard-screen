@@ -293,9 +293,16 @@ fun DashboardContent(
                     OnlineStatusBadge(data.isOnline)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
+                val overviewLocation = data.currentCity
+                    ?: data.currentAddress?.substringBefore(",")?.takeIf { it.isNotBlank() }
+                    ?: if (data.currentLat != null && data.currentLng != null) {
+                        "%.4f, %.4f".format(data.currentLat, data.currentLng)
+                    } else {
+                        data.currentZone
+                    }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     StatusInfoItem(Icons.Default.BatteryChargingFull, "${data.batteryPercent}%", "Battery")
-                    StatusInfoItem(Icons.Default.LocationOn, data.currentZone, "Location")
+                    StatusInfoItem(Icons.Default.LocationOn, overviewLocation, "Location")
                     StatusInfoItem(if (data.kidGuardStatus == "LOCKED") Icons.Default.Lock else Icons.Default.LockOpen, data.kidGuardStatus, "Security")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
