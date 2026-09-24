@@ -3,9 +3,6 @@ import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { randomUUID } from 'crypto';
 
-import { ZipArchive } from 'archiver';
-import { Resend } from 'resend';
-
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -2948,6 +2945,11 @@ const jsonContent =
 const htmlContent =
   createReadableExportHtml(exportPayload);
 
+      // archiver is only needed by this export function. Loading it lazily
+      // keeps Firebase's deployment discovery path fast.
+      const { ZipArchive } =
+        await import('archiver');
+
 
       const timestamp =
         generatedAt
@@ -3618,6 +3620,11 @@ export const sendFamilyInvitationEmail =
           `invite/${context.params.inviteId}` +
           `?token=${encodeURIComponent(token)}`;
 
+        // Resend is only required when this trigger actually runs. Avoiding
+        // the top-level import reduces function discovery/cold-start work.
+        const { Resend } =
+          await import('resend');
+
         const resend =
           new Resend(
             process.env.RESEND_API_KEY
@@ -4274,5 +4281,4 @@ export const onFamilyMembershipSync =
         await batch.commit();
       }
     });
-
 
