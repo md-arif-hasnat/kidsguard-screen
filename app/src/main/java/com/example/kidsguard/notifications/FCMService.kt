@@ -22,9 +22,23 @@ class FCMService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        Log.d("FCMService", "Message received: ${message.notification?.title}")
-        
-        // Handle incoming data messages or standard notifications
-        // Parent app would show the notification here if it's in foreground
+        val title = message.notification?.title
+            ?: message.data["title"]
+            ?: "KidsGuard"
+        val body = message.notification?.body
+            ?: message.data["body"]
+            ?: return
+        val type = message.data["type"]
+
+        Log.d("FCMService", "Message received: $title type=$type")
+
+        // Android displays notification payloads itself while the app is in
+        // the background. When the parent app is foregrounded, render the
+        // new-install alert locally so it is not silently lost.
+        val prefs = PreferenceHelper(applicationContext)
+        if (prefs.userRole == "PARENT" && type == "APP_INSTALLED") {
+            LocalNotificationEngine(applicationContext)
+                .sendSafetyAlert(title, body)
+        }
     }
 }
