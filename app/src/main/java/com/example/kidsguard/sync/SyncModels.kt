@@ -203,7 +203,12 @@ data class SyncAppControl(
     var appName: String = "",
     var blocked: Boolean = false,
     var dailyLimitMinutes: Int? = null,
-    var updatedAt: Timestamp? = null
+    var updatedAt: Timestamp? = null,
+    var revision: Long = 0,
+    var applyStatus: String = "PENDING",
+    var appliedAt: Timestamp? = null,
+    var appliedByDeviceId: String = "",
+    var appliedVersion: String = ""
 )
 
 @Keep

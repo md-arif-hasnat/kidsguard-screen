@@ -342,6 +342,46 @@ clickAction:
 });
 
 /**
+ * A blocked-app window can emit many Accessibility events. Android writes a
+ * deterministic per-day document, and this onCreate trigger therefore sends
+ * at most one parent alert for the same child/app/reason/day.
+ */
+export const onAppRestrictionEventCreated = functions.firestore
+.document("children/{childId}/appRestrictionEvents/{eventId}")
+.onCreate(async (snapshot, context) => {
+const event = snapshot.data();
+const childId = String(context.params.childId || "");
+const eventId = String(context.params.eventId || "");
+
+if (!childId || !eventId || event?.notifyParent !== true) {
+console.log("Skipping invalid app restriction event", { childId, eventId });
+return;
+}
+
+const reason = String(event?.reason || "STATIC_BLOCK");
+const appName = String(event?.appName || event?.packageName || "an app");
+const packageName = String(event?.packageName || "");
+
+const isLimit = reason === "LIMIT_REACHED";
+const title = isLimit ? "App time limit reached" : "Blocked app attempt";
+const body = isLimit
+? `${appName} reached today's time limit and was blocked.`
+: `${appName} was opened on the child device and KidsGuard blocked it.`;
+
+await broadcastToParents(childId, {
+title,
+body,
+type: isLimit ? "APP_LIMIT_REACHED" : "BLOCKED_APP_ATTEMPT",
+childId,
+packageName,
+eventId,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}` +
+`?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
+});
+});
+
+/**
  * Triggered when an SOS event is created.
  */
 export const onSosCreated = functions.firestore
@@ -643,7 +683,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1047,7 +1087,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'SOS_RESOLVED': 'sos',
         'BATTERY': 'battery',
         'DEVICE': 'deviceStatus',
-        'PAIRING': 'pairing'
+        'PAIRING': 'pairing',
+        'APP_INSTALLED': 'appUsage',
+        'APP_LIMIT_REACHED': 'appUsage',
+        'BLOCKED_APP_ATTEMPT': 'appUsage'
     };
 
     const settingKey = typeMap[payload.type];
@@ -4231,8 +4274,5 @@ export const onFamilyMembershipSync =
         await batch.commit();
       }
     });
-
-
-
 
 

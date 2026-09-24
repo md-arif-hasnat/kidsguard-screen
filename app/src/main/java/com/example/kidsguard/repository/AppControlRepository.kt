@@ -2,10 +2,12 @@ package com.example.kidsguard.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.kidsguard.BuildConfig
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.SyncAppControl
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -142,6 +144,10 @@ class AppControlRepository(private val context: Context) {
 
                     newControls[packageName] = control
 
+                    if (!control.applyStatus.equals("APPLIED", ignoreCase = true)) {
+                        acknowledgeApplied(doc.reference)
+                    }
+
                 } catch (e: Exception) {
                     Log.e(
                         "APP_CONTROL_DEBUG",
@@ -180,6 +186,24 @@ class AppControlRepository(private val context: Context) {
         listener = null
 
         Log.i(TAG, "App control listener stopped")
+    }
+
+    private fun acknowledgeApplied(
+        document: com.google.firebase.firestore.DocumentReference
+    ) {
+        document.update(
+            mapOf(
+                "applyStatus" to "APPLIED",
+                "appliedAt" to FieldValue.serverTimestamp(),
+                "appliedByDeviceId" to prefHelper.deviceId,
+                "appliedVersion" to BuildConfig.VERSION_NAME,
+                "applyMessage" to "Rule cached and active on child device"
+            )
+        ).addOnSuccessListener {
+            Log.i(TAG, "Rule acknowledgement uploaded: ${document.id}")
+        }.addOnFailureListener { error ->
+            Log.e(TAG, "Rule acknowledgement failed: ${document.id}", error)
+        }
     }
 
     /**

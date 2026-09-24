@@ -45,6 +45,7 @@ class WellbeingManager(
 
     companion object {
         private const val TAG = "WellbeingManager"
+        private const val EVENT_PREFS = "app_restriction_event_cache"
     }
 
     init {
@@ -195,6 +196,47 @@ class WellbeingManager(
 
     fun isAppBlocked(packageName: String): Boolean {
         return getAppBlockReason(packageName) != AppBlockReason.NONE
+    }
+
+    /**
+     * Records at most one cloud alert per app/reason/day. Accessibility window
+     * events can fire repeatedly while a blocked app is visible, so local
+     * deduplication is required before creating the Firestore trigger document.
+     */
+    fun recordBlockEvent(packageName: String, reason: AppBlockReason) {
+        if (reason == AppBlockReason.NONE) return
+        val childId = prefHelper.childId.takeIf { it.isNotBlank() } ?: return
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val safePackage = packageName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val eventId = "${date}_${safePackage}_${reason.name}"
+        val eventPrefs = context.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
+        if (eventPrefs.getBoolean(eventId, false)) return
+
+        val appName = getAppName(packageName)
+        val event = mapOf(
+            "eventId" to eventId,
+            "childId" to childId,
+            "childName" to prefHelper.childName,
+            "packageName" to packageName,
+            "appName" to appName,
+            "reason" to reason.name,
+            "notifyParent" to true,
+            "occurredAt" to FieldValue.serverTimestamp(),
+            "date" to date
+        )
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("appRestrictionEvents")
+            .document(eventId)
+            .set(event)
+            .addOnSuccessListener {
+                eventPrefs.edit().putBoolean(eventId, true).apply()
+                Log.i(TAG, "Restriction event recorded: $eventId")
+            }
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Restriction event upload failed: $eventId", error)
+            }
     }
 
     fun getAppName(packageName: String): String {

@@ -96,6 +96,25 @@ before(async () => {
           firebaseUid: "child-auth-uid"
         }
       );
+      await setDoc(
+        doc(
+          adminDb,
+          "children",
+          "child-1",
+          "appControls",
+          "com_example_game"
+        ),
+        {
+          childId: "child-1",
+          packageName: "com.example.game",
+          appName: "Example Game",
+          blocked: true,
+          dailyLimitMinutes: 30,
+          revision: 1,
+          applyStatus: "PENDING",
+          updatedBy: "owner-uid"
+        }
+      );
     await setDoc(
       doc(
         adminDb,
@@ -373,6 +392,131 @@ test(
           latitude: 51.0,
           longitude: 6.0,
           createdAt: new Date()
+        }
+      )
+    );
+  }
+);
+
+test(
+  "owner can create app control",
+  async () => {
+    const db = verifiedDb("owner-uid", "owner@example.com");
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "appControls",
+          "com_example_video"
+        ),
+        {
+          childId: "child-1",
+          packageName: "com.example.video",
+          appName: "Example Video",
+          blocked: false,
+          dailyLimitMinutes: 20,
+          applyStatus: "PENDING",
+          updatedBy: "owner-uid"
+        }
+      )
+    );
+  }
+);
+
+test(
+  "child can acknowledge app control without changing policy",
+  async () => {
+    const db = verifiedDb("child-auth-uid", "child@example.com");
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "appControls",
+          "com_example_game"
+        ),
+        {
+          applyStatus: "APPLIED",
+          appliedByDeviceId: "device-1",
+          appliedVersion: "1.0.40",
+          applyMessage: "Rule cached and active on child device"
+        },
+        { merge: true }
+      )
+    );
+  }
+);
+
+test(
+  "child cannot change parent app control policy",
+  async () => {
+    const db = verifiedDb("child-auth-uid", "child@example.com");
+
+    await assertFails(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "appControls",
+          "com_example_game"
+        ),
+        { blocked: false },
+        { merge: true }
+      )
+    );
+  }
+);
+
+test(
+  "child can create own app restriction event",
+  async () => {
+    const db = verifiedDb("child-auth-uid", "child@example.com");
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "appRestrictionEvents",
+          "2026-09-25_com_example_game_STATIC_BLOCK"
+        ),
+        {
+          childId: "child-1",
+          packageName: "com.example.game",
+          reason: "STATIC_BLOCK",
+          notifyParent: true
+        }
+      )
+    );
+  }
+);
+
+test(
+  "outsider cannot create app restriction event",
+  async () => {
+    const db = verifiedDb("outsider-uid", "outsider@example.com");
+
+    await assertFails(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "appRestrictionEvents",
+          "fake-event"
+        ),
+        {
+          childId: "child-1",
+          packageName: "com.example.game",
+          reason: "STATIC_BLOCK",
+          notifyParent: true
         }
       )
     );
