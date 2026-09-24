@@ -605,11 +605,13 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 val mediaCandidate = YouTubeMetadataCandidate(
                     videoTitle = mediaSnapshot?.title,
                     channelName = mediaSnapshot?.artist,
-                    videoId = null,
-                    youtubeUrl = null,
-                    thumbnailUrl = mediaSnapshot?.artworkUri,
-                    linkSource = "MEDIA_SESSION",
-                    linkConfidence = null,
+                    videoId = directResolved?.videoId,
+                    youtubeUrl = directResolved?.youtubeUrl,
+                    thumbnailUrl = directResolved?.thumbnailUrl
+                        ?: mediaSnapshot?.artworkUri,
+                    linkSource = directResolved?.source
+                        ?: "MEDIA_SESSION",
+                    linkConfidence = directResolved?.confidence,
                     screenType = screenType,
                     confidence = 0.90f,
                     extractionStrategy = "MEDIA_SESSION_FALLBACK"
@@ -687,6 +689,9 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                             linkConfidence = apiResolved.confidence
                         )
 
+                        com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(
+                            applicationContext
+                        )
 
                         youtubeRepository.addDebugLog(
                             "YOUTUBE_API_RESOLVED " +
