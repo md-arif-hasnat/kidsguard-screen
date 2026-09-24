@@ -117,13 +117,17 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             .document("current")
         batch.set(
             statusRef,
-            mapOf("lastLocation" to update),
+            mapOf(
+                "childId" to update.childId,
+                "deviceId" to prefHelper.deviceId,
+                "lastLocation" to update
+            ),
             com.google.firebase.firestore.SetOptions.merge()
         )
 
         // 4. Update devices collection (Unified device status)
         val deviceRef = db.collection(FirebaseConfig.COL_DEVICES)
-            .document(update.childId)
+            .document(prefHelper.deviceId)
 
         val currentLocationPayload = mutableMapOf(
             "latitude" to update.latitude,

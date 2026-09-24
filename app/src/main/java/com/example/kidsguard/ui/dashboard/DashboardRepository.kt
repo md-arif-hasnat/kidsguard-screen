@@ -126,9 +126,11 @@ class DashboardRepository(
                         accuracy = effectiveLastLocation?.accuracy,
                         speed = effectiveLastLocation?.speed,
                         lastLocationUpdate = effectiveLastLocation?.let { sdf.format(Date(it.timestamp)) } ?: "Never",
-                        currentAddress = if (useRemote) "Remote Location" else lastLocationLocal?.address,
-                        currentCity = if (useRemote) null else lastLocationLocal?.city,
-                        currentCountry = if (useRemote) null else lastLocationLocal?.country,
+                        currentAddress = effectiveLastLocation?.fullAddress
+                            ?: lastLocationLocal?.fullAddress
+                            ?: lastLocationLocal?.address,
+                        currentCity = effectiveLastLocation?.city ?: lastLocationLocal?.city,
+                        currentCountry = effectiveLastLocation?.country ?: lastLocationLocal?.country,
                         
                         currentZone = if (useRemote && remoteStatus?.currentZone != null) remoteStatus.currentZone!! else if (isInside) nearest?.name ?: "None" else "Outside Zones",
                         nearestZone = nearest?.name ?: "None",
