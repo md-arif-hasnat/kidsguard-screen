@@ -367,7 +367,22 @@ service cloud.firestore {
                                     }
                                           match /appControls/{controlId} {
                                             allow read: if canReadChild(childId);
-                                            allow write: if isParentForChild(childId);
+                                            allow create, delete: if isParentForChild(childId);
+                                            allow update: if isParentForChild(childId) ||
+                                              (isChildIdentity(childId) &&
+                                                request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                                                  'applyStatus',
+                                                  'appliedAt',
+                                                  'appliedByDeviceId',
+                                                  'appliedVersion',
+                                                  'applyMessage'
+                                                ]));
+                                          }
+
+                                          match /appRestrictionEvents/{eventId} {
+                                            allow read: if canReadChild(childId);
+                                            allow create: if isChildIdentity(childId);
+                                            allow update, delete: if false;
                                           }
 
                                           match /settings/{settingId} {

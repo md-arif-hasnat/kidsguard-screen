@@ -250,6 +250,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 val reason = wellbeingManager?.getAppBlockReason(packageName) ?: AppBlockReason.NONE
                 if (reason != AppBlockReason.NONE) {
                     Log.i(TAG_BLOCK, "App Blocked by Wellbeing: $packageName (Reason: $reason)")
+                    wellbeingManager?.recordBlockEvent(packageName, reason)
                     blockApp(packageName, reason)
                 }
             }

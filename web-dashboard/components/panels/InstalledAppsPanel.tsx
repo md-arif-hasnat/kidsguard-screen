@@ -215,19 +215,23 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
     }
   };
 
-  const handleSetLimit = async (packageName: string, appName: string, minutes: number | null) => {
+  const handleUpdateControl = async (
+    packageName: string,
+    appName: string,
+    updates: Partial<AppControl>
+  ) => {
     if (!profile?.uid) return;
     setIsSaving(packageName);
     try {
-        await InstalledAppsRepository.updateAppControl(childId, profile.uid, {
-            packageName,
-            appName,
-            dailyLimitMinutes: minutes
-        }, role);
+      await InstalledAppsRepository.updateAppControl(childId, profile.uid, {
+        packageName,
+        appName,
+        ...updates
+      }, role);
     } catch (err) {
-        alert("Failed to update time limit");
+      alert("Failed to update app control");
     } finally {
-        setIsSaving(null);
+      setIsSaving(null);
     }
   };
 
@@ -343,6 +347,10 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
                 <InfoItem label="Today's Usage" value={formatDuration(app.usage?.totalTimeMs || 0)} icon={Clock} highlight={Boolean(app.usage?.totalTimeMs)} />
               </div>
 
+              {(app.control.blocked || app.control.dailyLimitMinutes !== null) && (
+                <ControlSyncBadge control={app.control} />
+              )}
+
               <div className="flex flex-col gap-2">
                   <div className="flex gap-2">
                       <button
@@ -375,7 +383,11 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
           <AppDetailsModal
             app={selectedAppData}
             onClose={() => setSelectedSosApp(null)}
-            onUpdateControl={(updates) => handleSetLimit(selectedAppData.packageName, selectedAppData.appName, updates.dailyLimitMinutes!)}
+            onUpdateControl={(updates) => handleUpdateControl(
+              selectedAppData.packageName,
+              selectedAppData.appName,
+              updates
+            )}
             isSaving={isSaving === selectedAppData.packageName}
           />
       )}
@@ -453,6 +465,25 @@ function StatusBadge({ control, usage }: { control: AppControl, usage?: AppUsage
     );
 }
 
+function ControlSyncBadge({ control }: { control: AppControl }) {
+    const applied = control.applyStatus === 'APPLIED';
+    const failed = control.applyStatus === 'FAILED';
+    return (
+        <div className={clsx(
+            "mb-4 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider",
+            applied && "bg-emerald-50 text-emerald-700",
+            failed && "bg-rose-50 text-rose-700",
+            !applied && !failed && "bg-amber-50 text-amber-700"
+        )}>
+            {applied
+              ? `Applied on child${control.appliedVersion ? ` • v${control.appliedVersion}` : ''}`
+              : failed
+                ? 'Apply failed on child'
+                : 'Waiting for child device'}
+        </div>
+    );
+}
+
 function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any, onClose: () => void, onUpdateControl: (c: Partial<AppControl>) => void, isSaving: boolean }) {
     const [customLimit, setCustomLimit] = useState(app.control.dailyLimitMinutes?.toString() || "");
     const [showCustomInput, setShowCustomInput] = useState(false);
@@ -484,6 +515,14 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                     <div className="space-y-6">
                         <ModalInfo label="Status" value={app.control.blocked ? "Currently Blocked" : "Active / Allowed"} icon={Shield} color={app.control.blocked ? "text-rose-600" : "text-emerald-600"} />
+                        {(app.control.blocked || app.control.dailyLimitMinutes !== null) && (
+                          <ModalInfo
+                            label="Rule Sync"
+                            value={app.control.applyStatus === 'APPLIED' ? "Applied on child" : app.control.applyStatus === 'FAILED' ? "Failed" : "Pending child device"}
+                            icon={Activity}
+                            color={app.control.applyStatus === 'APPLIED' ? "text-emerald-600" : app.control.applyStatus === 'FAILED' ? "text-rose-600" : "text-amber-600"}
+                          />
+                        )}
                         <ModalInfo label="Version" value={app.versionName} icon={Smartphone} />
                         <ModalInfo label="First Installed" value={new Date(app.firstInstallTime).toLocaleDateString()} icon={Calendar} />
                         <ModalInfo label="Last Activity" value={app.usage ? formatLastUsed(app.usage.lastUsed) : "Never"} icon={Activity} />

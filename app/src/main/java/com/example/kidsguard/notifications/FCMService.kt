@@ -36,7 +36,12 @@ class FCMService : FirebaseMessagingService() {
         // the background. When the parent app is foregrounded, render the
         // new-install alert locally so it is not silently lost.
         val prefs = PreferenceHelper(applicationContext)
-        if (prefs.userRole == "PARENT" && type == "APP_INSTALLED") {
+        val foregroundTypes = setOf(
+            "APP_INSTALLED",
+            "APP_LIMIT_REACHED",
+            "BLOCKED_APP_ATTEMPT"
+        )
+        if (prefs.userRole == "PARENT" && type in foregroundTypes) {
             LocalNotificationEngine(applicationContext)
                 .sendSafetyAlert(title, body)
         }

@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, doc, setDoc, deleteDoc, serverTimestamp, increment, deleteField } from "firebase/firestore";
 import { FamilyRole } from "./FamilyRepository";
 import { RoleHelper } from "../utils/RoleHelper";
 import { PermissionError } from "./ChildRepository";
@@ -22,6 +22,12 @@ export interface AppControl {
   createdAt?: any;
   updatedAt?: any;
   updatedBy: string;
+  revision?: number;
+  applyStatus?: 'PENDING' | 'APPLIED' | 'FAILED';
+  appliedAt?: any;
+  appliedByDeviceId?: string;
+  appliedVersion?: string;
+  applyMessage?: string;
 }
 
 export class InstalledAppsRepository {
@@ -69,7 +75,13 @@ export class InstalledAppsRepository {
       ...control,
       childId,
       updatedAt: serverTimestamp(),
-      updatedBy: parentUid
+      updatedBy: parentUid,
+      revision: increment(1),
+      applyStatus: 'PENDING',
+      appliedAt: deleteField(),
+      appliedByDeviceId: deleteField(),
+      appliedVersion: deleteField(),
+      applyMessage: deleteField()
     };
 
     // If it's a new control, add createdAt
