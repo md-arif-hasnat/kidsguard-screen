@@ -27,8 +27,25 @@ object YouTubeMetadataExtractor {
 
     private val SHORTS_TITLE_IDS = listOf(
         "com.google.android.youtube:id/shorts_title",
+        "com.google.android.youtube:id/shorts_video_title",
+        "com.google.android.youtube:id/reel_title",
+        "com.google.android.youtube:id/reel_video_title",
+        "com.google.android.youtube:id/reel_video_description",
         "com.google.android.youtube:id/video_description",
         "com.google.android.youtube:id/title"
+    )
+
+    private val SHORTS_CHANNEL_IDS = listOf(
+        "com.google.android.youtube:id/reel_channel_name",
+        "com.google.android.youtube:id/reel_channel_title",
+        "com.google.android.youtube:id/channel_name",
+        "com.google.android.youtube:id/channel_title"
+    )
+
+    private val SHORTS_CONTAINER_MARKERS = listOf(
+        "shorts_player",
+        "reel_player",
+        "reel_watch"
     )
 
     fun extract(
@@ -315,11 +332,8 @@ object YouTubeMetadataExtractor {
             if (!nodes.isNullOrEmpty()) {
                 val text = getTextDeep(nodes[0])
                 repo.addDebugLog("TITLE_CANDIDATE: $text (Shorts ID: $id)")
-                if (YouTubeValidator.isValidVideoTitle(text)) {
-                    val channelNodes =
-                        rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/channel_name")
-                    val channel =
-                        if (!channelNodes.isNullOrEmpty()) getTextDeep(channelNodes[0]) else null
+                if (isValidShortsTitle(text)) {
+                    val channel = findShortsChannel(rootNode)
 
                     return YouTubeMetadataCandidate(
                         videoTitle = text!!,
@@ -333,7 +347,96 @@ object YouTubeMetadataExtractor {
                 }
             }
         }
+
+        // Resource IDs vary across YouTube versions. Limit the fallback search
+        // to the Shorts player subtree so navigation/action labels are ignored.
+        val shortsRoot = findNodeByIdMarker(rootNode) ?: rootNode
+        val structuralTitle = findShortsTitleInTree(shortsRoot)
+        if (structuralTitle == null) {
+            repo.addDebugLog("SHORTS_STRUCTURAL_TITLE_NOT_FOUND")
+            return null
+        }
+
+        repo.addDebugLog("SHORTS_STRUCTURAL_TITLE_FOUND: $structuralTitle")
+        return YouTubeMetadataCandidate(
+            videoTitle = structuralTitle,
+            channelName = findShortsChannel(shortsRoot) ?: findShortsChannel(rootNode),
+            screenType = YouTubeScreenType.SHORTS,
+            confidence = 0.75f,
+            extractionStrategy = "shorts_structural"
+        )
+    }
+
+    private fun findShortsChannel(rootNode: AccessibilityNodeInfo): String? {
+        for (id in SHORTS_CHANNEL_IDS) {
+            val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
+            val value = nodes.firstNotNullOfOrNull { getTextDeep(it)?.trim() }
+            if (!value.isNullOrBlank() && YouTubeValidator.isValidChannelName(value)) {
+                return value
+            }
+        }
+        return findTextInTree(rootNode) { it.startsWith("@") && it.length > 1 }
+    }
+
+    private fun findNodeByIdMarker(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val id = node.viewIdResourceName?.lowercase().orEmpty()
+        if (SHORTS_CONTAINER_MARKERS.any(id::contains)) return node
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findNodeByIdMarker(child)?.let { return it }
+        }
         return null
+    }
+
+    private fun findShortsTitleInTree(node: AccessibilityNodeInfo): String? {
+        val candidates = listOfNotNull(
+            node.text?.toString()?.trim(),
+            node.contentDescription?.toString()?.trim()
+        )
+        candidates.firstOrNull(::isValidShortsTitle)?.let { return it }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findShortsTitleInTree(child)?.let { return it }
+        }
+        return null
+    }
+
+    private fun findTextInTree(
+        node: AccessibilityNodeInfo,
+        predicate: (String) -> Boolean
+    ): String? {
+        val values = listOfNotNull(
+            node.text?.toString()?.trim(),
+            node.contentDescription?.toString()?.trim()
+        )
+        values.firstOrNull(predicate)?.let { return it }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findTextInTree(child, predicate)?.let { return it }
+        }
+        return null
+    }
+
+    private fun isValidShortsTitle(value: String?): Boolean {
+        val title = value?.trim().orEmpty()
+        if (!YouTubeValidator.isValidVideoTitle(title) || title.startsWith("@")) return false
+
+        val normalized = title.lowercase()
+        val actionLabels = listOf(
+            "like", "dislike", "comments", "comment", "share", "remix",
+            "subscribe", "use this sound", "more actions", "pause", "play",
+            "home", "shorts", "subscriptions", "you", "youtube", "create",
+            "search", "notifications", "account"
+        )
+        if (actionLabels.any {
+                normalized == it || normalized.startsWith("$it,") || normalized.startsWith("$it ")
+            }
+        ) return false
+        if (Regex("""^[\d.,]+\s*(views?|likes?|comments?)$""").matches(normalized)) return false
+        return true
     }
 
     private fun extractMiniplayer(

@@ -63,6 +63,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private var lastYouTubeEventSource: AccessibilityNodeInfo? = null
     private var lastYouTubeScanAt = 0L
+    private var lastDebugYouTubeScreenType: YouTubeScreenType? = null
 
     private lateinit var youtubeRepository: YouTubeHistoryRepository
     private lateinit var browserRepository: BrowserHistoryRepository
@@ -522,6 +523,10 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         youtubeRepository.addDebugLog("PARSER_STARTED")
         val screenType = YouTubeScreenDetector.detect(rootNode)
         Log.d(TAG_YT_TRACE, "Detected Screen: $screenType")
+        if (screenType != lastDebugYouTubeScreenType) {
+            youtubeRepository.addDebugLog("SCREEN_DETECTED: $screenType")
+            lastDebugYouTubeScreenType = screenType
+        }
 
         if (screenType == YouTubeScreenType.AD) {
             activeYouTubeSession?.let { it.isAdPlaying = true }
