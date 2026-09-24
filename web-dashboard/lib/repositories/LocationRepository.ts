@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, query, orderBy, limit, onSnapshot, doc, where, Timestamp, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, doc, where } from "firebase/firestore";
 
 export interface LocationPoint {
   latitude: number;
@@ -37,43 +37,20 @@ export class LocationRepository {
   static listenToLatestLocation(childId: string, onUpdate: (location: LocationPoint | null) => void) {
     if (!db || !childId) return () => {};
 
-    // Use unified devices collection for latest status as primary source
-    const deviceRef = doc(db, "devices", childId);
-    return onSnapshot(deviceRef, (snapshot) => {
+    // The canonical parent-readable latest location lives below the child.
+    // Device documents are keyed by deviceId (not childId) and are intentionally
+    // private to the device owner, so the dashboard must not listen there.
+    const latestRef = doc(db, "children", childId, "locations", "latest");
+    return onSnapshot(latestRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         console.log("RAW_LATEST_LOCATION_DOC", snapshot.id, data);
-        if (data.currentLocation) {
-            onUpdate({
-                latitude: data.currentLocation.latitude,
-                longitude: data.currentLocation.longitude,
-                accuracy: data.currentLocation.accuracy,
-                timestamp: data.currentLocation.updatedAt?.toMillis() || Date.now(),
-                speed: data.currentLocation.speed || 0,
-                bearing: data.currentLocation.bearing || 0,
-                fullAddress: data.currentLocation.fullAddress || data.currentLocation.address,
-                street: data.currentLocation.street,
-                city: data.currentLocation.city,
-                state: data.currentLocation.state,
-                country: data.currentLocation.country,
-                postalCode: data.currentLocation.postalCode
-            } as LocationPoint);
-            return;
-        }
-      }
-
-      // Fallback to children collection if not found in devices
-      if (db) {
-        const latestRef = doc(db, "children", childId, "locations", "latest");
-        getDoc(latestRef).then(snap => {
-            if (snap.exists()) {
-                onUpdate(snap.data() as LocationPoint);
-            } else {
-                onUpdate(null);
-            }
-        });
+        onUpdate({
+          ...data,
+          fullAddress: data.fullAddress ?? data.address ?? null
+        } as LocationPoint);
       } else {
-          onUpdate(null);
+        onUpdate(null);
       }
     }, (error) => {
       console.error("Error listening to latest location:", error);

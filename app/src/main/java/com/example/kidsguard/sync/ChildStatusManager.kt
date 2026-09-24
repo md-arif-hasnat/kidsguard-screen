@@ -161,7 +161,7 @@ class ChildStatusManager(
                             postalCode = point.postalCode
                         )
                     },
-                    appVersion = "1.0.0",
+                    appVersion = com.example.kidsguard.BuildConfig.VERSION_NAME,
                     androidVersion = android.os.Build.VERSION.RELEASE,
                     lastSeen = System.currentTimeMillis(),
                     batteryTemp = batteryTemp,

@@ -26,14 +26,12 @@ import {
   Brain,
   Smartphone,
   Calendar,
-  ArrowRight,
   Loader2,
   Clock as ClockIcon,
   Smartphone as SmartphoneIcon,
   ShieldAlert,
   Shield,
   BarChart3,
-  TrendingUp,
   Globe as GlobeIcon,
   AppWindow,
   Youtube
@@ -59,14 +57,12 @@ import HealthCard from '@/components/analytics/HealthCard';
 import DeviceCharts from '@/components/analytics/DeviceCharts';
 import AIInsightPanel from '@/components/AIInsightPanel';
 import AIReportCard from '@/components/AIReportCard';
-import WeeklyReportPanel, { WeeklyReport } from '@/components/WeeklyReportPanel';
-import ScheduleManager, { Schedule } from '@/components/ScheduleManager';
 import { Siren } from 'lucide-react';
 
 import ScreenTimeStats from '@/components/wellbeing/ScreenTimeStats';
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
-import WellbeingControls, { AppLimit, BlockRule } from '@/components/wellbeing/WellbeingControls';
 import LockSchedulePanel from '@/components/wellbeing/LockSchedulePanel';
+import { AppUsageRepository } from '@/lib/repositories/AppUsageRepository';
 
 import { WebProtectionRepository, WebRuleSet, WebActivityEvent, WebAccessRequest } from '@/lib/repositories/WebProtectionRepository';
 import WebActivityPanel from '@/components/web/WebActivityPanel';
@@ -86,7 +82,6 @@ import SafeZonesPanel from '@/components/panels/SafeZonesPanel';
 import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 import YouTubeHistoryPanel from '@/components/panels/YouTubeHistoryPanel';
 import BrowserHistoryPanel from '@/components/panels/BrowserHistoryPanel';
-import WebsiteRulesPanel from '@/components/panels/WebsiteRulesPanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -104,7 +99,7 @@ function StatCard({ label, value, icon: Icon, color }: any) {
     )
 }
 
-type Tab = 'overview' | 'location' | 'app-activity' | 'installed-apps' | 'safe-zones' | 'history' | 'youtube-history' | 'browser-history' | 'web-rules' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
+type Tab = 'overview' | 'location' | 'app-activity' | 'installed-apps' | 'safe-zones' | 'history' | 'youtube-history' | 'browser-history' | 'intelligence' | 'wellbeing' | 'internet' | 'health' | 'modes';
 
 export default function ChildDashboard() {
   const params = useParams();
@@ -117,7 +112,7 @@ export default function ChildDashboard() {
   // Sync tab with URL
   useEffect(() => {
     const tabParam = searchParams.get('tab') as Tab;
-    const validTabs: Tab[] = ['overview', 'location', 'app-activity', 'installed-apps', 'safe-zones', 'history', 'youtube-history', 'browser-history', 'web-rules', 'intelligence', 'wellbeing', 'internet', 'health', 'modes'];
+    const validTabs: Tab[] = ['overview', 'location', 'app-activity', 'installed-apps', 'safe-zones', 'history', 'youtube-history', 'browser-history', 'intelligence', 'wellbeing', 'internet', 'health', 'modes'];
     if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam);
     } else if (!tabParam) {
@@ -201,40 +196,20 @@ export default function ChildDashboard() {
 
   // Phase AD: Wellbeing State
   const [appUsage, setAppUsage] = useState<any[]>([]);
-  const [appLimits, setAppLimits] = useState<AppLimit[]>([
-    { packageName: 'com.google.android.youtube', appName: 'YouTube', dailyLimitMs: 60 * 60 * 1000, enabled: true },
-    { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok', dailyLimitMs: 30 * 60 * 1000, enabled: true }
-  ]);
-  const [blockRules, setBlockRules] = useState<BlockRule[]>([
-    { packageName: 'com.instagram.android', appName: 'Instagram', isBlocked: false },
-    { packageName: 'com.facebook.katana', appName: 'Facebook', isBlocked: true },
-    { packageName: 'com.snapchat.android', appName: 'Snapchat', isBlocked: false },
-    { packageName: 'com.roblox.client', appName: 'Roblox', isBlocked: false }
-  ]);
 
   // Phase AE: Web Protection State
   const [webRules, setWebRules] = useState<WebRuleSet | null>(null);
   const [webActivity, setWebActivity] = useState<WebActivityEvent[]>([]);
   const [webRequests, setWebRequests] = useState<WebAccessRequest[]>([]);
 
-  // Mock data for Phase AD
-  const [mockSchedules, setMockSchedules] = useState<Schedule[]>([
-    { id: '1', zoneId: 'zone_school', dayOfWeek: 1, arrivalTime: '08:30', enabled: true },
-    { id: '2', zoneId: 'zone_home', dayOfWeek: 1, arrivalTime: '16:00', enabled: true }
-  ]);
-
-  const mockWeeklyReport: WeeklyReport = {
-    weekStartDate: 'Oct 23, 2023',
-    averageSafetyScore: 92,
-    totalDistanceKm: 42.5,
-    totalAlerts: 3,
-    topVisitedZones: ['Home', 'School', 'Central Park'],
-    safetyTrend: 'Improving',
-    recommendations: [
-        'Safe zone compliance is up by 15% this week.',
-        'Consider increasing battery alerts as device health fluctuates.'
-    ]
-  };
+  useEffect(() => {
+    if (!childId || !selectedDate || !isFirebaseConfigured) return;
+    return AppUsageRepository.subscribeToChildAppUsageForDate(
+      childId,
+      selectedDate,
+      setAppUsage
+    );
+  }, [childId, selectedDate]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
@@ -555,7 +530,6 @@ const handleSaveOfflineAlertSettings = async () => {
               <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
               <TabButton active={activeTab === 'browser-history'} onClick={() => handleTabChange('browser-history')} icon={GlobeIcon} label="Browser" />
               <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
-              <TabButton active={activeTab === 'web-rules'} onClick={() => handleTabChange('web-rules')} icon={ShieldAlert} label="Web Rules" />
               <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
               <TabButton active={activeTab === 'intelligence'} onClick={() => handleTabChange('intelligence')} icon={Brain} label="Intelligence" />
               <div className="w-px h-6 bg-slate-200 mx-2 shrink-0" />
@@ -887,10 +861,6 @@ const handleSaveOfflineAlertSettings = async () => {
           <BrowserHistoryPanel childId={childId} />
       )}
 
-      {activeTab === 'web-rules' && (
-          <WebsiteRulesPanel childId={childId} />
-      )}
-
       {activeTab === 'intelligence' && (
           <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex justify-between items-center">
@@ -909,34 +879,6 @@ const handleSaveOfflineAlertSettings = async () => {
               {status && <AIInsightPanel status={status} />}
 
               {summary && <AIReportCard summary={summary} />}
-
-              <div className="space-y-12">
-                    <WeeklyReportPanel report={mockWeeklyReport} />
-
-                    <ScheduleManager
-                        safeZones={displayZones as any}
-                        schedules={mockSchedules}
-                        onAdd={(s) => setMockSchedules([...mockSchedules, { ...s, id: Math.random().toString() }])}
-                        onDelete={(id) => setMockSchedules(mockSchedules.filter(s => s.id !== id))}
-                    />
-
-                    <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[2.5rem] p-8 md:p-12 text-white shadow-xl shadow-primary-100 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
-                        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                            <div>
-                                <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
-                                    <TrendingUp className="text-white" />
-                                </div>
-                                <h3 className="text-3xl font-black mb-2">Advanced Safety Insights</h3>
-                                <p className="text-primary-100 text-lg font-medium opacity-80">Generate a custom AI analysis based on specific dates and event types.</p>
-                            </div>
-                            <button className="bg-white text-primary-600 px-8 py-4 rounded-2xl font-bold shadow-lg hover:bg-primary-50 transition-all flex items-center gap-2">
-                                Run Custom Analysis
-                                <ArrowRight size={20} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
 
               {analytics ? (
                   <DeviceCharts data={analytics} />
@@ -971,64 +913,27 @@ const handleSaveOfflineAlertSettings = async () => {
               </div>
 
               <ScreenTimeStats
-                  todayMs={appUsage.reduce((acc, app) => acc + app.totalTimeMs, 0) || 12400000}
-                  yesterdayMs={14200000}
-                  avg7DayMs={11800000}
+                  todayMs={appUsage.reduce((acc, app) => acc + app.totalTimeMs, 0)}
+                  yesterdayMs={0}
+                  avg7DayMs={0}
               />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-12">
-                    <AppUsagePanel usage={appUsage.length > 0 ? appUsage : [
-                        { packageName: 'com.google.android.youtube', appName: 'YouTube', category: 'Video', totalTimeMs: 4200000, lastUsed: Date.now() },
-                        { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok', category: 'Social', totalTimeMs: 2800000, lastUsed: Date.now() },
-                        { packageName: 'com.whatsapp', appName: 'WhatsApp', category: 'Messaging', totalTimeMs: 1500000, lastUsed: Date.now() },
-                        { packageName: 'com.android.chrome', appName: 'Chrome', category: 'Browser', totalTimeMs: 900000, lastUsed: Date.now() }
-                    ]} />
+                    <AppUsagePanel usage={appUsage} />
 
                     <LockSchedulePanel childId={childId} canEdit={canManageWellbeing} />
                   </div>
 
-                  {canManageWellbeing ? (
-                    <WellbeingControls
-                        limits={appLimits}
-                        blocks={blockRules}
-                        onUpdateLimit={(l) => setAppLimits(appLimits.map(x => x.packageName === l.packageName ? l : x))}
-                        onDeleteLimit={(pkg) => setAppLimits(appLimits.filter(x => x.packageName !== pkg))}
-                        onToggleBlock={(pkg, val) => setBlockRules(blockRules.map(x => x.packageName === pkg ? {...x, isBlocked: val} : x))}
-                    />
-                  ) : (
-                    <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center opacity-60">
-                        <Shield className="text-slate-300 mb-4" size={48} />
-                        <h3 className="font-bold text-slate-800">Managed by Parent</h3>
-                        <p className="text-sm text-slate-500 mt-1 italic">You have Guardian access. Wellbeing rules can only be edited by Parents or Owners.</p>
-                    </div>
-                  )}
-              </div>
-
-              <section className="bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl">
-                  <div className="absolute top-0 right-0 w-96 h-96 bg-primary-600/20 rounded-full -mr-32 -mt-32 blur-3xl" />
-                  <div className="relative z-10">
-                      <h3 className="text-3xl font-black mb-4">Focus Schedules</h3>
-                      <p className="text-slate-400 max-w-xl mb-10 text-lg">Automatically block non-educational apps during school or bedtime to help your child stay focused and rest well.</p>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <ScheduleCard
-                            title="School Focus"
-                            time="08:00 - 15:00"
-                            days="Mon - Fri"
-                            desc="Games and Social apps are blocked."
-                            active={true}
-                          />
-                          <ScheduleCard
-                            title="Bedtime"
-                            time="21:00 - 07:00"
-                            days="Daily"
-                            desc="All non-emergency apps are blocked."
-                            active={false}
-                          />
-                      </div>
+                  <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center">
+                    <Shield className="text-primary-500 mb-4" size={48} />
+                    <h3 className="font-bold text-slate-800">App limits and blocking</h3>
+                    <p className="text-sm text-slate-500 mt-1">Manage real per-app controls from the Installed Apps tab.</p>
+                    <button onClick={() => handleTabChange('installed-apps')} className="mt-5 bg-primary-600 text-white px-5 py-3 rounded-xl text-sm font-bold">
+                      Open Installed Apps
+                    </button>
                   </div>
-              </section>
+              </div>
           </div>
       )}
 
@@ -1121,35 +1026,6 @@ function ControlBtn({ icon: Icon, label, onClick, color }: any) {
             <Icon size={18} className={color} />
             <span className="text-sm font-bold text-slate-700">{label}</span>
         </button>
-    )
-}
-
-function ScheduleCard({ title, time, days, desc, active }: any) {
-    return (
-        <div className={cn(
-            "p-6 rounded-[2rem] border transition-all",
-            active ? "bg-white/10 border-white/20" : "bg-white/5 border-white/5 opacity-50"
-        )}>
-            <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                    <div className={cn(
-                        "p-2 rounded-xl",
-                        active ? "bg-primary-500" : "bg-slate-700"
-                    )}>
-                        <ClockIcon size={18} />
-                    </div>
-                    <div>
-                        <p className="font-bold">{title}</p>
-                        <p className="text-xs text-slate-400 font-medium">{days} • {time}</p>
-                    </div>
-                </div>
-                <div className={cn(
-                    "w-2 h-2 rounded-full",
-                    active ? "bg-emerald-500 animate-pulse" : "bg-slate-500"
-                )} />
-            </div>
-            <p className="text-sm text-slate-300">{desc}</p>
-        </div>
     )
 }
 
