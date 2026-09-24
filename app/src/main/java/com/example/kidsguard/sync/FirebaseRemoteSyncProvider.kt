@@ -2,6 +2,7 @@ package com.example.kidsguard.sync
 
 import android.util.Log
 import com.example.kidsguard.BuildConfig
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.SosEvent
 import com.example.kidsguard.models.SosStatus
 import com.example.kidsguard.repository.ErrorLogRepository
@@ -28,6 +29,7 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
     RemoteSyncProvider {
     private val db = FirebaseFirestore.getInstance()
     private val errorLogger = ErrorLogRepository(context)
+    private val prefHelper = PreferenceHelper(context)
 
     private val _isConnected = MutableStateFlow(false)
     override val isConnected: StateFlow<Boolean> = _isConnected
