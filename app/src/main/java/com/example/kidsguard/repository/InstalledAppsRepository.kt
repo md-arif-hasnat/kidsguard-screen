@@ -17,7 +17,9 @@ class InstalledAppsRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "AppInstallMonitor"
-        private const val KEY_BASELINE_READY = "__baseline_ready__"
+        // Versioned so this release performs one repair scan even if an older
+        // build incorrectly marked its baseline as complete.
+        private const val KEY_BASELINE_READY = "__baseline_ready_v2__"
     }
 
     private fun getChildId(): String? {
@@ -35,7 +37,10 @@ class InstalledAppsRepository(private val context: Context) {
      * Use this during initialization to populate the installedApps collection.
      */
     fun initialScan() {
-        performScan(isFullRescan = false)
+        // Older builds cached package names before Firestore confirmed the
+        // upload. Force one baseline rescan to repair those stale caches.
+        val baselineReady = prefs.getBoolean(KEY_BASELINE_READY, false)
+        performScan(isFullRescan = !baselineReady)
     }
 
     /**
@@ -105,9 +110,14 @@ class InstalledAppsRepository(private val context: Context) {
 
                 // Only sync if not in cache or if it's a full rescan
                 if (isFullRescan || !prefs.contains(packageName)) {
-                    syncAppInstall(installedApp, createNotification = false)
+                    syncAppInstall(
+                        app = installedApp,
+                        createNotification = false,
+                        onSuccess = {
+                            prefs.edit().putBoolean(packageName, true).apply()
+                        }
+                    )
                     uploaded++
-                    prefs.edit().putBoolean(packageName, true).apply()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to process $packageName during scan", e)
@@ -184,10 +194,14 @@ class InstalledAppsRepository(private val context: Context) {
                 }
             )
 
-            syncAppInstall(installedApp, createNotification = isNewInstall)
-
-            // Mark as known in cache
-            prefs.edit().putBoolean(packageName, true).apply()
+            syncAppInstall(
+                app = installedApp,
+                createNotification = isNewInstall,
+                onSuccess = {
+                    // Mark as known only after Firestore confirms the upload.
+                    prefs.edit().putBoolean(packageName, true).apply()
+                }
+            )
 
         } catch (e: Exception) {
             Log.e(TAG, "Error handling package added: $packageName", e)
@@ -201,7 +215,11 @@ class InstalledAppsRepository(private val context: Context) {
         // Optional: Mark as uninstalled in Firestore if needed in future
     }
 
-    private fun syncAppInstall(app: InstalledApp, createNotification: Boolean) {
+    private fun syncAppInstall(
+        app: InstalledApp,
+        createNotification: Boolean,
+        onSuccess: (() -> Unit)? = null
+    ) {
         val childId = getChildId() ?: return
 
         val appRef = db.collection(FirebaseConfig.COL_CHILDREN)
@@ -212,6 +230,7 @@ class InstalledAppsRepository(private val context: Context) {
         appRef.set(app, SetOptions.merge())
             .addOnSuccessListener {
                 Log.i(TAG, "App metadata synced: ${app.packageName} (notify=$createNotification)")
+                onSuccess?.invoke()
                 if (createNotification) {
                     // createInstallNotification(childId, app)
                 }
