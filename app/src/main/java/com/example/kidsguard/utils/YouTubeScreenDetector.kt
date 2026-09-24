@@ -5,6 +5,19 @@ import com.example.kidsguard.models.YouTubeScreenType
 
 object YouTubeScreenDetector {
 
+    private val SHORTS_PLAYER_IDS = listOf(
+        "com.google.android.youtube:id/shorts_player_view",
+        "com.google.android.youtube:id/reel_player_page",
+        "com.google.android.youtube:id/reel_watch_fragment_root",
+        "com.google.android.youtube:id/reel_player_fragment_container"
+    )
+
+    private val SHORTS_PLAYER_ID_MARKERS = listOf(
+        "shorts_player",
+        "reel_player",
+        "reel_watch"
+    )
+
     fun detect(rootNode: AccessibilityNodeInfo?): YouTubeScreenType {
         if (rootNode == null) return YouTubeScreenType.UNKNOWN
 
@@ -44,13 +57,33 @@ object YouTubeScreenDetector {
     }
 
     private fun isShorts(rootNode: AccessibilityNodeInfo): Boolean {
-        // Shorts player container
-        val shortsNodes = rootNode.findAccessibilityNodeInfosByViewId("com.google.android.youtube:id/shorts_player_view")
-        if (!shortsNodes.isNullOrEmpty()) return true
+        // YouTube has used both shorts_* and reel_* resource names for this UI.
+        for (viewId in SHORTS_PLAYER_IDS) {
+            if (!rootNode.findAccessibilityNodeInfosByViewId(viewId).isNullOrEmpty()) {
+                return true
+            }
+        }
+
+        // Exact IDs change between YouTube releases, so also inspect exposed IDs.
+        if (containsShortsPlayerId(rootNode)) return true
         
         // Secondary signal: Remix button which is unique to Shorts
         val remixNodes = rootNode.findAccessibilityNodeInfosByText("Remix")
-        return !remixNodes.isNullOrEmpty()
+        if (!remixNodes.isNullOrEmpty()) return true
+
+        val useSoundNodes = rootNode.findAccessibilityNodeInfosByText("Use this sound")
+        return !useSoundNodes.isNullOrEmpty()
+    }
+
+    private fun containsShortsPlayerId(node: AccessibilityNodeInfo): Boolean {
+        val viewId = node.viewIdResourceName?.lowercase().orEmpty()
+        if (SHORTS_PLAYER_ID_MARKERS.any(viewId::contains)) return true
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            if (containsShortsPlayerId(child)) return true
+        }
+        return false
     }
 
     private fun isWatchPage(rootNode: AccessibilityNodeInfo): Boolean {
