@@ -14,8 +14,10 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
 val mapsApiKey = localProperties.getProperty("MAPS_API_KEY")?.trim('"', '\'') ?: ""
-val youtubeApiKey = localProperties
-    .getProperty("YOUTUBE_API_KEY")
+val youtubeApiKey = (
+    localProperties.getProperty("YOUTUBE_API_KEY")
+        ?: System.getenv("YOUTUBE_API_KEY")
+    )
     ?.trim('"', '\'') ?: ""
 
 android {
