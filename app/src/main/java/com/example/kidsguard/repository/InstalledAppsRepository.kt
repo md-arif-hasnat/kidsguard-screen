@@ -5,7 +5,6 @@ import android.util.Log
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.InstalledApp
 import com.example.kidsguard.sync.FirebaseConfig
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 
@@ -212,7 +211,20 @@ class InstalledAppsRepository(private val context: Context) {
         prefs.edit().remove(packageName).apply()
         Log.i(TAG, "Removed package from install cache: $packageName")
 
-        // Optional: Mark as uninstalled in Firestore if needed in future
+        // Remove the old document so a genuine reinstall creates a new
+        // document and can trigger exactly one parent notification.
+        val childId = getChildId() ?: return
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("installedApps")
+            .document(packageName)
+            .delete()
+            .addOnSuccessListener {
+                Log.i(TAG, "Removed uninstalled app from Firestore: $packageName")
+            }
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Failed to remove uninstalled app: $packageName", error)
+            }
     }
 
     private fun syncAppInstall(
@@ -227,46 +239,18 @@ class InstalledAppsRepository(private val context: Context) {
             .collection("installedApps")
             .document(app.packageName)
 
-        appRef.set(app, SetOptions.merge())
+        // Cloud Function checks this flag. Baseline records are explicitly
+        // false; only a post-baseline PACKAGE_ADDED broadcast sets it true.
+        val upload = app.copy(notifyParent = createNotification)
+
+        appRef.set(upload, SetOptions.merge())
             .addOnSuccessListener {
                 Log.i(TAG, "App metadata synced: ${app.packageName} (notify=$createNotification)")
                 onSuccess?.invoke()
-                if (createNotification) {
-                    // createInstallNotification(childId, app)
-                }
             }
             .addOnFailureListener { error ->
                 Log.e(TAG, "Failed to sync app record: ${app.packageName}", error)
             }
     }
 
-    private fun createInstallNotification(childId: String, app: InstalledApp) {
-        val familyId = prefHelper.familyId ?: ""
-        val childName = prefHelper.childName.ifBlank { "Your child" }
-
-        val notification = hashMapOf<String, Any>(
-            "type" to "APP_INSTALLED",
-            "childId" to childId,
-            "childName" to childName,
-            "appName" to app.appName,
-            "packageName" to app.packageName,
-            "createdAt" to FieldValue.serverTimestamp(),
-            "read" to false,
-            "familyId" to familyId,
-            "clickAction" to "/children/$childId/installed-apps?pkg=${app.packageName}"
-        )
-
-        prefHelper.firebaseUid?.let { uid ->
-            if (uid.isNotBlank()) notification["userId"] = uid
-        }
-
-        db.collection(FirebaseConfig.COL_NOTIFICATIONS)
-            .add(notification)
-            .addOnSuccessListener { doc ->
-                Log.i(TAG, "Install notification created: ${doc.id}")
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to create install notification", e)
-            }
-    }
 }

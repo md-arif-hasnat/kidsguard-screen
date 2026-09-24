@@ -102,7 +102,10 @@ data class InstalledApp(
     var installedAt: Long = System.currentTimeMillis(),
     var firstInstallTime: Long = 0L,
     var versionName: String = "",
-    var versionCode: Long = 0L
+    var versionCode: Long = 0L,
+    // False for the pairing/baseline scan. True only for an app that is
+    // installed after the child device baseline has completed.
+    var notifyParent: Boolean = false
 )
 
 enum class SosStatus { ACTIVE, TRIGGERED, RESOLVED }
