@@ -340,6 +340,44 @@ service cloud.firestore {
                                             allow write: if isParentForChild(childId);
                                           }
 
+                                          match /permissionChangeRequests/{requestId} {
+                                            allow read: if canReadChild(childId);
+
+                                            allow create: if isChildIdentity(childId) &&
+                                              request.resource.data.requestId == requestId &&
+                                              request.resource.data.childId == childId &&
+                                              request.resource.data.familyId is string &&
+                                              request.resource.data.permissionType is string &&
+                                              request.resource.data.permissionName is string &&
+                                              request.resource.data.status == 'PENDING';
+
+                                            allow update: if isParentForChild(childId) &&
+                                              resource.data.status == 'PENDING' &&
+                                              request.resource.data.requestId ==
+                                                resource.data.requestId &&
+                                              request.resource.data.childId ==
+                                                resource.data.childId &&
+                                              request.resource.data.familyId ==
+                                                resource.data.familyId &&
+                                              request.resource.data.permissionType ==
+                                                resource.data.permissionType &&
+                                              request.resource.data.status in [
+                                                'APPROVED',
+                                                'DENIED'
+                                              ] &&
+                                              request.resource.data
+                                                .diff(resource.data)
+                                                .affectedKeys()
+                                                .hasOnly([
+                                                  'status',
+                                                  'reviewedAt',
+                                                  'reviewedBy',
+                                                  'expiresAt'
+                                                ]);
+
+                                            allow delete: if false;
+                                          }
+
                                           match /webRules/{ruleId} {
                                             allow read: if canReadChild(childId);
                                             allow write: if isParentForChild(childId);
