@@ -213,6 +213,8 @@ data class SyncAppControl(
 
 @Keep
 data class SyncWellbeingSettings(
+    var dailyTotalLimitMinutes: Int? = null,
+    var totalLimitEnabled: Boolean = false,
     var appLimits: List<SyncAppLimit> = emptyList(),
     var blockRules: List<SyncAppBlockRule> = emptyList()
 )
