@@ -7,6 +7,8 @@ import com.example.kidsguard.models.SafeZone
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.SyncActivityEvent
 import com.example.kidsguard.utils.DeviceUtils
+import kotlin.math.max
+import kotlin.math.min
 
 class LocalSafeZoneChecker(
     private val safeZoneRepository: SafeZoneRepository,
@@ -14,7 +16,6 @@ class LocalSafeZoneChecker(
     private val prefHelper: PreferenceHelper
 ) : SafeZoneChecker {
 
-    // Tracks the last known "inside" status for each zone ID to detect transitions
     private val lastInsideStatus = mutableMapOf<String, Boolean>()
 
     override fun checkLocation(point: LocationPoint, zones: List<SafeZone>) {
@@ -28,32 +29,70 @@ class LocalSafeZoneChecker(
         zones.forEach { zone ->
             if (!zone.enabled) return@forEach
 
+            val stateKey = zoneStateKey(zone)
             val distance = DeviceUtils.calculateDistance(
-                point.latitude, point.longitude,
-                zone.latitude, zone.longitude
+                point.latitude,
+                point.longitude,
+                zone.latitude,
+                zone.longitude
             )
-            val currentlyInside = distance <= zone.radiusMeters
-            val previouslyInside = lastInsideStatus[zone.id] ?: currentlyInside // Default to current if unknown
+            val previousState =
+                lastInsideStatus[stateKey]
+                    ?: prefHelper.getSafeZoneInsideState(stateKey)
+
+            // GPS fixes often move around near a boundary. A small accuracy-aware
+            // hysteresis prevents repeated enter/exit alerts while the device is
+            // effectively stationary.
+            val hysteresisMeters = min(
+                max(point.accuracy.toDouble(), MIN_HYSTERESIS_METERS),
+                min(MAX_HYSTERESIS_METERS, zone.radiusMeters * HYSTERESIS_RADIUS_RATIO)
+            )
+            val currentlyInside = when (previousState) {
+                true -> distance <= zone.radiusMeters + hysteresisMeters
+                false -> distance <= max(0.0, zone.radiusMeters - hysteresisMeters)
+                null -> distance <= zone.radiusMeters
+            }
 
             if (currentlyInside) {
                 foundInsideAny = true
-                insideZoneId = zone.id
-                insideZoneName = zone.name
-
-                if (!previouslyInside) {
-                    // ENTER_ZONE transition
-                    triggerZoneEvent(childId, zone, point, distance, "ENTER_ZONE")
+                if (insideZoneId == null) {
+                    insideZoneId = zone.id
+                    insideZoneName = zone.name
                 }
-            } else if (previouslyInside) {
-                // EXIT_ZONE transition
-                triggerZoneEvent(childId, zone, point, distance, "EXIT_ZONE")
             }
 
-            lastInsideStatus[zone.id] = currentlyInside
+            if (previousState != null && previousState != currentlyInside) {
+                val eventType = if (currentlyInside) "ENTER_ZONE" else "EXIT_ZONE"
+                val notificationEnabled =
+                    if (currentlyInside) zone.notifyOnEnter else zone.notifyOnExit
+
+                if (notificationEnabled) {
+                    triggerZoneEvent(
+                        childId,
+                        zone,
+                        point,
+                        distance,
+                        eventType
+                    )
+                } else {
+                    android.util.Log.d(
+                        TAG,
+                        "Transition recorded without alert: type=$eventType zone=${zone.name}"
+                    )
+                }
+            }
+
+            if (previousState == null || previousState != currentlyInside) {
+                prefHelper.setSafeZoneInsideState(stateKey, currentlyInside)
+            }
+            lastInsideStatus[stateKey] = currentlyInside
         }
 
-        // Update overall status
-        updateOverallStatus(childId, foundInsideAny, insideZoneId, insideZoneName)
+        updateOverallStatus(
+            foundInsideAny,
+            insideZoneId,
+            insideZoneName
+        )
     }
 
     private fun triggerZoneEvent(
@@ -63,16 +102,25 @@ class LocalSafeZoneChecker(
         distance: Double,
         type: String
     ) {
-        android.util.Log.d("SafeZoneChecker", "triggerZoneEvent: type=$type, zone=${zone.name}")
+        android.util.Log.d(TAG, "triggerZoneEvent: type=$type, zone=${zone.name}")
         val title = if (type == "ENTER_ZONE") {
-            if (zone.type == "Home" || zone.type == "School") "Arrived at ${zone.type}" else "Entered ${zone.name}"
+            if (zone.type == "Home" || zone.type == "School") {
+                "Arrived at ${zone.type}"
+            } else {
+                "Entered ${zone.name}"
+            }
         } else {
-            if (zone.type == "Home" || zone.type == "School") "Left ${zone.type}" else "Left ${zone.name}"
+            if (zone.type == "Home" || zone.type == "School") {
+                "Left ${zone.type}"
+            } else {
+                "Left ${zone.name}"
+            }
         }
 
-        val body = "${prefHelper.childName.ifEmpty { "Child" }} ${if (type == "ENTER_ZONE") "arrived at" else "left"} ${zone.name}"
-        
-        // Detailed event for sync logic to pick up
+        val movement = if (type == "ENTER_ZONE") "arrived at" else "left"
+        val body =
+            "${prefHelper.childName.ifEmpty { "Child" }} $movement ${zone.name}"
+
         val event = SyncActivityEvent(
             childId = childId,
             type = type,
@@ -89,7 +137,6 @@ class LocalSafeZoneChecker(
             severity = if (type == "EXIT_ZONE") "warning" else "info"
         )
 
-        // 1. Add to local repository (which syncs to Firestore)
         safeZoneRepository.addEvent(
             ActivityEvent(
                 id = event.id,
@@ -103,26 +150,40 @@ class LocalSafeZoneChecker(
             detailed = event
         )
 
-        // Send local notification
         if (prefHelper.isSafeZoneNotificationsEnabled) {
             notificationEngine.sendSafetyAlert("KidsGuard Alert", body)
         }
     }
 
     private fun updateOverallStatus(
-        childId: String,
         inside: Boolean,
         zoneId: String?,
         zoneName: String?
     ) {
-        // Update preference helper for local automation (Protection Modes)
-        prefHelper.currentZoneId = if (inside) zoneId else null
+        val previousZoneId = prefHelper.currentZoneId
+        val nextZoneId = if (inside) zoneId else null
+        prefHelper.currentZoneId = nextZoneId
 
-        // SafeZoneRepository should expose a way to update the "status/current" fields
+        // Avoid a Firestore read/write on every location callback. The status
+        // only needs to be synced when the overall zone membership changes.
+        if (previousZoneId == nextZoneId) return
+
         safeZoneRepository.updateSyncStatus(
             zoneName ?: "Unknown",
             zoneId,
             if (inside) "INSIDE" else "OUTSIDE"
         )
+    }
+
+    private fun zoneStateKey(zone: SafeZone): String {
+        if (zone.id.isNotBlank()) return zone.id
+        return "${zone.name}_${zone.latitude}_${zone.longitude}"
+    }
+
+    companion object {
+        private const val TAG = "SafeZoneChecker"
+        private const val MIN_HYSTERESIS_METERS = 10.0
+        private const val MAX_HYSTERESIS_METERS = 50.0
+        private const val HYSTERESIS_RADIUS_RATIO = 0.25
     }
 }
