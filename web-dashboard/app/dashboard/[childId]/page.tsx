@@ -54,6 +54,7 @@ import { FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 import HealthCard from '@/components/analytics/HealthCard';
+import PermissionChangeRequestsPanel from '@/components/health/PermissionChangeRequestsPanel';
 import DeviceCharts from '@/components/analytics/DeviceCharts';
 import AIInsightPanel from '@/components/AIInsightPanel';
 import AIReportCard from '@/components/AIReportCard';
@@ -1005,6 +1006,10 @@ const handleSaveOfflineAlertSettings = async () => {
               ) : (
                   <p>Loading device details...</p>
               )}
+              <PermissionChangeRequestsPanel
+                  childId={childId}
+                  canEdit={canManageWellbeing}
+              />
           </div>
       )}
 
