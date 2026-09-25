@@ -42,6 +42,7 @@ import com.example.kidsguard.ui.screens.NotificationsScreen
 import com.example.kidsguard.ui.screens.ParentDashboardScreen
 import com.example.kidsguard.ui.screens.ParentLoginScreen
 import com.example.kidsguard.ui.screens.ParentSettingsScreen
+import com.example.kidsguard.ui.screens.PermissionChecklistScreen
 import com.example.kidsguard.ui.screens.ParentSetupScreen
 import com.example.kidsguard.ui.screens.PolicyTesterScreen
 import com.example.kidsguard.ui.screens.ProtectionModesScreen
@@ -324,14 +325,34 @@ fun KidsGuardApp(
                 locationRepository = locationRepository
             )
 
-            Screen.PermissionChecklist -> ChildSetupWizardScreen(
-                onSetupComplete = {
-                    onScreenChange(Screen.Home)
-                },
-                onBack = {
-                    onScreenChange(Screen.Home)
+            Screen.PermissionChecklist -> {
+                val hasCorePermissions =
+                    com.example.kidsguard.utils.PermissionUtils
+                        .hasLocationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasBackgroundLocationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasNotificationPermission(context) &&
+                        com.example.kidsguard.utils.PermissionUtils
+                            .isAccessibilityServiceEnabled(context)
+
+                if (hasCorePermissions) {
+                    PermissionChecklistScreen(
+                        onBack = {
+                            onScreenChange(Screen.Home)
+                        }
+                    )
+                } else {
+                    ChildSetupWizardScreen(
+                        onSetupComplete = {
+                            onScreenChange(Screen.Home)
+                        },
+                        onBack = {
+                            onScreenChange(Screen.Home)
+                        }
+                    )
                 }
-            )
+            }
 
             Screen.ParentDashboard -> ParentDashboardScreen(
                 prefHelper = prefHelper,
