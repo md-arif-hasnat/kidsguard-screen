@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Check,
   Clock3,
@@ -32,15 +32,26 @@ interface PermissionChangeRequest {
 interface PermissionChangeRequestsPanelProps {
   childId: string;
   canEdit: boolean;
+  focusRequestId?: string | null;
 }
 
 export default function PermissionChangeRequestsPanel({
   childId,
-  canEdit
+  canEdit,
+  focusRequestId
 }: PermissionChangeRequestsPanelProps) {
   const [requests, setRequests] = useState<PermissionChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!focusRequestId || loading) return;
+    panelRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }, [focusRequestId, loading]);
 
   useEffect(() => {
     if (!db || !childId) {
@@ -105,7 +116,16 @@ export default function PermissionChangeRequestsPanel({
     .slice(0, 5);
 
   return (
-    <section className="bg-white rounded-[2rem] border border-slate-200 p-6 md:p-8 shadow-sm">
+    <section
+      ref={panelRef}
+      id="permission-approvals"
+      className={
+        "bg-white rounded-[2rem] border p-6 md:p-8 shadow-sm scroll-mt-24 " +
+        (focusRequestId
+          ? "border-amber-400 ring-4 ring-amber-100"
+          : "border-slate-200")
+      }
+    >
       <div className="flex items-start gap-4">
         <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
           <KeyRound size={26} />
@@ -137,7 +157,12 @@ export default function PermissionChangeRequestsPanel({
           {pending.map(request => (
             <div
               key={request.id}
-              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 md:flex md:items-center md:justify-between gap-4"
+              className={
+                "rounded-2xl border bg-amber-50 p-4 md:flex md:items-center md:justify-between gap-4 " +
+                (focusRequestId === request.id
+                  ? "border-amber-500 ring-2 ring-amber-300"
+                  : "border-amber-200")
+              }
             >
               <div className="flex gap-3">
                 <ShieldAlert className="text-amber-600 shrink-0" size={22} />
