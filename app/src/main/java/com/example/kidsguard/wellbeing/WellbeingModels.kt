@@ -9,6 +9,7 @@ enum class AppBlockReason {
     NONE,
     STATIC_BLOCK,
     LIMIT_REACHED,
+    TOTAL_LIMIT_REACHED,
     SCHEDULE
 }
 
@@ -51,6 +52,8 @@ data class ScheduleRule(
 )
 
 data class WellbeingSettings(
+    val dailyTotalLimitMinutes: Int? = null,
+    val totalLimitEnabled: Boolean = false,
     val appLimits: List<AppLimit> = emptyList(),
     val blockRules: List<AppBlockRule> = emptyList(),
     val globalSchedules: List<ScheduleRule> = emptyList()
