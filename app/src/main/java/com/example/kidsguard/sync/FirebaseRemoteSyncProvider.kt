@@ -1080,6 +1080,31 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                         val daysRaw = data?.get("days") as? List<*>
                         val daysList =
                             daysRaw?.mapNotNull { (it as? Number)?.toInt() } ?: emptyList()
+                        val windowsRaw = data?.get("windows") as? List<*>
+                        val windows = windowsRaw
+                            ?.mapNotNull { raw ->
+                                val item = raw as? Map<*, *>
+                                    ?: return@mapNotNull null
+                                com.example.kidsguard.models.LockScheduleWindow(
+                                    id = item["id"] as? String ?: "",
+                                    name = item["name"] as? String ?: "",
+                                    enabled = item["enabled"] as? Boolean ?: true,
+                                    startMinutes =
+                                        (item["startMinutes"] as? Number)
+                                            ?.toInt()
+                                            ?: 0,
+                                    endMinutes =
+                                        (item["endMinutes"] as? Number)
+                                            ?.toInt()
+                                            ?: 0,
+                                    days = (item["days"] as? List<*>)
+                                        ?.mapNotNull {
+                                            (it as? Number)?.toInt()
+                                        }
+                                        ?: emptyList()
+                                )
+                            }
+                            ?: emptyList()
 
                         val schedule = com.example.kidsguard.models.LockSchedule(
                             enabled = data?.get("enabled") as? Boolean ?: false,
@@ -1087,7 +1112,8 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                             endMinutes = (data?.get("endMinutes") as? Number)?.toInt() ?: 0,
                             days = daysList,
                             timezone = data?.get("timezone") as? String ?: "",
-                            updatedAt = readMillis(data?.get("updatedAt")) ?: 0L
+                            updatedAt = readMillis(data?.get("updatedAt")) ?: 0L,
+                            windows = windows
                         )
                         Log.d("LockScheduleSync", "Parsed schedule: $schedule")
                         trySend(schedule)
