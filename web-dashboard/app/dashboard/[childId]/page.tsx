@@ -556,6 +556,14 @@ const handleSaveOfflineAlertSettings = async () => {
 
       {activeTab === 'overview' && (
         <>
+            <div className="mb-8">
+                <PermissionChangeRequestsPanel
+                    childId={childId}
+                    canEdit={canManageWellbeing}
+                    focusRequestId={searchParams.get('permissionRequest')}
+                />
+            </div>
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                 <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
                 <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
@@ -1006,10 +1014,6 @@ const handleSaveOfflineAlertSettings = async () => {
               ) : (
                   <p>Loading device details...</p>
               )}
-              <PermissionChangeRequestsPanel
-                  childId={childId}
-                  canEdit={canManageWellbeing}
-              />
           </div>
       )}
 
