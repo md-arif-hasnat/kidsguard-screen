@@ -73,6 +73,30 @@ class PreferenceHelper(context: Context) {
                 .apply()
         }
 
+    var authorizedPermissionChangeType: String?
+        get() = prefs.getString("authorized_permission_change_type", null)
+        set(value) = prefs.edit()
+            .putString("authorized_permission_change_type", value)
+            .apply()
+
+    var authorizedPermissionChangeExpiresAt: Long
+        get() = prefs.getLong("authorized_permission_change_expires_at", 0L)
+        set(value) = prefs.edit()
+            .putLong("authorized_permission_change_expires_at", value)
+            .apply()
+
+    fun isPermissionChangeAuthorized(): Boolean {
+        return !authorizedPermissionChangeType.isNullOrBlank() &&
+            authorizedPermissionChangeExpiresAt > System.currentTimeMillis()
+    }
+
+    fun clearPermissionChangeAuthorization() {
+        prefs.edit()
+            .remove("authorized_permission_change_type")
+            .remove("authorized_permission_change_expires_at")
+            .apply()
+    }
+
     fun resetIdentity() {
         val newId = java.util.UUID.randomUUID().toString()
         prefs.edit()
