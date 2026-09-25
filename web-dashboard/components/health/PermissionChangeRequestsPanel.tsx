@@ -115,6 +115,10 @@ export default function PermissionChangeRequestsPanel({
     .filter(request => request.status !== "PENDING")
     .slice(0, 5);
 
+  if (!loading && pending.length === 0) {
+    return null;
+  }
+
   return (
     <section
       ref={panelRef}
