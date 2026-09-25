@@ -131,6 +131,7 @@ class ChildStatusManager(
                     0L to 0L
                 }
                 val ramInfo = getRamInfo(context)
+                val syncHealth = SyncHealthTracker(context).snapshot()
 
                 val status = SyncChildStatus(
                     childId = childId,
@@ -172,7 +173,13 @@ class ChildStatusManager(
                     ramUsedBytes = ramInfo.first,
                     ramTotalBytes = ramInfo.second,
                     gpsEnabled = isGpsEnabled(context),
-                    bluetoothEnabled = isBluetoothEnabled()
+                    bluetoothEnabled = isBluetoothEnabled(),
+                    syncHealthy = syncHealth.healthy,
+                    syncFailureCount = syncHealth.failureCount,
+                    syncFailureSource = syncHealth.failureSource,
+                    lastSyncFailureAt = syncHealth.lastFailureAt,
+                    lastSuccessfulDataSyncAt = syncHealth.lastSuccessAt,
+                    syncErrorMessage = syncHealth.errorMessage
                 )
 
                 // Add Predictions
