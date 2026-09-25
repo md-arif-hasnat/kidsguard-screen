@@ -197,6 +197,23 @@ export default function NotificationsPage() {
       )}`;
     }
 
+    if (
+      type === "PERMISSION_CHANGE_REQUEST" &&
+      childId
+    ) {
+      const requestId =
+        notification.eventId ||
+        (notification as any).requestId ||
+        (notification as any).data?.eventId ||
+        "";
+
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}?tab=overview&permissionRequest=${encodeURIComponent(
+        requestId
+      )}#permission-approvals`;
+    }
+
     if (childId) {
       return `/dashboard/${encodeURIComponent(
         childId
