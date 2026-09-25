@@ -101,6 +101,5 @@ class FCMService : FirebaseMessagingService() {
             requestId.hashCode(),
             notification
         )
-        }
     }
 }
