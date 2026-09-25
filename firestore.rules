@@ -346,7 +346,10 @@ service cloud.firestore {
                                             allow create: if isChildIdentity(childId) &&
                                               request.resource.data.requestId == requestId &&
                                               request.resource.data.childId == childId &&
-                                              request.resource.data.familyId is string &&
+                                              request.resource.data.familyId ==
+                                                get(
+                                                  /databases/$(database)/documents/children/$(childId)
+                                                ).data.familyId &&
                                               request.resource.data.permissionType is string &&
                                               request.resource.data.permissionName is string &&
                                               request.resource.data.status == 'PENDING';
