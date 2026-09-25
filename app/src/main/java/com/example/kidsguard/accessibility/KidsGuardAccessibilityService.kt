@@ -154,6 +154,15 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             isKidsGuardTamperScreen(packageName, className)
         ) {
+            if (prefHelper.isPermissionChangeAuthorized()) {
+                Log.i(
+                    TAG_RUNTIME,
+                    "PARENT_APPROVED_PERMISSION_CHANGE " +
+                        "type=${prefHelper.authorizedPermissionChangeType}"
+                )
+                return
+            }
+
             Log.w(
                 TAG_RUNTIME,
                 "KIDSGUARD_TAMPER_BLOCKED package=$packageName class=$className"
