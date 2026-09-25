@@ -77,10 +77,16 @@ class BrowserSyncWorker(
         Log.d(TAG, "Starting background Browser history sync")
         val repository = BrowserHistorySyncRepository(applicationContext)
         val result = repository.syncHistory()
+        val healthTracker = SyncHealthTracker(applicationContext)
 
         return if (result.isSuccess) {
+            healthTracker.recordSuccess(SyncHealthTracker.BROWSER)
             Result.success()
         } else {
+            healthTracker.recordFailure(
+                SyncHealthTracker.BROWSER,
+                result.exceptionOrNull()
+            )
             Log.e(TAG, "Browser sync failed, retrying...")
             Result.retry()
         }
