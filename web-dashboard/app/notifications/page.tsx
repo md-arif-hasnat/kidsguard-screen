@@ -202,7 +202,7 @@ export default function NotificationsPage() {
       childId
     ) {
       const requestId =
-        notification.eventId ||
+        (notification as any).eventId ||
         (notification as any).requestId ||
         (notification as any).data?.eventId ||
         "";
