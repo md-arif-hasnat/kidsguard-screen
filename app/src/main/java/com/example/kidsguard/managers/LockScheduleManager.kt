@@ -96,6 +96,9 @@ class LockScheduleManager(
         )
 
         if (activeWindow != null) {
+            prefHelper.scheduleEndTime =
+                minutesToTime(activeWindow.endMinutes)
+
             if (now < prefHelper.scheduleUnlockOverrideUntil) {
                 Log.d(
                     TAG,
