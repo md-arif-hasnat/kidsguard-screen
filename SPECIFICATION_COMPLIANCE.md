@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.42 current. |
+| versionCode/versionName discipline | Complete | v1.0.43 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
@@ -252,9 +252,9 @@ Status legend:
 | Notification permission | Complete | Parent and child onboarding paths must both be verified. |
 | Network access/state | Complete | Offline tests required. |
 | Battery optimization handling | Partial | User guidance exists; restricted-state reporting incomplete. |
-| Accessibility/overlay/device admin | Partial | Explain purpose, graceful degradation, and policy compliance. |
+| Accessibility/overlay/device admin | Partial | v1.0.43 adds parent-approved protected-settings access; policy compliance and OEM tests remain. |
 | WorkManager/foreground service | Complete | Battery and process-death tests required. |
-| Permission revocation parent alert | Partial | Location alerts exist; all required permission types incomplete. |
+| Permission revocation parent alert | Partial | v1.0.43 adds permission-change request approval and notification; post-revocation coverage for every type remains. |
 | No silent failure | Partial | Standard unavailable/stale/error UI required per feature. |
 
 ## 19. Performance, Battery, and Cost Optimization
