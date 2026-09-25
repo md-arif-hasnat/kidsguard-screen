@@ -46,7 +46,7 @@ Status legend:
 |---|---|---|
 | Usage Access onboarding/status | Partial | Dashboard must show unavailable/stale state instead of misleading zero. |
 | Installed-app inventory | Complete | v1.0.37+ repair scan; real-device regression required. |
-| Daily total screen time | Partial | Aggregation exists; yesterday/7-day figures are not complete. |
+| Daily total screen time | Device test | Real today, yesterday, and recorded-day 7-day average are implemented; historical child-device data requires validation. |
 | Per-app usage duration | Complete | v1.0.38 writes dashboard-compatible app documents. |
 | Last-used data | Complete | Verify Android-version differences. |
 | YouTube activity/history | Complete | Shorts thumbnails are deferred; sync/device tests remain. |
@@ -106,10 +106,10 @@ Status legend:
 | Installed apps and app usage | Complete | Requires Usage Access on child. |
 | YouTube and browser history | Complete | Browser compatibility tests remain. |
 | Remote controls and protection modes | Partial | Applied/failed acknowledgement is incomplete. |
-| Wellbeing data | Partial | Real current-day usage and lock schedule work; trends/limits incomplete. |
-| Daily/weekly analytics | Partial | UI exists; nightly backend aggregation is not deployed/complete. |
+| Wellbeing data | Partial | Real current-day, yesterday, and 7-day screen-time metrics plus lock schedules work; broader trends/limits remain incomplete. |
+| Daily/weekly analytics | Partial | Live 7-day screen-time analytics are implemented; broader nightly/weekly aggregation remains incomplete. |
 | No production mock data | Partial | Major dashboard mocks removed in v1.0.38; all routes need final sweep. |
-| Fast initial load/lazy analytics | Partial | Current page subscribes broadly; tab-scoped loading is required. |
+| Fast initial load/lazy analytics | Partial | App-usage and 7-day analytics now load only on the Wellbeing tab; other broad listeners still require an audit. |
 
 ## 8. Reports, History, and Data Retention
 
