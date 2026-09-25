@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.43 current. |
+| versionCode/versionName discipline | Complete | v1.0.44 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
