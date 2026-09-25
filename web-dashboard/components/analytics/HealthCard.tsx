@@ -13,7 +13,8 @@ import {
     Smartphone,
     Database,
     Zap,
-    Signal
+    Signal,
+    AlertTriangle
 } from 'lucide-react';
 import { ChildStatus } from '@/lib/repositories/ChildRepository';
 import { clsx } from 'clsx';
@@ -36,6 +37,27 @@ export default function HealthCard({ status }: HealthCardProps) {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {status.syncHealthy === false && (
+                <div className="md:col-span-2 lg:col-span-3 rounded-3xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
+                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                        <AlertTriangle size={22} />
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="font-black text-amber-900">
+                            Child data sync needs attention
+                        </h3>
+                        <p className="mt-1 text-sm font-medium text-amber-800">
+                            {status.syncFailureSource?.replace(/_/g, ' ') || 'Background sync'} failed {status.syncFailureCount || 0} consecutive times.
+                            {' '}Check the child phone&apos;s internet connection and open KidsGuard once.
+                        </p>
+                        {status.lastSyncFailureAt ? (
+                            <p className="mt-2 text-[11px] font-bold text-amber-700">
+                                Last failure: {new Date(status.lastSyncFailureAt).toLocaleString()}
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
+            )}
             {/* Battery & Thermal */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
