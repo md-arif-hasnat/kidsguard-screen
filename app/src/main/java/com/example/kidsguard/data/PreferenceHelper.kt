@@ -162,6 +162,23 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getString("current_zone_id", null)
         set(value) = prefs.edit().putString("current_zone_id", value).apply()
 
+    fun getSafeZoneInsideState(zoneId: String): Boolean? {
+        val key = "safe_zone_inside_$zoneId"
+        return if (prefs.contains(key)) prefs.getBoolean(key, false) else null
+    }
+
+    fun setSafeZoneInsideState(zoneId: String, inside: Boolean) {
+        prefs.edit()
+            .putBoolean("safe_zone_inside_$zoneId", inside)
+            .apply()
+    }
+
+    fun clearSafeZoneInsideState(zoneId: String) {
+        prefs.edit()
+            .remove("safe_zone_inside_$zoneId")
+            .apply()
+    }
+
     var isSetupCompleted: Boolean
         get() = prefs.getBoolean("setup_completed", false)
         set(value) = prefs.edit().putBoolean("setup_completed", value).apply()
