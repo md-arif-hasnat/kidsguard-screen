@@ -39,7 +39,8 @@ class FCMService : FirebaseMessagingService() {
         val foregroundTypes = setOf(
             "APP_INSTALLED",
             "APP_LIMIT_REACHED",
-            "BLOCKED_APP_ATTEMPT"
+            "BLOCKED_APP_ATTEMPT",
+            "PERMISSION_CHANGE_REQUEST"
         )
         if (prefs.userRole == "PARENT" && type in foregroundTypes) {
             LocalNotificationEngine(applicationContext)
