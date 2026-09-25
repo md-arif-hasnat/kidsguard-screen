@@ -165,13 +165,24 @@ data class RouteSession(
 )
 
 @Keep
+data class LockScheduleWindow(
+    val id: String = "",
+    val name: String = "",
+    val enabled: Boolean = true,
+    val startMinutes: Int = 0,
+    val endMinutes: Int = 0,
+    val days: List<Int> = emptyList()
+)
+
+@Keep
 data class LockSchedule(
     val enabled: Boolean = false,
     val startMinutes: Int = 0,
     val endMinutes: Int = 0,
     val days: List<Int> = emptyList(),
     val timezone: String = "",
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    val windows: List<LockScheduleWindow> = emptyList()
 )
 
 enum class LockReason {
