@@ -72,12 +72,22 @@ export interface SyncSafetySummary {
   recommendation: string;
 }
 
+export interface LockScheduleWindow {
+  id: string;
+  name: string;
+  enabled: boolean;
+  startMinutes: number;
+  endMinutes: number;
+  days: number[];
+}
+
 export interface LockSchedule {
   enabled: boolean;
   startMinutes: number;
   endMinutes: number;
-  days: number[]; // 1=Mon, 7=Sun
+  days: number[]; // Legacy single-window compatibility
   timezone: string;
+  windows?: LockScheduleWindow[];
   updatedAt: any;
   updatedBy: string;
 }
@@ -257,6 +267,7 @@ startMinutes: number;
 endMinutes: number;
 days: number[];
 timezone: string;
+windows?: LockScheduleWindow[];
 },
 callerRole?: FamilyRole
 ): Promise<void> {
@@ -287,6 +298,7 @@ startMinutes: Number(schedule.startMinutes),
 endMinutes: Number(schedule.endMinutes),
 days: Array.isArray(schedule.days) ? schedule.days : [],
 timezone: schedule.timezone || "Europe/Berlin",
+windows: Array.isArray(schedule.windows) ? schedule.windows : [],
 updatedAt: serverTimestamp(),
 updatedBy: "PARENT",
 };
