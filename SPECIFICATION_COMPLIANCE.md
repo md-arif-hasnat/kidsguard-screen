@@ -118,7 +118,7 @@ Status legend:
 | Daily history | Partial | Multiple event histories exist; unified report is incomplete. |
 | Weekly summary and trends | Partial | Models/UI exist; reliable aggregation pipeline is incomplete. |
 | App, alert, location, safe-zone history | Partial | Individual sources exist; filtering/pagination is inconsistent. |
-| Restriction-event history | Missing | Persist and display enforced/blocked/limit events. |
+| Restriction-event history | Complete | Real-time parent history displays blocked-app, app-limit, total-limit, and scheduled restriction events with period filters. |
 | Sync history | Partial | Diagnostics fields exist in parts; unified history is missing. |
 | Date/date-range filters | Partial | Some panels support dates; range support is incomplete. |
 | Per-child reports | Partial | Child scoping exists; consolidated reports are incomplete. |
