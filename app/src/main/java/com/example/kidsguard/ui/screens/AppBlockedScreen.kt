@@ -22,7 +22,9 @@ fun AppBlockedScreen(
     onBackToHome: () -> Unit,
     onRequestAccess: (String, String) -> Unit
 ) {
-    val isLimit = reason == "LIMIT_REACHED"
+    val isAppLimit = reason == "LIMIT_REACHED"
+    val isTotalLimit = reason == "TOTAL_LIMIT_REACHED"
+    val isLimit = isAppLimit || isTotalLimit
     
     Box(
         modifier = Modifier
@@ -45,7 +47,11 @@ fun AppBlockedScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = if (isLimit) "DAILY LIMIT REACHED" else "APP BLOCKED",
+                text = when {
+                    isTotalLimit -> "SCREEN TIME FINISHED"
+                    isAppLimit -> "DAILY LIMIT REACHED"
+                    else -> "APP BLOCKED"
+                },
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
@@ -56,9 +62,14 @@ fun AppBlockedScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = if (isLimit) 
-                    "You have reached your daily time limit for this application." 
-                    else "This application has been blocked by your parent.",
+                text = when {
+                    isTotalLimit ->
+                        "You have reached today's total screen-time limit."
+                    isAppLimit ->
+                        "You have reached your daily time limit for this application."
+                    else ->
+                        "This application has been blocked by your parent."
+                },
                 color = Color.Gray,
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp,
