@@ -339,6 +339,37 @@ clickAction:
 });
 
 /**
+ * Notifies family parents when a child asks to change an active protection
+ * permission. The parent reviews the request from Device Health.
+ */
+export const onPermissionChangeRequestCreated = functions.firestore
+.document("children/{childId}/permissionChangeRequests/{requestId}")
+.onCreate(async (snapshot, context) => {
+const request = snapshot.data();
+const childId = String(context.params.childId || "");
+const requestId = String(context.params.requestId || "");
+
+if (!childId || !requestId || request?.status !== "PENDING") {
+return;
+}
+
+const childName = String(request?.childName || "Your child");
+const permissionName = String(
+request?.permissionName || "a protection permission"
+);
+
+await broadcastToParents(childId, {
+title: "Permission change requested",
+body: `${childName} wants to change ${permissionName}. Approve or deny it from Device Health.`,
+type: "PERMISSION_CHANGE_REQUEST",
+childId,
+eventId: requestId,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}?tab=health`,
+});
+});
+
+/**
  * A blocked-app window can emit many Accessibility events. Android writes a
  * deterministic per-day document, and this onCreate trigger therefore sends
  * at most one parent alert for the same child/app/reason/day.
@@ -688,7 +719,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1092,6 +1123,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'SOS_RESOLVED': 'sos',
         'BATTERY': 'battery',
         'DEVICE': 'deviceStatus',
+        'PERMISSION_CHANGE_REQUEST': 'deviceStatus',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
         'APP_LIMIT_REACHED': 'appUsage',
