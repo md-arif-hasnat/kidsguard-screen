@@ -57,15 +57,15 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| Block/unblock a selected app | Partial | Verify Accessibility enforcement from parent control E2E. |
+| Block/unblock a selected app | Complete | v1.0.40 parent control acknowledgement and real-device enforcement verified. |
 | Daily total limit | Partial | Rule model/UI exist in parts; complete enforcement and reset semantics. |
-| Per-app daily limit | Partial | Complete authoritative rule sync and enforcement acknowledgement. |
+| Per-app daily limit | Complete | v1.0.40 authoritative rule acknowledgement and real-device blocking verified. |
 | Time-based schedules | Partial | Lock schedule exists; per-app schedule enforcement is incomplete. |
 | Bedtime schedule | Partial | Device lock schedule exists; day/overnight edge tests required. |
 | Weekday/weekend rules | Missing | Implement day-specific schedule model and enforcement. |
 | Temporary unlock | Partial | Remote unlock exists; expiry/relock semantics require completion. |
 | Per-child rules | Partial | Data is child-scoped; full role/rules test coverage required. |
-| Limit-reached parent notification | Missing | Add deduplicated backend event and FCM delivery. |
+| Limit-reached parent notification | Complete | v1.0.40 deduplicated restriction event and FCM delivery verified. |
 
 ## 5. GPS Location and Safe Zones
 
@@ -76,8 +76,8 @@ Status legend:
 | Background location sync | Partial | Real-device/OEM/background tests required. |
 | Location history | Partial | Points display; retention, pagination, and long-term cost controls remain. |
 | Per-child safe zones and radius | Complete | Background service cloud-zone loading fixed in v1.0.38. |
-| Enter/exit detection | Partial | Device test and duplicate-event suppression required. |
-| Safe-zone parent alert | Partial | Function/FCM exists but deployment and delivery require billing/device test. |
+| Enter/exit detection | Device test | v1.0.41 persists zone state and adds GPS-accuracy hysteresis; boundary/restart test required. |
+| Safe-zone parent alert | Device test | Function is deployed; v1.0.41 honours per-zone enter/exit settings and requires movement testing. |
 | Battery-aware tracking | Partial | Adaptive behaviour exists in parts; measured battery acceptance test missing. |
 
 ## 6. Notifications and Alerts
@@ -86,8 +86,8 @@ Status legend:
 |---|---|---|
 | Parent push notifications | Partial | Functions billing/deployment and Android/Web token delivery tests required. |
 | Screen-time limit alert | Missing | Implement event, deduplication, history, and FCM. |
-| App-usage limit alert | Missing | Implement event, deduplication, history, and FCM. |
-| Blocked-app attempt alert | Missing | Implement throttled event and FCM. |
+| App-usage limit alert | Complete | v1.0.40 restriction event, deduplication, history, and FCM verified. |
+| Blocked-app attempt alert | Complete | v1.0.40 daily event deduplication and FCM implemented; delivery test remains recommended. |
 | Safe-zone enter/exit alert | Partial | Trigger exists; deployment/device validation required. |
 | Low-battery alert | Partial | Status trigger exists; threshold/settings/device tests required. |
 | Device-offline alert | Partial | Scheduled Function exists; deploy and duplicate tests required. |
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.39 current. |
+| versionCode/versionName discipline | Complete | v1.0.41 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
