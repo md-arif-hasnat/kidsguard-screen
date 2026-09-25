@@ -365,7 +365,9 @@ type: "PERMISSION_CHANGE_REQUEST",
 childId,
 eventId: requestId,
 clickAction:
-`/dashboard/${encodeURIComponent(childId)}?tab=health`,
+`/dashboard/${encodeURIComponent(childId)}` +
+`?tab=overview&permissionRequest=${encodeURIComponent(requestId)}` +
+"#permission-approvals",
 });
 });
 
