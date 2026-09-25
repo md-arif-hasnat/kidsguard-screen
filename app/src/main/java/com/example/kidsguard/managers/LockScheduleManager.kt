@@ -21,10 +21,16 @@ class LockScheduleManager(
     fun updateSchedule(schedule: LockSchedule?) {
         Log.d(TAG, "Snapshot received: $schedule")
 
+        // Keep the previous state so an old schedule lock can be cleared when
+        // the parent disables/deletes the schedule. Builds released before
+        // lockReason was persisted can have isLocked=true with reason=NONE.
+        val wasScheduleEnabled =
+            getSavedSchedule()?.enabled == true || prefHelper.isScheduleEnabled
+
         if (schedule == null) {
             prefHelper.lockScheduleJson = null
             prefHelper.isScheduleEnabled = false
-            evaluateNow()
+            clearDisabledScheduleLock(wasScheduleEnabled)
             return
         }
 
@@ -68,7 +74,33 @@ class LockScheduleManager(
                 "windows=${windows.size}, timezone=${schedule.timezone}"
         )
 
-        evaluateNow()
+        if (!schedule.enabled) {
+            clearDisabledScheduleLock(wasScheduleEnabled)
+        } else {
+            evaluateNow()
+        }
+    }
+
+    private fun clearDisabledScheduleLock(wasScheduleEnabled: Boolean) {
+        prefHelper.scheduleUnlockOverrideUntil = 0L
+
+        val isKnownScheduleLock =
+            prefHelper.lockReason == LockReason.SCHEDULE
+        val isLegacyScheduleLock =
+            prefHelper.isLocked &&
+                prefHelper.lockReason == LockReason.NONE
+
+        if (isKnownScheduleLock || isLegacyScheduleLock) {
+            Log.i(
+                TAG,
+                "Clearing disabled schedule lock " +
+                    "(reason=${prefHelper.lockReason}, legacy=$isLegacyScheduleLock, " +
+                    "wasEnabled=$wasScheduleEnabled)"
+            )
+            prefHelper.isLocked = false
+            prefHelper.lockReason = LockReason.NONE
+            onUnlockRequested?.invoke()
+        }
     }
 
     fun evaluateNow() {
