@@ -61,8 +61,8 @@ Status legend:
 | Daily total limit | Device test | v1.0.42 dashboard control and child-side daily enforcement implemented; reset/device test required. |
 | Per-app daily limit | Complete | v1.0.40 authoritative rule acknowledgement and real-device blocking verified. |
 | Time-based schedules | Partial | Lock schedule exists; per-app schedule enforcement is incomplete. |
-| Bedtime schedule | Partial | Device lock schedule exists; day/overnight edge tests required. |
-| Weekday/weekend rules | Missing | Implement day-specific schedule model and enforcement. |
+| Bedtime schedule | Device test | v1.0.46 supports independent weekday/weekend overnight windows; real-device boundary test required. |
+| Weekday/weekend rules | Device test | v1.0.46 adds separate weekday and weekend lock windows with midnight rollover enforcement. |
 | Temporary unlock | Partial | Remote unlock exists; expiry/relock semantics require completion. |
 | Per-child rules | Partial | Data is child-scoped; full role/rules test coverage required. |
 | Limit-reached parent notification | Complete | v1.0.40 deduplicated restriction event and FCM delivery verified. |
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.45 current. |
+| versionCode/versionName discipline | Complete | v1.0.46 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
