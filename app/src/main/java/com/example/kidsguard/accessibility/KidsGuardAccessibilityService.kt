@@ -154,7 +154,15 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             isKidsGuardTamperScreen(packageName, className)
         ) {
-            if (prefHelper.isPermissionChangeAuthorized()) {
+            val isCriticalTamperScreen =
+                className.contains("Uninstall", ignoreCase = true) ||
+                    className.contains("PackageInstaller", ignoreCase = true) ||
+                    className.contains("DeviceAdmin", ignoreCase = true)
+
+            if (
+                prefHelper.isPermissionChangeAuthorized() &&
+                !isCriticalTamperScreen
+            ) {
                 Log.i(
                     TAG_RUNTIME,
                     "PARENT_APPROVED_PERMISSION_CHANGE " +
