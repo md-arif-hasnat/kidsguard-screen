@@ -11,8 +11,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,13 +23,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.data.findActivity
 import com.example.kidsguard.models.ActivityEvent
+import com.example.kidsguard.models.LockReason
 import com.example.kidsguard.repository.SafeZoneRepository
 
 @Composable
@@ -93,55 +99,100 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.graphicsLayer { alpha = batteryAlpha }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 160.dp, height = 74.dp)
-                        .border(3.dp, Color.White, RoundedCornerShape(16.dp))
-                        .padding(6.dp)
+            if (prefHelper.lockReason == LockReason.SCHEDULE) {
+                Icon(
+                    imageVector = Icons.Default.DarkMode,
+                    contentDescription = null,
+                    tint = Color(0xFFB8C7FF),
+                    modifier = Modifier.size(92.dp)
+                )
+                Spacer(modifier = Modifier.height(28.dp))
+                Text(
+                    text = "It’s Bedtime",
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Time to rest. Your device will unlock at " +
+                        prefHelper.scheduleEndTime + ".",
+                    color = Color(0xFFB0B0B8),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 36.dp)
+                )
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = batteryAlpha
+                    }
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .width(18.dp)
-                            .background(Color.Red, RoundedCornerShape(2.dp))
+                            .size(width = 160.dp, height = 74.dp)
+                            .border(
+                                3.dp,
+                                Color.White,
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(18.dp)
+                                .background(
+                                    Color.Red,
+                                    RoundedCornerShape(2.dp)
+                                )
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(width = 7.dp, height = 24.dp)
+                            .background(
+                                Color.White,
+                                RoundedCornerShape(
+                                    topEnd = 4.dp,
+                                    bottomEnd = 4.dp
+                                )
+                            )
                     )
                 }
-                Spacer(modifier = Modifier.width(2.dp))
-                Box(
-                    modifier = Modifier
-                        .size(width = 7.dp, height = 24.dp)
-                        .background(Color.White, RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                )
-            }
-            Spacer(modifier = Modifier.height(60.dp))
-            
-            // Lightning Bolt and Cable Visual
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.graphicsLayer { alpha = batteryAlpha }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ElectricBolt,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                // Cable Connector visual
-                Box(
-                    modifier = Modifier
-                        .size(width = 30.dp, height = 45.dp)
-                        .background(Color.White, RoundedCornerShape(8.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(width = 6.dp, height = 100.dp)
-                        .background(Color.White)
-                )
+                Spacer(modifier = Modifier.height(60.dp))
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = batteryAlpha
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ElectricBolt,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(width = 30.dp, height = 45.dp)
+                            .background(
+                                Color.White,
+                                RoundedCornerShape(8.dp)
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 6.dp, height = 100.dp)
+                            .background(Color.White)
+                    )
+                }
             }
         }
 
