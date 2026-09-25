@@ -134,8 +134,8 @@ export default function TotalScreenTimeControl({
         >
           <span
             className={
-              "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform " +
-              (enabled ? "translate-x-1" : "-translate-x-5")
+              "absolute left-1 top-1 w-5 h-5 rounded-full bg-white shadow transition-transform " +
+              (enabled ? "translate-x-5" : "translate-x-0")
             }
           />
         </button>
