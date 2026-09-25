@@ -12,7 +12,8 @@ import {
 import {
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  updateDoc
 } from "firebase/firestore";
 
 import {
@@ -772,6 +773,143 @@ test(
         {
           deviceId: "fake-device",
           platform: "Web"
+        }
+      )
+    );
+  }
+);
+
+
+test(
+  "child can request a protected permission change",
+  async () => {
+    const db = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "permissionChangeRequests",
+          "permission-request-1"
+        ),
+        {
+          requestId: "permission-request-1",
+          childId: "child-1",
+          familyId: "family-1",
+          deviceId: "device-1",
+          childName: "Child",
+          permissionType: "ACCESSIBILITY",
+          permissionName: "Accessibility Service",
+          status: "PENDING",
+          requestedAt: new Date()
+        }
+      )
+    );
+  }
+);
+
+test(
+  "parent manager can approve a permission change",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+
+    await setDoc(
+      doc(
+        childDb,
+        "children",
+        "child-1",
+        "permissionChangeRequests",
+        "permission-request-2"
+      ),
+      {
+        requestId: "permission-request-2",
+        childId: "child-1",
+        familyId: "family-1",
+        deviceId: "device-1",
+        childName: "Child",
+        permissionType: "USAGE_STATS",
+        permissionName: "Usage Statistics",
+        status: "PENDING",
+        requestedAt: new Date()
+      }
+    );
+
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+
+    await assertSucceeds(
+      updateDoc(
+        doc(
+          ownerDb,
+          "children",
+          "child-1",
+          "permissionChangeRequests",
+          "permission-request-2"
+        ),
+        {
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          reviewedBy: "owner-uid",
+          expiresAt: new Date(Date.now() + 600000)
+        }
+      )
+    );
+  }
+);
+
+test(
+  "child cannot approve its own permission change",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+
+    await setDoc(
+      doc(
+        childDb,
+        "children",
+        "child-1",
+        "permissionChangeRequests",
+        "permission-request-3"
+      ),
+      {
+        requestId: "permission-request-3",
+        childId: "child-1",
+        familyId: "family-1",
+        deviceId: "device-1",
+        childName: "Child",
+        permissionType: "OVERLAY",
+        permissionName: "Display Over Other Apps",
+        status: "PENDING",
+        requestedAt: new Date()
+      }
+    );
+
+    await assertFails(
+      updateDoc(
+        doc(
+          childDb,
+          "children",
+          "child-1",
+          "permissionChangeRequests",
+          "permission-request-3"
+        ),
+        {
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          reviewedBy: "child-auth-uid",
+          expiresAt: new Date(Date.now() + 600000)
         }
       )
     );
