@@ -79,10 +79,16 @@ class YouTubeSyncWorker(
         Log.d(TAG, "Starting background YouTube history sync")
         val repository = YouTubeSyncRepository(applicationContext)
         val result = repository.syncHistory()
+        val healthTracker = SyncHealthTracker(applicationContext)
 
         return if (result.isSuccess) {
+            healthTracker.recordSuccess(SyncHealthTracker.YOUTUBE)
             Result.success()
         } else {
+            healthTracker.recordFailure(
+                SyncHealthTracker.YOUTUBE,
+                result.exceptionOrNull()
+            )
             Log.e(TAG, "YouTube sync failed, retrying...")
             Result.retry()
         }
