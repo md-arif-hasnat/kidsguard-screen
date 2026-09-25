@@ -62,6 +62,7 @@ import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.utils.PermissionUtils
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import java.util.UUID
 import kotlinx.coroutines.delay
 
 private fun sendPermissionAlert(
@@ -149,8 +150,118 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var audioGranted by remember { mutableStateOf(PermissionUtils.hasAudioPermission(context)) }
+    var pendingPermissionChanges by remember {
+        mutableStateOf<Set<String>>(emptySet())
+    }
+    var approvedPermissionChanges by remember {
+        mutableStateOf<Map<String, Long>>(emptyMap())
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    val db = remember { FirebaseFirestore.getInstance() }
+
+    DisposableEffect(prefHelper.childId) {
+        val childId = prefHelper.childId
+        if (childId.isBlank()) {
+            onDispose { }
+        } else {
+            val registration = db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("permissionChangeRequests")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) {
+                        return@addSnapshotListener
+                    }
+
+                    val now = System.currentTimeMillis()
+                    val pending = mutableSetOf<String>()
+                    val approved = mutableMapOf<String, Long>()
+
+                    snapshot.documents.forEach { document ->
+                        val permissionType =
+                            document.getString("permissionType")
+                                ?: return@forEach
+                        when (document.getString("status")) {
+                            "PENDING" -> pending.add(permissionType)
+                            "APPROVED" -> {
+                                val expiresAt =
+                                    document.getTimestamp("expiresAt")
+                                        ?.toDate()
+                                        ?.time
+                                        ?: 0L
+                                if (expiresAt > now) {
+                                    approved[permissionType] = expiresAt
+                                }
+                            }
+                        }
+                    }
+
+                    pendingPermissionChanges = pending
+                    approvedPermissionChanges = approved
+                }
+
+            onDispose { registration.remove() }
+        }
+    }
+
+    fun permissionActionLabel(
+        permissionType: String,
+        isGranted: Boolean
+    ): String {
+        if (!isGranted) return "Grant"
+        if (approvedPermissionChanges.containsKey(permissionType)) {
+            return "Change"
+        }
+        if (pendingPermissionChanges.contains(permissionType)) {
+            return "Pending"
+        }
+        return "Ask Parent"
+    }
+
+    fun handlePermissionAction(
+        permissionType: String,
+        permissionName: String,
+        isGranted: Boolean,
+        openSettings: () -> Unit
+    ) {
+        if (!isGranted) {
+            openSettings()
+            return
+        }
+
+        val approvedUntil = approvedPermissionChanges[permissionType]
+        if (approvedUntil != null && approvedUntil > System.currentTimeMillis()) {
+            prefHelper.authorizedPermissionChangeType = permissionType
+            prefHelper.authorizedPermissionChangeExpiresAt = approvedUntil
+            openSettings()
+            return
+        }
+
+        if (pendingPermissionChanges.contains(permissionType)) return
+
+        val childId = prefHelper.childId
+        val familyId = prefHelper.familyId
+        if (childId.isBlank() || familyId.isNullOrBlank()) return
+
+        val requestId = UUID.randomUUID().toString()
+        val request = mapOf(
+            "requestId" to requestId,
+            "childId" to childId,
+            "familyId" to familyId,
+            "deviceId" to prefHelper.deviceId,
+            "childName" to prefHelper.childName,
+            "permissionType" to permissionType,
+            "permissionName" to permissionName,
+            "status" to "PENDING",
+            "requestedAt" to FieldValue.serverTimestamp()
+        )
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("permissionChangeRequests")
+            .document(requestId)
+            .set(request)
+    }
 
     fun refreshPermissions() {
         val newLocationGranted =
@@ -270,11 +381,19 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.LocationOn,
                 status = if (locationGranted) "Ready" else "Missing",
                 isGranted = locationGranted,
+                actionLabel = permissionActionLabel("LOCATION", locationGranted),
+                actionEnabled = !pendingPermissionChanges.contains("LOCATION"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    handlePermissionAction(
+                        permissionType = "LOCATION",
+                        permissionName = "Location Access",
+                        isGranted = locationGranted
+                    ) {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = Uri.fromParts("package", context.packageName, null)
                     }
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -284,11 +403,19 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.MyLocation,
                 status = if (bgLocationGranted) "Ready" else "Missing",
                 isGranted = bgLocationGranted,
+                actionLabel = permissionActionLabel("BACKGROUND_LOCATION", bgLocationGranted),
+                actionEnabled = !pendingPermissionChanges.contains("BACKGROUND_LOCATION"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    handlePermissionAction(
+                        permissionType = "BACKGROUND_LOCATION",
+                        permissionName = "Always-On Location",
+                        isGranted = bgLocationGranted
+                    ) {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = Uri.fromParts("package", context.packageName, null)
                     }
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -298,9 +425,17 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.BarChart,
                 status = if (usageStatsGranted) "Ready" else "Missing",
                 isGranted = usageStatsGranted,
+                actionLabel = permissionActionLabel("USAGE_STATS", usageStatsGranted),
+                actionEnabled = !pendingPermissionChanges.contains("USAGE_STATS"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                    handlePermissionAction(
+                        permissionType = "USAGE_STATS",
+                        permissionName = "Usage Statistics",
+                        isGranted = usageStatsGranted
+                    ) {
+                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -310,12 +445,20 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.FlipToFront,
                 status = if (overlayGranted) "Ready" else "Missing",
                 isGranted = overlayGranted,
+                actionLabel = permissionActionLabel("OVERLAY", overlayGranted),
+                actionEnabled = !pendingPermissionChanges.contains("OVERLAY"),
                 onClick = {
-                    val intent = Intent(
+                    handlePermissionAction(
+                        permissionType = "OVERLAY",
+                        permissionName = "Display Over Other Apps",
+                        isGranted = overlayGranted
+                    ) {
+                        val intent = Intent(
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:${context.packageName}")
                     )
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -325,9 +468,17 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.Accessibility,
                 status = if (accessibilityEnabled) "Active" else "Disabled",
                 isGranted = accessibilityEnabled,
+                actionLabel = permissionActionLabel("ACCESSIBILITY", accessibilityEnabled),
+                actionEnabled = !pendingPermissionChanges.contains("ACCESSIBILITY"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    handlePermissionAction(
+                        permissionType = "ACCESSIBILITY",
+                        permissionName = "Accessibility Service",
+                        isGranted = accessibilityEnabled
+                    ) {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -337,9 +488,17 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.BatteryChargingFull,
                 status = if (batteryIgnored) "Unrestricted" else "Optimized",
                 isGranted = batteryIgnored,
+                actionLabel = permissionActionLabel("BATTERY_OPTIMIZATION", batteryIgnored),
+                actionEnabled = !pendingPermissionChanges.contains("BATTERY_OPTIMIZATION"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    handlePermissionAction(
+                        permissionType = "BATTERY_OPTIMIZATION",
+                        permissionName = "Ignore Battery Limits",
+                        isGranted = batteryIgnored
+                    ) {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -349,11 +508,19 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 icon = Icons.Default.Mic,
                 status = if (audioGranted) "Ready" else "Missing",
                 isGranted = audioGranted,
+                actionLabel = permissionActionLabel("MICROPHONE", audioGranted),
+                actionEnabled = !pendingPermissionChanges.contains("MICROPHONE"),
                 onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    handlePermissionAction(
+                        permissionType = "MICROPHONE",
+                        permissionName = "Microphone Access",
+                        isGranted = audioGranted
+                    ) {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = Uri.fromParts("package", context.packageName, null)
                     }
                     context.startActivity(intent)
+                    }
                 }
             )
 
@@ -390,6 +557,8 @@ fun PermissionCard(
     icon: ImageVector,
     status: String,
     isGranted: Boolean,
+    actionLabel: String,
+    actionEnabled: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -432,19 +601,28 @@ fun PermissionCard(
                         fontWeight = FontWeight.Black
                     )
                 }
-                if (!isGranted) {
-                    Button(
-                        onClick = onClick,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("Grant", style = MaterialTheme.typography.labelSmall)
+                Button(
+                    onClick = onClick,
+                    enabled = actionEnabled,
+                    contentPadding = PaddingValues(
+                        horizontal = 12.dp,
+                        vertical = 4.dp
+                    ),
+                    modifier = Modifier.height(32.dp),
+                    colors = if (isGranted) {
+                        ButtonDefaults.buttonColors(
+                            containerColor =
+                                MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor =
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    } else {
+                        ButtonDefaults.buttonColors()
                     }
-                } else {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF2E7D32)
+                ) {
+                    Text(
+                        actionLabel,
+                        style = MaterialTheme.typography.labelSmall
                     )
                 }
             }
