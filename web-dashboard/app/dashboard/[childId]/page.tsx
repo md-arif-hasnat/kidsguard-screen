@@ -60,6 +60,7 @@ import AIReportCard from '@/components/AIReportCard';
 import { Siren } from 'lucide-react';
 
 import ScreenTimeStats from '@/components/wellbeing/ScreenTimeStats';
+import TotalScreenTimeControl from '@/components/wellbeing/TotalScreenTimeControl';
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
 import LockSchedulePanel from '@/components/wellbeing/LockSchedulePanel';
 import { AppUsageRepository } from '@/lib/repositories/AppUsageRepository';
@@ -916,6 +917,11 @@ const handleSaveOfflineAlertSettings = async () => {
                   todayMs={appUsage.reduce((acc, app) => acc + app.totalTimeMs, 0)}
                   yesterdayMs={0}
                   avg7DayMs={0}
+              />
+
+              <TotalScreenTimeControl
+                  childId={childId}
+                  canEdit={canManageWellbeing}
               />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
