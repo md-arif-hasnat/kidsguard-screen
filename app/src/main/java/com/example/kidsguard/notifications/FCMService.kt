@@ -1,6 +1,11 @@
 package com.example.kidsguard.notifications
 
+import android.app.PendingIntent
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -43,8 +48,59 @@ class FCMService : FirebaseMessagingService() {
             "PERMISSION_CHANGE_REQUEST"
         )
         if (prefs.userRole == "PARENT" && type in foregroundTypes) {
-            LocalNotificationEngine(applicationContext)
-                .sendSafetyAlert(title, body)
+            if (type == "PERMISSION_CHANGE_REQUEST") {
+                showPermissionRequestNotification(message, title, body)
+            } else {
+                LocalNotificationEngine(applicationContext)
+                    .sendSafetyAlert(title, body)
+            }
+        }
+    }
+
+    private fun showPermissionRequestNotification(
+        message: RemoteMessage,
+        title: String,
+        body: String
+    ) {
+        LocalNotificationEngine(applicationContext)
+
+        val childId = message.data["childId"].orEmpty()
+        val requestId = message.data["eventId"].orEmpty()
+        val targetUrl =
+            "https://kidsguard-screen.vercel.app/dashboard/" +
+                Uri.encode(childId) +
+                "?tab=overview&permissionRequest=" +
+                Uri.encode(requestId) +
+                "#permission-approvals"
+
+        val browserIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse(targetUrl)
+        )
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            requestId.hashCode(),
+            browserIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(
+            this,
+            LocalNotificationEngine.CHANNEL_ID
+        )
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        NotificationManagerCompat.from(this).notify(
+            requestId.hashCode(),
+            notification
+        )
         }
     }
 }
