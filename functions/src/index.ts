@@ -359,9 +359,16 @@ const reason = String(event?.reason || "STATIC_BLOCK");
 const appName = String(event?.appName || event?.packageName || "an app");
 const packageName = String(event?.packageName || "");
 
-const isLimit = reason === "LIMIT_REACHED";
-const title = isLimit ? "App time limit reached" : "Blocked app attempt";
-const body = isLimit
+const isTotalLimit = reason === "TOTAL_LIMIT_REACHED";
+const isLimit = reason === "LIMIT_REACHED" || isTotalLimit;
+const title = isTotalLimit
+? "Daily screen time finished"
+: isLimit
+? "App time limit reached"
+: "Blocked app attempt";
+const body = isTotalLimit
+? "The daily total screen-time limit was reached. Non-essential apps are now blocked."
+: isLimit
 ? `${appName} reached today's time limit and was blocked.`
 : `${appName} was opened on the child device and KidsGuard blocked it.`;
 
@@ -372,9 +379,10 @@ type: isLimit ? "APP_LIMIT_REACHED" : "BLOCKED_APP_ATTEMPT",
 childId,
 packageName,
 eventId,
-clickAction:
-`/dashboard/${encodeURIComponent(childId)}` +
-`?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
+clickAction: isTotalLimit
+? `/dashboard/${encodeURIComponent(childId)}?tab=wellbeing`
+: `/dashboard/${encodeURIComponent(childId)}` +
+  `?tab=installed-apps&pkg=${encodeURIComponent(packageName)}`,
 });
 });
 
