@@ -47,6 +47,12 @@ export interface ChildStatus {
   ramTotalBytes?: number;
   gpsEnabled?: boolean;
   bluetoothEnabled?: boolean;
+  syncHealthy?: boolean;
+  syncFailureCount?: number;
+  syncFailureSource?: string;
+  lastSyncFailureAt?: number;
+  lastSuccessfulDataSyncAt?: number;
+  syncErrorMessage?: string;
   predictions?: SyncPredictions;
 }
 
