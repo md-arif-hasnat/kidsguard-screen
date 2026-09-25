@@ -73,6 +73,12 @@ data class SyncChildStatus(
     var ramTotalBytes: Long = 0,
     var gpsEnabled: Boolean = true,
     var bluetoothEnabled: Boolean = false,
+    var syncHealthy: Boolean = true,
+    var syncFailureCount: Int = 0,
+    var syncFailureSource: String? = null,
+    var lastSyncFailureAt: Long = 0L,
+    var lastSuccessfulDataSyncAt: Long = 0L,
+    var syncErrorMessage: String? = null,
     var predictions: SyncPredictions? = null
 )
 
