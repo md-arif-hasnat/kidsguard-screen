@@ -459,6 +459,30 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: android.content.Intent) {
+        val notificationType = intent.getStringExtra("type")
+        if (
+            notificationType == "PERMISSION_CHANGE_REQUEST" &&
+            prefHelper.userRole == "PARENT"
+        ) {
+            val childId = intent.getStringExtra("childId").orEmpty()
+            val requestId = intent.getStringExtra("eventId").orEmpty()
+            val targetUrl =
+                "https://kidsguard-screen.vercel.app/dashboard/" +
+                    android.net.Uri.encode(childId) +
+                    "?tab=overview&permissionRequest=" +
+                    android.net.Uri.encode(requestId) +
+                    "#permission-approvals"
+
+            startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(targetUrl)
+                )
+            )
+            intent.removeExtra("type")
+            return
+        }
+
         val action = intent.getStringExtra("action")
         if (action == "BLOCK_SCREEN") {
             val pkg = intent.getStringExtra("blocked_package")
