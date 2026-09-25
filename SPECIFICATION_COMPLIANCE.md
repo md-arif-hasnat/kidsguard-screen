@@ -163,9 +163,9 @@ Status legend:
 | Network status | Complete | Device tests. |
 | Service/tracking status | Complete | Improve stale-state handling. |
 | Permission status | Partial | Some status exists; Usage/Notification/background/battery fields need full coverage. |
-| Sync failure warning | Missing | Add standardized sync-health model. |
+| Sync failure warning | Device test | v1.0.49 tracks consecutive app-usage, YouTube, and browser sync failures and shows a self-clearing parent dashboard warning. |
 | App/update version | Complete | Hardcoded status version fixed in v1.0.38. |
-| Device diagnostics | Partial | Data exists in multiple locations; consolidate support view. |
+| Device diagnostics | Partial | v1.0.49 adds shared data-sync health to the device-health view; broader diagnostics remain distributed. |
 
 ## 12. Remote Commands and Device Control
 
@@ -299,4 +299,3 @@ No release may be called production-complete until all of these are true:
 5. Fresh-install and upgrade E2E tests pass on real devices.
 6. Parent/child notification, offline recovery, and command acknowledgement tests pass.
 7. Legal consent, retention, deletion, and published policy decisions are complete.
-
