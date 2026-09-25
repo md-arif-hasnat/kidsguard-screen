@@ -84,11 +84,17 @@ class AppUsageSyncWorker(
 
         val syncProvider = FirebaseRemoteSyncProvider(applicationContext)
         val result = syncProvider.syncDailyAppUsage(usage)
+        val healthTracker = SyncHealthTracker(applicationContext)
 
         return if (result.isSuccess) {
+            healthTracker.recordSuccess(SyncHealthTracker.APP_USAGE)
             Log.i(TAG, "Background sync success")
             Result.success()
         } else {
+            healthTracker.recordFailure(
+                SyncHealthTracker.APP_USAGE,
+                result.exceptionOrNull()
+            )
             Log.e(TAG, "Background sync failed, retrying")
             Result.retry()
         }
