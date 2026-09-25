@@ -64,7 +64,10 @@ import ScreenTimeStats from '@/components/wellbeing/ScreenTimeStats';
 import TotalScreenTimeControl from '@/components/wellbeing/TotalScreenTimeControl';
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
 import LockSchedulePanel from '@/components/wellbeing/LockSchedulePanel';
-import { AppUsageRepository } from '@/lib/repositories/AppUsageRepository';
+import {
+  AppUsageRepository,
+  ScreenTimeSummary
+} from '@/lib/repositories/AppUsageRepository';
 
 import { WebProtectionRepository, WebRuleSet, WebActivityEvent, WebAccessRequest } from '@/lib/repositories/WebProtectionRepository';
 import WebActivityPanel from '@/components/web/WebActivityPanel';
@@ -198,6 +201,8 @@ export default function ChildDashboard() {
 
   // Phase AD: Wellbeing State
   const [appUsage, setAppUsage] = useState<any[]>([]);
+  const [screenTimeSummary, setScreenTimeSummary] =
+    useState<ScreenTimeSummary | null>(null);
 
   // Phase AE: Web Protection State
   const [webRules, setWebRules] = useState<WebRuleSet | null>(null);
@@ -205,13 +210,37 @@ export default function ChildDashboard() {
   const [webRequests, setWebRequests] = useState<WebAccessRequest[]>([]);
 
   useEffect(() => {
-    if (!childId || !selectedDate || !isFirebaseConfigured) return;
+    if (
+      activeTab !== 'wellbeing' ||
+      !childId ||
+      !selectedDate ||
+      !isFirebaseConfigured
+    ) {
+      return;
+    }
+
     return AppUsageRepository.subscribeToChildAppUsageForDate(
       childId,
       selectedDate,
       setAppUsage
     );
-  }, [childId, selectedDate]);
+  }, [activeTab, childId, selectedDate]);
+
+  useEffect(() => {
+    if (
+      activeTab !== 'wellbeing' ||
+      !childId ||
+      !isFirebaseConfigured
+    ) {
+      return;
+    }
+
+    setScreenTimeSummary(null);
+    return AppUsageRepository.subscribeToScreenTimeSummary(
+      childId,
+      setScreenTimeSummary
+    );
+  }, [activeTab, childId]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
@@ -923,9 +952,11 @@ const handleSaveOfflineAlertSettings = async () => {
               </div>
 
               <ScreenTimeStats
-                  todayMs={appUsage.reduce((acc, app) => acc + app.totalTimeMs, 0)}
-                  yesterdayMs={0}
-                  avg7DayMs={0}
+                  todayMs={screenTimeSummary?.todayMs || 0}
+                  yesterdayMs={screenTimeSummary?.yesterdayMs || 0}
+                  avg7DayMs={screenTimeSummary?.avg7DayMs || 0}
+                  recordedDays={screenTimeSummary?.recordedDays || 0}
+                  loading={screenTimeSummary === null}
               />
 
               <TotalScreenTimeControl
