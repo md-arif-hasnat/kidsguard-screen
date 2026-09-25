@@ -76,6 +76,8 @@ class WellbeingManager(
             syncProvider.getWellbeingSettings(childId).collectLatest { syncSettings ->
                 if (syncSettings != null) {
                     _settings.value = WellbeingSettings(
+                        dailyTotalLimitMinutes = syncSettings.dailyTotalLimitMinutes,
+                        totalLimitEnabled = syncSettings.totalLimitEnabled,
                         appLimits = syncSettings.appLimits.map {
                             AppLimit(
                                 it.packageName,
@@ -175,6 +177,29 @@ class WellbeingManager(
         }
 
         val currentSettings = _settings.value
+        val totalLimitMinutes = currentSettings.dailyTotalLimitMinutes
+        if (
+            currentSettings.totalLimitEnabled &&
+            totalLimitMinutes != null &&
+            totalLimitMinutes > 0
+        ) {
+            val totalUsageMs = tracker.getDailyUsage()
+                .asSequence()
+                .filter { it.category != AppCategory.SYSTEM }
+                .filterNot { isEmergencyApp(it.packageName) }
+                .sumOf { it.totalTimeVisibleMs }
+            val totalLimitMs = totalLimitMinutes * 60_000L
+
+            if (totalUsageMs >= totalLimitMs) {
+                Log.i(
+                    "TotalScreenLimit",
+                    "Blocking $packageName: Total daily limit reached " +
+                        "(${totalUsageMs / 60000}m >= ${totalLimitMinutes}m)"
+                )
+                return AppBlockReason.TOTAL_LIMIT_REACHED
+            }
+        }
+
         if (currentSettings.blockRules.any { it.packageName == packageName && it.isBlocked }) {
             return AppBlockReason.STATIC_BLOCK
         }
@@ -207,12 +232,20 @@ class WellbeingManager(
         if (reason == AppBlockReason.NONE) return
         val childId = prefHelper.childId.takeIf { it.isNotBlank() } ?: return
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val safePackage = packageName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val safePackage = if (reason == AppBlockReason.TOTAL_LIMIT_REACHED) {
+            "total_screen_time"
+        } else {
+            packageName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        }
         val eventId = "${date}_${safePackage}_${reason.name}"
         val eventPrefs = context.getSharedPreferences(EVENT_PREFS, Context.MODE_PRIVATE)
         if (eventPrefs.getBoolean(eventId, false)) return
 
-        val appName = getAppName(packageName)
+        val appName = if (reason == AppBlockReason.TOTAL_LIMIT_REACHED) {
+            "Daily screen time"
+        } else {
+            getAppName(packageName)
+        }
         val event = mapOf(
             "eventId" to eventId,
             "childId" to childId,
