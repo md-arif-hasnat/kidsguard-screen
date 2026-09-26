@@ -57,15 +57,25 @@ class RemoteCommandHandler(
         try {
             when (command.commandType) {
                 CommandType.LOCK_NOW, CommandType.LOCK_DEVICE -> {
-                    prefHelper.isLocked = true
-                    lockScheduleManager?.handleManualLock()
+                    if (lockScheduleManager != null) {
+                        lockScheduleManager.handleManualLock()
+                    } else {
+                        prefHelper.isLocked = true
+                        prefHelper.lockReason =
+                            com.example.kidsguard.models.LockReason.REMOTE
+                    }
                     onLockRequested()
                     logActivity("REMOTE_LOCK", "Remote Lock Executed", "Parent locked the device")
                     showToast("Remote LOCK executed")
                 }
                 CommandType.UNLOCK_NOW, CommandType.UNLOCK_DEVICE -> {
-                    prefHelper.isLocked = false
-                    lockScheduleManager?.handleManualUnlock()
+                    if (lockScheduleManager != null) {
+                        lockScheduleManager.handleManualUnlock()
+                    } else {
+                        prefHelper.isLocked = false
+                        prefHelper.lockReason =
+                            com.example.kidsguard.models.LockReason.NONE
+                    }
                     onUnlockRequested()
                     logActivity("REMOTE_UNLOCK", "Remote Unlock Executed", "Parent unlocked the device")
                     showToast("Remote UNLOCK executed")
