@@ -134,7 +134,13 @@ fun UpdateDialog(
                 onClick = onUpdate,
                 enabled = !isDownloading
             ) {
-                Text(if (isDownloading) "Verifying..." else "Update Now")
+                Text(
+                    when {
+                        isDownloading -> "Verifying..."
+                        !downloadError.isNullOrBlank() -> "Retry Update"
+                        else -> "Update Now"
+                    }
+                )
             }
         },
         dismissButton = {
