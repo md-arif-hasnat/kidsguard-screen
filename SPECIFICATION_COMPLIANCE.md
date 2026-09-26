@@ -60,7 +60,7 @@ Status legend:
 | Block/unblock a selected app | Complete | v1.0.40 parent control acknowledgement and real-device enforcement verified. |
 | Daily total limit | Device test | v1.0.42 dashboard control and child-side daily enforcement implemented; reset/device test required. |
 | Per-app daily limit | Complete | v1.0.40 authoritative rule acknowledgement and real-device blocking verified. |
-| Time-based schedules | Partial | Lock schedule exists; per-app schedule enforcement is incomplete. |
+| Time-based schedules | Device test | Global lock and per-app recurring schedules are implemented; verify v1.0.56 on a child device. |
 | Bedtime schedule | Device test | v1.0.46 supports independent weekday/weekend overnight windows; real-device boundary test required. |
 | Weekday/weekend rules | Device test | v1.0.46 adds separate weekday and weekend lock windows with midnight rollover enforcement. |
 | Temporary unlock | Device test | v1.0.51 makes parent/PIN unlock override the active bedtime window until it ends and prevents immediate schedule relock. |
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.55 current. |
+| versionCode/versionName discipline | Complete | v1.0.56 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
