@@ -171,11 +171,11 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| Remote lock/unlock/ring | Partial | Commands exist; delivery/applied/failed semantics need verification. |
+| Remote lock/unlock/ring | Device test | v1.0.55 atomically claims commands and reports Delivered, Applied, Failed, or Expired with result details. |
 | Remote restrictions/limits/schedules | Partial | Several config paths exist; authoritative versioned config is missing. |
 | Remote safe-zone update | Complete | Child repository now receives cloud zones in background service. |
-| Offline command retry | Partial | Firestore queue exists; expiry/idempotency tests required. |
-| Pending/delivered/applied/failed status | Partial | Complete state machine and dashboard feedback. |
+| Offline command retry | Device test | v1.0.55 keeps commands queued while offline, rejects expired work on delivery, and atomically prevents duplicate execution; process-death tests remain. |
+| Pending/delivered/applied/failed status | Complete | v1.0.55 provides live dashboard lifecycle badges, timestamps/result messages, legacy mapping, and client-side expiry presentation. |
 | Command timestamps | Complete | Verify server-time consistency. |
 | Parent-role authorization | Partial | Complete rules/Function tests. |
 
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.54 current. |
+| versionCode/versionName discipline | Complete | v1.0.55 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
