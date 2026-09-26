@@ -64,6 +64,9 @@ fun ActionIconBtn(icon: ImageVector, label: String, color: Color, onClick: () ->
 @Composable
 fun UpdateDialog(
     updateInfo: AppUpdateInfo,
+    isDownloading: Boolean,
+    downloadProgress: Int,
+    downloadError: String?,
     onUpdate: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -94,6 +97,28 @@ fun UpdateDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("This update is mandatory to continue using the app.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     }
+
+                if (isDownloading) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { downloadProgress / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Downloading and verifying: $downloadProgress%",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (!downloadError.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        downloadError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 
                 if (updateInfo.releaseNotes.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -105,8 +130,11 @@ fun UpdateDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onUpdate) {
-                Text(if (isMandatory) "Update Now" else "Update Now")
+            Button(
+                onClick = onUpdate,
+                enabled = !isDownloading
+            ) {
+                Text(if (isDownloading) "Verifying..." else "Update Now")
             }
         },
         dismissButton = {
