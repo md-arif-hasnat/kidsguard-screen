@@ -38,7 +38,7 @@ Status legend:
 | Firebase data sync | Partial | Several features sync; unified offline/error semantics remain incomplete. |
 | Background sync | Partial | WorkManager exists; OEM/battery and retry tests remain. |
 | Remote configuration | Partial | Some settings sync; acknowledgement/versioning is incomplete. |
-| App update prompt | Partial | Metadata flow exists; signed release validation and minimum-version enforcement remain. |
+| App update prompt | Device test | v1.0.53 validates release hash, package identity, and signing certificate before opening the installer; minimum-version enforcement still requires verification. |
 
 ## 3. Screen Time and App Usage
 
@@ -150,7 +150,7 @@ Status legend:
 | Account/data deletion | Partial | Functions exist; deploy and E2E test. |
 | Data minimization | Partial | Complete data inventory and retention mapping. |
 | Audit logging | Partial | Some logs exist; immutable security audit coverage incomplete. |
-| Secure trusted updates | Device test | v1.0.52 requires release SHA-256, verifies the downloaded APK before opening Android installer, and deletes mismatched files. |
+| Secure trusted updates | Device test | v1.0.53 requires release SHA-256 and verifies HTTPS, package identity, and signing-certificate continuity before opening Android installer; mismatched files are deleted. |
 | Secret and credential hygiene | Partial | Keystore is present in repository and must be remediated. |
 
 ## 11. Child Device Health and Connectivity
@@ -208,13 +208,13 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.47 current. |
+| versionCode/versionName discipline | Complete | v1.0.53 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
 | Periodic update check and popup | Complete | Device test required. |
 | Optional versus mandatory update | Partial | Complete backend enforcement and bypass tests. |
-| Trusted APK/signature/hash | Device test | v1.0.52 release manager requires SHA-256 and Android verifies the APK before install; release-signature continuity still requires operational control. |
+| Trusted APK/signature/hash | Device test | v1.0.53 release manager requires SHA-256 and Android verifies hash, package name, and signing-certificate continuity before install. |
 
 ## 16. Support, Diagnostics, and Error Reporting
 
