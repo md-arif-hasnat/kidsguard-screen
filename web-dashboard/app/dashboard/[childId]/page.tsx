@@ -65,6 +65,7 @@ import TotalScreenTimeControl from '@/components/wellbeing/TotalScreenTimeContro
 import AppUsagePanel from '@/components/wellbeing/AppUsagePanel';
 import LockSchedulePanel from '@/components/wellbeing/LockSchedulePanel';
 import RestrictionHistoryPanel from '@/components/wellbeing/RestrictionHistoryPanel';
+import UsageDataStatusBanner from '@/components/wellbeing/UsageDataStatusBanner';
 import {
   AppUsageRepository,
   ScreenTimeSummary
@@ -951,6 +952,8 @@ const handleSaveOfflineAlertSettings = async () => {
                       />
                   </div>
               </div>
+
+              <UsageDataStatusBanner status={status} />
 
               <ScreenTimeStats
                   todayMs={screenTimeSummary?.todayMs || 0}
