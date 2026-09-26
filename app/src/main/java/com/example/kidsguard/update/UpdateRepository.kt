@@ -237,10 +237,17 @@ class UpdateRepository(private val context: Context) {
                 ) as DownloadManager
                 val fileName =
                     "KidsGuard-v${info.latestVersionName}.apk"
-                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?.let { File(it, fileName) }
-                    ?.takeIf { it.exists() }
-                    ?.delete()
+                val downloadDirectory = requireNotNull(
+                    context.getExternalFilesDir(
+                        Environment.DIRECTORY_DOWNLOADS
+                    )
+                ) {
+                    "Secure download storage is unavailable"
+                }
+                val apkFile = File(downloadDirectory, fileName)
+                if (apkFile.exists()) {
+                    apkFile.delete()
+                }
 
                 val request = DownloadManager.Request(downloadUri)
                     .setTitle("KidsGuard ${info.latestVersionName}")
@@ -274,6 +281,12 @@ class UpdateRepository(private val context: Context) {
                     throw SecurityException(
                         "APK integrity check failed. The downloaded file was removed."
                     )
+                }
+
+                val identityError = verifyApkIdentity(apkFile)
+                if (identityError != null) {
+                    manager.remove(downloadId)
+                    throw SecurityException(identityError)
                 }
 
                 _updateState.value = _updateState.value.copy(
@@ -355,6 +368,77 @@ class UpdateRepository(private val context: Context) {
             }
             delay(500)
         }
+    }
+
+    private fun verifyApkIdentity(apkFile: File): String? {
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(
+            apkFile.absolutePath,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNATURES
+            }
+        ) ?: return "The downloaded file is not a valid Android package."
+
+        if (archiveInfo.packageName != context.packageName) {
+            return "APK package identity does not match KidsGuard. " +
+                "Installation was blocked."
+        }
+
+        val installedInfo = try {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                } else {
+                    @Suppress("DEPRECATION")
+                    PackageManager.GET_SIGNATURES
+                }
+            )
+        } catch (_: PackageManager.NameNotFoundException) {
+            return "Installed KidsGuard identity could not be verified."
+        }
+
+        val installedSigners = signerDigests(installedInfo)
+        val archiveSigners = signerDigests(archiveInfo)
+        if (
+            installedSigners.isEmpty() ||
+            archiveSigners.isEmpty() ||
+            installedSigners.intersect(archiveSigners).isEmpty()
+        ) {
+            return "APK signing certificate does not match the installed " +
+                "KidsGuard app. The downloaded file was removed."
+        }
+
+        return null
+    }
+
+    private fun signerDigests(
+        packageInfo: android.content.pm.PackageInfo
+    ): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = packageInfo.signingInfo
+                ?: return emptySet()
+            if (signingInfo.hasMultipleSigners()) {
+                signingInfo.apkContentsSigners
+            } else {
+                signingInfo.signingCertificateHistory
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures
+        }
+
+        return signatures.orEmpty().map { signature ->
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+            digest.joinToString("") { byte ->
+                (byte.toInt() and 0xff)
+                    .toString(16)
+                    .padStart(2, '0')
+            }
+        }.toSet()
     }
 
     private fun sha256(uri: Uri): String {
