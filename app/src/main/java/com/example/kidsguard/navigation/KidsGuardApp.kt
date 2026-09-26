@@ -127,11 +127,13 @@ fun KidsGuardApp(
     if (showUpdateDialog && updateState.updateInfo != null) {
         UpdateDialog(
             updateInfo = updateState.updateInfo!!,
+            isDownloading = updateState.isDownloading,
+            downloadProgress = updateState.downloadProgress,
+            downloadError = updateState.downloadError,
             onUpdate = {
-                updateRepository.openUpdateUrl(updateState.updateInfo!!.apkDownloadUrl)
-                if (!(updateState.updateInfo!!.mandatoryUpdate || updateState.updateInfo!!.forceUpdate)) {
-                    showUpdateDialog = false
-                }
+                updateRepository.downloadAndInstallUpdate(
+                    updateState.updateInfo!!
+                )
             },
             onDismiss = {
                 showUpdateDialog = false
