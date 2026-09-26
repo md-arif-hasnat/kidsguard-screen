@@ -104,6 +104,11 @@ class BackgroundTrackingService : Service() {
         notificationEngine = LocalNotificationEngine(appContext, errorLogRepository)
         
         val trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(appContext), trackingRepository)
+        val lockScheduleManager =
+            com.example.kidsguard.managers.LockScheduleManager(
+                appContext,
+                prefHelper
+            )
         
         commandHandler = RemoteCommandHandler(
             androidContext = appContext,
@@ -135,7 +140,8 @@ class BackgroundTrackingService : Service() {
                 } else {
                     vibrator.vibrate(5000)
                 }
-            }
+            },
+            lockScheduleManager = lockScheduleManager
         )
 
         setupLocationCallback()
