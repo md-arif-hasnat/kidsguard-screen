@@ -109,7 +109,7 @@ Status legend:
 | Wellbeing data | Partial | Real current-day, yesterday, and 7-day screen-time metrics plus lock schedules work; broader trends/limits remain incomplete. |
 | Daily/weekly analytics | Partial | Live 7-day screen-time analytics are implemented; broader nightly/weekly aggregation remains incomplete. |
 | No production mock data | Partial | Major dashboard mocks removed in v1.0.38; all routes need final sweep. |
-| Fast initial load/lazy analytics | Partial | App-usage and 7-day analytics now load only on the Wellbeing tab; other broad listeners still require an audit. |
+| Fast initial load/lazy analytics | Complete | Child status stays live globally while overview, intelligence, wellbeing, internet, modes, and panel-specific data listeners attach only for the active tab. |
 
 ## 8. Reports, History, and Data Retention
 
@@ -265,7 +265,7 @@ Status legend:
 | Network-constrained batching | Partial | WorkManager constraints exist; common queue/batching incomplete. |
 | Avoid duplicate sync | Partial | Feature dedupe exists; standardized idempotency incomplete. |
 | Idle-aware background work | Partial | WorkManager helps; foreground location remains a measured exception. |
-| Firestore read/write minimization | Partial | Some aggregation/batching; broad listeners and raw histories remain. |
+| Firestore read/write minimization | Partial | Dashboard listeners are tab-scoped; raw histories, retention, and high-volume aggregation still need further cost controls. |
 | Pagination | Partial | Several dashboard histories still use fixed/real-time lists. |
 | Aggregated analytics | Partial | Models exist; reliable nightly aggregation not complete/deployed. |
 | Local offline queue/retry | Partial | Feature-specific caches exist; generic durable queue missing. |
