@@ -14,6 +14,7 @@ data class AppUpdateInfo(
     var releaseChannel: String = "stable",
     var releasedAt: Timestamp? = null,
     var fileSize: String = "",
+    var apkSha256: String = "",
     var minimumAndroidVersion: String = "",
     var releaseNotes: List<String> = emptyList(),
     var webVersion: String = "",
@@ -25,5 +26,8 @@ data class AppUpdateState(
     val currentVersionName: String,
     val currentVersionCode: Int,
     val updateInfo: AppUpdateInfo?,
-    val isUpdateAvailable: Boolean = false
+    val isUpdateAvailable: Boolean = false,
+    val isDownloading: Boolean = false,
+    val downloadProgress: Int = 0,
+    val downloadError: String? = null
 )
