@@ -19,6 +19,11 @@ export interface AppControl {
   appName: string;
   blocked: boolean;
   dailyLimitMinutes: number | null;
+  scheduleEnabled?: boolean;
+  scheduleStartMinutes?: number;
+  scheduleEndMinutes?: number;
+  scheduleDays?: number[];
+  scheduleTimezone?: string;
   createdAt?: any;
   updatedAt?: any;
   updatedBy: string;
