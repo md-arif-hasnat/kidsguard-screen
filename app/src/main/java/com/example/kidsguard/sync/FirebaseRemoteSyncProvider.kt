@@ -520,12 +520,58 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
                     }
                     for (doc in snapshots.documents) {
                         val command = doc.toObject(SyncRemoteCommand::class.java)
-                        if (command != null) {
-                            Log.d(
-                                "RemoteCommand",
-                                "Processing pending command: ${command.commandId} type: ${command.commandType}"
+                            ?: continue
+                        val now = System.currentTimeMillis()
+                        val expiresAt = command.expiresAt ?: Long.MAX_VALUE
+
+                        db.runTransaction { transaction ->
+                            val latest = transaction.get(doc.reference)
+                            if (latest.getString("status") != CommandStatus.PENDING.name) {
+                                return@runTransaction false
+                            }
+
+                            if (now > expiresAt) {
+                                transaction.update(
+                                    doc.reference,
+                                    mapOf(
+                                        "status" to CommandStatus.EXPIRED.name,
+                                        "executedAt" to now,
+                                        "resultMessage" to "Command expired before delivery"
+                                    )
+                                )
+                                return@runTransaction false
+                            }
+
+                            transaction.update(
+                                doc.reference,
+                                mapOf(
+                                    "status" to CommandStatus.DELIVERED.name,
+                                    "receivedAt" to now,
+                                    "resultMessage" to "Delivered to child device"
+                                )
                             )
-                            onCommand(command)
+                            true
+                        }.addOnSuccessListener { claimed ->
+                            if (claimed) {
+                                command.status = CommandStatus.DELIVERED
+                                command.receivedAt = now
+                                Log.d(
+                                    "RemoteCommand",
+                                    "Claimed command: ${command.commandId} type: ${command.commandType}"
+                                )
+                                onCommand(command)
+                            }
+                        }.addOnFailureListener { error ->
+                            Log.e(
+                                "RemoteCommand",
+                                "Failed to claim command ${command.commandId}",
+                                error
+                            )
+                            errorLogger.addError(
+                                "RemoteCommand",
+                                "Failed to claim remote command",
+                                error
+                            )
                         }
                     }
                 }
@@ -553,8 +599,9 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
         val now = System.currentTimeMillis()
         when (status) {
-            CommandStatus.EXECUTING -> updates["receivedAt"] = now
-            CommandStatus.SUCCESS, CommandStatus.FAILED -> updates["executedAt"] = now
+            CommandStatus.DELIVERED -> updates["receivedAt"] = now
+            CommandStatus.APPLIED, CommandStatus.FAILED,
+            CommandStatus.EXPIRED -> updates["executedAt"] = now
             else -> {}
         }
 
