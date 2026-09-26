@@ -13,7 +13,7 @@ import {
   FileCode,
   Monitor
 } from 'lucide-react';
-import { ConfigRepository, ReleaseChannel, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
+import { ConfigRepository, ReleaseChannel, ReleaseStatus, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import { PlatformAdminRole } from '@/lib/repositories/PlatformAdminRepository';
 import { clsx } from 'clsx';
@@ -23,6 +23,7 @@ export default function ReleaseManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [changingReleaseId, setChangingReleaseId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
@@ -44,7 +45,9 @@ export default function ReleaseManager() {
   const [webMessage, setWebMessage] = useState('New web version available.');
   const [webNotes, setWebNotes] = useState('');
 
-  const canPublish = admin?.role === PlatformAdminRole.SUPER_ADMIN || admin?.role === PlatformAdminRole.ADMIN;
+  const canManage = admin?.role === PlatformAdminRole.SUPER_ADMIN ||
+    admin?.role === PlatformAdminRole.ADMIN;
+  const canPublish = admin?.role === PlatformAdminRole.SUPER_ADMIN;
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -110,52 +113,140 @@ export default function ReleaseManager() {
     return null;
   };
 
-  const handlePublish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canPublish) return;
+  const releaseInput = () => ({
+    latestVersionCode: versionCode,
+    latestVersionName: versionName,
+    apkDownloadUrl: apkUrl,
+    apkSha256: apkSha256.trim().toLowerCase(),
+    mandatoryUpdate: mandatory,
+    releaseChannel: channel,
+    updateMessage: message,
+    releaseNotes: notes.split('\n').filter(n => n.trim() !== ''),
+    fileSize,
+    minimumAndroidVersion: minAndroid,
+    webVersion,
+    webUpdateMessage: webMessage,
+    webReleaseNotes: webNotes.split('\n').filter(n => n.trim() !== '')
+  });
 
-    const error = validate();
-    if (error) {
-        setStatus({ type: 'error', message: error });
-        return;
+  const refreshReleaseData = async () => {
+    const [releases, active] = await Promise.all([
+      ConfigRepository.getRecentReleases(20),
+      ConfigRepository.getUpdateConfig()
+    ]);
+    setHistory(releases);
+    setCurrentConfig(active);
+    const highestVersion = Math.max(
+      active?.latestVersionCode || 0,
+      ...releases.map(release => release.latestVersionCode)
+    );
+    setVersionCode(highestVersion + 1);
+  };
+
+  const handleCreateRelease = async (
+    e: React.FormEvent,
+    releaseStatus: ReleaseStatus
+  ) => {
+    e.preventDefault();
+    if (!canManage) return;
+    if (releaseStatus === 'PUBLISHED' && !canPublish) {
+      setStatus({
+        type: 'error',
+        message: 'Only a Super Admin can publish a release.'
+      });
+      return;
+    }
+
+    const validationError = validate();
+    if (validationError) {
+      setStatus({ type: 'error', message: validationError });
+      return;
+    }
+    if (
+      releaseStatus === 'PUBLISHED' &&
+      !window.confirm(
+        `Publish v${versionName} to child devices now?`
+      )
+    ) {
+      return;
     }
 
     setPublishing(true);
     setStatus(null);
-
     try {
-      await ConfigRepository.publishRelease({
-        latestVersionCode: versionCode,
-        latestVersionName: versionName,
-        apkDownloadUrl: apkUrl,
-        apkSha256: apkSha256.trim().toLowerCase(),
-        mandatoryUpdate: mandatory,
-        releaseChannel: channel,
-        updateMessage: message,
-        releaseNotes: notes.split('\n').filter(n => n.trim() !== ''),
-        fileSize,
-        minimumAndroidVersion: minAndroid,
-        webVersion,
-        webUpdateMessage: webMessage,
-        webReleaseNotes: webNotes.split('\n').filter(n => n.trim() !== '')
-      }, {
-        uid: admin?.uid || "unknown",
-        email: admin?.email
+      await ConfigRepository.createRelease(
+        releaseInput(),
+        releaseStatus,
+        {
+          uid: admin?.uid || "unknown",
+          email: admin?.email
+        }
+      );
+      setStatus({
+        type: 'success',
+        message:
+          releaseStatus === 'PUBLISHED'
+            ? `Release v${versionName} published successfully!`
+            : `Release v${versionName} saved as ${releaseStatus}.`
       });
-
-      setStatus({ type: 'success', message: `Release v${versionName} published successfully!` });
-
-      const releases = await ConfigRepository.getRecentReleases(10);
-      setHistory(releases);
-      const active = await ConfigRepository.getUpdateConfig();
-      if (active) {
-          setCurrentConfig(active);
-          setVersionCode(active.latestVersionCode + 1);
-      }
+      await refreshReleaseData();
     } catch (err: any) {
-      setStatus({ type: 'error', message: err.message || 'Failed to publish release' });
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to save release'
+      });
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleStatusChange = async (
+    release: AppRelease,
+    nextStatus: ReleaseStatus
+  ) => {
+    if (!canManage) return;
+    if (nextStatus === 'PUBLISHED' && !canPublish) {
+      setStatus({
+        type: 'error',
+        message: 'Only a Super Admin can publish a release.'
+      });
+      return;
+    }
+
+    const action = nextStatus === 'PUBLISHED'
+      ? 'publish to child devices'
+      : nextStatus.toLowerCase();
+    if (
+      !window.confirm(
+        `Are you sure you want to ${action} v${release.latestVersionName}?`
+      )
+    ) {
+      return;
+    }
+
+    setChangingReleaseId(release.id);
+    setStatus(null);
+    try {
+      await ConfigRepository.updateReleaseStatus(
+        release.id,
+        nextStatus,
+        {
+          uid: admin?.uid || "unknown",
+          email: admin?.email
+        }
+      );
+      setStatus({
+        type: 'success',
+        message: `v${release.latestVersionName} is now ${nextStatus}.`
+      });
+      await refreshReleaseData();
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to update release status'
+      });
+    } finally {
+      setChangingReleaseId(null);
     }
   };
 
@@ -222,10 +313,13 @@ export default function ReleaseManager() {
                   <div className="p-5 md:p-6 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
                       <h2 className="font-black text-white flex items-center gap-2 text-xs md:text-sm uppercase tracking-widest">
                           <Rocket size={18} className="text-rose-500" />
-                          Publish New Release
+                          Create New Release
                       </h2>
                   </div>
-                  <form onSubmit={handlePublish} className="p-5 md:p-8 space-y-8">
+                  <form
+                    onSubmit={e => handleCreateRelease(e, 'PUBLISHED')}
+                    className="p-5 md:p-8 space-y-8"
+                  >
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                           <div className="space-y-1.5">
                               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Version Name</label>
@@ -372,14 +466,30 @@ export default function ReleaseManager() {
                           </div>
                       </div>
 
-                      <div className="pt-8 border-t border-slate-800 flex justify-end">
+                      <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row justify-end gap-3">
+                          <button
+                              disabled={publishing || !canManage}
+                              type="button"
+                              onClick={e => handleCreateRelease(e, 'DRAFT')}
+                              className="bg-slate-800 hover:bg-slate-700 text-white font-black py-4 px-6 rounded-2xl transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
+                          >
+                              Save Draft
+                          </button>
+                          <button
+                              disabled={publishing || !canManage}
+                              type="button"
+                              onClick={e => handleCreateRelease(e, 'TESTING')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white font-black py-4 px-6 rounded-2xl transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
+                          >
+                              Save for Testing
+                          </button>
                           <button
                               disabled={publishing || !canPublish}
                               type="submit"
-                              className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-black py-4 px-12 rounded-2xl shadow-xl shadow-rose-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xs uppercase tracking-widest italic"
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-black py-4 px-8 rounded-2xl shadow-xl shadow-rose-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xs uppercase tracking-widest italic"
                           >
                               {publishing ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}
-                              Deploy Release
+                              Publish Release
                           </button>
                       </div>
                   </form>
