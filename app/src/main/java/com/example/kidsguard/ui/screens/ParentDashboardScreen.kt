@@ -31,11 +31,9 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.AuthRepository
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
-import com.example.kidsguard.sync.CommandType
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.RemoteSyncProvider
-import com.example.kidsguard.sync.SyncRemoteCommand
 import com.example.kidsguard.tracking.BackgroundTrackingManager
 import com.example.kidsguard.tracking.TrackingRepository
 import com.example.kidsguard.ui.dashboard.DashboardRepository
@@ -188,17 +186,17 @@ fun ParentDashboardScreen(
                         onOpenChildDetail = { onOpenChildDetail(selectedChildId ?: "") },
                         onLock = {
                             selectedChildId?.let { id ->
-                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.LOCK_NOW))
+                                remoteCommandRepository.sendLockDevice(id)
                             }
                         },
                         onUnlock = {
                             selectedChildId?.let { id ->
-                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.UNLOCK_NOW))
+                                remoteCommandRepository.sendUnlockDevice(id)
                             }
                         },
                         onRefreshLocation = {
                             selectedChildId?.let { id ->
-                                syncProvider.sendCommand(SyncRemoteCommand(childId = id, commandType = CommandType.REFRESH_LOCATION))
+                                remoteCommandRepository.sendRefreshLocation(id)
                             }
                         },
                         onOpenChildList = onOpenChildList,
