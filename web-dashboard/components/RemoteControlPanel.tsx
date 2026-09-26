@@ -41,7 +41,10 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
             limit(5)
         );
         return onSnapshot(q, (snapshot) => {
-            setRecentCommands(snapshot.docs.map(doc => doc.data()));
+            setRecentCommands(snapshot.docs.map(commandDoc => ({
+                id: commandDoc.id,
+                ...commandDoc.data()
+            })));
         });
     }, [childId]);
 
@@ -139,17 +142,25 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                         Command History
                     </h4>
                     <div className="space-y-4">
-                        {recentCommands.length > 0 ? recentCommands.map((cmd) => (
-                            <div key={cmd.commandId} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-700">{cmd.commandType.replace('_', ' ')}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium">{new Date(cmd.createdAt).toLocaleTimeString()}</p>
+                        {recentCommands.length > 0 ? recentCommands.map((cmd) => {
+                            const effectiveStatus = getEffectiveStatus(cmd);
+                            return (
+                            <div key={cmd.commandId || cmd.id} className="bg-white p-3 rounded-xl border border-slate-100">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-700">{cmd.commandType.replace(/_/g, ' ')}</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">{new Date(cmd.createdAt).toLocaleTimeString()}</p>
+                                    </div>
+                                    <StatusBadge status={effectiveStatus} />
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <StatusBadge status={cmd.status} />
-                                </div>
+                                {cmd.resultMessage && (
+                                    <p className="mt-2 text-[10px] font-medium text-slate-500">
+                                        {cmd.resultMessage}
+                                    </p>
+                                )}
                             </div>
-                        )) : (
+                            );
+                        }) : (
                             <p className="text-center py-12 text-slate-400 italic text-sm">No recent commands.</p>
                         )}
                     </div>
@@ -177,8 +188,8 @@ function CommandBtn({ icon: Icon, label, onClick, loading, color = "text-slate-7
 function StatusBadge({ status }: { status: string }) {
     const config: any = {
         PENDING: { icon: Clock, color: "bg-slate-100 text-slate-500" },
-        RECEIVED: { icon: Loader2, color: "bg-blue-50 text-blue-600 animate-pulse" },
-        EXECUTED: { icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
+        DELIVERED: { icon: Loader2, color: "bg-blue-50 text-blue-600 animate-pulse" },
+        APPLIED: { icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
         FAILED: { icon: XCircle, color: "bg-rose-50 text-rose-600" },
         EXPIRED: { icon: Clock, color: "bg-amber-50 text-amber-600" }
     };
@@ -187,8 +198,26 @@ function StatusBadge({ status }: { status: string }) {
 
     return (
         <span className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase", color)}>
-            <Icon size={12} className={status === 'RECEIVED' ? 'animate-spin' : ''} />
+            <Icon size={12} className={status === 'DELIVERED' ? 'animate-spin' : ''} />
             {status}
         </span>
     );
+}
+
+function getEffectiveStatus(command: any): string {
+    const legacyStatus: Record<string, string> = {
+        EXECUTING: 'DELIVERED',
+        RECEIVED: 'DELIVERED',
+        SUCCESS: 'APPLIED',
+        EXECUTED: 'APPLIED'
+    };
+    const status = legacyStatus[command.status] || command.status || 'PENDING';
+    if (
+        (status === 'PENDING' || status === 'DELIVERED') &&
+        command.expiresAt &&
+        Date.now() > command.expiresAt
+    ) {
+        return 'EXPIRED';
+    }
+    return status;
 }
