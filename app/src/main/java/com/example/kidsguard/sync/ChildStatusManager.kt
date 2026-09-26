@@ -179,7 +179,30 @@ class ChildStatusManager(
                     syncFailureSource = syncHealth.failureSource,
                     lastSyncFailureAt = syncHealth.lastFailureAt,
                     lastSuccessfulDataSyncAt = syncHealth.lastSuccessAt,
-                    syncErrorMessage = syncHealth.errorMessage
+                    syncErrorMessage = syncHealth.errorMessage,
+                    locationPermissionGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasLocationPermission(context),
+                    backgroundLocationPermissionGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasBackgroundLocationPermission(context),
+                    usageAccessGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasUsageStatsPermission(context),
+                    overlayPermissionGranted =
+                        android.provider.Settings.canDrawOverlays(context),
+                    accessibilityPermissionGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .isAccessibilityServiceEnabled(context),
+                    batteryOptimizationExempt =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .isBatteryOptimizationIgnored(context),
+                    notificationPermissionGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasNotificationPermission(context),
+                    microphonePermissionGranted =
+                        com.example.kidsguard.utils.PermissionUtils
+                            .hasAudioPermission(context)
                 )
 
                 // Add Predictions
