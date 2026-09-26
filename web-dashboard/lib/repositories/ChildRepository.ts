@@ -53,6 +53,14 @@ export interface ChildStatus {
   lastSyncFailureAt?: number;
   lastSuccessfulDataSyncAt?: number;
   syncErrorMessage?: string;
+  locationPermissionGranted?: boolean;
+  backgroundLocationPermissionGranted?: boolean;
+  usageAccessGranted?: boolean;
+  overlayPermissionGranted?: boolean;
+  accessibilityPermissionGranted?: boolean;
+  batteryOptimizationExempt?: boolean;
+  notificationPermissionGranted?: boolean;
+  microphonePermissionGranted?: boolean;
   predictions?: SyncPredictions;
 }
 
