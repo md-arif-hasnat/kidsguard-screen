@@ -146,7 +146,9 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
       total: appList.length,
       allowed: appList.filter(a => !a.control.blocked).length,
       blocked: appList.filter(a => a.control.blocked).length,
-      limited: appList.filter(a => a.control.dailyLimitMinutes !== null).length,
+      limited: appList.filter(a =>
+        a.control.dailyLimitMinutes !== null || a.control.scheduleEnabled
+      ).length,
     };
   }, [appList]);
 
@@ -164,7 +166,9 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
         result = result.filter(a => a.control.blocked);
         break;
       case 'limited':
-        result = result.filter(a => a.control.dailyLimitMinutes !== null);
+        result = result.filter(a =>
+          a.control.dailyLimitMinutes !== null || a.control.scheduleEnabled
+        );
         break;
       case 'recent':
         const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
@@ -347,7 +351,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
                 <InfoItem label="Today's Usage" value={formatDuration(app.usage?.totalTimeMs || 0)} icon={Clock} highlight={Boolean(app.usage?.totalTimeMs)} />
               </div>
 
-              {(app.control.blocked || app.control.dailyLimitMinutes !== null) && (
+              {(app.control.blocked || app.control.dailyLimitMinutes !== null || app.control.scheduleEnabled) && (
                 <ControlSyncBadge control={app.control} />
               )}
 
@@ -458,6 +462,14 @@ function StatusBadge({ control, usage }: { control: AppControl, usage?: AppUsage
         );
     }
 
+    if (control.scheduleEnabled) {
+        return (
+            <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter flex items-center gap-1">
+                <Clock size={10} /> Scheduled
+            </span>
+        );
+    }
+
     return (
         <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter flex items-center gap-1">
             <ShieldCheck size={10} /> Allowed
@@ -487,6 +499,10 @@ function ControlSyncBadge({ control }: { control: AppControl }) {
 function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any, onClose: () => void, onUpdateControl: (c: Partial<AppControl>) => void, isSaving: boolean }) {
     const [customLimit, setCustomLimit] = useState(app.control.dailyLimitMinutes?.toString() || "");
     const [showCustomInput, setShowCustomInput] = useState(false);
+    const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(app.control.scheduleEnabled));
+    const [scheduleStart, setScheduleStart] = useState(minutesToTime(app.control.scheduleStartMinutes ?? 1260));
+    const [scheduleEnd, setScheduleEnd] = useState(minutesToTime(app.control.scheduleEndMinutes ?? 420));
+    const [scheduleDays, setScheduleDays] = useState<number[]>(app.control.scheduleDays || [2, 3, 4, 5, 6]);
 
     const limits = [
         { label: 'No Limit', value: null },
@@ -515,7 +531,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                     <div className="space-y-6">
                         <ModalInfo label="Status" value={app.control.blocked ? "Currently Blocked" : "Active / Allowed"} icon={Shield} color={app.control.blocked ? "text-rose-600" : "text-emerald-600"} />
-                        {(app.control.blocked || app.control.dailyLimitMinutes !== null) && (
+                        {(app.control.blocked || app.control.dailyLimitMinutes !== null || app.control.scheduleEnabled) && (
                           <ModalInfo
                             label="Rule Sync"
                             value={app.control.applyStatus === 'APPLIED' ? "Applied on child" : app.control.applyStatus === 'FAILED' ? "Failed" : "Pending child device"}
@@ -583,6 +599,92 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                     </div>
                 </div>
 
+                <div className="mb-10 rounded-3xl border border-indigo-100 bg-indigo-50/60 p-6">
+                    <div className="flex items-center justify-between gap-4 mb-5">
+                        <div>
+                            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                                <Clock size={14} /> Block Schedule
+                            </h3>
+                            <p className="mt-1 text-[10px] font-medium text-indigo-600">
+                                Block this app during the selected days using the child device's local time.
+                            </p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={scheduleEnabled}
+                            onChange={e => setScheduleEnabled(e.target.checked)}
+                            className="h-5 w-5 accent-indigo-600"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                        <label className="text-[10px] font-black uppercase text-indigo-700">
+                            Start
+                            <input
+                                type="time"
+                                value={scheduleStart}
+                                onChange={e => setScheduleStart(e.target.value)}
+                                className="mt-1 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm text-slate-800"
+                            />
+                        </label>
+                        <label className="text-[10px] font-black uppercase text-indigo-700">
+                            End
+                            <input
+                                type="time"
+                                value={scheduleEnd}
+                                onChange={e => setScheduleEnd(e.target.value)}
+                                className="mt-1 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm text-slate-800"
+                            />
+                        </label>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1.5 mb-5">
+                        {[
+                            { value: 1, label: 'S' },
+                            { value: 2, label: 'M' },
+                            { value: 3, label: 'T' },
+                            { value: 4, label: 'W' },
+                            { value: 5, label: 'T' },
+                            { value: 6, label: 'F' },
+                            { value: 7, label: 'S' }
+                        ].map(day => (
+                            <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => setScheduleDays(current =>
+                                    current.includes(day.value)
+                                        ? current.filter(value => value !== day.value)
+                                        : [...current, day.value].sort()
+                                )}
+                                className={clsx(
+                                    "rounded-lg py-2 text-[10px] font-black",
+                                    scheduleDays.includes(day.value)
+                                        ? "bg-indigo-600 text-white"
+                                        : "bg-white text-indigo-400"
+                                )}
+                            >
+                                {day.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        type="button"
+                        disabled={isSaving || (scheduleEnabled && scheduleDays.length === 0)}
+                        onClick={() => onUpdateControl({
+                            scheduleEnabled,
+                            scheduleStartMinutes: timeToMinutes(scheduleStart),
+                            scheduleEndMinutes: timeToMinutes(scheduleEnd),
+                            scheduleDays,
+                            // An empty timezone tells the child to use its own local timezone.
+                            scheduleTimezone: ''
+                        })}
+                        className="w-full rounded-xl bg-indigo-600 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                    >
+                        {isSaving ? 'Saving Schedule...' : 'Save Schedule'}
+                    </button>
+                </div>
+
                 <div className="flex gap-4">
                     <button
                         onClick={onClose}
@@ -603,6 +705,19 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
             </div>
         </div>
     );
+}
+
+function minutesToTime(minutes: number): string {
+    const safeMinutes = Math.max(0, Math.min(1439, Number(minutes) || 0));
+    const hours = Math.floor(safeMinutes / 60).toString().padStart(2, '0');
+    const mins = (safeMinutes % 60).toString().padStart(2, '0');
+    return `${hours}:${mins}`;
+}
+
+function timeToMinutes(value: string): number {
+    const [hours, minutes] = value.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+    return Math.max(0, Math.min(1439, hours * 60 + minutes));
 }
 
 function ModalInfo({ label, value, icon: Icon, color }: any) {
