@@ -158,7 +158,7 @@ Status legend:
 | Requirement | Status | Completion condition |
 |---|---|---|
 | Online/offline and last seen | Complete | Scheduled offline Function deployment required for alerts. |
-| Last successful sync | Partial | Standardize across all workers/features. |
+| Last successful sync | Partial | v1.0.50 standardizes app-usage, YouTube, and browser sync health and displays last success/failure diagnostics; remaining workers need adoption. |
 | Battery and charging | Complete | Device tests. |
 | Network status | Complete | Device tests. |
 | Service/tracking status | Complete | Improve stale-state handling. |
