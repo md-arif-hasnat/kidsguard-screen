@@ -150,7 +150,7 @@ Status legend:
 | Account/data deletion | Partial | Functions exist; deploy and E2E test. |
 | Data minimization | Partial | Complete data inventory and retention mapping. |
 | Audit logging | Partial | Some logs exist; immutable security audit coverage incomplete. |
-| Secure trusted updates | Partial | HTTPS/GitHub flow exists; signature/hash verification incomplete. |
+| Secure trusted updates | Device test | v1.0.52 requires release SHA-256, verifies the downloaded APK before opening Android installer, and deletes mismatched files. |
 | Secret and credential hygiene | Partial | Keystore is present in repository and must be remediated. |
 
 ## 11. Child Device Health and Connectivity
@@ -214,7 +214,7 @@ Status legend:
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
 | Periodic update check and popup | Complete | Device test required. |
 | Optional versus mandatory update | Partial | Complete backend enforcement and bypass tests. |
-| Trusted APK/signature/hash | Partial | Release signing exists externally; integrity verification missing. |
+| Trusted APK/signature/hash | Device test | v1.0.52 release manager requires SHA-256 and Android verifies the APK before install; release-signature continuity still requires operational control. |
 
 ## 16. Support, Diagnostics, and Error Reporting
 
