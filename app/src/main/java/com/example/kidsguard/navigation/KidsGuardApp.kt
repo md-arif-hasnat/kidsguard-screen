@@ -94,7 +94,8 @@ fun KidsGuardApp(
     blockedUrl: String? = null,
     onRequestWebAccess: (String) -> Unit = {},
     remoteMessage: String? = null,
-    remoteCommandMode: com.example.kidsguard.ui.screens.RemoteCommandMode = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE
+    remoteCommandMode: com.example.kidsguard.ui.screens.RemoteCommandMode = com.example.kidsguard.ui.screens.RemoteCommandMode.MESSAGE,
+    onLockedScreenUnlock: () -> Unit = { onScreenChange(Screen.Home) }
 ) {
     val context = LocalContext.current
     val prefHelper = remember { PreferenceHelper(context) }
@@ -538,7 +539,11 @@ fun KidsGuardApp(
                             description = "Unlocked by child"
                         )
                     )
-                    onScreenChange(if (prefHelper.userRole == "PARENT") Screen.ParentDashboard else Screen.Home)
+                    if (prefHelper.userRole == "PARENT") {
+                        onScreenChange(Screen.ParentDashboard)
+                    } else {
+                        onLockedScreenUnlock()
+                    }
                 },
                 prefHelper = prefHelper,
                 repository = repository
