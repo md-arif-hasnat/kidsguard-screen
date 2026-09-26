@@ -31,6 +31,11 @@ class UpdateRepository(private val context: Context) {
 
     private val db = FirebaseFirestore.getInstance()
     private val prefs = PreferenceHelper(context)
+    private val mandatoryUpdatePrefs = context.applicationContext
+        .getSharedPreferences(
+            "mandatory_update_state",
+            Context.MODE_PRIVATE
+        )
     private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _updateState = MutableStateFlow(
         AppUpdateState(
@@ -46,6 +51,10 @@ class UpdateRepository(private val context: Context) {
 
     private val _showWhatsNew = MutableStateFlow<AppUpdateInfo?>(null)
     val showWhatsNew: StateFlow<AppUpdateInfo?> = _showWhatsNew
+
+    init {
+        restoreMandatoryUpdate()
+    }
 
     companion object {
         private const val TAG = "UpdateRepository"
@@ -111,6 +120,7 @@ class UpdateRepository(private val context: Context) {
                     updateInfo = info,
                     isUpdateAvailable = isAvailable
                 )
+                updateMandatoryCache(info, currentCode)
 
                 // Part 4: What's New logic
                 if (info.latestVersionCode.toInt() == currentCode && prefs.lastSeenVersionCode < currentCode) {
@@ -173,11 +183,93 @@ class UpdateRepository(private val context: Context) {
     }
 
     fun clearUpdateState() {
+        val info = _updateState.value.updateInfo
+        val mandatoryUpdateActive =
+            _updateState.value.isUpdateAvailable &&
+                info != null &&
+                (info.mandatoryUpdate || info.forceUpdate)
+        if (mandatoryUpdateActive) {
+            Log.w(TAG, "Ignored attempt to clear a mandatory update")
+            return
+        }
+
         _updateState.value = _updateState.value.copy(
             updateInfo = null,
             isUpdateAvailable = false
         )
         _updateInfo.value = null
+    }
+
+    private fun updateMandatoryCache(
+        info: AppUpdateInfo,
+        currentVersionCode: Int
+    ) {
+        val isMandatory = info.mandatoryUpdate || info.forceUpdate
+        if (isMandatory && info.latestVersionCode > currentVersionCode) {
+            mandatoryUpdatePrefs.edit()
+                .putLong("version_code", info.latestVersionCode)
+                .putString("version_name", info.latestVersionName)
+                .putString("apk_url", info.apkDownloadUrl)
+                .putString("apk_sha256", info.apkSha256)
+                .putString("message", info.updateMessage)
+                .putString("release_channel", info.releaseChannel)
+                .putBoolean("force_update", info.forceUpdate)
+                .apply()
+        } else {
+            mandatoryUpdatePrefs.edit().clear().apply()
+        }
+    }
+
+    private fun restoreMandatoryUpdate() {
+        val versionCode = mandatoryUpdatePrefs.getLong(
+            "version_code",
+            0L
+        )
+        if (versionCode <= getCurrentVersionCode().toLong()) {
+            if (versionCode > 0L) {
+                mandatoryUpdatePrefs.edit().clear().apply()
+            }
+            return
+        }
+
+        val cachedInfo = AppUpdateInfo(
+            latestVersionCode = versionCode,
+            latestVersionName = mandatoryUpdatePrefs.getString(
+                "version_name",
+                ""
+            ).orEmpty(),
+            apkDownloadUrl = mandatoryUpdatePrefs.getString(
+                "apk_url",
+                ""
+            ).orEmpty(),
+            apkSha256 = mandatoryUpdatePrefs.getString(
+                "apk_sha256",
+                ""
+            ).orEmpty(),
+            mandatoryUpdate = true,
+            forceUpdate = mandatoryUpdatePrefs.getBoolean(
+                "force_update",
+                false
+            ),
+            updateMessage = mandatoryUpdatePrefs.getString(
+                "message",
+                "A required KidsGuard update must be installed."
+            ).orEmpty(),
+            releaseChannel = mandatoryUpdatePrefs.getString(
+                "release_channel",
+                "stable"
+            ).orEmpty()
+        )
+        _updateState.value = _updateState.value.copy(
+            updateInfo = cachedInfo,
+            isUpdateAvailable = true,
+            downloadError = null
+        )
+        _updateInfo.value = cachedInfo
+        Log.i(
+            TAG,
+            "Restored mandatory update gate for version $versionCode"
+        )
     }
 
     fun openUpdateUrl(url: String) {
