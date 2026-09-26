@@ -41,6 +41,12 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
     var tapCount by remember { mutableIntStateOf(0) }
     var firstTapTime by remember { mutableLongStateOf(0L) }
     var showPinDialog by remember { mutableStateOf(false) }
+    var displayLockReason by remember {
+        mutableStateOf(prefHelper.lockReason)
+    }
+    var scheduleWindowActive by remember {
+        mutableStateOf(prefHelper.isScheduleWindowActive)
+    }
 
     val context = LocalContext.current.findActivity()
     val density = LocalDensity.current
@@ -63,6 +69,14 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
             val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.hide(WindowInsetsCompat.Type.systemBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            displayLockReason = prefHelper.lockReason
+            scheduleWindowActive = prefHelper.isScheduleWindowActive
+            kotlinx.coroutines.delay(500)
         }
     }
 
@@ -99,7 +113,10 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (prefHelper.lockReason == LockReason.SCHEDULE) {
+            if (
+                displayLockReason == LockReason.SCHEDULE ||
+                scheduleWindowActive
+            ) {
                 Icon(
                     imageVector = Icons.Default.DarkMode,
                     contentDescription = null,
