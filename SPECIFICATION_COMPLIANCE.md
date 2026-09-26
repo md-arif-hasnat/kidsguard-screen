@@ -38,7 +38,7 @@ Status legend:
 | Firebase data sync | Partial | Several features sync; unified offline/error semantics remain incomplete. |
 | Background sync | Partial | WorkManager exists; OEM/battery and retry tests remain. |
 | Remote configuration | Partial | Some settings sync; acknowledgement/versioning is incomplete. |
-| App update prompt | Device test | v1.0.53 validates release hash, package identity, and signing certificate before opening the installer; minimum-version enforcement still requires verification. |
+| App update prompt | Device test | v1.0.54 validates the release artifact and restores a previously received mandatory update gate after restart or while offline. |
 
 ## 3. Screen Time and App Usage
 
@@ -208,12 +208,12 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.53 current. |
+| versionCode/versionName discipline | Complete | v1.0.54 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
 | Periodic update check and popup | Complete | Device test required. |
-| Optional versus mandatory update | Partial | Complete backend enforcement and bypass tests. |
+| Optional versus mandatory update | Device test | v1.0.54 keeps optional releases dismissible, blocks mandatory dismissal/clear, persists the gate across restart/offline use, and exposes retry after failure. |
 | Trusted APK/signature/hash | Device test | v1.0.53 release manager requires SHA-256 and Android verifies hash, package name, and signing-certificate continuity before install. |
 
 ## 16. Support, Diagnostics, and Error Reporting
