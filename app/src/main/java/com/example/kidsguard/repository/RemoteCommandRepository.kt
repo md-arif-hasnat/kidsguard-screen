@@ -11,19 +11,19 @@ class RemoteCommandRepository(private val syncProvider: RemoteSyncProvider) {
     }
 
     fun sendRingDevice(childId: String) {
-        sendCommand(childId, CommandType.RING_PHONE)
+        sendCommand(childId, CommandType.RING_DEVICE)
     }
 
     fun sendLockDevice(childId: String) {
-        sendCommand(childId, CommandType.LOCK_NOW)
+        sendCommand(childId, CommandType.LOCK_DEVICE)
     }
 
     fun sendUnlockDevice(childId: String) {
-        sendCommand(childId, CommandType.UNLOCK_NOW)
+        sendCommand(childId, CommandType.UNLOCK_DEVICE)
     }
 
     fun sendVibrateDevice(childId: String) {
-        sendCommand(childId, CommandType.SOUND_SIREN) // Mapping to siren for vibrate in mock/MVP
+        sendCommand(childId, CommandType.VIBRATE_DEVICE)
     }
 
     fun sendShowMessage(childId: String, message: String) {
@@ -32,13 +32,22 @@ class RemoteCommandRepository(private val syncProvider: RemoteSyncProvider) {
 
     private fun sendCommand(childId: String, type: CommandType, payload: String? = null) {
         if (childId.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val expiryDuration = when (type) {
+            CommandType.REFRESH_LOCATION,
+            CommandType.RING_DEVICE,
+            CommandType.VIBRATE_DEVICE -> 2 * 60 * 1000L
+            CommandType.SHOW_MESSAGE -> 10 * 60 * 1000L
+            else -> 5 * 60 * 1000L
+        }
         val command = SyncRemoteCommand(
             commandId = java.util.UUID.randomUUID().toString(),
             childId = childId,
             commandType = type,
             payload = payload,
             status = com.example.kidsguard.sync.CommandStatus.PENDING,
-            createdAt = System.currentTimeMillis()
+            createdAt = now,
+            expiresAt = now + expiryDuration
         )
         syncProvider.sendCommand(command)
     }
