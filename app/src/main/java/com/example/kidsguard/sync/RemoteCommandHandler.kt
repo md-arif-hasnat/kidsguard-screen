@@ -50,8 +50,8 @@ class RemoteCommandHandler(
             return
         }
 
-        // Update status to EXECUTING
-        syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.EXECUTING)
+        // FirebaseRemoteSyncProvider atomically marks the command DELIVERED
+        // before invoking this handler, preventing duplicate execution.
         _lastCommandReceived.value = "${command.commandType} (${command.commandId})"
         
         try {
@@ -115,12 +115,20 @@ class RemoteCommandHandler(
                     logActivity("REMOTE_VIBRATE", "Device Vibrated", "Parent triggered vibration")
                 }
                 else -> {
-                    Log.w(TAG, "Unhandled command type: ${command.commandType}")
+                    throw IllegalArgumentException(
+                        "Unsupported command type: ${command.commandType}"
+                    )
                 }
             }
-            _lastExecutionResult.value = "SUCCESS: ${command.commandType}"
+            val result = "${command.commandType} applied successfully"
+            _lastExecutionResult.value = "APPLIED: ${command.commandType}"
             Log.d(TAG, "Command completed successfully: ${command.commandId}")
-            syncProvider.updateCommandStatus(command.childId, command.commandId, CommandStatus.SUCCESS)
+            syncProvider.updateCommandStatus(
+                command.childId,
+                command.commandId,
+                CommandStatus.APPLIED,
+                result
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to execute command", e)
             _lastExecutionResult.value = "FAILED: ${e.message}"
