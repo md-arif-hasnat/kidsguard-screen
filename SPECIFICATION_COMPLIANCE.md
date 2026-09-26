@@ -91,7 +91,7 @@ Status legend:
 | Safe-zone enter/exit alert | Partial | Trigger exists; deployment/device validation required. |
 | Low-battery alert | Partial | Status trigger exists; threshold/settings/device tests required. |
 | Device-offline alert | Partial | Scheduled Function exists; deploy and duplicate tests required. |
-| Sync-error alert | Missing | Define critical error threshold and notify parent. |
+| Sync-error alert | Device test | v1.0.57 alerts once when app usage, YouTube, or browser sync reaches 3 consecutive failures; recovery resets the incident. |
 | App-update alert | Partial | In-app update prompt exists; parent notification is incomplete. |
 | Parent alert preferences | Partial | Settings exist for some types; complete type mapping. |
 | Notification history | Partial | Backend records exist only when Functions run. |
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.56 current. |
+| versionCode/versionName discipline | Complete | v1.0.57 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
