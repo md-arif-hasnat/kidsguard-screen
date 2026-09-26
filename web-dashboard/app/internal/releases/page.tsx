@@ -513,12 +513,17 @@ export default function ReleaseManager() {
                           </div>
                       ) : (
                           history.map(rel => {
-                              console.log("RELEASE_UI_DEBUG: rendering release id", rel.id);
+                              const lifecycle = rel.status || 'PUBLISHED';
+                              const isActive =
+                                  currentConfig?.latestVersionCode ===
+                                  rel.latestVersionCode;
+                              const isChanging =
+                                  changingReleaseId === rel.id;
                               return (
                                   <div key={rel.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-rose-500/50 transition-all group">
                                       <div className="flex justify-between items-start mb-2">
                                           <div>
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex flex-wrap items-center gap-2">
                                                   <p className="font-black text-xs">v{rel.latestVersionName || "Unknown"}</p>
                                                   <span className={clsx(
                                                       "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
@@ -526,15 +531,73 @@ export default function ReleaseManager() {
                                                   )}>
                                                       {rel.releaseChannel || "stable"}
                                                   </span>
+                                                  <span className={clsx(
+                                                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                                                      lifecycle === 'PUBLISHED'
+                                                          ? "bg-blue-500/10 text-blue-400"
+                                                          : lifecycle === 'TESTING'
+                                                            ? "bg-amber-500/10 text-amber-400"
+                                                            : lifecycle === 'DEPRECATED'
+                                                              ? "bg-slate-700 text-slate-400"
+                                                              : "bg-violet-500/10 text-violet-400"
+                                                  )}>
+                                                      {lifecycle}
+                                                  </span>
+                                                  {isActive && (
+                                                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950">
+                                                          Active
+                                                      </span>
+                                                  )}
                                               </div>
                                               <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
                                           </div>
                                           <div className="flex gap-2">
                                               {rel.mandatoryUpdate && <ShieldAlert size={14} className="text-rose-500" />}
-                                              <a href={rel.apkDownloadUrl} target="_blank" className="text-slate-600 hover:text-rose-500 transition-colors">
+                                              <a
+                                                  href={rel.apkDownloadUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-slate-600 hover:text-rose-500 transition-colors"
+                                              >
                                                   <ExternalLink size={14} />
                                               </a>
                                           </div>
+                                      </div>
+
+                                      <div className="flex flex-wrap gap-2 mt-3">
+                                          {lifecycle === 'DRAFT' && (
+                                              <button
+                                                  type="button"
+                                                  disabled={isChanging || !canManage}
+                                                  onClick={() => handleStatusChange(rel, 'TESTING')}
+                                                  className="text-[8px] font-black uppercase px-2 py-1 rounded bg-amber-500/10 text-amber-400 disabled:opacity-40"
+                                              >
+                                                  Move to Testing
+                                              </button>
+                                          )}
+                                          {(lifecycle === 'DRAFT' || lifecycle === 'TESTING') && (
+                                              <button
+                                                  type="button"
+                                                  disabled={isChanging || !canPublish}
+                                                  onClick={() => handleStatusChange(rel, 'PUBLISHED')}
+                                                  className="text-[8px] font-black uppercase px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 disabled:opacity-40"
+                                              >
+                                                  Publish
+                                              </button>
+                                          )}
+                                          {lifecycle !== 'DEPRECATED' && !isActive && (
+                                              <button
+                                                  type="button"
+                                                  disabled={isChanging || !canManage}
+                                                  onClick={() => handleStatusChange(rel, 'DEPRECATED')}
+                                                  className="text-[8px] font-black uppercase px-2 py-1 rounded bg-slate-800 text-slate-400 disabled:opacity-40"
+                                              >
+                                                  Deprecate
+                                              </button>
+                                          )}
+                                          {isChanging && (
+                                              <Loader2 className="animate-spin text-rose-500" size={14} />
+                                          )}
                                       </div>
                                   </div>
                               );
