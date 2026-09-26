@@ -283,7 +283,10 @@ class UpdateRepository(private val context: Context) {
                     )
                 }
 
-                val identityError = verifyApkIdentity(apkFile)
+                val identityError = verifyApkIdentity(
+                    apkFile,
+                    info.latestVersionCode
+                )
                 if (identityError != null) {
                     manager.remove(downloadId)
                     throw SecurityException(identityError)
@@ -370,7 +373,10 @@ class UpdateRepository(private val context: Context) {
         }
     }
 
-    private fun verifyApkIdentity(apkFile: File): String? {
+    private fun verifyApkIdentity(
+        apkFile: File,
+        expectedVersionCode: Long
+    ): String? {
         val archiveInfo = context.packageManager.getPackageArchiveInfo(
             apkFile.absolutePath,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -384,6 +390,22 @@ class UpdateRepository(private val context: Context) {
         if (archiveInfo.packageName != context.packageName) {
             return "APK package identity does not match KidsGuard. " +
                 "Installation was blocked."
+        }
+
+        val archiveVersionCode = if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        ) {
+            archiveInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            archiveInfo.versionCode.toLong()
+        }
+        if (archiveVersionCode != expectedVersionCode) {
+            return "APK version does not match the published release. " +
+                "Installation was blocked."
+        }
+        if (archiveVersionCode <= getCurrentVersionCode().toLong()) {
+            return "The downloaded APK is not newer than the installed app."
         }
 
         val installedInfo = try {
