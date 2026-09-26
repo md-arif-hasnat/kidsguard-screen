@@ -150,6 +150,12 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getBoolean("schedule_enabled", false)
         set(value) = prefs.edit().putBoolean("schedule_enabled", value).apply()
 
+    var isScheduleWindowActive: Boolean
+        get() = prefs.getBoolean("schedule_window_active", false)
+        set(value) = prefs.edit()
+            .putBoolean("schedule_window_active", value)
+            .apply()
+
     var scheduleStartTime: String
         get() = prefs.getString("schedule_start", "20:00") ?: "20:00"
         set(value) = prefs.edit().putString("schedule_start", value).apply()
