@@ -253,48 +253,86 @@ export default function ChildDashboard() {
         return;
     }
 
-    const unsubStatus = ChildRepository.listenToChildStatus(childId, setStatus);
+    return ChildRepository.listenToChildStatus(childId, setStatus);
+  }, [childId, profileLoading, family?.familyId]);
 
-    const unsubOfflineAlert =
-      ChildRepository.listenToOfflineAlertSettings(
-        childId,
-        setOfflineAlertSettings
+  useEffect(() => {
+    if (!isFirebaseConfigured || !childId) return;
+    if (!profileLoading && !isChildAccessible(childId)) return;
+
+    const unsubscribers: Array<() => void> = [];
+    const familyId = family?.familyId;
+
+    if (activeTab === 'overview') {
+      unsubscribers.push(
+        ChildRepository.listenToOfflineAlertSettings(
+          childId,
+          setOfflineAlertSettings
+        ),
+        LocationRepository.listenToLatestLocation(childId, setLocation),
+        ActivityRepository.listenToActivity(childId, setActivities),
+        DailySummaryRepository.listenToLatestSummary(childId, setSummary),
+        LocationRepository.listenToLocationHistory(childId, setRouteHistory),
+        DeviationRepository.listenToDeviations(childId, setDeviations)
       );
 
-    const unsubLocation = LocationRepository.listenToLatestLocation(childId, (loc) => {
-        console.log(`WEB DEBUG: Received child location for ${childId}:`, loc);
-        setLocation(loc);
-    });
-    const unsubActivity = ActivityRepository.listenToActivity(childId, setActivities);
-    const unsubSummary = DailySummaryRepository.listenToLatestSummary(childId, setSummary);
-    const unsubHistory = LocationRepository.listenToLocationHistory(childId, setRouteHistory);
-    const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
-    const unsubAnalytics = AnalyticsRepository.listenToDailyAnalytics(childId, selectedDate, setAnalytics);
+      if (familyId) {
+        unsubscribers.push(
+          SafeZoneRepository.listenToChildSafeZones(
+            childId,
+            familyId,
+            setSafeZones
+          )
+        );
+      }
+    }
 
-    const familyId = family?.familyId;
-    if (!familyId) return;
+    if (activeTab === 'intelligence') {
+      unsubscribers.push(
+        DailySummaryRepository.listenToLatestSummary(childId, setSummary),
+        AnalyticsRepository.listenToDailyAnalytics(
+          childId,
+          selectedDate,
+          setAnalytics
+        )
+      );
+    }
 
-    const unsubZones = SafeZoneRepository.listenToChildSafeZones(childId, familyId, setSafeZones);
+    if (activeTab === 'internet') {
+      unsubscribers.push(
+        WebProtectionRepository.listenToWebRules(childId, setWebRules),
+        WebProtectionRepository.listenToWebActivity(
+          childId,
+          selectedDate,
+          setWebActivity
+        ),
+        WebProtectionRepository.listenToAccessRequests(
+          childId,
+          setWebRequests
+        )
+      );
+    }
 
-    const unsubWebRules = WebProtectionRepository.listenToWebRules(childId, setWebRules);
-    const unsubWebActivity = WebProtectionRepository.listenToWebActivity(childId, selectedDate, setWebActivity);
-    const unsubWebRequests = WebProtectionRepository.listenToAccessRequests(childId, setWebRequests);
+    if (activeTab === 'modes' && familyId) {
+      unsubscribers.push(
+        SafeZoneRepository.listenToChildSafeZones(
+          childId,
+          familyId,
+          setSafeZones
+        )
+      );
+    }
 
     return () => {
-      unsubStatus();
-      unsubOfflineAlert();
-      unsubLocation();
-      unsubActivity();
-      unsubSummary();
-      unsubHistory();
-      unsubDeviations();
-      unsubZones();
-      unsubAnalytics();
-      unsubWebRules();
-      unsubWebActivity();
-      unsubWebRequests();
+      unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [childId, selectedDate, family?.familyId]);
+  }, [
+    activeTab,
+    childId,
+    selectedDate,
+    family?.familyId,
+    profileLoading
+  ]);
 
   const canControl = RoleHelper.canSendRemoteCommands(role);
   const canManageWellbeing = RoleHelper.canManageChildren(role);
