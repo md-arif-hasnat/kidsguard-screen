@@ -5,7 +5,7 @@ import com.google.firebase.Timestamp
 
 enum class SyncPlatform { ANDROID, IOS }
 enum class SyncRole { PARENT, CHILD }
-enum class CommandStatus { PENDING, EXECUTING, SUCCESS, FAILED, EXPIRED }
+enum class CommandStatus { PENDING, DELIVERED, APPLIED, FAILED, EXPIRED }
 enum class CommandType {
     REFRESH_LOCATION,
     RING_DEVICE,
