@@ -83,6 +83,7 @@ class LockScheduleManager(
 
     private fun clearDisabledScheduleLock(wasScheduleEnabled: Boolean) {
         prefHelper.scheduleUnlockOverrideUntil = 0L
+        prefHelper.isScheduleWindowActive = false
 
         val isKnownScheduleLock =
             prefHelper.lockReason == LockReason.SCHEDULE
@@ -113,6 +114,7 @@ class LockScheduleManager(
         if (currentSchedule == null || !currentSchedule.enabled) {
             Log.d(TAG, "Schedule disabled or null")
             prefHelper.scheduleUnlockOverrideUntil = 0L
+            prefHelper.isScheduleWindowActive = false
             if (prefHelper.lockReason == LockReason.SCHEDULE) {
                 unlockDevice()
             }
@@ -128,6 +130,7 @@ class LockScheduleManager(
         )
 
         if (activeWindow != null) {
+            prefHelper.isScheduleWindowActive = true
             prefHelper.scheduleEndTime =
                 minutesToTime(activeWindow.endMinutes)
 
@@ -145,6 +148,7 @@ class LockScheduleManager(
             lockDevice()
         } else {
             prefHelper.scheduleUnlockOverrideUntil = 0L
+            prefHelper.isScheduleWindowActive = false
             if (prefHelper.lockReason == LockReason.SCHEDULE) {
                 unlockDevice()
             }
@@ -280,6 +284,11 @@ class LockScheduleManager(
             prefHelper.isLocked = true
             prefHelper.lockReason = LockReason.SCHEDULE
             onLockRequested?.invoke()
+        } else if (prefHelper.lockReason == LockReason.NONE) {
+            // Repair legacy/unknown locks while an actual bedtime window is
+            // active so the correct bedtime UI is shown.
+            Log.i(TAG, "Adopting legacy lock as SCHEDULE lock")
+            prefHelper.lockReason = LockReason.SCHEDULE
         }
     }
 
