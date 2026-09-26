@@ -201,7 +201,7 @@ Status legend:
 | Device health/support context | Partial | Consolidated diagnostics incomplete. |
 | Audit logs | Partial | Complete admin-action logging and viewer. |
 | Support tools | Partial | Ticket routes exist; attachment/reply lifecycle requires E2E test. |
-| Release management | Partial | Internal release UI exists; signed artifact workflow incomplete. |
+| Release management | Device test | Internal dashboard now supports audited Draft, Testing, Published, and Deprecated transitions; signed artifact creation remains external. |
 | Strict admin access | Partial | Audit middleware/layout plus backend/rules enforcement. |
 
 ## 15. App Update and Release Management
@@ -211,7 +211,7 @@ Status legend:
 | versionCode/versionName discipline | Complete | v1.0.54 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
-| Internal release states | Partial | UI exists; Draft/Testing/Published/Deprecated lifecycle incomplete. |
+| Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
 | Periodic update check and popup | Complete | Device test required. |
 | Optional versus mandatory update | Device test | v1.0.54 keeps optional releases dismissible, blocks mandatory dismissal/clear, persists the gate across restart/offline use, and exposes retry after failure. |
 | Trusted APK/signature/hash | Device test | v1.0.53 release manager requires SHA-256 and Android verifies hash, package name, and signing-certificate continuity before install. |
@@ -286,7 +286,7 @@ Status legend:
 | Fresh install and upgrade tests | Device test | Preserve pairing/settings/pending data. |
 | Regression suite | Partial | Formal automated smoke suite required. |
 | Version/build/install/release workflow | Partial | Build is manual; signed release and CI gates incomplete. |
-| GitHub release/internal metadata | Partial | Manual and not yet gated by QA evidence. |
+| GitHub release/internal metadata | Partial | Internal metadata is lifecycle-gated and audited; GitHub artifact upload and formal QA evidence remain manual. |
 
 ## Release Gates
 
