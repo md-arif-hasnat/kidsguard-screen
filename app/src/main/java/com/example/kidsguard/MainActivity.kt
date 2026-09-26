@@ -385,7 +385,12 @@ class MainActivity : ComponentActivity() {
                             webManager.requestAccess(url)
                         },
                         remoteMessage = remoteMessage.value,
-                        remoteCommandMode = remoteCommandMode.value
+                        remoteCommandMode = remoteCommandMode.value,
+                        onLockedScreenUnlock = {
+                            lockScheduleManager.handleManualUnlock()
+                            currentScreenState.value = Screen.Home
+                            childStatusManager.updateStatus()
+                        }
                     )
                 }
             }
