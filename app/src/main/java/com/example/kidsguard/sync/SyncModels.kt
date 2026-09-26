@@ -79,6 +79,14 @@ data class SyncChildStatus(
     var lastSyncFailureAt: Long = 0L,
     var lastSuccessfulDataSyncAt: Long = 0L,
     var syncErrorMessage: String? = null,
+    var locationPermissionGranted: Boolean = false,
+    var backgroundLocationPermissionGranted: Boolean = false,
+    var usageAccessGranted: Boolean = false,
+    var overlayPermissionGranted: Boolean = false,
+    var accessibilityPermissionGranted: Boolean = false,
+    var batteryOptimizationExempt: Boolean = false,
+    var notificationPermissionGranted: Boolean = false,
+    var microphonePermissionGranted: Boolean = false,
     var predictions: SyncPredictions? = null
 )
 
