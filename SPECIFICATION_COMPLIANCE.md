@@ -44,7 +44,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| Usage Access onboarding/status | Partial | Dashboard must show unavailable/stale state instead of misleading zero. |
+| Usage Access onboarding/status | Device test | v1.0.50 reports permission state; Wellbeing distinguishes unavailable, stale, and not-yet-reported usage instead of presenting zero as authoritative. |
 | Installed-app inventory | Complete | v1.0.37+ repair scan; real-device regression required. |
 | Daily total screen time | Device test | Real today, yesterday, and recorded-day 7-day average are implemented; historical child-device data requires validation. |
 | Per-app usage duration | Complete | v1.0.38 writes dashboard-compatible app documents. |
