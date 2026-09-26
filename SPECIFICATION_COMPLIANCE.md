@@ -162,7 +162,7 @@ Status legend:
 | Battery and charging | Complete | Device tests. |
 | Network status | Complete | Device tests. |
 | Service/tracking status | Complete | Improve stale-state handling. |
-| Permission status | Partial | Some status exists; Usage/Notification/background/battery fields need full coverage. |
+| Permission status | Device test | v1.0.50 reports eight child permission states, including Usage, Accessibility, Notification, background location, overlay, microphone, and battery exemption. |
 | Sync failure warning | Device test | v1.0.49 tracks consecutive app-usage, YouTube, and browser sync failures and shows a self-clearing parent dashboard warning. |
 | App/update version | Complete | Hardcoded status version fixed in v1.0.38. |
 | Device diagnostics | Partial | v1.0.49 adds shared data-sync health to the device-health view; broader diagnostics remain distributed. |
