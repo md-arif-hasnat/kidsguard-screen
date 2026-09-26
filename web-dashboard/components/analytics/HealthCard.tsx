@@ -16,7 +16,8 @@ import {
     Signal,
     AlertTriangle,
     ShieldCheck,
-    ShieldAlert
+    ShieldAlert,
+    RefreshCw
 } from 'lucide-react';
 import { ChildStatus } from '@/lib/repositories/ChildRepository';
 import { clsx } from 'clsx';
@@ -48,6 +49,8 @@ export default function HealthCard({ status }: HealthCardProps) {
     ] as const;
     const permissionsReported = permissions.some(([, granted]) => typeof granted === 'boolean');
     const missingPermissionCount = permissions.filter(([, granted]) => granted === false).length;
+    const syncStatusReported = typeof status.syncHealthy === 'boolean';
+    const lastSuccessfulSync = Number(status.lastSuccessfulDataSyncAt || 0);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -177,6 +180,54 @@ export default function HealthCard({ status }: HealthCardProps) {
                 </div>
             </div>
 
+            {/* Data sync diagnostics */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 md:col-span-2 lg:col-span-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <RefreshCw size={18} className="text-primary-600" />
+                        Data Sync
+                    </h3>
+                    <span className={clsx(
+                        "w-fit rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider",
+                        !syncStatusReported
+                            ? "bg-slate-100 text-slate-500"
+                            : status.syncHealthy
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-amber-50 text-amber-700"
+                    )}>
+                        {!syncStatusReported
+                            ? 'Awaiting child update'
+                            : status.syncHealthy
+                            ? 'Healthy'
+                            : 'Needs attention'}
+                    </span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <SyncDetail
+                        label="Last successful data sync"
+                        value={lastSuccessfulSync > 0
+                            ? new Date(lastSuccessfulSync).toLocaleString()
+                            : syncStatusReported
+                            ? 'Waiting for first sync'
+                            : 'Unknown'}
+                    />
+                    <SyncDetail
+                        label="Consecutive failures"
+                        value={syncStatusReported
+                            ? String(status.syncFailureCount || 0)
+                            : 'Unknown'}
+                    />
+                    <SyncDetail
+                        label="Affected source"
+                        value={status.syncFailureSource
+                            ? status.syncFailureSource.replace(/_/g, ' ')
+                            : syncStatusReported
+                            ? 'None'
+                            : 'Unknown'}
+                    />
+                </div>
+            </div>
+
             {/* Device Info */}
             <div className="lg:col-span-3 bg-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row justify-between items-center gap-8 shadow-xl shadow-slate-900/20">
                 <div className="flex items-center gap-6">
@@ -210,6 +261,19 @@ export default function HealthCard({ status }: HealthCardProps) {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function SyncDetail({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                {label}
+            </p>
+            <p className="mt-1 break-words text-sm font-black text-slate-800">
+                {value}
+            </p>
         </div>
     );
 }
