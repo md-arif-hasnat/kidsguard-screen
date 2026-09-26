@@ -26,6 +26,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 class WellbeingManager(
@@ -161,6 +162,14 @@ class WellbeingManager(
 
                 Log.i("AppBlock", "Blocking $packageName: Static block from appControls")
                 return AppBlockReason.STATIC_BLOCK
+            }
+
+            if (isControlScheduleActive(control)) {
+                Log.i(
+                    "AppSchedule",
+                    "Blocking $packageName: Active per-app schedule"
+                )
+                return AppBlockReason.SCHEDULE
             }
 
             if (control.dailyLimitMinutes != null) {
@@ -342,6 +351,44 @@ class WellbeingManager(
             }
 
         return false
+    }
+
+    private fun isControlScheduleActive(
+        control: com.example.kidsguard.sync.SyncAppControl
+    ): Boolean {
+        if (!control.scheduleEnabled || control.scheduleDays.isEmpty()) {
+            return false
+        }
+
+        val timezone = control.scheduleTimezone
+            .takeIf { it.isNotBlank() }
+            ?.let(TimeZone::getTimeZone)
+            ?: TimeZone.getDefault()
+        val now = Calendar.getInstance(timezone)
+        val day = now.get(Calendar.DAY_OF_WEEK)
+        val minute = now.get(Calendar.HOUR_OF_DAY) * 60 +
+            now.get(Calendar.MINUTE)
+        val start = control.scheduleStartMinutes.coerceIn(0, 1439)
+        val end = control.scheduleEndMinutes.coerceIn(0, 1439)
+
+        if (start == end) {
+            return control.scheduleDays.contains(day)
+        }
+        if (start < end) {
+            return control.scheduleDays.contains(day) &&
+                minute in start until end
+        }
+
+        // Overnight window: e.g. Monday 21:00 until Tuesday 07:00.
+        if (minute >= start) {
+            return control.scheduleDays.contains(day)
+        }
+        val previousDay = if (day == Calendar.SUNDAY) {
+            Calendar.SATURDAY
+        } else {
+            day - 1
+        }
+        return minute < end && control.scheduleDays.contains(previousDay)
     }
 
     private fun isEmergencyApp(packageName: String): Boolean {
