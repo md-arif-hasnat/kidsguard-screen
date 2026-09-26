@@ -12,6 +12,7 @@ export interface UpdateConfig {
   updateMessage: string;
   releasedAt: any;
   fileSize: string;
+  apkSha256: string;
   minimumAndroidVersion: string;
   releaseNotes: string | string[]; // Support both formats
   webVersion?: string;
