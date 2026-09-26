@@ -31,6 +31,7 @@ export default function ReleaseManager() {
   const [versionCode, setVersionCode] = useState(1);
   const [versionName, setVersionName] = useState('1.0.0');
   const [apkUrl, setApkUrl] = useState('');
+  const [apkSha256, setApkSha256] = useState('');
   const [mandatory, setMandatory] = useState(false);
   const [channel, setChannel] = useState<ReleaseChannel>('stable');
   const [message, setMessage] = useState('New version available. Please update for the best experience.');
@@ -70,6 +71,7 @@ export default function ReleaseManager() {
           setVersionCode(active.latestVersionCode + 1);
           setVersionName(active.latestVersionName);
           setApkUrl(active.apkDownloadUrl);
+          setApkSha256(active.apkSha256 || '');
           setMandatory(active.mandatoryUpdate);
           setChannel(active.releaseChannel);
           setMessage(active.updateMessage);
@@ -104,6 +106,7 @@ export default function ReleaseManager() {
         return `Version Code must be greater than current (${currentConfig.latestVersionCode}).`;
     }
     if (!apkUrl.startsWith("https://")) return "APK Download URL must start with https://";
+    if (!/^[a-fA-F0-9]{64}$/.test(apkSha256.trim())) return "A valid 64-character APK SHA-256 is required.";
     return null;
   };
 
@@ -125,6 +128,7 @@ export default function ReleaseManager() {
         latestVersionCode: versionCode,
         latestVersionName: versionName,
         apkDownloadUrl: apkUrl,
+        apkSha256: apkSha256.trim().toLowerCase(),
         mandatoryUpdate: mandatory,
         releaseChannel: channel,
         updateMessage: message,
@@ -250,6 +254,18 @@ export default function ReleaseManager() {
                                   onChange={e => setApkUrl(e.target.value)}
                                   placeholder="https://github.com/.../release.apk"
                                   className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
+                              />
+                          </div>
+                          <div className="space-y-1.5 md:col-span-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">APK SHA-256</label>
+                              <input
+                                  type="text"
+                                  value={apkSha256}
+                                  onChange={e => setApkSha256(e.target.value.replace(/\s/g, ''))}
+                                  placeholder="64-character SHA-256 checksum"
+                                  maxLength={64}
+                                  spellCheck={false}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-mono text-xs text-white"
                               />
                           </div>
                           <div className="space-y-1.5">
