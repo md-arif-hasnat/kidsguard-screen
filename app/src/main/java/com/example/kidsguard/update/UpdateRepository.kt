@@ -1,5 +1,6 @@
 package com.example.kidsguard.update
 
+import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -7,12 +8,22 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
 
 import com.example.kidsguard.data.PreferenceHelper
 
@@ -20,6 +31,7 @@ class UpdateRepository(private val context: Context) {
 
     private val db = FirebaseFirestore.getInstance()
     private val prefs = PreferenceHelper(context)
+    private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _updateState = MutableStateFlow(
         AppUpdateState(
             currentVersionName = getCurrentVersionName(),
@@ -177,6 +189,202 @@ class UpdateRepository(private val context: Context) {
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to open update URL: $url", e)
+        }
+    }
+
+    fun downloadAndInstallUpdate(info: AppUpdateInfo) {
+        if (_updateState.value.isDownloading) return
+
+        val downloadUri = Uri.parse(info.apkDownloadUrl.trim())
+        if (
+            downloadUri.scheme?.lowercase() != "https" ||
+            downloadUri.host.isNullOrBlank()
+        ) {
+            failDownload(
+                "The update URL is not secure. Installation was blocked."
+            )
+            return
+        }
+
+        val expectedHash = info.apkSha256.trim().lowercase()
+        if (!expectedHash.matches(Regex("^[a-f0-9]{64}$"))) {
+            failDownload(
+                "This release has no valid SHA-256 checksum. " +
+                    "Installation was blocked for safety."
+            )
+            return
+        }
+
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            val permissionIntent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            context.startActivity(permissionIntent)
+            failDownload(
+                "Allow installs from KidsGuard, then tap Update Now again."
+            )
+            return
+        }
+
+        updateScope.launch {
+            try {
+                val manager = context.getSystemService(
+                    Context.DOWNLOAD_SERVICE
+                ) as DownloadManager
+                val fileName =
+                    "KidsGuard-v${info.latestVersionName}.apk"
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                    ?.let { File(it, fileName) }
+                    ?.takeIf { it.exists() }
+                    ?.delete()
+
+                val request = DownloadManager.Request(downloadUri)
+                    .setTitle("KidsGuard ${info.latestVersionName}")
+                    .setDescription("Downloading verified update")
+                    .setMimeType("application/vnd.android.package-archive")
+                    .setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE
+                    )
+                    .setDestinationInExternalFilesDir(
+                        context,
+                        Environment.DIRECTORY_DOWNLOADS,
+                        fileName
+                    )
+
+                val downloadId = manager.enqueue(request)
+                _updateState.value = _updateState.value.copy(
+                    isDownloading = true,
+                    downloadProgress = 0,
+                    downloadError = null
+                )
+
+                awaitDownload(manager, downloadId)
+                val uri = manager.getUriForDownloadedFile(downloadId)
+                    ?: throw IllegalStateException(
+                        "Downloaded APK could not be opened"
+                    )
+                val actualHash = sha256(uri)
+
+                if (!actualHash.equals(expectedHash, ignoreCase = true)) {
+                    manager.remove(downloadId)
+                    throw SecurityException(
+                        "APK integrity check failed. The downloaded file was removed."
+                    )
+                }
+
+                _updateState.value = _updateState.value.copy(
+                    isDownloading = false,
+                    downloadProgress = 100,
+                    downloadError = null
+                )
+
+                withContext(Dispatchers.Main) {
+                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(
+                            uri,
+                            "application/vnd.android.package-archive"
+                        )
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(installIntent)
+                }
+            } catch (error: Exception) {
+                Log.e(TAG, "Secure update failed", error)
+                failDownload(
+                    error.message ?: "Update download failed"
+                )
+            }
+        }
+    }
+
+    private suspend fun awaitDownload(
+        manager: DownloadManager,
+        downloadId: Long
+    ) {
+        while (true) {
+            manager.query(
+                DownloadManager.Query().setFilterById(downloadId)
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) {
+                    throw IllegalStateException("Download disappeared")
+                }
+                val status = cursor.getInt(
+                    cursor.getColumnIndexOrThrow(
+                        DownloadManager.COLUMN_STATUS
+                    )
+                )
+                val downloaded = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(
+                        DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR
+                    )
+                )
+                val total = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(
+                        DownloadManager.COLUMN_TOTAL_SIZE_BYTES
+                    )
+                )
+                val progress = if (total > 0) {
+                    ((downloaded * 100) / total).toInt().coerceIn(0, 99)
+                } else {
+                    0
+                }
+                _updateState.value = _updateState.value.copy(
+                    isDownloading = true,
+                    downloadProgress = progress,
+                    downloadError = null
+                )
+
+                when (status) {
+                    DownloadManager.STATUS_SUCCESSFUL -> return
+                    DownloadManager.STATUS_FAILED -> {
+                        val reason = cursor.getInt(
+                            cursor.getColumnIndexOrThrow(
+                                DownloadManager.COLUMN_REASON
+                            )
+                        )
+                        throw IllegalStateException(
+                            "APK download failed (reason $reason)"
+                        )
+                    }
+                }
+            }
+            delay(500)
+        }
+    }
+
+    private fun sha256(uri: Uri): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        context.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Downloaded APK could not be read" }
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") {
+            "%02x".format(it)
+        }
+    }
+
+    private fun failDownload(message: String) {
+        _updateState.value = _updateState.value.copy(
+            isDownloading = false,
+            downloadProgress = 0,
+            downloadError = message
+        )
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                context,
+                message,
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
     }
 }
