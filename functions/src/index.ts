@@ -600,6 +600,46 @@ export const onStatusChanged = functions.firestore
     });
 
 /**
+ * Alerts parents when a child data source reaches the critical sync-failure
+ * threshold. The threshold transition makes this one notification per
+ * incident; a successful sync resets the child-side counter to zero.
+ */
+export const onCriticalSyncFailure = functions.firestore
+    .document('children/{childId}/status/current')
+    .onWrite(async (change, context) => {
+        const after = change.after.data();
+        if (!after) return;
+
+        const before = change.before.exists ? change.before.data() : undefined;
+        const { childId } = context.params;
+        const failureCount = Number(after.syncFailureCount || 0);
+        const previousFailureCount = Number(before?.syncFailureCount || 0);
+        const isCritical = after.syncHealthy === false && failureCount >= 3;
+        const wasCritical = before?.syncHealthy === false && previousFailureCount >= 3;
+
+        if (!isCritical || wasCritical) return;
+
+        const childName = String(after.childName || 'Child');
+        const rawSource = String(after.syncFailureSource || 'DATA');
+        const sourceNames: Record<string, string> = {
+            APP_USAGE: 'app usage',
+            YOUTUBE: 'YouTube history',
+            BROWSER: 'browser history'
+        };
+        const sourceName = sourceNames[rawSource] || 'data';
+        const failureAt = Number(after.lastSyncFailureAt || Date.now());
+
+        await broadcastToParents(childId, {
+            title: `Sync problem on ${childName}'s device`,
+            body: `${sourceName} failed to sync ${failureCount} times. Open Device Health for details.`,
+            type: 'SYNC_ERROR',
+            childId,
+            eventId: `sync-error-${childId}-${failureAt}`,
+            clickAction: `/dashboard/${childId}?tab=overview#device-health`
+        });
+    });
+
+/**
  * Triggered when a new family invitation is created.
  */
 export const onInviteCreated = functions.firestore
@@ -721,7 +761,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1125,6 +1165,9 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'SOS_RESOLVED': 'sos',
         'BATTERY': 'battery',
         'DEVICE': 'deviceStatus',
+        'DEVICE_OFFLINE': 'deviceStatus',
+        'DEVICE_BACK_ONLINE': 'deviceStatus',
+        'SYNC_ERROR': 'deviceStatus',
         'PERMISSION_CHANGE_REQUEST': 'deviceStatus',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
@@ -4323,4 +4366,3 @@ export const onFamilyMembershipSync =
         await batch.commit();
       }
     });
-
