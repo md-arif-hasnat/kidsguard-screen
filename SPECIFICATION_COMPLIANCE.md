@@ -63,7 +63,7 @@ Status legend:
 | Time-based schedules | Partial | Lock schedule exists; per-app schedule enforcement is incomplete. |
 | Bedtime schedule | Device test | v1.0.46 supports independent weekday/weekend overnight windows; real-device boundary test required. |
 | Weekday/weekend rules | Device test | v1.0.46 adds separate weekday and weekend lock windows with midnight rollover enforcement. |
-| Temporary unlock | Partial | Remote unlock exists; expiry/relock semantics require completion. |
+| Temporary unlock | Device test | v1.0.51 makes parent/PIN unlock override the active bedtime window until it ends and prevents immediate schedule relock. |
 | Per-child rules | Partial | Data is child-scoped; full role/rules test coverage required. |
 | Limit-reached parent notification | Complete | v1.0.40 deduplicated restriction event and FCM delivery verified. |
 
