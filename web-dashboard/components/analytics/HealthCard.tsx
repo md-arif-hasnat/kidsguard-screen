@@ -14,7 +14,9 @@ import {
     Database,
     Zap,
     Signal,
-    AlertTriangle
+    AlertTriangle,
+    ShieldCheck,
+    ShieldAlert
 } from 'lucide-react';
 import { ChildStatus } from '@/lib/repositories/ChildRepository';
 import { clsx } from 'clsx';
@@ -34,6 +36,18 @@ export default function HealthCard({ status }: HealthCardProps) {
 
     const storageUsage = status.storageTotalBytes ? (status.storageUsedBytes || 0) / status.storageTotalBytes : 0;
     const ramUsage = status.ramTotalBytes ? (status.ramUsedBytes || 0) / status.ramTotalBytes : 0;
+    const permissions = [
+        ['Location', status.locationPermissionGranted],
+        ['Background location', status.backgroundLocationPermissionGranted],
+        ['Usage access', status.usageAccessGranted],
+        ['Display overlay', status.overlayPermissionGranted],
+        ['Accessibility', status.accessibilityPermissionGranted],
+        ['Battery exemption', status.batteryOptimizationExempt],
+        ['Notifications', status.notificationPermissionGranted],
+        ['Microphone', status.microphonePermissionGranted]
+    ] as const;
+    const permissionsReported = permissions.some(([, granted]) => typeof granted === 'boolean');
+    const missingPermissionCount = permissions.filter(([, granted]) => granted === false).length;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -58,6 +72,46 @@ export default function HealthCard({ status }: HealthCardProps) {
                     </div>
                 </div>
             )}
+            <div className="md:col-span-2 lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                        {missingPermissionCount > 0 ? (
+                            <ShieldAlert size={19} className="text-rose-500" />
+                        ) : (
+                            <ShieldCheck size={19} className="text-emerald-500" />
+                        )}
+                        Permission Health
+                    </h3>
+                    <span className={clsx(
+                        "w-fit rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider",
+                        !permissionsReported
+                            ? "bg-slate-100 text-slate-500"
+                            : missingPermissionCount > 0
+                            ? "bg-rose-50 text-rose-700"
+                            : "bg-emerald-50 text-emerald-700"
+                    )}>
+                        {!permissionsReported
+                            ? 'Awaiting child update'
+                            : missingPermissionCount > 0
+                            ? `${missingPermissionCount} need attention`
+                            : 'All required access active'}
+                    </span>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {permissions.map(([label, granted]) => (
+                        <PermissionBadge
+                            key={label}
+                            label={label}
+                            granted={granted}
+                        />
+                    ))}
+                </div>
+                {missingPermissionCount > 0 && (
+                    <p className="mt-4 text-xs font-medium text-rose-600">
+                        Open KidsGuard on the child phone and restore the permissions marked Off.
+                    </p>
+                )}
+            </div>
             {/* Battery & Thermal */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -156,6 +210,40 @@ export default function HealthCard({ status }: HealthCardProps) {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function PermissionBadge({
+    label,
+    granted
+}: {
+    label: string;
+    granted: boolean | undefined;
+}) {
+    const unknown = typeof granted !== 'boolean';
+    return (
+        <div className={clsx(
+            "rounded-2xl border px-4 py-3",
+            unknown
+                ? "border-slate-100 bg-slate-50"
+                : granted
+                ? "border-emerald-100 bg-emerald-50"
+                : "border-rose-100 bg-rose-50"
+        )}>
+            <p className="truncate text-[10px] font-black uppercase tracking-wide text-slate-500">
+                {label}
+            </p>
+            <p className={clsx(
+                "mt-1 text-sm font-black",
+                unknown
+                    ? "text-slate-400"
+                    : granted
+                    ? "text-emerald-700"
+                    : "text-rose-700"
+            )}>
+                {unknown ? 'Unknown' : granted ? 'On' : 'Off'}
+            </p>
         </div>
     );
 }
