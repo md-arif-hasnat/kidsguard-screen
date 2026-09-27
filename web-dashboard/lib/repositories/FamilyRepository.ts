@@ -108,11 +108,14 @@ export interface FamilyData {
   deletionRequestedBy?: string;
 }
 
+export const PARENTAL_CONSENT_VERSION = "2026-09-27";
+
 export class FamilyRepository {
       private static async callAcceptPairingCode(
         familyId: string,
         pairingCode: string,
-        parentName: string
+        parentName: string,
+        parentalConsentAccepted: boolean
       ): Promise<{
         success: boolean;
         childId: string;
@@ -143,7 +146,9 @@ export class FamilyRepository {
               data: {
                 familyId,
                 pairingCode,
-                parentName
+                parentName,
+                parentalConsentAccepted,
+                parentalConsentVersion: PARENTAL_CONSENT_VERSION
               }
             })
           }
@@ -754,7 +759,12 @@ const updatedManagerUids =
     await updateDoc(familyRef, { emergencyContacts: updatedContacts });
   }
 
-  static async pairChild(familyId: string, pairingCode: string, parentName: string = "Parent"): Promise<boolean> {
+  static async pairChild(
+    familyId: string,
+    pairingCode: string,
+    parentName: string = "Parent",
+    parentalConsentAccepted: boolean = false
+  ): Promise<boolean> {
     if (!db) return false;
     //const parentUid = auth?.currentUser?.uid;
     const parentUid = auth?.currentUser?.uid;
@@ -770,7 +780,8 @@ const updatedManagerUids =
             await this.callAcceptPairingCode(
               familyId,
               pairingCode,
-              parentName
+              parentName,
+              parentalConsentAccepted
             );
 
           if (!result.success) {
