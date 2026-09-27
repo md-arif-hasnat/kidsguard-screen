@@ -92,7 +92,7 @@ Status legend:
 | Low-battery alert | Partial | Status trigger exists; threshold/settings/device tests required. |
 | Device-offline alert | Partial | Scheduled Function exists; deploy and duplicate tests required. |
 | Sync-error alert | Device test | v1.0.57 alerts once when app usage, YouTube, or browser sync reaches 3 consecutive failures; recovery resets the incident. |
-| App-update alert | Partial | In-app update prompt exists; parent notification is incomplete. |
+| App-update alert | Device test | v1.0.58 sends one parent history/push alert when a newer active release is published; Draft/Testing and same-version edits are ignored. |
 | Parent alert preferences | Partial | Settings exist for some types; complete type mapping. |
 | Notification history | Partial | Backend records exist only when Functions run. |
 | New-app-installed alert only after baseline | Complete | v1.0.39 flagging prevents baseline notifications; Function deployment required. |
@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.57 current. |
+| versionCode/versionName discipline | Complete | v1.0.58 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
