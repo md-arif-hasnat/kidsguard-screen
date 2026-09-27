@@ -8,7 +8,7 @@ import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
 import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone, MapPin, ShieldAlert } from 'lucide-react';
 import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
 import { observeAuth } from '@/lib/auth';
-import { FamilyRepository, FamilyData } from '@/lib/repositories/FamilyRepository';
+import { FamilyRepository, FamilyData, PARENTAL_CONSENT_VERSION } from '@/lib/repositories/FamilyRepository';
 import { User } from 'firebase/auth';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
@@ -31,6 +31,7 @@ export default function Home() {
   const [pairingCode, setPairingCode] = useState('');
   const [isPairing, setIsPairing] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
+  const [parentalConsentAccepted, setParentalConsentAccepted] = useState(false);
 
   const [showPairingForm, setShowPairingForm] = useState(false);
 
@@ -149,6 +150,10 @@ export default function Home() {
   const handlePairChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!family || !pairingCode) return;
+    if (!parentalConsentAccepted) {
+        setPairingError("Please provide parental consent before pairing this device.");
+        return;
+    }
     if (!RoleHelper.canInviteMembers(role) && !noChildrenPaired) {
         setPairingError("Permission Denied: You cannot pair devices.");
         return;
@@ -159,9 +164,15 @@ export default function Home() {
 
     try {
       const parentName = profile?.displayName || "Parent";
-      const success = await FamilyRepository.pairChild(family.familyId, pairingCode, parentName);
+      const success = await FamilyRepository.pairChild(
+        family.familyId,
+        pairingCode,
+        parentName,
+        parentalConsentAccepted
+      );
       if (success) {
         setPairingCode('');
+        setParentalConsentAccepted(false);
         setShowPairingForm(false);
         // Family listener will update UI
       } else {
@@ -304,9 +315,24 @@ export default function Home() {
                                         border-2"
                             maxLength={6}
                         />
+                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
+                            <input
+                                type="checkbox"
+                                checked={parentalConsentAccepted}
+                                onChange={(event) => setParentalConsentAccepted(event.target.checked)}
+                                className="mt-1 h-5 w-5 shrink-0 accent-primary-600"
+                            />
+                            <span className="text-xs leading-5 text-slate-600">
+                                I confirm that I am this child&apos;s parent or legal guardian and consent to KidsGuard monitoring this device, including location, app usage, web and YouTube activity, safety alerts, and parental controls. I have read the{' '}
+                                <a href="/privacy" target="_blank" className="font-bold text-primary-600 hover:underline">Privacy Policy</a>{' '}
+                                and{' '}
+                                <a href="/terms" target="_blank" className="font-bold text-primary-600 hover:underline">Terms</a>.
+                                <span className="mt-1 block text-[10px] text-slate-400">Consent version {PARENTAL_CONSENT_VERSION}</span>
+                            </span>
+                        </label>
                         {pairingError && <p className="text-rose-600 text-xs font-bold">{pairingError}</p>}
                         <button
-                            disabled={isPairing || pairingCode.length < 6}
+                            disabled={isPairing || pairingCode.length < 6 || !parentalConsentAccepted}
                             className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {isPairing && <Loader2 size={18} className="animate-spin" />}
