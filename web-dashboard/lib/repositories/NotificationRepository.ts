@@ -41,7 +41,7 @@ export interface NotificationHistoryItem {
   type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' |
     'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' |
     'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' |
-    'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR';
+    'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE';
   childId?: string;
   clickAction?: string;
   createdAt: any;
