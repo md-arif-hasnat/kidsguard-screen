@@ -233,7 +233,7 @@ Status legend:
 | Requirement | Status | Completion condition |
 |---|---|---|
 | Privacy Policy and Terms | Partial | Draft pages exist; legal review and versioned acceptance required. |
-| Explicit parental consent | Missing | Implement recorded, versioned consent during child setup. |
+| Explicit parental consent | Device test | Pairing requires backend-verified consent and atomically records parent, family, child, device, scope, version, and server timestamp. |
 | Purpose/legal-basis data inventory | Missing | Legal/business input and processing register required. |
 | Child-friendly transparency | Missing | Add age-appropriate child disclosure. |
 | Child/account deletion | Partial | Backend flows exist; legal retention and device unlink tests required. |
