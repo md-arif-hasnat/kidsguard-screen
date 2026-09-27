@@ -23,7 +23,25 @@ export interface NotificationSettings {
   battery: boolean;
   deviceStatus: boolean;
   pairing: boolean;
+  appUsage: boolean;
+  permissionChanges: boolean;
+  syncErrors: boolean;
+  appUpdates: boolean;
+  securityAlerts: boolean;
 }
+
+const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  safeZone: true,
+  sos: true,
+  battery: true,
+  deviceStatus: true,
+  pairing: true,
+  appUsage: true,
+  permissionChanges: true,
+  syncErrors: true,
+  appUpdates: true,
+  securityAlerts: true
+};
 
 export interface ParentDevice {
   deviceId: string;
@@ -54,16 +72,12 @@ export class NotificationRepository {
     const ref = doc(db, "parents", uid, "notificationSettings", "current");
     const snap = await getDoc(ref);
     if (snap.exists()) {
-      return snap.data() as NotificationSettings;
+      return {
+        ...DEFAULT_NOTIFICATION_SETTINGS,
+        ...snap.data()
+      } as NotificationSettings;
     }
-    // Default settings
-    return {
-      safeZone: true,
-      sos: true,
-      battery: true,
-      deviceStatus: true,
-      pairing: true
-    };
+    return { ...DEFAULT_NOTIFICATION_SETTINGS };
   }
 
   static async updateNotificationSettings(uid: string, settings: NotificationSettings): Promise<void> {
