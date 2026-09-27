@@ -640,6 +640,45 @@ export const onCriticalSyncFailure = functions.firestore
     });
 
 /**
+ * Notifies every parent when a newer release becomes the active published
+ * configuration. Draft/testing releases never update this document, and the
+ * version transition prevents duplicate alerts when metadata is edited.
+ */
+export const onAppUpdatePublished = functions.firestore
+    .document('appConfig/update')
+    .onWrite(async (change) => {
+        const after = change.after.data();
+        if (!after) return;
+
+        const before = change.before.exists ? change.before.data() : undefined;
+        const versionCode = Number(after.latestVersionCode || 0);
+        const previousVersionCode = Number(before?.latestVersionCode || 0);
+
+        if (!Number.isFinite(versionCode) || versionCode <= previousVersionCode) {
+            return;
+        }
+
+        const versionName = String(after.latestVersionName || versionCode);
+        const mandatory = after.mandatoryUpdate === true || after.forceUpdate === true;
+        const parentsSnapshot = await db.collection('parents').get();
+
+        await Promise.all(parentsSnapshot.docs.map(parentDocument =>
+            notifyParent(parentDocument.id, {
+                title: mandatory
+                    ? `KidsGuard v${versionName} update required`
+                    : `KidsGuard v${versionName} is available`,
+                body: mandatory
+                    ? 'A mandatory child-app update has been published. Open Downloads to install it.'
+                    : 'A new child-app version is ready. Open Downloads to view the release notes.',
+                type: 'APP_UPDATE',
+                childId: '',
+                eventId: `app-update-${versionCode}`,
+                clickAction: '/download'
+            })
+        ));
+    });
+
+/**
  * Triggered when a new family invitation is created.
  */
 export const onInviteCreated = functions.firestore
@@ -761,7 +800,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1168,6 +1207,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'DEVICE_OFFLINE': 'deviceStatus',
         'DEVICE_BACK_ONLINE': 'deviceStatus',
         'SYNC_ERROR': 'deviceStatus',
+        'APP_UPDATE': 'deviceStatus',
         'PERMISSION_CHANGE_REQUEST': 'deviceStatus',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
