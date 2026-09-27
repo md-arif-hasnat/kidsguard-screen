@@ -46,7 +46,8 @@ class FCMService : FirebaseMessagingService() {
             "APP_LIMIT_REACHED",
             "BLOCKED_APP_ATTEMPT",
             "PERMISSION_CHANGE_REQUEST",
-            "SYNC_ERROR"
+            "SYNC_ERROR",
+            "APP_UPDATE"
         )
         if (prefs.userRole == "PARENT" && type in foregroundTypes) {
             if (type == "PERMISSION_CHANGE_REQUEST") {
