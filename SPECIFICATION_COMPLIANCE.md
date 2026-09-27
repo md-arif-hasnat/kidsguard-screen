@@ -93,7 +93,7 @@ Status legend:
 | Device-offline alert | Partial | Scheduled Function exists; deploy and duplicate tests required. |
 | Sync-error alert | Device test | v1.0.57 alerts once when app usage, YouTube, or browser sync reaches 3 consecutive failures; recovery resets the incident. |
 | App-update alert | Device test | v1.0.58 sends one parent history/push alert when a newer active release is published; Draft/Testing and same-version edits are ignored. |
-| Parent alert preferences | Partial | Settings exist for some types; complete type mapping. |
+| Parent alert preferences | Device test | Safe-zone, SOS, battery, device, app activity, permission, protection, sync, update, and pairing alerts have independent backward-compatible controls. |
 | Notification history | Partial | Backend records exist only when Functions run. |
 | New-app-installed alert only after baseline | Complete | v1.0.39 flagging prevents baseline notifications; Function deployment required. |
 
