@@ -1444,6 +1444,7 @@ function getAllowedChildSlots(
 }
 export const acceptPairingCode = functions.https.onCall(
   async (data, context) => {
+    const parentalConsentVersion = '2026-09-27';
     if (!context.auth) {
       throw new functions.https.HttpsError(
         'unauthenticated',
@@ -1459,6 +1460,23 @@ export const acceptPairingCode = functions.https.onCall(
       typeof data?.familyId === 'string'
         ? data.familyId.trim()
         : '';
+
+    const parentalConsentAccepted =
+      data?.parentalConsentAccepted === true;
+    const submittedConsentVersion =
+      typeof data?.parentalConsentVersion === 'string'
+        ? data.parentalConsentVersion.trim()
+        : '';
+
+    if (
+      !parentalConsentAccepted ||
+      submittedConsentVersion !== parentalConsentVersion
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Current parental consent is required before pairing a child device.'
+      );
+    }
 
     if (!/^\d{6}$/.test(pairingCode) || !familyId) {
       throw new functions.https.HttpsError(
@@ -1683,6 +1701,9 @@ export const acceptPairingCode = functions.https.onCall(
             const childRef = db
               .collection('children')
               .doc(latestChildId);
+            const consentRef = db
+              .collection('parentalConsents')
+              .doc(`${familyId}_${uid}_${latestChildId}`);
 
                     const existingChildSnapshot =
                       await transaction.get(childRef);
@@ -1720,16 +1741,47 @@ export const acceptPairingCode = functions.https.onCall(
                 pairedAt:
                   admin.firestore.FieldValue.serverTimestamp(),
                 lastSeen:
-                  admin.firestore.FieldValue.serverTimestamp()
+                  admin.firestore.FieldValue.serverTimestamp(),
+                parentalConsentVersion,
+                parentalConsentAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+                parentalConsentBy: uid
               },
               { merge: true }
             );
+
+            transaction.set(consentRef, {
+              consentVersion: parentalConsentVersion,
+              accepted: true,
+              consentedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+              parentUid: uid,
+              parentEmail:
+                typeof context.auth?.token.email === 'string'
+                  ? context.auth.token.email
+                  : '',
+              parentName,
+              familyId,
+              childId: latestChildId,
+              deviceId: latestDeviceId,
+              source: 'web_pairing',
+              scope: [
+                'device_monitoring',
+                'location',
+                'app_usage',
+                'web_and_youtube_activity',
+                'safety_alerts',
+                'parental_controls'
+              ]
+            });
 
             transaction.update(pairingRef, {
               used: true,
               familyId,
               parentUid: uid,
               parentName,
+              parentalConsentAccepted: true,
+              parentalConsentVersion,
               pairedAt:
                 admin.firestore.FieldValue.serverTimestamp()
             });
