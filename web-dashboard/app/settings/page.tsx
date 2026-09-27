@@ -18,7 +18,12 @@ export default function SettingsPage() {
     sos: true,
     battery: true,
     deviceStatus: true,
-    pairing: true
+    pairing: true,
+    appUsage: true,
+    permissionChanges: true,
+    syncErrors: true,
+    appUpdates: true,
+    securityAlerts: true
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,6 +91,29 @@ export default function SettingsPage() {
 
   const toggleNotif = (key: keyof NotificationSettings) => {
     setNotifSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleNotificationSave = async () => {
+    if (!profile) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      await NotificationRepository.updateNotificationSettings(
+        profile.uid,
+        notifSettings
+      );
+      setStatus({
+        type: 'success',
+        message: 'Notification preferences updated successfully!'
+      });
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to update notification preferences'
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAvatarSelect = async (avatarId: string) => {
@@ -266,6 +294,58 @@ export default function SettingsPage() {
                 checked={notifSettings.battery}
                 onChange={() => toggleNotif('battery')}
             />
+            <NotificationToggle
+                label="Device Status Alerts"
+                description="Offline and back-online notifications."
+                checked={notifSettings.deviceStatus}
+                onChange={() => toggleNotif('deviceStatus')}
+            />
+            <NotificationToggle
+                label="App Activity Alerts"
+                description="New installs, blocked attempts and usage-limit alerts."
+                checked={notifSettings.appUsage}
+                onChange={() => toggleNotif('appUsage')}
+            />
+            <NotificationToggle
+                label="Permission Change Requests"
+                description="Child requests to change protected permissions."
+                checked={notifSettings.permissionChanges}
+                onChange={() => toggleNotif('permissionChanges')}
+            />
+            <NotificationToggle
+                label="Protection Alerts"
+                description="Tamper and protection-disable attempts."
+                checked={notifSettings.securityAlerts}
+                onChange={() => toggleNotif('securityAlerts')}
+            />
+            <NotificationToggle
+                label="Sync Problem Alerts"
+                description="Repeated child data-sync failures."
+                checked={notifSettings.syncErrors}
+                onChange={() => toggleNotif('syncErrors')}
+            />
+            <NotificationToggle
+                label="App Update Alerts"
+                description="New optional or mandatory KidsGuard releases."
+                checked={notifSettings.appUpdates}
+                onChange={() => toggleNotif('appUpdates')}
+            />
+            <NotificationToggle
+                label="Pairing Alerts"
+                description="New child and family connection events."
+                checked={notifSettings.pairing}
+                onChange={() => toggleNotif('pairing')}
+            />
+
+            <button
+                type="button"
+                onClick={handleNotificationSave}
+                disabled={saving}
+                className="mt-4 w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                Save Notification Preferences
+            </button>
 
             <div className="mt-8 pt-6 border-t border-slate-100">
                 <button
