@@ -40,7 +40,7 @@ export default function FamilyManagementPage() {
 
   // Invite Form
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<FamilyRole>(FamilyRole.GUARDIAN);
+  const [inviteRole, setInviteRole] = useState<FamilyRole>(FamilyRole.VIEWER);
   const [inviting, setInviting] = useState(false);
 
   // Emergency Contact Form
@@ -214,10 +214,10 @@ finally {
                             <span className={cn(
                               "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
                               member.role === FamilyRole.OWNER ? "bg-indigo-100 text-indigo-700" :
-                              member.role === FamilyRole.PARENT ? "bg-emerald-100 text-emerald-700" :
-                              member.role === FamilyRole.GUARDIAN ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+                              RoleHelper.normalizeRole(member.role) === FamilyRole.MANAGER ? "bg-emerald-100 text-emerald-700" :
+                              "bg-slate-100 text-slate-600"
                             )}>
-                              {member.role}
+                              {RoleHelper.normalizeRole(member.role)}
                             </span>
                             <span className="text-[10px] text-slate-400 font-medium">Joined {member.joinedAt?.toDate ? member.joinedAt.toDate().toLocaleDateString() : 'recently'}</span>
                           </div>
@@ -266,8 +266,7 @@ finally {
                         onChange={e => setInviteRole(e.target.value as FamilyRole)}
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
                         >
-                        <option value={FamilyRole.PARENT}>Parent (Full Access)</option>
-                        <option value={FamilyRole.GUARDIAN}>Guardian (Limited)</option>
+                        <option value={FamilyRole.MANAGER}>Manager (Child Controls)</option>
                         <option value={FamilyRole.VIEWER}>Viewer (Read-only)</option>
                         </select>
                     </div>
@@ -282,7 +281,7 @@ finally {
                 ) : (
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
                         <Shield className="mx-auto text-slate-300 mb-4" size={32} />
-                        <p className="text-sm font-medium text-slate-500 italic">Only Owners and Parents can invite new members.</p>
+                        <p className="text-sm font-medium text-slate-500 italic">Only the Family Owner can invite new members.</p>
                     </div>
                 )}
             {inviteError && (
