@@ -1,4 +1,7 @@
+"use client";
+
 import { db } from "../firebase";
+import { getFirebaseStorage } from "../firebaseStorage";
 import {
   collection,
   doc,
@@ -13,6 +16,28 @@ import {
   arrayUnion
 } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
+import {
+  getBlob,
+  getMetadata,
+  listAll,
+  ref,
+  uploadBytes
+} from "firebase/storage";
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf'
+]);
+
+export interface SupportAttachment {
+  name: string;
+  contentType: string;
+  size: number;
+  objectUrl: string;
+}
 
 export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
@@ -41,6 +66,71 @@ export interface TicketReply {
 }
 
 export class SupportRepository {
+  static validateAttachment(file: File): void {
+    if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) {
+      throw new Error('Only JPG, PNG, WebP, or PDF files are allowed.');
+    }
+
+    if (file.size <= 0 || file.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error('Attachment must be smaller than 5 MB.');
+    }
+  }
+
+  static async uploadAttachment(
+    parentUid: string,
+    ticketId: string,
+    file: File
+  ): Promise<void> {
+    const storage = getFirebaseStorage();
+    if (!storage) throw new Error('Firebase Storage is not initialized');
+    this.validateAttachment(file);
+
+    const extension = file.name.includes('.')
+      ? file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '')
+      : '';
+    const objectName = `${Date.now()}_${uuidv4()}${extension ? `.${extension}` : ''}`;
+    const attachmentRef = ref(
+      storage,
+      `supportTickets/${parentUid}/${ticketId}/${objectName}`
+    );
+
+    await uploadBytes(attachmentRef, file, {
+      contentType: file.type,
+      customMetadata: {
+        originalName: file.name.slice(0, 120),
+        uploadedBy: parentUid
+      }
+    });
+  }
+
+  static async listTicketAttachments(
+    parentUid: string,
+    ticketId: string
+  ): Promise<SupportAttachment[]> {
+    const storage = getFirebaseStorage();
+    if (!storage) return [];
+
+    const folder = ref(
+      storage,
+      `supportTickets/${parentUid}/${ticketId}`
+    );
+    const result = await listAll(folder);
+
+    return Promise.all(result.items.map(async item => {
+      const [metadata, blob] = await Promise.all([
+        getMetadata(item),
+        getBlob(item)
+      ]);
+
+      return {
+        name: metadata.customMetadata?.originalName || item.name,
+        contentType: metadata.contentType || 'application/octet-stream',
+        size: metadata.size,
+        objectUrl: URL.createObjectURL(blob)
+      };
+    }));
+  }
+
   static async createTicket(ticket: Omit<SupportTicket, 'ticketId' | 'status' | 'createdAt' | 'updatedAt' | 'replies'>): Promise<string> {
     if (!db) throw new Error("Firestore not initialized");
     const ticketId = uuidv4().substring(0, 8).toUpperCase();
