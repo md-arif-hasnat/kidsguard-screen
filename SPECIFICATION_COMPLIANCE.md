@@ -195,7 +195,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| User/family/device overview | Partial | Routes exist; verify production data and authorization. |
+| User/family/device overview | Implemented | Admin-only customer, family, and device-health routes provide searchable production overviews with Firestore authorization. |
 | System analytics/alerts | Partial | Some UI is static/mock; backend metrics pipeline missing. |
 | Subscription/customer management | Partial | UI/data exists in parts; payment lifecycle missing. |
 | Device health/support context | Implemented | Secure internal device-health view consolidates online, battery, version, permission, and sync diagnostics from existing status telemetry. |
