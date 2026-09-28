@@ -44,7 +44,87 @@ export interface AdminDeviceHealth {
   batteryOptimizationExempt?: boolean;
 }
 
+export interface AdminFamilyOverview {
+  familyId: string;
+  familyName: string;
+  ownerId: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  memberCount: number;
+  managerCount: number;
+  childCount: number;
+  subscriptionStatus: string;
+  childSlots: number;
+  dataRetentionDays?: number;
+  deletionStatus?: string;
+  createdAt?: number;
+  lastActiveDate?: string;
+}
+
 export class AdminRepository {
+  static async getFamilyOverview(
+    count: number = 200
+  ): Promise<AdminFamilyOverview[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const database = db;
+
+    const [familiesSnapshot, childrenSnapshot, parentsSnapshot] =
+      await Promise.all([
+        getDocs(query(collection(database, "families"), limit(count))),
+        getDocs(query(collection(database, "children"), limit(1000))),
+        getDocs(query(collection(database, "parents"), limit(1000)))
+      ]);
+
+    const childCounts = new Map<string, number>();
+    childrenSnapshot.docs.forEach(childDocument => {
+      const familyId = childDocument.data().familyId;
+      if (typeof familyId === "string") {
+        childCounts.set(familyId, (childCounts.get(familyId) || 0) + 1);
+      }
+    });
+
+    const parentsById = new Map(
+      parentsSnapshot.docs.map(parentDocument => [
+        parentDocument.id,
+        parentDocument.data()
+      ])
+    );
+
+    return familiesSnapshot.docs.map(familyDocument => {
+      const family = familyDocument.data();
+      const owner = parentsById.get(family.ownerId) || {};
+      const subscription = family.subscription || {};
+      const rawCreatedAt = family.createdAt;
+
+      return {
+        familyId: familyDocument.id,
+        familyName: family.settings?.name || family.name || "Unnamed family",
+        ownerId: family.ownerId || "Unknown owner",
+        ownerName: owner.displayName,
+        ownerEmail: owner.email,
+        memberCount: Array.isArray(family.memberUids)
+          ? family.memberUids.length
+          : Array.isArray(family.members)
+            ? family.members.length
+            : 0,
+        managerCount: Array.isArray(family.managerUids)
+          ? family.managerUids.length
+          : 0,
+        childCount: childCounts.get(familyDocument.id) || 0,
+        subscriptionStatus: subscription.status || "UNKNOWN",
+        childSlots:
+          (subscription.baseChildSlots || 0) +
+          (subscription.extraChildSlots || 0),
+        dataRetentionDays: family.settings?.dataRetentionDays,
+        deletionStatus: family.deletionStatus || "ACTIVE",
+        createdAt: typeof rawCreatedAt === "number"
+          ? rawCreatedAt
+          : rawCreatedAt?.toMillis?.(),
+        lastActiveDate: owner.lastActiveDate
+      };
+    });
+  }
+
   static async getDeviceHealth(
     count: number = 200
   ): Promise<AdminDeviceHealth[]> {
