@@ -20,7 +20,10 @@ import { PermissionError } from "./ChildRepository";
 
 export enum FamilyRole {
   OWNER = "OWNER",
+  MANAGER = "MANAGER",
+  /** @deprecated Legacy value; normalized to MANAGER. */
   PARENT = "PARENT",
+  /** @deprecated Legacy value; normalized to VIEWER. */
   GUARDIAN = "GUARDIAN",
   VIEWER = "VIEWER"
 }
@@ -377,6 +380,10 @@ export class FamilyRepository {
   }> {
 
     if (callerRole && !RoleHelper.canInviteMembers(callerRole)) throw new PermissionError();
+    const normalizedRole = RoleHelper.normalizeRole(role);
+    if (normalizedRole === FamilyRole.OWNER) {
+      throw new Error("Owner role cannot be assigned by invitation.");
+    }
     if (!db) throw new Error("Firestore not initialized");
     const currentUser = auth?.currentUser;
     const projectId =
@@ -439,7 +446,7 @@ export class FamilyRepository {
       familyId,
       familyName,
       email: email.toLowerCase(),
-      role,
+      role: normalizedRole,
       status: 'PENDING',
       invitedBy,
       invitedByName,
@@ -632,23 +639,29 @@ export class FamilyRepository {
     if (!snap.exists()) return;
 
     const data = snap.data() as FamilyData;
+    const normalizedRole = RoleHelper.normalizeRole(newRole);
+    if (normalizedRole === FamilyRole.OWNER) {
+      throw new Error("Family ownership cannot be reassigned here.");
+    }
     const updatedMembers = data.members.map(m =>
-      m.uid === memberUid ? { ...m, role: newRole } : m
+      m.uid === memberUid ? { ...m, role: normalizedRole } : m
     );
 const currentManagerUids =
   data.managerUids ?? [data.ownerId];
 
 const updatedManagerUids =
-  newRole === FamilyRole.VIEWER
-    ? currentManagerUids.filter(
-        uid => uid !== memberUid
-      )
-    : Array.from(
-        new Set([
-          ...currentManagerUids,
-          memberUid
-        ])
-      );
+  normalizedRole === FamilyRole.MANAGER
+    ? Array.from(new Set([
+        data.ownerId,
+        ...currentManagerUids,
+        memberUid
+      ]))
+    : Array.from(new Set([
+        data.ownerId,
+        ...currentManagerUids.filter(
+          uid => uid !== memberUid
+        )
+      ]));
 
     await updateDoc(familyRef, {
       members: updatedMembers,
@@ -663,7 +676,7 @@ const updatedManagerUids =
       targetType: 'MEMBER',
       targetId: memberUid,
       severity: AuditSeverity.NOTICE,
-      metadata: { newRole }
+      metadata: { newRole: normalizedRole }
     });
   }
 
