@@ -273,12 +273,12 @@ service cloud.firestore {
                   match /status/{statusId} {
                     allow read: if canReadChild(childId);
 
-                            allow create: if isSignedIn() &&
+                            allow create: if isChildIdentity(childId) &&
                               request.resource.data.childId == childId &&
                               request.resource.data.deviceId is string &&
                               isDeviceOwner(request.resource.data.deviceId);
 
-                            allow update: if isSignedIn() &&
+                            allow update: if isChildIdentity(childId) &&
                               resource.data.childId == childId &&
                               request.resource.data.childId ==
                                 resource.data.childId &&
