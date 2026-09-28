@@ -12,6 +12,7 @@ import {
 import {
   doc,
   getDoc,
+  serverTimestamp,
   setDoc,
   updateDoc
 } from "firebase/firestore";
@@ -63,6 +64,16 @@ before(async () => {
           email: "viewer@example.com",
           role: "VIEWER",
           familyId: "family-1"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformAdmins", "admin-uid"),
+        {
+          uid: "admin-uid",
+          email: "admin@example.com",
+          role: "PLATFORM_ADMIN",
+          active: true
         }
       );
 
@@ -138,6 +149,143 @@ before(async () => {
 after(async () => {
   await testEnv.cleanup();
 });
+
+test(
+  "support parent can append only an authentic parent reply",
+  async () => {
+    const ticketId = "SUPPORT01";
+
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(
+        doc(context.firestore(), "supportTickets", ticketId),
+        {
+          ticketId,
+          familyId: "family-1",
+          parentUid: "owner-uid",
+          parentEmail: "owner@example.com",
+          subject: "Help",
+          message: "Initial message",
+          category: "GENERAL",
+          status: "OPEN",
+          replies: [],
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      );
+    });
+
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+
+    await assertSucceeds(
+      updateDoc(
+        doc(ownerDb, "supportTickets", ticketId),
+        {
+          replies: [{
+            replyId: "reply-0001",
+            authorUid: "owner-uid",
+            authorEmail: "owner@example.com",
+            authorRole: "PARENT",
+            message: "Parent follow-up",
+            createdAt: new Date()
+          }],
+          status: "OPEN",
+          updatedAt: serverTimestamp()
+        }
+      )
+    );
+  }
+);
+
+test(
+  "support parent cannot impersonate admin or close ticket",
+  async () => {
+    const ticketId = "SUPPORT02";
+
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(
+        doc(context.firestore(), "supportTickets", ticketId),
+        {
+          ticketId,
+          familyId: "family-1",
+          parentUid: "owner-uid",
+          parentEmail: "owner@example.com",
+          subject: "Help",
+          message: "Initial message",
+          category: "GENERAL",
+          status: "OPEN",
+          replies: [],
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      );
+    });
+
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const ticketRef = doc(
+      ownerDb,
+      "supportTickets",
+      ticketId
+    );
+
+    await assertFails(updateDoc(ticketRef, {
+      replies: [{
+        replyId: "reply-0002",
+        authorUid: "owner-uid",
+        authorEmail: "owner@example.com",
+        authorRole: "ADMIN",
+        message: "Forged admin reply",
+        createdAt: new Date()
+      }],
+      status: "OPEN",
+      updatedAt: serverTimestamp()
+    }));
+
+    await assertFails(updateDoc(ticketRef, {
+      status: "CLOSED",
+      updatedAt: serverTimestamp()
+    }));
+  }
+);
+
+test(
+  "platform admin can read and manage support tickets",
+  async () => {
+    const ticketId = "SUPPORT03";
+
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(
+        doc(context.firestore(), "supportTickets", ticketId),
+        {
+          ticketId,
+          parentUid: "owner-uid",
+          status: "OPEN",
+          replies: []
+        }
+      );
+    });
+
+    const adminDb = verifiedDb(
+      "admin-uid",
+      "admin@example.com"
+    );
+    const ticketRef = doc(
+      adminDb,
+      "supportTickets",
+      ticketId
+    );
+
+    await assertSucceeds(getDoc(ticketRef));
+    await assertSucceeds(updateDoc(ticketRef, {
+      status: "RESOLVED"
+    }));
+  }
+);
 
 function verifiedDb(uid, email) {
   return testEnv
