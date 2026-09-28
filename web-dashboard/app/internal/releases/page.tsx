@@ -46,7 +46,7 @@ export default function ReleaseManager() {
   const [webNotes, setWebNotes] = useState('');
 
   const canManage = admin?.role === PlatformAdminRole.SUPER_ADMIN ||
-    admin?.role === PlatformAdminRole.ADMIN;
+    admin?.role === PlatformAdminRole.PLATFORM_ADMIN;
   const canPublish = admin?.role === PlatformAdminRole.SUPER_ADMIN;
 
   useEffect(() => {
