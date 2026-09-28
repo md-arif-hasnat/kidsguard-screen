@@ -68,6 +68,16 @@ before(async () => {
       );
 
       await setDoc(
+        doc(adminDb, "parents", "manager-uid"),
+        {
+          uid: "manager-uid",
+          email: "manager@example.com",
+          role: "MANAGER",
+          familyId: "family-1"
+        }
+      );
+
+      await setDoc(
         doc(adminDb, "platformAdmins", "admin-uid"),
         {
           uid: "admin-uid",
@@ -83,10 +93,12 @@ before(async () => {
           ownerId: "owner-uid",
           memberUids: [
             "owner-uid",
+            "manager-uid",
             "viewer-uid"
           ],
           managerUids: [
-            "owner-uid"
+            "owner-uid",
+            "manager-uid"
           ],
           childDeviceIds: [
             "child-1"
@@ -393,6 +405,71 @@ test(
         }
       )
     );
+  }
+);
+
+test(
+  "manager can create remote command",
+  async () => {
+    const db = verifiedDb(
+      "manager-uid",
+      "manager@example.com"
+    );
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          db,
+          "children",
+          "child-1",
+          "remoteCommands",
+          "manager-command"
+        ),
+        {
+          type: "LOCK",
+          status: "PENDING"
+        }
+      )
+    );
+  }
+);
+
+test(
+  "owner can invite a manager but manager cannot invite members",
+  async () => {
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const managerDb = verifiedDb(
+      "manager-uid",
+      "manager@example.com"
+    );
+    const expiry = new Date(Date.now() + 60 * 60 * 1000);
+
+    await assertSucceeds(setDoc(
+      doc(ownerDb, "familyInvitations", "owner-manager-invite"),
+      {
+        familyId: "family-1",
+        invitedBy: "owner-uid",
+        status: "PENDING",
+        email: "new-manager@example.com",
+        expiresAt: expiry,
+        role: "MANAGER"
+      }
+    ));
+
+    await assertFails(setDoc(
+      doc(managerDb, "familyInvitations", "manager-viewer-invite"),
+      {
+        familyId: "family-1",
+        invitedBy: "manager-uid",
+        status: "PENDING",
+        email: "new-viewer@example.com",
+        expiresAt: expiry,
+        role: "VIEWER"
+      }
+    ));
   }
 );
 
