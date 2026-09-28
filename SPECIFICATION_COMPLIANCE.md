@@ -19,7 +19,7 @@ Status legend:
 | Requirement | Status | Completion condition |
 |---|---|---|
 | Parent email account and login | Complete | Firebase Auth flow remains covered by smoke tests. |
-| Mandatory email verification | Partial | Enforce consistently in Android, Web, Functions, and rules. |
+| Mandatory email verification | Device test | Parent dashboard sessions, pairing/invitation/deletion Functions, and Firestore family access require verified email; phone/anonymous parent entry points are removed. |
 | Family creation and membership | Complete | Emulator tests must prove tenant isolation. |
 | Owner / Manager / Viewer roles | Partial | Align role names and permissions across UI, Functions, and rules. |
 | Multiple family members | Complete | Invitation and removal regression tests required. |
