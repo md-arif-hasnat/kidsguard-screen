@@ -1,6 +1,6 @@
 "use client";
 
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import { getFirebaseStorage } from "../firebaseStorage";
 import {
   collection,
@@ -54,6 +54,13 @@ export interface SupportTicket {
   updatedAt: any;
   assignedTo?: string;
   replies: TicketReply[];
+  lastAdminAction?: {
+    type: 'REPLY' | 'STATUS_CHANGE';
+    actorUid: string;
+    actorEmail: string | null;
+    status?: TicketStatus;
+    occurredAt: Date;
+  };
 }
 
 export interface TicketReply {
@@ -199,16 +206,39 @@ export class SupportRepository {
       createdAt: new Date() // Using JS date for immediate local update if needed, Firestore will handle it
     };
 
-    await updateDoc(ref, {
+    const update: Record<string, unknown> = {
       replies: arrayUnion(replyData),
       updatedAt: serverTimestamp(),
       status: reply.authorRole !== 'PARENT' ? 'IN_PROGRESS' : 'OPEN'
-    });
+    };
+
+    if (reply.authorRole !== 'PARENT') {
+      update.lastAdminAction = {
+        type: 'REPLY',
+        actorUid: reply.authorUid,
+        actorEmail: reply.authorEmail || null,
+        occurredAt: new Date()
+      };
+    }
+
+    await updateDoc(ref, update);
   }
 
   static async updateTicketStatus(ticketId: string, status: TicketStatus): Promise<void> {
       if (!db) return;
+      const user = auth?.currentUser;
+      if (!user) throw new Error("Admin session is required.");
       const ref = doc(db, "supportTickets", ticketId);
-      await updateDoc(ref, { status, updatedAt: serverTimestamp() });
+      await updateDoc(ref, {
+        status,
+        updatedAt: serverTimestamp(),
+        lastAdminAction: {
+          type: 'STATUS_CHANGE',
+          actorUid: user.uid,
+          actorEmail: user.email,
+          status,
+          occurredAt: new Date()
+        }
+      });
   }
 }
