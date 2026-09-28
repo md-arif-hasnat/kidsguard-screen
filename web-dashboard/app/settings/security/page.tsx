@@ -36,6 +36,8 @@ export default function SecurityPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [indexError, setIndexError] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!family?.familyId) return;
@@ -87,34 +89,56 @@ export default function SecurityPage() {
   };
 
   const handleFullExport = async () => {
-    if (!family?.familyId || !profile) return;
+    if (
+      !family?.familyId ||
+      !profile ||
+      role !== FamilyRole.OWNER
+    ) return;
 
-    setLoadingLogs(true);
+    setExporting(true);
+    setExportStatus(null);
+
     try {
-        const data = await SecurityRepository.exportAllFamilyData(family.familyId);
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const filename = `kidsguard-full-export-${new Date().toISOString()}.json`;
+      const result =
+        await SecurityRepository.exportAllFamilyData(
+          family.familyId
+        );
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
+      const response = await fetch(result.downloadUrl, {
+        cache: "no-store"
+      });
 
-        await AuditRepository.log({
-            actorUid: profile.uid,
-            actorEmail: profile.email || "admin",
-            familyId: family.familyId,
-            action: AuditAction.DATA_EXPORTED,
-            targetType: 'SECURITY',
-            targetId: profile.uid,
-            severity: AuditSeverity.NOTICE,
-            metadata: { type: 'FULL_JSON' }
-        });
-    } catch (e) {
-        alert("Export failed.");
+      if (!response.ok) {
+        throw new Error(
+          "The temporary export file could not be downloaded."
+        );
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = result.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      const expiry = new Date(
+        result.expiresAt
+      ).toLocaleTimeString();
+
+      setExportStatus(
+        `Export downloaded. The temporary cloud copy expires at ${expiry}.`
+      );
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error
+          ? error.message
+          : "Export failed."
+      );
     } finally {
-        setLoadingLogs(false);
+      setExporting(false);
     }
   };
 
@@ -299,11 +323,26 @@ export default function SecurityPage() {
             <div className="space-y-3">
                 <button
                     onClick={handleFullExport}
-                    className="w-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold p-4 rounded-xl transition-all text-left flex justify-between items-center"
+                    disabled={
+                      exporting ||
+                      role !== FamilyRole.OWNER
+                    }
+                    className="w-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold p-4 rounded-xl transition-all text-left flex justify-between items-center disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    Download All Data
-                    <ChevronRight size={14} />
+                    {exporting
+                      ? "Preparing secure ZIP..."
+                      : role === FamilyRole.OWNER
+                        ? "Download All Data"
+                        : "Owner access required"}
+                    {exporting
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <ChevronRight size={14} />}
                 </button>
+                {exportStatus && (
+                  <p className="rounded-xl bg-white/10 p-3 text-[10px] leading-relaxed text-slate-300">
+                    {exportStatus}
+                  </p>
+                )}
                 <button
                     className="w-full bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 text-xs font-bold p-4 rounded-xl transition-all text-left flex justify-between items-center opacity-50 cursor-not-allowed"
                 >
