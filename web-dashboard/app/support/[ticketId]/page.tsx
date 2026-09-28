@@ -15,6 +15,7 @@ import {
 import { SupportRepository, SupportTicket } from '@/lib/repositories/SupportRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
+import SupportAttachments from '@/components/support/SupportAttachments';
 
 export default function TicketConversationPage() {
   const params = useParams();
@@ -112,6 +113,11 @@ export default function TicketConversationPage() {
             </div>
 
             <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+                <SupportAttachments
+                    parentUid={ticket.parentUid}
+                    ticketId={ticket.ticketId}
+                    canUpload={ticket.status !== 'CLOSED'}
+                />
                 {/* Initial Message */}
                 <div className="flex gap-4">
                     <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 border border-slate-200">
