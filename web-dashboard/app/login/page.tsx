@@ -28,7 +28,8 @@ import {
   signOut,
   setupRecaptcha,
   loginWithPhone,
-  resetPassword
+  resetPassword,
+  sendVerificationEmail
 } from '@/lib/auth';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { FamilyRepository } from '@/lib/repositories/FamilyRepository';
@@ -143,11 +144,7 @@ const getFriendlyAuthError = (err: any): string => {
   useEffect(() => {
       const unsub = observeAuth((user) => {
           if (user && !loading && !authFlowInProgressRef.current) {
-              const isPasswordUser = user.providerData.some(
-                  (provider) => provider.providerId === "password"
-              );
-
-              if (isPasswordUser && !user.emailVerified) {
+              if (!user.emailVerified) {
                   void signOut();
                   setError(
                       "Please verify your email before accessing the dashboard."
@@ -162,16 +159,25 @@ const getFriendlyAuthError = (err: any): string => {
       return () => unsub();
   }, [router, loading]);
 
-  const handlePostLogin = async (user: any, provider: string) => {
+  const handlePostLogin = async (
+    user: any,
+    provider: string,
+    isNewAccount: boolean = false
+  ) => {
     setLoading(true);
     setLoadingMessage("Setting up your family vault...");
     try {
-        if (provider === "password" && !user.emailVerified) {
+        if (!user.emailVerified) {
+          if (!isNewAccount && provider === "password") {
+            await sendVerificationEmail(user);
+          }
           await signOut();
           authFlowInProgressRef.current = false;
           setError(null);
           setAuthSuccess(
-            "Account created successfully! Please check your email and verify your account."
+            isNewAccount
+              ? "Account created successfully! Please check your email and verify your account."
+              : "Your email is not verified. A new verification link has been sent."
           );
           setLoading(false);
           return;
@@ -303,7 +309,7 @@ const getFriendlyAuthError = (err: any): string => {
 
         }
 
-        await handlePostLogin(user, "password");
+        await handlePostLogin(user, "password", isSignUp);
       }
     } catch (err: any) {
         authFlowInProgressRef.current = false;
@@ -811,21 +817,9 @@ const getFriendlyAuthError = (err: any): string => {
               </button>
             </div>
 
-            <button
-              onClick={() => setShowPhoneLogin(true)}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-bold text-slate-700 text-sm mb-4 disabled:opacity-50"
-            >
-              <Smartphone size={18} className="text-primary-600" /> Continue with Phone
-            </button>
-
-            <button
-              onClick={handleGuestLogin}
-              disabled={loading}
-              className="w-full text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-primary-600 transition-colors py-2 disabled:opacity-50"
-            >
-              Access Developer Sandbox
-            </button>
+            <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              A verified email address is required for every parent account.
+            </p>
           </>
         ) : (
           <form className="space-y-6" onSubmit={showOtpInput ? handleOtpSubmit : handlePhoneSubmit}>
