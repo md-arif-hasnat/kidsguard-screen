@@ -221,7 +221,7 @@ Status legend:
 | Requirement | Status | Completion condition |
 |---|---|---|
 | Support request/ticket/status | Device test | Parent creation/reply and platform-admin read/status rules are emulator-tested; verify the deployed parent/admin workflow. |
-| Screenshot/attachment | Missing | Add secure upload, validation, retention, and access rules. |
+| Screenshot/attachment | Device test | Support tickets accept immutable JPG, PNG, WebP, or PDF attachments up to 5 MB; Storage rules restrict upload/read access to the verified ticket owner and active platform admins. |
 | Admin response/timeline | Device test | Platform admins can securely read, reply, and update status; parents can append only authentic parent replies and cannot forge admin messages or close tickets. |
 | Device diagnostic fields | Partial | Consolidate and expose permission/sync health. |
 | Structured app error reports | Partial | Error repository exists; cloud pipeline/retention incomplete. |
