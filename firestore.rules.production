@@ -312,6 +312,27 @@ service cloud.firestore {
                           allow update, delete: if false;
 
                         }
+
+                        match /errorReports/{errorId} {
+                          allow read: if isPlatformAdmin();
+
+                          allow create: if isChildIdentity(childId) &&
+                            request.resource.data.errorId == errorId &&
+                            request.resource.data.childId == childId &&
+                            request.resource.data.familyId ==
+                              get(
+                                /databases/$(database)/documents/children/$(childId)
+                              ).data.familyId &&
+                            request.resource.data.status == 'OPEN' &&
+                            request.resource.data.tag is string &&
+                            request.resource.data.tag.size() <= 80 &&
+                            request.resource.data.message is string &&
+                            request.resource.data.message.size() <= 300 &&
+                            request.resource.data.capturedAt is number &&
+                            request.resource.data.fingerprint is string;
+
+                          allow update, delete: if false;
+                        }
                               match /sosEvents/{eventId} {
                                 allow read: if canReadChild(childId);
 
@@ -650,6 +671,12 @@ service cloud.firestore {
                                           allow delete: if isSupportAdmin();
                                         }
                                 
+    // Enables the internal issues collection-group query without granting
+    // parent/child access to technical stack traces.
+    match /{path=**}/errorReports/{errorId} {
+      allow read: if isPlatformAdmin();
+    }
+
     // Rules will be added collection by collection.
     match /{document=**} {
       allow read, write: if false;
