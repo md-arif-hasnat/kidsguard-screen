@@ -2,6 +2,16 @@ import { FamilyData, FamilyRole } from "../repositories/FamilyRepository";
 import { ParentProfile } from "../repositories/ParentRepository";
 
 export class RoleHelper {
+  static normalizeRole(role?: FamilyRole | string | null): FamilyRole {
+    if (role === FamilyRole.OWNER) return FamilyRole.OWNER;
+    if (role === FamilyRole.MANAGER || role === FamilyRole.PARENT) {
+      return FamilyRole.MANAGER;
+    }
+    // Legacy GUARDIAN had limited access. Map it to the least-privileged
+    // canonical role instead of silently granting manager permissions.
+    return FamilyRole.VIEWER;
+  }
+
   /**
    * Resolves the current user's role within a family.
    * Priority:
@@ -30,7 +40,7 @@ export class RoleHelper {
       );
 
       if (member) {
-        return member.role;
+        return this.normalizeRole(member.role);
       }
 
       // A user missing from the loaded Family must not
@@ -43,15 +53,7 @@ export class RoleHelper {
       return FamilyRole.OWNER;
     }
 
-    if (profile?.role === "PARENT") {
-      return FamilyRole.PARENT;
-    }
-
-    if (profile?.role === "GUARDIAN") {
-      return FamilyRole.GUARDIAN;
-    }
-
-    return FamilyRole.VIEWER;
+    return this.normalizeRole(profile?.role);
   }
 
   static canManageFamily(role: FamilyRole): boolean {
@@ -59,7 +61,7 @@ export class RoleHelper {
   }
 
   static canInviteMembers(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.normalizeRole(role) === FamilyRole.OWNER;
   }
 
   static canRemoveMembers(role: FamilyRole): boolean {
@@ -67,11 +69,12 @@ export class RoleHelper {
   }
 
   static canManageChildren(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    const normalized = this.normalizeRole(role);
+    return normalized === FamilyRole.OWNER || normalized === FamilyRole.MANAGER;
   }
 
   static canEditChild(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.canManageChildren(role);
   }
 
   static canRemoveChild(role: FamilyRole): boolean {
@@ -83,22 +86,22 @@ export class RoleHelper {
   }
 
   static canManageSafeZones(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.canManageChildren(role);
   }
 
   static canManageProtectionModes(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.canManageChildren(role);
   }
 
   static canSendRemoteCommands(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.canManageChildren(role);
   }
 
   static canManageWebProtection(role: FamilyRole): boolean {
-    return role === FamilyRole.OWNER || role === FamilyRole.PARENT;
+    return this.canManageChildren(role);
   }
 
   static canViewRouteHistory(role: FamilyRole): boolean {
-    return role !== FamilyRole.VIEWER;
+    return this.normalizeRole(role) !== FamilyRole.VIEWER;
   }
 }
