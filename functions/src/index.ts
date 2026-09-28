@@ -1451,6 +1451,12 @@ export const acceptPairingCode = functions.https.onCall(
         'You must be signed in to pair a child.'
       );
     }
+    if (context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Your email must be verified before pairing a child device.'
+      );
+    }
     const pairingCode =
       typeof data?.pairingCode === 'string'
         ? data.pairingCode.trim()
@@ -1809,6 +1815,12 @@ export const checkInvitationEmail =
         throw new functions.https.HttpsError(
           "unauthenticated",
           "You must be signed in."
+        );
+      }
+      if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Your email must be verified."
         );
       }
 
@@ -3348,6 +3360,12 @@ export const cancelFamilyDeletion =
       throw new functions.https.HttpsError(
         'unauthenticated',
         'You must be signed in.'
+      );
+    }
+    if (context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Your email must be verified.'
       );
     }
 
