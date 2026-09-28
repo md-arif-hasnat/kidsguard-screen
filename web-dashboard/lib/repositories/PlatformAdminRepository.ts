@@ -4,10 +4,20 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 export enum PlatformAdminRole {
   SUPER_ADMIN = "SUPER_ADMIN",
   PLATFORM_ADMIN = "PLATFORM_ADMIN",
-  DEV_ADMIN = "DEV_ADMIN",
-  ADMIN = "ADMIN",
-  SUPPORT = "SUPPORT",
-  DEVELOPER = "DEVELOPER"
+  DEV_ADMIN = "DEV_ADMIN"
+}
+
+const ALLOWED_PLATFORM_ADMIN_ROLES = new Set<PlatformAdminRole>([
+  PlatformAdminRole.SUPER_ADMIN,
+  PlatformAdminRole.PLATFORM_ADMIN,
+  PlatformAdminRole.DEV_ADMIN
+]);
+
+export function isAllowedPlatformAdminRole(
+  role: unknown
+): role is PlatformAdminRole {
+  return typeof role === "string" &&
+    ALLOWED_PLATFORM_ADMIN_ROLES.has(role as PlatformAdminRole);
 }
 
 export interface PlatformAdmin {
@@ -36,7 +46,12 @@ export class PlatformAdminRepository {
         if (snap.exists()) {
             const data = snap.data() as PlatformAdmin;
             console.log("INTERNAL_DEBUG: Admin document found:", data);
-            return data;
+            return {
+              ...data,
+              // Authorization is tied to the protected document path, never
+              // to a mutable uid field stored inside the document.
+              uid: snap.id
+            };
         } else {
             console.warn(`INTERNAL_DEBUG: No admin document found at ${path}`);
             return null;
@@ -55,9 +70,7 @@ export class PlatformAdminRepository {
     const role = profile?.role;
     const active = profile?.active === true;
 
-    const isAllowedRole = role === "SUPER_ADMIN" ||
-                         role === "PLATFORM_ADMIN" ||
-                         role === "DEV_ADMIN";
+    const isAllowedRole = isAllowedPlatformAdminRole(role);
 
     const allowed = exists && active && isAllowedRole;
 
