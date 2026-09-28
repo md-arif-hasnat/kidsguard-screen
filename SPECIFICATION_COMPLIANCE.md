@@ -20,11 +20,11 @@ Status legend:
 |---|---|---|
 | Parent email account and login | Complete | Firebase Auth flow remains covered by smoke tests. |
 | Mandatory email verification | Device test | Parent dashboard sessions, pairing/invitation/deletion Functions, and Firestore family access require verified email; phone/anonymous parent entry points are removed. |
-| Family creation and membership | Complete | Emulator tests must prove tenant isolation. |
+| Family creation and membership | Complete | Cross-family isolation is enforced and emulator-tested. |
 | Owner / Manager / Viewer roles | Device test | Canonical roles and permissions are aligned across dashboard, Functions, and rules; legacy PARENT maps to MANAGER and GUARDIAN maps to VIEWER without granting extra access. |
 | Multiple family members | Complete | Invitation and removal regression tests required. |
 | Child profile management | Complete | Add/update/remove flows require E2E coverage. |
-| Per-child device/data separation | Partial | Complete security-rule matrix and cross-family denial tests. |
+| Per-child device/data separation | Complete | Child identity and cross-family denial matrix are emulator-tested across core data paths. |
 | Child-slot entitlement | Partial | Backend slot enforcement exists; plan/trial enforcement is incomplete. |
 
 ## 2. Child Android App and Device Pairing
@@ -143,7 +143,7 @@ Status legend:
 | Requirement | Status | Completion condition |
 |---|---|---|
 | Authentication and verification | Partial | Verification enforcement must be consistent. |
-| Family/child data isolation | Partial | Formal emulator rules suite must pass. |
+| Family/child data isolation | Complete | Formal emulator suite denies cross-family reads and device/status writes. |
 | Role-based authorization | Device test | Owner-only family membership, Manager child controls, Viewer read-only access, legacy-role normalization, and representative rules paths are implemented; deployed multi-account verification remains. |
 | Device authorization | Partial | Pairing/identity rules exist; abuse and recovery tests required. |
 | Backend authorization | Partial | Functions include checks; audit all exports. |
@@ -187,7 +187,7 @@ Status legend:
 | Usage/location/alerts/commands | Partial | Core paths exist; consistency and retention need work. |
 | Real-time critical data | Complete | Listener lifecycle/cost audit remains. |
 | Periodic historical data | Partial | Workers exist; standardized durable queues are incomplete. |
-| Tenant security rules | Partial | Add emulator tests for every collection/action. |
+| Tenant security rules | Complete | Core collection read matrix and high-risk write paths are covered by passing emulator tests. |
 | Authoritative configuration | Partial | Multiple config models remain; version/ack required. |
 | Offline consistency/conflict handling | Partial | Firestore cache exists; explicit conflict policy is missing. |
 
