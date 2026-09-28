@@ -9,6 +9,20 @@ const db = admin.firestore();
 const bucket = admin.storage().bucket();
 const storageBucket = admin.storage().bucket();
 
+type CanonicalFamilyRole = 'OWNER' | 'MANAGER' | 'VIEWER';
+
+function normalizeFamilyRole(role: unknown): CanonicalFamilyRole | null {
+  if (role === 'OWNER') return 'OWNER';
+  if (role === 'MANAGER' || role === 'PARENT') return 'MANAGER';
+  if (role === 'VIEWER' || role === 'GUARDIAN') return 'VIEWER';
+  return null;
+}
+
+function isManagerRole(role: unknown): boolean {
+  const normalized = normalizeFamilyRole(role);
+  return normalized === 'OWNER' || normalized === 'MANAGER';
+}
+
 function serializeExportValue(
   value: unknown
 ): unknown {
@@ -1092,7 +1106,7 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
     const family = familyDoc.data();
     const members = family.members as any[] || [];
     const parentUids = members
-        .filter(m => m.role === 'OWNER' || m.role === 'PARENT' || m.role === 'GUARDIAN')
+        .filter(m => normalizeFamilyRole(m.role) !== null)
         .map(m => m.uid);
 
     // 2. Notify each parent
@@ -1513,7 +1527,7 @@ export const acceptPairingCode = functions.https.onCall(
       members.some(
         (member: any) =>
           member?.uid === uid &&
-          (member?.role === 'OWNER' || member?.role === 'PARENT')
+          isManagerRole(member?.role)
       );
 
     if (!canPairChild) {
@@ -1637,7 +1651,7 @@ export const acceptPairingCode = functions.https.onCall(
             latestMembers.some(
               (member: any) =>
                 member?.uid === uid &&
-                (member?.role === 'OWNER' || member?.role === 'PARENT')
+                isManagerRole(member?.role)
             );
 
           if (!stillAllowedToPair) {
@@ -1993,12 +2007,13 @@ export const acceptFamilyInvitation =
     }
 
     const familyId = inviteData.familyId;
-    const role = inviteData.role;
+    const role = normalizeFamilyRole(inviteData.role);
 
     if (
       typeof familyId !== 'string' ||
       !familyId ||
-      !['PARENT', 'GUARDIAN', 'VIEWER'].includes(role)
+      role === null ||
+      role === 'OWNER'
     ) {
       throw new functions.https.HttpsError(
         'failed-precondition',
@@ -2126,7 +2141,7 @@ export const acceptFamilyInvitation =
                 admin.firestore.FieldValue.arrayUnion(uid),
               invites: updatedInvites
             };
-                if (role === 'PARENT') {
+                if (role === 'MANAGER') {
                   familyUpdate.managerUids =
                     admin.firestore.FieldValue.arrayUnion(uid);
                 }
@@ -3809,7 +3824,7 @@ export const sendFamilyInvitationEmail =
 
         const role =
           invitation.role ||
-          'PARENT';
+          'VIEWER';
 
         const inviteLink =
           `https://kidsguard-screen.vercel.app/` +
@@ -4236,7 +4251,7 @@ export const removeFamilyMember =
               admin.firestore.FieldValue.arrayRemove(
                 familyId
               ),
-            role: 'PARENT',
+            role: 'VIEWER',
             updatedAt:
               admin.firestore.FieldValue.serverTimestamp()
           },
@@ -4298,15 +4313,20 @@ export const onFamilyMembershipSync =
         Array.from(memberMap.keys());
 
       const expectedManagerUids =
-        members
+        Array.from(new Set([
+          after.ownerId,
+          ...members
           .filter(
             (member: any) =>
-              member.role === 'OWNER' ||
-              member.role === 'PARENT'
+              isManagerRole(member.role)
           )
           .map(
             (member: any) => member.uid
-          );
+          )
+        ].filter(
+          (uid): uid is string =>
+            typeof uid === 'string' && uid.length > 0
+        )));
 
       const currentMemberUids =
         Array.isArray(after.memberUids)
@@ -4460,7 +4480,7 @@ export const onFamilyMembershipSync =
                 familyIds:
                   admin.firestore.FieldValue
                     .arrayRemove(familyId),
-                role: 'PARENT',
+                role: 'VIEWER',
                 updatedAt:
                   admin.firestore.FieldValue
                     .serverTimestamp()
