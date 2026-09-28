@@ -44,7 +44,7 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { auth, db, messaging };
+export { app, auth, db, messaging };
 
 export const isDev = process.env.NODE_ENV === 'development';
 export const showMocks = isDev && !isFirebaseConfigured;
