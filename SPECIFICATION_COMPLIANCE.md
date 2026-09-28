@@ -198,7 +198,7 @@ Status legend:
 | User/family/device overview | Partial | Routes exist; verify production data and authorization. |
 | System analytics/alerts | Partial | Some UI is static/mock; backend metrics pipeline missing. |
 | Subscription/customer management | Partial | UI/data exists in parts; payment lifecycle missing. |
-| Device health/support context | Partial | Consolidated diagnostics incomplete. |
+| Device health/support context | Implemented | Secure internal device-health view consolidates online, battery, version, permission, and sync diagnostics from existing status telemetry. |
 | Audit logs | Implemented | Searchable internal viewer covers family/security records; release history and server-side support admin actions are durable and attributable. |
 | Support tools | Partial | Ticket routes exist; attachment/reply lifecycle requires E2E test. |
 | Release management | Device test | Internal dashboard now supports audited Draft, Testing, Published, and Deprecated transitions; signed artifact creation remains external. |
