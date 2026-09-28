@@ -3001,6 +3001,13 @@ export const requestFamilyDataExport =
         );
       }
 
+      if (familySnapshot.data()?.ownerId !== uid) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Only the family owner can export all family data.'
+        );
+      }
+
       const exportRateLimitRef = db
         .collection('familyExportRateLimits')
         .doc(uid);
@@ -3224,8 +3231,28 @@ const htmlContent =
         `?alt=media&token=` +
         `${encodeURIComponent(downloadToken)}`;
 
+      await db.collection('auditLogs').add({
+        actorUid: uid,
+        actorEmail:
+          context.auth?.token.email || null,
+        familyId,
+        action: 'DATA_EXPORTED',
+        targetType: 'FAMILY',
+        targetId: familyId,
+        severity: 'NOTICE',
+        metadata: {
+          exportVersion: 1,
+          fileName,
+          expiresAt:
+            expiresAt.toISOString()
+        },
+        createdAt:
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+
       return {
         success: true,
+        familyId,
         fileName,
         downloadUrl,
         expiresAt:
