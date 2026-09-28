@@ -17,6 +17,7 @@ import {
 import { SupportRepository, SupportTicket, TicketReply, TicketStatus } from '@/lib/repositories/SupportRepository';
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import { clsx } from 'clsx';
+import SupportAttachments from '@/components/support/SupportAttachments';
 
 export default function InternalSupportPage() {
   const { admin, loading: adminLoading } = useInternalAdmin();
@@ -167,6 +168,11 @@ export default function InternalSupportPage() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                        <SupportAttachments
+                            parentUid={selectedTicket.parentUid}
+                            ticketId={selectedTicket.ticketId}
+                            dark
+                        />
                         {/* Initial Message */}
                         <div className="flex gap-4">
                             <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-500 shrink-0 border border-slate-700">
