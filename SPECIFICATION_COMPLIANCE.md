@@ -122,7 +122,7 @@ Status legend:
 | Sync history | Partial | Diagnostics fields exist in parts; unified history is missing. |
 | Date/date-range filters | Partial | Some panels support dates; range support is incomplete. |
 | Per-child reports | Partial | Child scoping exists; consolidated reports are incomplete. |
-| Retention policy and scheduled cleanup | Partial | Family export/deletion cleanup exists; event-specific retention is missing. |
+| Retention policy and scheduled cleanup | Device test | Daily bounded cleanup enforces each family's 30/90/365-day choice for location, activity, SOS, deviation, restriction, app-usage, web, YouTube, and browser histories; missing/Forever policy never deletes data. |
 | Parent data deletion | Partial | Family deletion exists; granular child-data deletion requires verification. |
 | Data export | Device test | Owner-only backend export creates a rate-limited temporary ZIP with readable HTML and JSON; dashboard securely downloads it and backend records the export audit event. |
 
