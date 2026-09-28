@@ -1,6 +1,7 @@
 import { db } from "../firebase";
 import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -61,7 +62,42 @@ export interface AdminFamilyOverview {
   lastActiveDate?: string;
 }
 
+export interface AdminErrorReport {
+  id: string;
+  childId: string;
+  familyId: string;
+  deviceId?: string;
+  tag: string;
+  message: string;
+  stackTrace?: string | null;
+  fingerprint: string;
+  capturedAt: number;
+  appVersion?: string;
+  versionCode?: number;
+  androidVersion?: string;
+  deviceModel?: string;
+  status: string;
+}
+
 export class AdminRepository {
+  static async getErrorReports(
+    count: number = 200
+  ): Promise<AdminErrorReport[]> {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const reportsQuery = query(
+      collectionGroup(db, "errorReports"),
+      orderBy("capturedAt", "desc"),
+      limit(count)
+    );
+    const snapshot = await getDocs(reportsQuery);
+
+    return snapshot.docs.map(reportDocument => ({
+      id: reportDocument.id,
+      ...reportDocument.data()
+    } as AdminErrorReport));
+  }
+
   static async getFamilyOverview(
     count: number = 200
   ): Promise<AdminFamilyOverview[]> {
