@@ -476,6 +476,11 @@ test(
     await assertSucceeds(getDocs(collection(adminDb, "families")));
     await assertSucceeds(getDocs(collection(adminDb, "children")));
     await assertSucceeds(getDocs(collection(adminDb, "auditLogs")));
+    await assertSucceeds(
+      getDoc(
+        doc(adminDb, "children", "child-1", "status", "current")
+      )
+    );
   }
 );
 
