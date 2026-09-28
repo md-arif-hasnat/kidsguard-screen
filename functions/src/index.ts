@@ -23,6 +23,78 @@ function isManagerRole(role: unknown): boolean {
   return normalized === 'OWNER' || normalized === 'MANAGER';
 }
 
+const RETENTION_BATCH_SIZE = 400;
+const RETENTION_MAX_BATCHES = 5;
+const RETENTION_MAX_DATED_TREES = 100;
+
+async function deleteExpiredByField(
+  collectionRef: admin.firestore.CollectionReference,
+  field: string,
+  cutoff: number | admin.firestore.Timestamp,
+  preserveIds: string[] = []
+): Promise<number> {
+  let deletedCount = 0;
+  const preserved = new Set(preserveIds);
+
+  for (
+    let batchNumber = 0;
+    batchNumber < RETENTION_MAX_BATCHES;
+    batchNumber += 1
+  ) {
+    const snapshot = await collectionRef
+      .where(field, '<', cutoff)
+      .limit(RETENTION_BATCH_SIZE)
+      .get();
+
+    if (snapshot.empty) break;
+
+    const deletable = snapshot.docs.filter(
+      document => !preserved.has(document.id)
+    );
+
+    if (deletable.length === 0) break;
+
+    const batch = db.batch();
+    deletable.forEach(document => batch.delete(document.ref));
+    await batch.commit();
+    deletedCount += deletable.length;
+
+    if (snapshot.size < RETENTION_BATCH_SIZE) break;
+  }
+
+  return deletedCount;
+}
+
+function isIsoDayDocumentId(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+async function deleteExpiredDatedTrees(
+  childRef: admin.firestore.DocumentReference,
+  collectionName: 'appUsage' | 'webActivity',
+  cutoffDay: string
+): Promise<number> {
+  const documentRefs = await childRef
+    .collection(collectionName)
+    .listDocuments();
+  const expiredRefs = documentRefs
+    .filter(
+      documentRef =>
+        isIsoDayDocumentId(documentRef.id) &&
+        documentRef.id < cutoffDay
+    )
+    .sort((first, second) =>
+      first.id.localeCompare(second.id)
+    )
+    .slice(0, RETENTION_MAX_DATED_TREES);
+
+  for (const documentRef of expiredRefs) {
+    await db.recursiveDelete(documentRef);
+  }
+
+  return expiredRefs.length;
+}
+
 function serializeExportValue(
   value: unknown
 ): unknown {
@@ -3543,6 +3615,155 @@ onSchedule(
 );
 
 
+
+export const cleanupFamilyRetentionData = onSchedule(
+  {
+    schedule: 'every day 04:30',
+    timeZone: 'Europe/Berlin',
+    timeoutSeconds: 540,
+    memory: '1GiB'
+  },
+  async () => {
+    const familiesSnapshot = await db
+      .collection('families')
+      .get();
+
+    for (const familyDocument of familiesSnapshot.docs) {
+      const familyId = familyDocument.id;
+      const familyData = familyDocument.data() || {};
+      const retentionDays =
+        familyData.settings?.dataRetentionDays;
+
+      // Missing, Forever (0), or unreasonable values never delete data.
+      if (
+        typeof retentionDays !== 'number' ||
+        !Number.isInteger(retentionDays) ||
+        retentionDays < 1 ||
+        retentionDays > 3650
+      ) {
+        continue;
+      }
+
+      try {
+        const cutoffMs =
+          Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+        const cutoffTimestamp =
+          admin.firestore.Timestamp.fromMillis(cutoffMs);
+        const cutoffDay = new Date(cutoffMs)
+          .toISOString()
+          .slice(0, 10);
+
+        const childIds = new Set<string>(
+          Array.isArray(familyData.childDeviceIds)
+            ? familyData.childDeviceIds.filter(
+                (value: unknown): value is string =>
+                  typeof value === 'string' && value.length > 0
+              )
+            : []
+        );
+
+        const childrenSnapshot = await db
+          .collection('children')
+          .where('familyId', '==', familyId)
+          .get();
+        childrenSnapshot.docs.forEach(
+          childDocument => childIds.add(childDocument.id)
+        );
+
+        let deletedCount = 0;
+
+        for (const childId of childIds) {
+          const childRef = db
+            .collection('children')
+            .doc(childId);
+
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('locations'),
+            'timestamp',
+            cutoffMs,
+            ['latest']
+          );
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('activities'),
+            'timestamp',
+            cutoffMs
+          );
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('sosEvents'),
+            'timestamp',
+            cutoffMs
+          );
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('routeDeviations'),
+            'timestamp',
+            cutoffMs
+          );
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('appRestrictionEvents'),
+            'occurredAt',
+            cutoffTimestamp
+          );
+          deletedCount += await deleteExpiredDatedTrees(
+            childRef,
+            'appUsage',
+            cutoffDay
+          );
+          deletedCount += await deleteExpiredDatedTrees(
+            childRef,
+            'webActivity',
+            cutoffDay
+          );
+
+          const familyChildRef = db
+            .collection('families')
+            .doc(familyId)
+            .collection('children')
+            .doc(childId);
+
+          deletedCount += await deleteExpiredByField(
+            familyChildRef.collection('youtubeHistory'),
+            'capturedAt',
+            cutoffMs
+          );
+          deletedCount += await deleteExpiredByField(
+            familyChildRef.collection('browserHistory'),
+            'capturedAt',
+            cutoffMs
+          );
+        }
+
+        if (deletedCount > 0) {
+          await db.collection('auditLogs').add({
+            actorUid: 'SYSTEM',
+            actorEmail: null,
+            familyId,
+            action: 'RETENTION_CLEANUP_COMPLETED',
+            targetType: 'FAMILY',
+            targetId: familyId,
+            severity: 'NOTICE',
+            metadata: {
+              retentionDays,
+              cutoffDay,
+              deletedCount
+            },
+            createdAt:
+              admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        console.info(
+          `Retention cleanup family=${familyId} ` +
+          `days=${retentionDays} deleted=${deletedCount}`
+        );
+      } catch (error) {
+        console.error(
+          `Retention cleanup failed for family ${familyId}:`,
+          error
+        );
+      }
+    }
+  }
+);
 
 // account scheduled cleanup
 export const cleanupDeletedFamilies = onSchedule(
