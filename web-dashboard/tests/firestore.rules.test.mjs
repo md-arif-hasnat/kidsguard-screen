@@ -11,6 +11,7 @@ import {
 
 import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -199,6 +200,7 @@ before(async () => {
         ["youtubeHistory", "video-1"],
         ["appControls", "control-1"],
         ["appRestrictionEvents", "restriction-1"],
+        ["errorReports", "error-1"],
         ["settings", "main"],
         ["permissionChangeRequests", "permission-1"],
         ["webRules", "rule-1"],
@@ -477,6 +479,9 @@ test(
     await assertSucceeds(getDocs(collection(adminDb, "children")));
     await assertSucceeds(getDocs(collection(adminDb, "auditLogs")));
     await assertSucceeds(
+      getDocs(collectionGroup(adminDb, "errorReports"))
+    );
+    await assertSucceeds(
       getDoc(
         doc(adminDb, "children", "child-1", "status", "current")
       )
@@ -525,6 +530,7 @@ test(
       ["children", "child-2", "webActivity", "2026-09-28", "events", "event-1"],
       ["children", "child-2", "appControls", "control-1"],
       ["children", "child-2", "appRestrictionEvents", "restriction-1"],
+      ["children", "child-2", "errorReports", "error-1"],
       ["children", "child-2", "settings", "main"],
       ["children", "child-2", "permissionChangeRequests", "permission-1"],
       ["children", "child-2", "webRules", "rule-1"],
@@ -539,6 +545,57 @@ test(
     for (const path of foreignPaths) {
       await assertFails(getDoc(doc(ownerDb, ...path)));
     }
+  }
+);
+
+test(
+  "child can create sanitized error report and outsider cannot",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+    const outsiderDb = verifiedDb(
+      "family-2-owner",
+      "family2@example.com"
+    );
+    const report = {
+      errorId: "error-report-1",
+      familyId: "family-1",
+      childId: "child-1",
+      deviceId: "device-1",
+      tag: "YT_SYNC",
+      message: "Upload failed",
+      fingerprint: "abc123",
+      capturedAt: Date.now(),
+      status: "OPEN"
+    };
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          childDb,
+          "children",
+          "child-1",
+          "errorReports",
+          "error-report-1"
+        ),
+        report
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(
+          outsiderDb,
+          "children",
+          "child-1",
+          "errorReports",
+          "foreign-error"
+        ),
+        { ...report, errorId: "foreign-error" }
+      )
+    );
   }
 );
 
