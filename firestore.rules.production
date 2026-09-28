@@ -271,7 +271,7 @@ service cloud.firestore {
                   allow create, update, delete: if false;
 
                   match /status/{statusId} {
-                    allow read: if canReadChild(childId);
+                    allow read: if isPlatformAdmin() || canReadChild(childId);
 
                             allow create: if isChildIdentity(childId) &&
                               request.resource.data.childId == childId &&
