@@ -131,6 +131,7 @@ service cloud.firestore {
                 !request.resource.data.keys().hasAny(['role']) ||
                 request.resource.data.role in [
                   'OWNER',
+                  'MANAGER',
                   'PARENT',
                   'GUARDIAN',
                   'VIEWER'
@@ -542,6 +543,7 @@ service cloud.firestore {
                                         request.resource.data.expiresAt >
                                           request.time &&
                                         request.resource.data.role in [
+                                          'MANAGER',
                                           'PARENT',
                                           'GUARDIAN',
                                           'VIEWER'
