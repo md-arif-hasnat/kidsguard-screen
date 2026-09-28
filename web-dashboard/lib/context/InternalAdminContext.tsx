@@ -2,8 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { observeAuth } from '../auth';
-import { PlatformAdminRepository, PlatformAdmin } from '../repositories/PlatformAdminRepository';
-import { useRouter } from 'next/navigation';
+import {
+  isAllowedPlatformAdminRole,
+  PlatformAdminRepository,
+  PlatformAdmin
+} from '../repositories/PlatformAdminRepository';
 
 interface InternalAdminContextType {
   admin: PlatformAdmin | null;
@@ -20,8 +23,6 @@ const InternalAdminContext = createContext<InternalAdminContextType>({
 export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [admin, setAdmin] = useState<PlatformAdmin | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
   useEffect(() => {
     return observeAuth(async (user) => {
       console.log("INTERNAL_DEBUG: observeAuth triggered", user ? `User: ${user.email} (${user.uid})` : "No user");
@@ -37,11 +38,14 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
         const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
         if (profile) {
             console.log("INTERNAL_DEBUG: Context Auth: Found profile:", profile);
-            if (profile.active) {
+            if (
+              profile.active &&
+              isAllowedPlatformAdminRole(profile.role)
+            ) {
                 console.log("INTERNAL_DEBUG: Context Auth: Admin profile active. Granting access.");
                 setAdmin(profile);
             } else {
-                console.warn("INTERNAL_DEBUG: Context Auth: Access denied. Profile marked as INACTIVE.");
+                console.warn("INTERNAL_DEBUG: Context Auth: Access denied. Profile inactive or role not allowed.");
                 setAdmin(null);
             }
         } else {
