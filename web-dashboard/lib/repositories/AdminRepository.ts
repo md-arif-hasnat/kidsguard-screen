@@ -1,6 +1,8 @@
 import { db } from "../firebase";
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -20,7 +22,81 @@ export interface GlobalMetrics {
   criticalSosToday: number;
 }
 
+export interface AdminDeviceHealth {
+  childId: string;
+  childName: string;
+  familyId: string;
+  deviceName?: string;
+  online: boolean;
+  lastSeen?: number;
+  batteryPercent?: number;
+  appVersion?: string;
+  androidVersion?: string;
+  syncHealthy?: boolean;
+  syncFailureCount?: number;
+  syncFailureSource?: string;
+  syncErrorMessage?: string;
+  locationPermissionGranted?: boolean;
+  backgroundLocationPermissionGranted?: boolean;
+  usageAccessGranted?: boolean;
+  overlayPermissionGranted?: boolean;
+  accessibilityPermissionGranted?: boolean;
+  batteryOptimizationExempt?: boolean;
+}
+
 export class AdminRepository {
+  static async getDeviceHealth(
+    count: number = 200
+  ): Promise<AdminDeviceHealth[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const database = db;
+
+    const childrenQuery = query(
+      collection(database, "children"),
+      limit(count)
+    );
+    const childrenSnapshot = await getDocs(childrenQuery);
+
+    return Promise.all(childrenSnapshot.docs.map(async childDocument => {
+      const child = childDocument.data();
+      const statusSnapshot = await getDoc(
+        doc(database, "children", childDocument.id, "status", "current")
+      );
+      const status = statusSnapshot.exists()
+        ? statusSnapshot.data()
+        : {};
+
+      const rawLastSeen = status.lastSeen;
+      const lastSeen = typeof rawLastSeen === "number"
+        ? rawLastSeen
+        : rawLastSeen?.toMillis?.();
+
+      return {
+        childId: childDocument.id,
+        childName: status.childName || child.name || child.childName || "Unknown child",
+        familyId: child.familyId || "Unknown family",
+        deviceName: status.deviceName,
+        online: status.online === true,
+        lastSeen,
+        batteryPercent: status.batteryPercent,
+        appVersion: status.appVersion,
+        androidVersion: status.androidVersion,
+        syncHealthy: status.syncHealthy,
+        syncFailureCount: status.syncFailureCount,
+        syncFailureSource: status.syncFailureSource,
+        syncErrorMessage: status.syncErrorMessage,
+        locationPermissionGranted: status.locationPermissionGranted,
+        backgroundLocationPermissionGranted:
+          status.backgroundLocationPermissionGranted,
+        usageAccessGranted: status.usageAccessGranted,
+        overlayPermissionGranted: status.overlayPermissionGranted,
+        accessibilityPermissionGranted:
+          status.accessibilityPermissionGranted,
+        batteryOptimizationExempt: status.batteryOptimizationExempt
+      };
+    }));
+  }
+
   /**
    * Fetches global system metrics for the Admin Dashboard.
    * Uses getCountFromServer for cost efficiency where possible.
