@@ -142,6 +142,140 @@ before(async () => {
           firebaseUid: "child-auth-uid"
         }
       );
+
+      await setDoc(
+        doc(adminDb, "parents", "family-2-owner"),
+        {
+          uid: "family-2-owner",
+          email: "family2@example.com",
+          role: "OWNER",
+          familyId: "family-2"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "families", "family-2"),
+        {
+          ownerId: "family-2-owner",
+          memberUids: ["family-2-owner"],
+          managerUids: ["family-2-owner"],
+          childDeviceIds: ["child-2"],
+          members: [],
+          subscription: {
+            baseChildSlots: 2,
+            extraChildSlots: 0,
+            status: "PENDING"
+          }
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "children", "child-2"),
+        {
+          childId: "child-2",
+          familyId: "family-2",
+          firebaseUid: "child-2-auth"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "devices", "foreign-device"),
+        {
+          deviceId: "foreign-device",
+          firebaseUid: "family-2-owner"
+        }
+      );
+
+      const isolatedChildPaths = [
+        ["status", "current"],
+        ["safeZones", "zone-1"],
+        ["locations", "latest"],
+        ["activities", "activity-1"],
+        ["sosEvents", "sos-1"],
+        ["dailySummaries", "2026-09-28"],
+        ["routeDeviations", "deviation-1"],
+        ["remoteCommands", "command-1"],
+        ["installedApps", "app-1"],
+        ["youtubeHistory", "video-1"],
+        ["appControls", "control-1"],
+        ["appRestrictionEvents", "restriction-1"],
+        ["settings", "main"],
+        ["permissionChangeRequests", "permission-1"],
+        ["webRules", "rule-1"],
+        ["protectionModes", "mode-1"],
+        ["accessRequests", "access-1"],
+        ["appAccessRequests", "app-access-1"],
+        ["analytics", "summary"]
+      ];
+
+      for (const [collectionName, documentId] of isolatedChildPaths) {
+        await setDoc(
+          doc(
+            adminDb,
+            "children",
+            "child-2",
+            collectionName,
+            documentId
+          ),
+          {
+            childId: "child-2",
+            familyId: "family-2",
+            seeded: true
+          }
+        );
+      }
+
+      await setDoc(
+        doc(
+          adminDb,
+          "children",
+          "child-2",
+          "appUsage",
+          "2026-09-28",
+          "apps",
+          "app-1"
+        ),
+        { childId: "child-2", packageName: "example.app" }
+      );
+
+      await setDoc(
+        doc(
+          adminDb,
+          "children",
+          "child-2",
+          "webActivity",
+          "2026-09-28",
+          "events",
+          "event-1"
+        ),
+        { childId: "child-2", url: "https://example.com" }
+      );
+
+      await setDoc(
+        doc(
+          adminDb,
+          "families",
+          "family-2",
+          "children",
+          "child-2",
+          "youtubeHistory",
+          "video-1"
+        ),
+        { childId: "child-2", videoTitle: "Private video" }
+      );
+
+      await setDoc(
+        doc(
+          adminDb,
+          "families",
+          "family-2",
+          "children",
+          "child-2",
+          "browserHistory",
+          "page-1"
+        ),
+        { childId: "child-2", title: "Private page" }
+      );
       await setDoc(
         doc(
           adminDb,
@@ -359,6 +493,74 @@ test(
 
     await assertFails(getDocs(collection(inactiveDb, "parents")));
     await assertFails(getDocs(collection(legacyDb, "parents")));
+  }
+);
+
+test(
+  "family cannot read another family's child data matrix",
+  async () => {
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+
+    const foreignPaths = [
+      ["children", "child-2"],
+      ["children", "child-2", "status", "current"],
+      ["children", "child-2", "safeZones", "zone-1"],
+      ["children", "child-2", "locations", "latest"],
+      ["children", "child-2", "activities", "activity-1"],
+      ["children", "child-2", "sosEvents", "sos-1"],
+      ["children", "child-2", "dailySummaries", "2026-09-28"],
+      ["children", "child-2", "routeDeviations", "deviation-1"],
+      ["children", "child-2", "remoteCommands", "command-1"],
+      ["children", "child-2", "installedApps", "app-1"],
+      ["children", "child-2", "appUsage", "2026-09-28", "apps", "app-1"],
+      ["children", "child-2", "youtubeHistory", "video-1"],
+      ["children", "child-2", "webActivity", "2026-09-28", "events", "event-1"],
+      ["children", "child-2", "appControls", "control-1"],
+      ["children", "child-2", "appRestrictionEvents", "restriction-1"],
+      ["children", "child-2", "settings", "main"],
+      ["children", "child-2", "permissionChangeRequests", "permission-1"],
+      ["children", "child-2", "webRules", "rule-1"],
+      ["children", "child-2", "protectionModes", "mode-1"],
+      ["children", "child-2", "accessRequests", "access-1"],
+      ["children", "child-2", "appAccessRequests", "app-access-1"],
+      ["children", "child-2", "analytics", "summary"],
+      ["families", "family-2", "children", "child-2", "youtubeHistory", "video-1"],
+      ["families", "family-2", "children", "child-2", "browserHistory", "page-1"]
+    ];
+
+    for (const path of foreignPaths) {
+      await assertFails(getDoc(doc(ownerDb, ...path)));
+    }
+  }
+);
+
+test(
+  "foreign device owner cannot write another child's status",
+  async () => {
+    const foreignDb = verifiedDb(
+      "family-2-owner",
+      "family2@example.com"
+    );
+
+    await assertFails(
+      setDoc(
+        doc(
+          foreignDb,
+          "children",
+          "child-1",
+          "status",
+          "foreign-write"
+        ),
+        {
+          childId: "child-1",
+          deviceId: "foreign-device",
+          online: true
+        }
+      )
+    );
   }
 );
 
