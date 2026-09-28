@@ -361,6 +361,76 @@ export const onActivityCreated = functions.firestore
     });
 
 /**
+ * Writes an immutable audit record for platform-admin support actions.
+ * Firestore rules authorize the original update; this trigger persists the
+ * attribution independently from the mutable support ticket.
+ */
+export const onSupportAdminAction = functions.firestore
+  .document('supportTickets/{ticketId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    const action = after.lastAdminAction;
+
+    if (!action || typeof action !== 'object') {
+      return;
+    }
+
+    const beforeAction = before.lastAdminAction;
+    const sameAction =
+      beforeAction?.actorUid === action.actorUid &&
+      beforeAction?.type === action.type &&
+      beforeAction?.occurredAt?.toMillis?.() ===
+        action.occurredAt?.toMillis?.();
+
+    if (sameAction) {
+      return;
+    }
+
+    const actorUid =
+      typeof action.actorUid === 'string'
+        ? action.actorUid
+        : '';
+    const actionType =
+      action.type === 'REPLY' ||
+      action.type === 'STATUS_CHANGE'
+        ? action.type
+        : '';
+
+    if (!actorUid || !actionType) {
+      console.warn(
+        'Skipping malformed support admin audit action',
+        context.params.ticketId
+      );
+      return;
+    }
+
+    await db.collection('auditLogs').add({
+      actorUid,
+      actorEmail:
+        typeof action.actorEmail === 'string'
+          ? action.actorEmail
+          : null,
+      familyId:
+        typeof after.familyId === 'string'
+          ? after.familyId
+          : null,
+      action: actionType === 'REPLY'
+        ? 'SUPPORT_ADMIN_REPLIED'
+        : 'SUPPORT_STATUS_CHANGED',
+      targetType: 'SUPPORT_TICKET',
+      targetId: context.params.ticketId,
+      severity: 'NOTICE',
+      metadata: {
+        previousStatus: before.status || null,
+        currentStatus: after.status || null
+      },
+      createdAt:
+        admin.firestore.FieldValue.serverTimestamp()
+    });
+  });
+
+/**
 * Triggered only when a genuinely new installed-app document is created.
 * This avoids recursive notifications.
 */
