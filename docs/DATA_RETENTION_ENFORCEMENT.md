@@ -22,6 +22,7 @@ Family Owner's dashboard selection.
 | `children/{childId}/sosEvents` | numeric `timestamp` |
 | `children/{childId}/routeDeviations` | numeric `timestamp` |
 | `children/{childId}/appRestrictionEvents` | Timestamp `occurredAt` |
+| `children/{childId}/errorReports` | numeric `capturedAt` |
 | `children/{childId}/appUsage/{YYYY-MM-DD}` | document date |
 | `children/{childId}/webActivity/{YYYY-MM-DD}` | document date |
 | `families/{familyId}/children/{childId}/youtubeHistory` | numeric `capturedAt` |
