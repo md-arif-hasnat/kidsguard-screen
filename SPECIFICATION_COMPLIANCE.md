@@ -124,7 +124,7 @@ Status legend:
 | Per-child reports | Partial | Child scoping exists; consolidated reports are incomplete. |
 | Retention policy and scheduled cleanup | Partial | Family export/deletion cleanup exists; event-specific retention is missing. |
 | Parent data deletion | Partial | Family deletion exists; granular child-data deletion requires verification. |
-| Data export | Partial | Family export Function exists; deployment and download E2E test required. |
+| Data export | Device test | Owner-only backend export creates a rate-limited temporary ZIP with readable HTML and JSON; dashboard securely downloads it and backend records the export audit event. |
 
 ## 9. Subscription, Trial, and Child Limits
 
