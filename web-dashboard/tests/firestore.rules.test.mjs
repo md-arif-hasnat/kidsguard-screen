@@ -10,8 +10,10 @@ import {
 } from "@firebase/rules-unit-testing";
 
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc
@@ -83,6 +85,26 @@ before(async () => {
           uid: "admin-uid",
           email: "admin@example.com",
           role: "PLATFORM_ADMIN",
+          active: true
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformAdmins", "inactive-admin-uid"),
+        {
+          uid: "inactive-admin-uid",
+          email: "inactive@example.com",
+          role: "PLATFORM_ADMIN",
+          active: false
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformAdmins", "legacy-admin-uid"),
+        {
+          uid: "legacy-admin-uid",
+          email: "legacy@example.com",
+          role: "ADMIN",
           active: true
         }
       );
@@ -307,6 +329,38 @@ function verifiedDb(uid, email) {
     })
     .firestore();
 }
+
+test(
+  "active platform admin can read internal analytics collections",
+  async () => {
+    const adminDb = verifiedDb(
+      "admin-uid",
+      "admin@example.com"
+    );
+
+    await assertSucceeds(getDocs(collection(adminDb, "parents")));
+    await assertSucceeds(getDocs(collection(adminDb, "families")));
+    await assertSucceeds(getDocs(collection(adminDb, "children")));
+    await assertSucceeds(getDocs(collection(adminDb, "auditLogs")));
+  }
+);
+
+test(
+  "inactive or unapproved admin roles cannot read internal data",
+  async () => {
+    const inactiveDb = verifiedDb(
+      "inactive-admin-uid",
+      "inactive@example.com"
+    );
+    const legacyDb = verifiedDb(
+      "legacy-admin-uid",
+      "legacy@example.com"
+    );
+
+    await assertFails(getDocs(collection(inactiveDb, "parents")));
+    await assertFails(getDocs(collection(legacyDb, "parents")));
+  }
+);
 
 test(
   "verified owner can read own family",
