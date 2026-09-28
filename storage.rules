@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isVerified() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true;
+    }
+
+    function ticket(ticketId) {
+      return firestore.get(
+        /databases/(default)/documents/supportTickets/$(ticketId)
+      ).data;
+    }
+
+    function isPlatformAdmin() {
+      let adminPath =
+        /databases/(default)/documents/platformAdmins/$(request.auth.uid)
+      ;
+
+      return isVerified() &&
+        firestore.exists(adminPath) &&
+        firestore.get(adminPath).data.active == true &&
+        firestore.get(adminPath).data.role in [
+          'SUPER_ADMIN',
+          'PLATFORM_ADMIN',
+          'DEV_ADMIN'
+        ];
+    }
+
+    match /supportTickets/{parentUid}/{ticketId}/{fileName} {
+      allow read: if isVerified() &&
+        (
+          (
+            request.auth.uid == parentUid &&
+            ticket(ticketId).parentUid == request.auth.uid
+          ) ||
+          isPlatformAdmin()
+        );
+
+      allow create: if isVerified() &&
+        request.auth.uid == parentUid &&
+        ticket(ticketId).parentUid == request.auth.uid &&
+        request.resource.size > 0 &&
+        request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches(
+          '^(image/(jpeg|png|webp)|application/pdf)$'
+        );
+
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
