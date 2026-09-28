@@ -3773,6 +3773,11 @@ export const cleanupFamilyRetentionData = onSchedule(
             'occurredAt',
             cutoffTimestamp
           );
+          deletedCount += await deleteExpiredByField(
+            childRef.collection('errorReports'),
+            'capturedAt',
+            cutoffMs
+          );
           deletedCount += await deleteExpiredDatedTrees(
             childRef,
             'appUsage',
