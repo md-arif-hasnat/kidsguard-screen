@@ -202,7 +202,7 @@ Status legend:
 | Audit logs | Partial | Complete admin-action logging and viewer. |
 | Support tools | Partial | Ticket routes exist; attachment/reply lifecycle requires E2E test. |
 | Release management | Device test | Internal dashboard now supports audited Draft, Testing, Published, and Deprecated transitions; signed artifact creation remains external. |
-| Strict admin access | Partial | Audit middleware/layout plus backend/rules enforcement. |
+| Strict admin access | Implemented | Internal UI and Firestore use the same active-admin role allowlist; cross-family analytics/customer/audit reads are admin-only and emulator-tested. |
 
 ## 15. App Update and Release Management
 
