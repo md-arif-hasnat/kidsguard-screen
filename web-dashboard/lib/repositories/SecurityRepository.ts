@@ -1,30 +1,26 @@
-import { db, auth } from "../firebase";
-import {
-  doc,
-  deleteDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  writeBatch,
-  getDoc,
-  orderBy,
-  limit
-} from "firebase/firestore";
+import { auth, db } from "../firebase";
+import { doc, writeBatch } from "firebase/firestore";
 import { deleteUser } from "firebase/auth";
 
+export interface FamilyDataExportResult {
+  success: true;
+  familyId: string;
+  fileName: string;
+  downloadUrl: string;
+  expiresAt: string;
+}
+
 export class SecurityRepository {
-  static async deleteAccount(uid: string, familyId?: string | null): Promise<void> {
+  static async deleteAccount(
+    uid: string,
+    _familyId?: string | null
+  ): Promise<void> {
     if (!db || !uid) return;
 
     const batch = writeBatch(db);
-
-    // 1. Delete parent profile
     batch.delete(doc(db, "parents", uid));
-
     await batch.commit();
 
-    // 2. Delete from Auth
     const user = auth?.currentUser;
     if (user && user.uid === uid) {
       await deleteUser(user);
@@ -32,49 +28,62 @@ export class SecurityRepository {
   }
 
   /**
-   * Part 3 - Data Export
-   * Fetches all sensitive data for the family and returns a structured object.
+   * Requests the complete family export from the trusted backend.
+   * The backend verifies email, Owner role, rate limit, and creates
+   * a temporary ZIP containing readable HTML and machine-readable JSON.
    */
-  static async exportAllFamilyData(familyId: string): Promise<any> {
-    if (!db || !familyId) return null;
+  static async exportAllFamilyData(
+    expectedFamilyId: string
+  ): Promise<FamilyDataExportResult> {
+    const user = auth?.currentUser;
+    const projectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
-    const exportData: any = {
-      exportedAt: new Date().toISOString(),
-      family: {},
-      children: [],
-      auditLogs: []
-    };
-
-    // 1. Fetch Family Doc
-    const familySnap = await getDoc(doc(db, "families", familyId));
-    if (familySnap.exists()) {
-        exportData.family = familySnap.data();
+    if (!user || !projectId) {
+      throw new Error(
+        "You must be signed in to export family data."
+      );
     }
 
-    // 2. Fetch Audit Logs
-    const logsSnap = await getDocs(query(collection(db, "auditLogs"), where("familyId", "==", familyId)));
-    exportData.auditLogs = logsSnap.docs.map(d => d.data());
+    const idToken = await user.getIdToken(true);
+    const response = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/requestFamilyDataExport`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ data: {} })
+      }
+    );
 
-    // 3. Fetch Children Data
-    const childIds = exportData.family.childDeviceIds || [];
-    for (const childId of childIds) {
-        const childObj: any = { id: childId, details: {}, status: {}, safeZones: [], activities: [] };
-
-        const childSnap = await getDoc(doc(db, "children", childId));
-        if (childSnap.exists()) childObj.details = childSnap.data();
-
-        const statusSnap = await getDoc(doc(db, "children", childId, "status", "current"));
-        if (statusSnap.exists()) childObj.status = statusSnap.data();
-
-        const zonesSnap = await getDocs(collection(db, "children", childId, "safeZones"));
-        childObj.safeZones = zonesSnap.docs.map(d => d.data());
-
-        const activitiesSnap = await getDocs(query(collection(db, "children", childId, "activities"), orderBy("timestamp", "desc"), limit(100)));
-        childObj.activities = activitiesSnap.docs.map(d => d.data());
-
-        exportData.children.push(childObj);
+    const payload = await response.json();
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.error?.message ||
+          "The family data export could not be created."
+      );
     }
 
-    return exportData;
+    const result =
+      payload.result as Partial<FamilyDataExportResult>;
+
+    if (
+      result.success !== true ||
+      result.familyId !== expectedFamilyId ||
+      typeof result.fileName !== "string" ||
+      typeof result.downloadUrl !== "string" ||
+      !result.downloadUrl.startsWith(
+        "https://firebasestorage.googleapis.com/"
+      ) ||
+      typeof result.expiresAt !== "string"
+    ) {
+      throw new Error(
+        "The export service returned an invalid response."
+      );
+    }
+
+    return result as FamilyDataExportResult;
   }
 }
