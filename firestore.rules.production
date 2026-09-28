@@ -567,6 +567,42 @@ service cloud.firestore {
                                     }
 
                                         match /supportTickets/{ticketId} {
+                                          function isSupportAdmin() {
+                                            return isPlatformAdmin() || isAdmin();
+                                          }
+
+                                          function isValidParentReply() {
+                                            let oldReplies = resource.data.replies;
+                                            let newReplies = request.resource.data.replies;
+                                            let reply = newReplies[oldReplies.size()];
+
+                                            return oldReplies is list &&
+                                              newReplies is list &&
+                                              newReplies.size() == oldReplies.size() + 1 &&
+                                              newReplies == oldReplies.concat([reply]) &&
+                                              reply is map &&
+                                              reply.keys().hasOnly([
+                                                'replyId',
+                                                'authorUid',
+                                                'authorEmail',
+                                                'authorRole',
+                                                'message',
+                                                'createdAt'
+                                              ]) &&
+                                              reply.replyId is string &&
+                                              reply.replyId.size() >= 8 &&
+                                              reply.replyId.size() <= 80 &&
+                                              reply.authorUid == request.auth.uid &&
+                                              reply.authorEmail is string &&
+                                              reply.authorEmail.lower() ==
+                                                request.auth.token.email.lower() &&
+                                              reply.authorRole == 'PARENT' &&
+                                              reply.message is string &&
+                                              reply.message.size() > 0 &&
+                                              reply.message.size() <= 4000 &&
+                                              reply.createdAt is timestamp;
+                                          }
+
                                           allow create: if isEmailVerified() &&
                                             request.resource.data.parentUid ==
                                               request.auth.uid &&
@@ -579,10 +615,10 @@ service cloud.firestore {
                                             (
                                               resource.data.parentUid ==
                                                 request.auth.uid ||
-                                              isAdmin()
+                                              isSupportAdmin()
                                             );
 
-                                          allow update: if isAdmin() ||
+                                          allow update: if isSupportAdmin() ||
                                             (
                                               isEmailVerified() &&
                                               resource.data.parentUid ==
@@ -598,10 +634,15 @@ service cloud.firestore {
                                                   'replies',
                                                   'updatedAt',
                                                   'status'
-                                                ])
+                                                ]) &&
+                                              request.resource.data.status ==
+                                                'OPEN' &&
+                                              request.resource.data.updatedAt ==
+                                                request.time &&
+                                              isValidParentReply()
                                             );
 
-                                          allow delete: if isAdmin();
+                                          allow delete: if isSupportAdmin();
                                         }
                                 
     // Rules will be added collection by collection.
