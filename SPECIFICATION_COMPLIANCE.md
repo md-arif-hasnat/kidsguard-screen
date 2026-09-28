@@ -21,7 +21,7 @@ Status legend:
 | Parent email account and login | Complete | Firebase Auth flow remains covered by smoke tests. |
 | Mandatory email verification | Device test | Parent dashboard sessions, pairing/invitation/deletion Functions, and Firestore family access require verified email; phone/anonymous parent entry points are removed. |
 | Family creation and membership | Complete | Emulator tests must prove tenant isolation. |
-| Owner / Manager / Viewer roles | Partial | Align role names and permissions across UI, Functions, and rules. |
+| Owner / Manager / Viewer roles | Device test | Canonical roles and permissions are aligned across dashboard, Functions, and rules; legacy PARENT maps to MANAGER and GUARDIAN maps to VIEWER without granting extra access. |
 | Multiple family members | Complete | Invitation and removal regression tests required. |
 | Child profile management | Complete | Add/update/remove flows require E2E coverage. |
 | Per-child device/data separation | Partial | Complete security-rule matrix and cross-family denial tests. |
@@ -144,7 +144,7 @@ Status legend:
 |---|---|---|
 | Authentication and verification | Partial | Verification enforcement must be consistent. |
 | Family/child data isolation | Partial | Formal emulator rules suite must pass. |
-| Role-based authorization | Partial | UI and rules exist; callable/admin paths need complete tests. |
+| Role-based authorization | Device test | Owner-only family membership, Manager child controls, Viewer read-only access, legacy-role normalization, and representative rules paths are implemented; deployed multi-account verification remains. |
 | Device authorization | Partial | Pairing/identity rules exist; abuse and recovery tests required. |
 | Backend authorization | Partial | Functions include checks; audit all exports. |
 | Account/data deletion | Partial | Functions exist; deploy and E2E test. |
