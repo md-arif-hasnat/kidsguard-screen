@@ -56,6 +56,13 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
   }
 };
 
+export const sendVerificationEmail = async (user: User) => {
+  await sendEmailVerification(user, {
+    url: `${window.location.origin}/login`,
+    handleCodeInApp: false
+  });
+};
+
 export const loginWithGoogle = async (): Promise<User | null> => {
   if (!auth) return null;
   try {
