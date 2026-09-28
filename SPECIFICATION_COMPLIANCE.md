@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.58 current. |
+| versionCode/versionName discipline | Complete | v1.0.59 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
@@ -224,7 +224,7 @@ Status legend:
 | Screenshot/attachment | Device test | Support tickets accept immutable JPG, PNG, WebP, or PDF attachments up to 5 MB; Storage rules restrict upload/read access to the verified ticket owner and active platform admins. |
 | Admin response/timeline | Device test | Platform admins can securely read, reply, and update status; parents can append only authentic parent replies and cannot forge admin messages or close tickets. |
 | Device diagnostic fields | Partial | Consolidate and expose permission/sync health. |
-| Structured app error reports | Partial | Error repository exists; cloud pipeline/retention incomplete. |
+| Structured app error reports | Device test | v1.0.59 sanitizes, persists, retries, and uploads child error reports; admin issues viewer and retention enforcement are implemented. |
 | Per-stage sync diagnostics | Partial | Feature-specific logs exist; common schema/dashboard missing. |
 | Sensitive-data-safe logging | Partial | Audit logs for tokens, URLs, personal data, and release builds. |
 
