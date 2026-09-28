@@ -29,6 +29,8 @@ export default function ParentSupportPage() {
   const [category, setCategory] = useState('Location not updating');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
 
   const categories = [
     'Location not updating',
@@ -55,7 +57,7 @@ export default function ParentSupportPage() {
     setSubmitting(true);
 
     try {
-      await SupportRepository.createTicket({
+      const ticketId = await SupportRepository.createTicket({
         familyId: family.familyId,
         parentUid: profile.uid,
         parentEmail: profile.email || 'unknown',
@@ -63,9 +65,24 @@ export default function ParentSupportPage() {
         message,
         category
       });
+      if (attachment) {
+        try {
+          await SupportRepository.uploadAttachment(
+            profile.uid,
+            ticketId,
+            attachment
+          );
+        } catch (uploadError) {
+          alert(uploadError instanceof Error
+            ? `Ticket created, but attachment failed: ${uploadError.message}`
+            : 'Ticket created, but attachment upload failed.');
+        }
+      }
       setIsCreating(false);
       setSubject('');
       setMessage('');
+      setAttachment(null);
+      setAttachmentError('');
     } catch (err) {
       alert("Failed to send ticket. Please try again.");
     } finally {
@@ -120,6 +137,28 @@ export default function ParentSupportPage() {
                             >
                                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Screenshot or attachment (optional)</label>
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={event => {
+                                    const file = event.target.files?.[0] || null;
+                                    try {
+                                        if (file) SupportRepository.validateAttachment(file);
+                                        setAttachment(file);
+                                        setAttachmentError('');
+                                    } catch (error) {
+                                        setAttachment(null);
+                                        setAttachmentError(error instanceof Error ? error.message : 'Invalid attachment.');
+                                        event.currentTarget.value = '';
+                                    }
+                                }}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-primary-600 file:px-4 file:py-2 file:text-xs file:font-black file:text-white"
+                            />
+                            <p className="text-[10px] text-slate-400">JPG, PNG, WebP or PDF • maximum 5 MB</p>
+                            {attachmentError && <p className="text-xs font-bold text-rose-500">{attachmentError}</p>}
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Short Description</label>
