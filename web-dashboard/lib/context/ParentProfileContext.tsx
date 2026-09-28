@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { observeAuth } from '../auth';
+import { observeAuth, signOut } from '../auth';
 import { ParentRepository, ParentProfile } from '../repositories/ParentRepository';
 import { FamilyRepository, FamilyData, FamilyRole } from '../repositories/FamilyRepository';
 import { RoleHelper } from '../utils/RoleHelper';
@@ -31,6 +31,16 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
   // 1. Sync with Firebase Auth
   useEffect(() => {
     return observeAuth((user) => {
+        if (user && !user.emailVerified) {
+            setAuthUser(null);
+            setProfile(null);
+            setFamily(null);
+            setLoading(false);
+            void signOut().finally(() => {
+                window.location.replace('/login?verificationRequired=1');
+            });
+            return;
+        }
         setAuthUser(user);
         if (!user) {
             setProfile(null);
