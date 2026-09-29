@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Battery,
   CheckCircle2,
+  Clock3,
   Loader2,
   Search,
   ShieldCheck,
@@ -28,6 +29,7 @@ type DeviceFilter =
   | 'ALL'
   | 'ONLINE'
   | 'OFFLINE'
+  | 'STALE'
   | 'UPDATE_PENDING'
   | 'SYNC_WARNING'
   | 'UNKNOWN_VERSION';
@@ -36,6 +38,7 @@ const FILTER_LABELS: Record<DeviceFilter, string> = {
   ALL: 'All',
   ONLINE: 'Online',
   OFFLINE: 'Offline',
+  STALE: 'Stale',
   UPDATE_PENDING: 'Update Pending',
   SYNC_WARNING: 'Sync Warning',
   UNKNOWN_VERSION: 'Unknown Version'
@@ -72,6 +75,19 @@ function isLatestVersion(deviceVersion: string | undefined, latestVersion: strin
   return normalizedVersion(deviceVersion) === normalizedVersion(latestVersion);
 }
 
+const STALE_AFTER_MS = 30 * 60 * 1000;
+
+function isDeviceStale(device: AdminDeviceHealth) {
+  return Boolean(
+    device.lastSeen &&
+    Date.now() - device.lastSeen > STALE_AFTER_MS
+  );
+}
+
+function isDeviceOnline(device: AdminDeviceHealth) {
+  return device.online && !isDeviceStale(device);
+}
+
 export default function InternalDevicesPage() {
   const [devices, setDevices] = useState<AdminDeviceHealth[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +121,8 @@ export default function InternalDevicesPage() {
     };
   }, []);
 
-  const onlineCount = devices.filter(device => device.online).length;
+  const staleCount = devices.filter(isDeviceStale).length;
+  const onlineCount = devices.filter(isDeviceOnline).length;
   const unhealthyCount = devices.filter(
     device => device.syncHealthy === false
   ).length;
@@ -135,6 +152,7 @@ export default function InternalDevicesPage() {
     ALL: devices.length,
     ONLINE: onlineCount,
     OFFLINE: devices.length - onlineCount,
+    STALE: staleCount,
     UPDATE_PENDING: updatePendingCount,
     SYNC_WARNING: unhealthyCount,
     UNKNOWN_VERSION: unknownVersionCount
@@ -145,8 +163,9 @@ export default function InternalDevicesPage() {
     return devices.filter(device => {
       const matchesFilter =
         deviceFilter === 'ALL' ||
-        (deviceFilter === 'ONLINE' && device.online) ||
-        (deviceFilter === 'OFFLINE' && !device.online) ||
+        (deviceFilter === 'ONLINE' && isDeviceOnline(device)) ||
+        (deviceFilter === 'OFFLINE' && !isDeviceOnline(device)) ||
+        (deviceFilter === 'STALE' && isDeviceStale(device)) ||
         (
           deviceFilter === 'UPDATE_PENDING' &&
           Boolean(latestVersion && device.appVersion) &&
@@ -184,7 +203,7 @@ export default function InternalDevicesPage() {
           </h1>
         </div>
         <p className="text-sm text-slate-500">
-          {devices.length} devices · {onlineCount} online · {unhealthyCount} sync warnings
+          {devices.length} devices · {onlineCount} online · {staleCount} stale · {unhealthyCount} sync warnings
         </p>
       </header>
 
@@ -307,6 +326,8 @@ export default function InternalDevicesPage() {
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           {filteredDevices.map(device => {
+            const stale = isDeviceStale(device);
+            const effectivelyOnline = isDeviceOnline(device);
             const lowBattery =
               typeof device.batteryPercent === 'number' &&
               device.batteryPercent <= 15;
@@ -323,12 +344,18 @@ export default function InternalDevicesPage() {
                     </p>
                   </div>
                   <span className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
-                    device.online
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-slate-800 text-slate-400'
+                    stale
+                      ? 'bg-amber-500/10 text-amber-400'
+                      : effectivelyOnline
+                        ? 'bg-emerald-500/10 text-emerald-400'
+                        : 'bg-slate-800 text-slate-400'
                   }`}>
-                    {device.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-                    {device.online ? 'Online' : 'Offline'}
+                    {stale
+                      ? <Clock3 size={14} />
+                      : effectivelyOnline
+                        ? <Wifi size={14} />
+                        : <WifiOff size={14} />}
+                    {stale ? 'Stale' : effectivelyOnline ? 'Online' : 'Offline'}
                   </span>
                 </div>
 
