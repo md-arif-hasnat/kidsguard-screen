@@ -658,8 +658,8 @@ const handleSaveOfflineAlertSettings = async () => {
                 <StatCard label="Security" value={displayData.status} icon={displayData.status === 'LOCKED' ? Lock : Unlock} color={displayData.status === 'LOCKED' ? "text-red-500" : "text-green-500"} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
+            <div className="space-y-8">
+                <div className="space-y-8">
                 <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[350px] md:h-[450px] relative">
                     {displayData.isLoading && !showMocks ? (
                         <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
