@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, Search } from "lucide-react";
 import InternalLayout from "@/components/InternalLayout";
-import { AdminErrorReport, AdminRepository } from "@/lib/repositories/AdminRepository";
+import {
+  AdminErrorReport,
+  AdminIssueStatus,
+  AdminIssueTriage,
+  AdminRepository
+} from "@/lib/repositories/AdminRepository";
+
+type IssueStatusFilter = "ALL" | AdminIssueStatus;
 
 interface IssueGroup {
   key: string;
@@ -12,19 +19,37 @@ interface IssueGroup {
   firstSeen: number;
   lastSeen: number;
   deviceCount: number;
+  status: AdminIssueStatus;
 }
+
+const statusStyles: Record<AdminIssueStatus, string> = {
+  OPEN: "bg-rose-500/10 text-rose-400",
+  ACKNOWLEDGED: "bg-amber-500/10 text-amber-400",
+  RESOLVED: "bg-emerald-500/10 text-emerald-400"
+};
 
 export default function InternalIssuesPage() {
   const [reports, setReports] = useState<AdminErrorReport[]>([]);
+  const [triage, setTriage] = useState<Record<string, AdminIssueTriage>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<IssueStatusFilter>("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    AdminRepository.getErrorReports()
-      .then(data => { if (active) setReports(data); })
+    Promise.all([
+      AdminRepository.getErrorReports(),
+      AdminRepository.getIssueTriage()
+    ])
+      .then(([reportData, triageData]) => {
+        if (active) {
+          setReports(reportData);
+          setTriage(triageData);
+        }
+      })
       .catch(() => { if (active) setError("Error reports could not be loaded."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -39,32 +64,69 @@ export default function InternalIssuesPage() {
 
     return Array.from(byFingerprint.entries()).map(([key, items]) => {
       const ordered = [...items].sort((a, b) => b.capturedAt - a.capturedAt);
+      const savedTriage = triage[key];
+      const hasRecurredAfterResolution =
+        savedTriage?.status === "RESOLVED" &&
+        savedTriage.updatedAt !== undefined &&
+        ordered[0].capturedAt > savedTriage.updatedAt;
       return {
         key,
         reports: ordered,
         latest: ordered[0],
         firstSeen: ordered[ordered.length - 1].capturedAt,
         lastSeen: ordered[0].capturedAt,
-        deviceCount: new Set(ordered.map(item => item.deviceId || item.childId)).size
+        deviceCount: new Set(ordered.map(item => item.deviceId || item.childId)).size,
+        status: hasRecurredAfterResolution
+          ? "OPEN"
+          : savedTriage?.status || "OPEN"
       };
     }).sort((a, b) => b.lastSeen - a.lastSeen);
-  }, [reports]);
+  }, [reports, triage]);
 
   const filteredGroups = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return groups;
-    return groups.filter(group => group.reports.some(report => [
-      report.tag,
-      report.message,
-      report.childId,
-      report.familyId,
-      report.deviceModel,
-      report.appVersion,
-      report.fingerprint
-    ].some(value => value?.toLowerCase().includes(term))));
-  }, [groups, search]);
+    return groups.filter(group => {
+      if (statusFilter !== "ALL" && group.status !== statusFilter) return false;
+      if (!term) return true;
+      return group.reports.some(report => [
+        report.tag,
+        report.message,
+        report.childId,
+        report.familyId,
+        report.deviceModel,
+        report.appVersion,
+        report.fingerprint
+      ].some(value => value?.toLowerCase().includes(term)));
+    });
+  }, [groups, search, statusFilter]);
+
+  const statusCounts = useMemo(() => ({
+    OPEN: groups.filter(group => group.status === "OPEN").length,
+    ACKNOWLEDGED: groups.filter(group => group.status === "ACKNOWLEDGED").length,
+    RESOLVED: groups.filter(group => group.status === "RESOLVED").length
+  }), [groups]);
 
   const affectedDevices = new Set(reports.map(report => report.deviceId || report.childId)).size;
+
+  async function changeStatus(fingerprint: string, status: AdminIssueStatus) {
+    setUpdatingStatus(fingerprint);
+    setError("");
+    try {
+      await AdminRepository.setIssueStatus(fingerprint, status);
+      setTriage(current => ({
+        ...current,
+        [fingerprint]: {
+          fingerprint,
+          status,
+          updatedAt: Date.now()
+        }
+      }));
+    } catch {
+      setError("Issue status could not be updated.");
+    } finally {
+      setUpdatingStatus(null);
+    }
+  }
 
   return (
     <InternalLayout>
@@ -77,6 +139,23 @@ export default function InternalIssuesPage() {
           {groups.length} unique issues · {reports.length} reports · {affectedDevices} affected devices
         </p>
       </header>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(["ALL", "OPEN", "ACKNOWLEDGED", "RESOLVED"] as IssueStatusFilter[]).map(status => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(status)}
+            className={`rounded-full px-4 py-2 text-xs font-black transition ${
+              statusFilter === status
+                ? "bg-white text-slate-950"
+                : "bg-slate-900 text-slate-400 hover:text-white"
+            }`}
+          >
+            {status === "ALL" ? `All (${groups.length})` : `${status} (${statusCounts[status]})`}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
         <Search size={18} className="text-slate-500" />
@@ -91,10 +170,13 @@ export default function InternalIssuesPage() {
 
       {loading ? (
         <div className="flex justify-center py-24"><Loader2 className="animate-spin text-rose-500" size={42} /></div>
-      ) : error ? (
+      ) : error && reports.length === 0 ? (
         <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-6 text-rose-300">{error}</div>
       ) : (
         <div className="space-y-3">
+          {error && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-300">{error}</div>
+          )}
           {filteredGroups.map(group => {
             const report = group.latest;
             const expanded = expandedId === group.key;
@@ -108,6 +190,7 @@ export default function InternalIssuesPage() {
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-rose-500/10 px-3 py-1 text-xs font-black text-rose-400">{report.tag}</span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${statusStyles[group.status]}`}>{group.status}</span>
                       <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-amber-400">
                         {group.reports.length} occurrence{group.reports.length === 1 ? "" : "s"}
                       </span>
@@ -123,6 +206,19 @@ export default function InternalIssuesPage() {
 
                 {expanded && (
                   <div className="border-t border-slate-800 p-5">
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {(["OPEN", "ACKNOWLEDGED", "RESOLVED"] as AdminIssueStatus[]).map(status => (
+                        <button
+                          key={status}
+                          type="button"
+                          disabled={updatingStatus === group.key || group.status === status}
+                          onClick={() => changeStatus(group.key, status)}
+                          className={`rounded-lg px-3 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-40 ${statusStyles[status]}`}
+                        >
+                          {updatingStatus === group.key && group.status !== status ? "Saving..." : status}
+                        </button>
+                      ))}
+                    </div>
                     <div className="mb-4 grid grid-cols-1 gap-3 text-xs text-slate-500 sm:grid-cols-3">
                       <p>First seen<br /><span className="text-slate-300">{new Date(group.firstSeen).toLocaleString()}</span></p>
                       <p>Latest child<br /><span className="text-slate-300">{report.childId}</span></p>
