@@ -12,6 +12,7 @@ import {
   Unlock,
   ShieldCheck as ShieldCheckIcon,
   Activity,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   History,
@@ -822,44 +823,52 @@ const handleSaveOfflineAlertSettings = async () => {
                     />
                 )}
 
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
-                                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <ShieldCheckIcon className="text-primary-600" />
-                                        Live Telemetry Panel
-                                    </h2>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
-                                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
-                                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
-                                        <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
-                                    </div>
-                                </section>
+                <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 md:p-6 [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-center gap-2">
+                            <ShieldCheckIcon className="text-primary-600" />
+                            <h2 className="text-lg font-bold">Live Telemetry Panel</h2>
+                        </div>
+                        <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                    </summary>
+                    <div className="grid grid-cols-1 gap-4 border-t border-slate-100 p-5 sm:grid-cols-2 md:grid-cols-4 md:p-6">
+                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
+                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
+                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
+                        <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
+                    </div>
+                </details>
 
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                        <Activity className="text-primary-500" size={20} />
-                        <h2 className="font-bold">Activity Feed</h2>
-                    </div>
-                    <button className="text-xs font-bold text-primary-600">View All</button>
-                    </div>
-                    <div className="space-y-6">
-                    {displayData.activities.length > 0 ? displayData.activities.map((item: any) => (
-                        <div key={item.id} className="flex gap-4 items-start">
-                        <div className="w-1 bg-slate-100 self-stretch rounded-full mt-2 ml-2" />
-                        <div className="flex-1">
-                            <p className="text-xs font-bold text-slate-400">
-                                {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-center gap-2">
+                            <Activity className="text-primary-500" size={20} />
+                            <h2 className="font-bold">Activity Feed</h2>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">
+                                {displayData.activities.length}
+                            </span>
+                        </div>
+                        <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-6 border-t border-slate-100 p-6">
+                        {displayData.activities.length > 0 ? displayData.activities.map((item: any) => (
+                            <div key={item.id} className="flex items-start gap-4">
+                                <div className="ml-2 mt-2 w-1 self-stretch rounded-full bg-slate-100" />
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-slate-400">
+                                        {typeof item.timestamp === 'number' ? new Date(item.timestamp).toLocaleTimeString() : item.time}
+                                    </p>
+                                    <p className="font-bold text-slate-700">{item.title}</p>
+                                    {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="py-8 text-center text-sm italic text-slate-400">
+                                No activity recorded today.
                             </p>
-                            <p className="font-bold text-slate-700">{item.title}</p>
-                            {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
-                        </div>
-                        </div>
-                    )) : (
-                        <p className="text-center py-8 text-slate-400 italic text-sm">No activity recorded today.</p>
-                    )}
+                        )}
                     </div>
-                </section>
+                </details>
                 <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
                                                     <div className="flex items-center gap-2 mb-4">
                                                     <ShieldCheckIcon size={24} />
