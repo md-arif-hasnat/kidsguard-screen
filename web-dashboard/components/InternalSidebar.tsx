@@ -52,8 +52,8 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   };
 
   const SidebarContent = (
-    <div className="h-full flex flex-col">
-      <div className="flex flex-col mb-10 px-2">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-6 flex shrink-0 flex-col px-2">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => { router.push('/internal'); if (onClose) onClose(); }}>
           <img src="/sidebar-logo.png" alt="KidsGuard" className="h-10 w-auto brightness-0 invert" />
           <div>
@@ -66,7 +66,10 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav
+        aria-label="Internal administration"
+        className="admin-sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pr-2"
+      >
         {internalItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -88,7 +91,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
         })}
       </nav>
 
-      <div className="pt-4 border-t border-slate-800">
+      <div className="shrink-0 border-t border-slate-800 pt-4">
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-400 hover:text-white transition-colors"
