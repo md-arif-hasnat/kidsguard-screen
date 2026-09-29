@@ -10,7 +10,8 @@ import {
     Loader2,
     CheckCircle2,
     XCircle,
-    Clock
+    Clock,
+    ChevronDown
 } from 'lucide-react';
 import { CommandRepository, CommandType } from '@/lib/repositories/CommandRepository';
 import { db } from '@/lib/firebase';
@@ -69,104 +70,132 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
     };
 
     return (
-        <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-8 border-b border-slate-100">
-                <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                    <Zap className="text-primary-600" />
-                    Remote Control Panel
-                </h3>
-                <p className="text-slate-500 font-medium mt-1">Execute immediate safety actions on the child device.</p>
-            </div>
-
-            <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <CommandBtn
-                            icon={RefreshCw}
-                            label="Refresh GPS"
-                            loading={loading === CommandType.REFRESH_LOCATION}
-                            onClick={() => handleSend(CommandType.REFRESH_LOCATION)}
-                        />
-                        <CommandBtn
-                            icon={Bell}
-                            label="Ring Device"
-                            loading={loading === CommandType.RING_DEVICE}
-                            onClick={() => handleSend(CommandType.RING_DEVICE)}
-                        />
-                        <CommandBtn
-                            icon={Lock}
-                            label="Lock Device"
-                            color="text-rose-600"
-                            loading={loading === CommandType.LOCK_DEVICE}
-                            onClick={() => handleSend(CommandType.LOCK_DEVICE)}
-                        />
-                        <CommandBtn
-                            icon={Unlock}
-                            label="Unlock Device"
-                            color="text-emerald-600"
-                            loading={loading === CommandType.UNLOCK_DEVICE}
-                            onClick={() => handleSend(CommandType.UNLOCK_DEVICE)}
-                        />
-                        <CommandBtn
-                            icon={Vibrate}
-                            label="Vibrate"
-                            loading={loading === CommandType.VIBRATE_DEVICE}
-                            onClick={() => handleSend(CommandType.VIBRATE_DEVICE)}
-                        />
+        <div className="space-y-4">
+            <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+                    <div>
+                        <h3 className="flex items-center gap-2 text-xl font-black text-slate-800">
+                            <Zap className="text-primary-600" />
+                            Remote Control Panel
+                        </h3>
+                        <p className="mt-1 text-sm font-medium text-slate-500">
+                            Execute immediate safety actions on the child device.
+                        </p>
                     </div>
+                    <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                </summary>
 
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                        <label className="block text-xs font-black text-slate-400 uppercase mb-3">Send Remote Message</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Type a message..."
-                                className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-primary-300"
-                                value={message}
-                                onChange={e => setMessage(e.target.value)}
+                <div className="border-t border-slate-100 p-6 md:p-8">
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                            <CommandBtn
+                                icon={RefreshCw}
+                                label="Refresh GPS"
+                                loading={loading === CommandType.REFRESH_LOCATION}
+                                onClick={() => handleSend(CommandType.REFRESH_LOCATION)}
                             />
-                            <button
-                                disabled={!message || loading === CommandType.SHOW_MESSAGE}
-                                onClick={() => handleSend(CommandType.SHOW_MESSAGE, message)}
-                                className="bg-primary-600 text-white p-3 rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-all"
-                            >
-                                {loading === CommandType.SHOW_MESSAGE ? <Loader2 className="animate-spin" /> : <MessageSquare size={20} />}
-                            </button>
+                            <CommandBtn
+                                icon={Bell}
+                                label="Ring Device"
+                                loading={loading === CommandType.RING_DEVICE}
+                                onClick={() => handleSend(CommandType.RING_DEVICE)}
+                            />
+                            <CommandBtn
+                                icon={Lock}
+                                label="Lock Device"
+                                color="text-rose-600"
+                                loading={loading === CommandType.LOCK_DEVICE}
+                                onClick={() => handleSend(CommandType.LOCK_DEVICE)}
+                            />
+                            <CommandBtn
+                                icon={Unlock}
+                                label="Unlock Device"
+                                color="text-emerald-600"
+                                loading={loading === CommandType.UNLOCK_DEVICE}
+                                onClick={() => handleSend(CommandType.UNLOCK_DEVICE)}
+                            />
+                            <CommandBtn
+                                icon={Vibrate}
+                                label="Vibrate"
+                                loading={loading === CommandType.VIBRATE_DEVICE}
+                                onClick={() => handleSend(CommandType.VIBRATE_DEVICE)}
+                            />
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6">
+                            <label className="mb-3 block text-xs font-black uppercase text-slate-400">
+                                Send Remote Message
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Type a message..."
+                                    className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-primary-300"
+                                    value={message}
+                                    onChange={event => setMessage(event.target.value)}
+                                />
+                                <button
+                                    disabled={!message || loading === CommandType.SHOW_MESSAGE}
+                                    onClick={() => handleSend(CommandType.SHOW_MESSAGE, message)}
+                                    className="rounded-xl bg-primary-600 p-3 text-white transition-all hover:bg-primary-700 disabled:opacity-50"
+                                >
+                                    {loading === CommandType.SHOW_MESSAGE
+                                        ? <Loader2 className="animate-spin" />
+                                        : <MessageSquare size={20} />}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </details>
 
-                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                    <h4 className="text-xs font-black text-slate-400 uppercase mb-6 flex items-center gap-2">
-                        <Clock size={14} />
-                        Command History
-                    </h4>
+            <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+                    <div className="flex items-center gap-2">
+                        <Clock className="text-primary-600" />
+                        <h3 className="text-xl font-black text-slate-800">
+                            Command History
+                        </h3>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">
+                            {recentCommands.length}
+                        </span>
+                    </div>
+                    <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                </summary>
+
+                <div className="border-t border-slate-100 bg-slate-50 p-6 md:p-8">
                     <div className="space-y-4">
-                        {recentCommands.length > 0 ? recentCommands.map((cmd) => {
+                        {recentCommands.length > 0 ? recentCommands.map(cmd => {
                             const effectiveStatus = getEffectiveStatus(cmd);
                             return (
-                            <div key={cmd.commandId || cmd.id} className="bg-white p-3 rounded-xl border border-slate-100">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-700">{cmd.commandType.replace(/_/g, ' ')}</p>
-                                        <p className="text-[10px] text-slate-400 font-medium">{new Date(cmd.createdAt).toLocaleTimeString()}</p>
+                                <div key={cmd.commandId || cmd.id} className="rounded-xl border border-slate-100 bg-white p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-700">
+                                                {cmd.commandType.replace(/_/g, ' ')}
+                                            </p>
+                                            <p className="text-[10px] font-medium text-slate-400">
+                                                {new Date(cmd.createdAt).toLocaleTimeString()}
+                                            </p>
+                                        </div>
+                                        <StatusBadge status={effectiveStatus} />
                                     </div>
-                                    <StatusBadge status={effectiveStatus} />
+                                    {cmd.resultMessage && (
+                                        <p className="mt-2 text-[10px] font-medium text-slate-500">
+                                            {cmd.resultMessage}
+                                        </p>
+                                    )}
                                 </div>
-                                {cmd.resultMessage && (
-                                    <p className="mt-2 text-[10px] font-medium text-slate-500">
-                                        {cmd.resultMessage}
-                                    </p>
-                                )}
-                            </div>
                             );
                         }) : (
-                            <p className="text-center py-12 text-slate-400 italic text-sm">No recent commands.</p>
+                            <p className="py-8 text-center text-sm italic text-slate-400">
+                                No recent commands.
+                            </p>
                         )}
                     </div>
                 </div>
-            </div>
-        </section>
+            </details>
+        </div>
     );
 }
 
