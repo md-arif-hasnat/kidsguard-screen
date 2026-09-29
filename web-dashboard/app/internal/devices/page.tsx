@@ -24,6 +24,23 @@ import {
   UpdateConfig
 } from '@/lib/repositories/ConfigRepository';
 
+type DeviceFilter =
+  | 'ALL'
+  | 'ONLINE'
+  | 'OFFLINE'
+  | 'UPDATE_PENDING'
+  | 'SYNC_WARNING'
+  | 'UNKNOWN_VERSION';
+
+const FILTER_LABELS: Record<DeviceFilter, string> = {
+  ALL: 'All',
+  ONLINE: 'Online',
+  OFFLINE: 'Offline',
+  UPDATE_PENDING: 'Update Pending',
+  SYNC_WARNING: 'Sync Warning',
+  UNKNOWN_VERSION: 'Unknown Version'
+};
+
 const REQUIRED_PERMISSIONS: Array<keyof AdminDeviceHealth> = [
   'locationPermissionGranted',
   'backgroundLocationPermissionGranted',
@@ -61,6 +78,7 @@ export default function InternalDevicesPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [updateConfig, setUpdateConfig] = useState<UpdateConfig | null>(null);
+  const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>('ALL');
 
   useEffect(() => {
     let active = true;
@@ -87,18 +105,6 @@ export default function InternalDevicesPage() {
     };
   }, []);
 
-  const filteredDevices = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return devices;
-    return devices.filter(device => [
-      device.childName,
-      device.childId,
-      device.familyId,
-      device.deviceName,
-      device.appVersion
-    ].some(value => value?.toLowerCase().includes(term)));
-  }, [devices, search]);
-
   const onlineCount = devices.filter(device => device.online).length;
   const unhealthyCount = devices.filter(
     device => device.syncHealthy === false
@@ -124,6 +130,49 @@ export default function InternalDevicesPage() {
       return counts;
     }, new Map<string, number>())
   ).sort((a, b) => b[1] - a[1]);
+
+  const filterCounts: Record<DeviceFilter, number> = {
+    ALL: devices.length,
+    ONLINE: onlineCount,
+    OFFLINE: devices.length - onlineCount,
+    UPDATE_PENDING: updatePendingCount,
+    SYNC_WARNING: unhealthyCount,
+    UNKNOWN_VERSION: unknownVersionCount
+  };
+
+  const filteredDevices = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return devices.filter(device => {
+      const matchesFilter =
+        deviceFilter === 'ALL' ||
+        (deviceFilter === 'ONLINE' && device.online) ||
+        (deviceFilter === 'OFFLINE' && !device.online) ||
+        (
+          deviceFilter === 'UPDATE_PENDING' &&
+          Boolean(latestVersion && device.appVersion) &&
+          !isLatestVersion(device.appVersion, latestVersion)
+        ) ||
+        (
+          deviceFilter === 'SYNC_WARNING' &&
+          device.syncHealthy === false
+        ) ||
+        (
+          deviceFilter === 'UNKNOWN_VERSION' &&
+          !device.appVersion
+        );
+
+      if (!matchesFilter) return false;
+      if (!term) return true;
+
+      return [
+        device.childName,
+        device.childId,
+        device.familyId,
+        device.deviceName,
+        device.appVersion
+      ].some(value => value?.toLowerCase().includes(term));
+    });
+  }, [devices, deviceFilter, latestVersion, search]);
 
   return (
     <InternalLayout>
@@ -215,6 +264,25 @@ export default function InternalDevicesPage() {
             </div>
           )}
         </section>
+      )}
+
+      {!loading && !error && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(Object.keys(FILTER_LABELS) as DeviceFilter[]).map(filter => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setDeviceFilter(filter)}
+              className={`rounded-full px-4 py-2 text-xs font-black transition ${
+                deviceFilter === filter
+                  ? 'bg-white text-slate-950'
+                  : 'bg-slate-900 text-slate-400 hover:text-white'
+              }`}
+            >
+              {FILTER_LABELS[filter]} ({filterCounts[filter]})
+            </button>
+          ))}
+        </div>
       )}
 
       <div className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
@@ -317,7 +385,7 @@ export default function InternalDevicesPage() {
 
       {!loading && !error && filteredDevices.length === 0 && (
         <p className="py-16 text-center text-sm text-slate-500">
-          No matching devices.
+          No devices match this filter.
         </p>
       )}
     </InternalLayout>
