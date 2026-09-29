@@ -658,6 +658,60 @@ const handleSaveOfflineAlertSettings = async () => {
                 />
             </div>
 
+            {isFirebaseConfigured && !deviceIsConnected && (
+                <section className={cn(
+                    "mb-8 flex flex-col gap-4 rounded-2xl border p-5 shadow-sm md:flex-row md:items-center md:justify-between",
+                    deviceIsStale
+                      ? "border-amber-200 bg-amber-50"
+                      : "border-rose-200 bg-rose-50"
+                )}>
+                    <div className="flex items-start gap-3">
+                        <div className={cn(
+                            "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                            deviceIsStale
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-rose-100 text-rose-700"
+                        )}>
+                            <CloudOff size={20} />
+                        </div>
+                        <div>
+                            <h2 className={cn(
+                                "font-black",
+                                deviceIsStale ? "text-amber-900" : "text-rose-900"
+                            )}>
+                                {deviceIsStale
+                                  ? `${displayData.name}'s device connection is stale`
+                                  : `${displayData.name}'s device is offline`}
+                            </h2>
+                            <p className={cn(
+                                "mt-1 text-sm",
+                                deviceIsStale ? "text-amber-700" : "text-rose-700"
+                            )}>
+                                Last contact: {status?.lastSeen
+                                  ? new Date(status.lastSeen).toLocaleString()
+                                  : "Not reported yet"}
+                            </p>
+                        </div>
+                    </div>
+
+                    {canControl && (
+                        <button
+                            type="button"
+                            onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
+                            className={cn(
+                                "flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-colors",
+                                deviceIsStale
+                                  ? "bg-amber-700 text-white hover:bg-amber-800"
+                                  : "bg-rose-700 text-white hover:bg-rose-800"
+                            )}
+                        >
+                            <RotateCcw size={16} />
+                            Request Location Refresh
+                        </button>
+                    )}
+                </section>
+            )}
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                 <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
                 <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={deviceIsStale ? "text-amber-500" : deviceIsConnected ? "text-yellow-500" : "text-slate-400"} />
