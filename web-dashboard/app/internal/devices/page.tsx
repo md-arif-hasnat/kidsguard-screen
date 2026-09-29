@@ -77,15 +77,15 @@ function isLatestVersion(deviceVersion: string | undefined, latestVersion: strin
 
 const STALE_AFTER_MS = 30 * 60 * 1000;
 
-function isDeviceStale(device: AdminDeviceHealth) {
+function isDeviceStale(device: AdminDeviceHealth, now: number) {
   return Boolean(
     device.lastSeen &&
-    Date.now() - device.lastSeen > STALE_AFTER_MS
+    now - device.lastSeen > STALE_AFTER_MS
   );
 }
 
-function isDeviceOnline(device: AdminDeviceHealth) {
-  return device.online && !isDeviceStale(device);
+function isDeviceOnline(device: AdminDeviceHealth, now: number) {
+  return device.online && !isDeviceStale(device, now);
 }
 
 export default function InternalDevicesPage() {
@@ -95,6 +95,14 @@ export default function InternalDevicesPage() {
   const [search, setSearch] = useState('');
   const [updateConfig, setUpdateConfig] = useState<UpdateConfig | null>(null);
   const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>('ALL');
+  const [statusNow, setStatusNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setStatusNow(Date.now());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -121,8 +129,8 @@ export default function InternalDevicesPage() {
     };
   }, []);
 
-  const staleCount = devices.filter(isDeviceStale).length;
-  const onlineCount = devices.filter(isDeviceOnline).length;
+  const staleCount = devices.filter(device => isDeviceStale(device, statusNow)).length;
+  const onlineCount = devices.filter(device => isDeviceOnline(device, statusNow)).length;
   const unhealthyCount = devices.filter(
     device => device.syncHealthy === false
   ).length;
@@ -163,9 +171,9 @@ export default function InternalDevicesPage() {
     return devices.filter(device => {
       const matchesFilter =
         deviceFilter === 'ALL' ||
-        (deviceFilter === 'ONLINE' && isDeviceOnline(device)) ||
-        (deviceFilter === 'OFFLINE' && !isDeviceOnline(device)) ||
-        (deviceFilter === 'STALE' && isDeviceStale(device)) ||
+        (deviceFilter === 'ONLINE' && isDeviceOnline(device, statusNow)) ||
+        (deviceFilter === 'OFFLINE' && !isDeviceOnline(device, statusNow)) ||
+        (deviceFilter === 'STALE' && isDeviceStale(device, statusNow)) ||
         (
           deviceFilter === 'UPDATE_PENDING' &&
           Boolean(latestVersion && device.appVersion) &&
@@ -191,7 +199,7 @@ export default function InternalDevicesPage() {
         device.appVersion
       ].some(value => value?.toLowerCase().includes(term));
     });
-  }, [devices, deviceFilter, latestVersion, search]);
+  }, [devices, deviceFilter, latestVersion, search, statusNow]);
 
   return (
     <InternalLayout>
@@ -326,8 +334,8 @@ export default function InternalDevicesPage() {
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           {filteredDevices.map(device => {
-            const stale = isDeviceStale(device);
-            const effectivelyOnline = isDeviceOnline(device);
+            const stale = isDeviceStale(device, statusNow);
+            const effectivelyOnline = isDeviceOnline(device, statusNow);
             const lowBattery =
               typeof device.batteryPercent === 'number' &&
               device.batteryPercent <= 15;
