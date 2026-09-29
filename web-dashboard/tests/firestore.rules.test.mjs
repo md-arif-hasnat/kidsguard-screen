@@ -1458,3 +1458,66 @@ test(
     );
   }
 );
+
+
+test(
+  "platform admin can triage issues and family users cannot",
+  async () => {
+    const adminDb = verifiedDb(
+      "admin-uid",
+      "admin@example.com"
+    );
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const issueRef = doc(adminDb, "issueTriage", "fingerprint-1");
+
+    await assertSucceeds(
+      setDoc(issueRef, {
+        fingerprint: "fingerprint-1",
+        status: "ACKNOWLEDGED",
+        updatedBy: "admin-uid",
+        updatedAt: serverTimestamp()
+      })
+    );
+    await assertSucceeds(getDoc(issueRef));
+    await assertSucceeds(
+      updateDoc(issueRef, {
+        status: "RESOLVED",
+        updatedAt: serverTimestamp()
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(ownerDb, "issueTriage", "fingerprint-2"), {
+        fingerprint: "fingerprint-2",
+        status: "RESOLVED",
+        updatedBy: "owner-uid",
+        updatedAt: serverTimestamp()
+      })
+    );
+    await assertFails(
+      getDoc(doc(ownerDb, "issueTriage", "fingerprint-1"))
+    );
+  }
+);
+
+test(
+  "platform admin cannot write invalid issue triage status",
+  async () => {
+    const adminDb = verifiedDb(
+      "admin-uid",
+      "admin@example.com"
+    );
+
+    await assertFails(
+      setDoc(doc(adminDb, "issueTriage", "fingerprint-invalid"), {
+        fingerprint: "fingerprint-invalid",
+        status: "IGNORED",
+        updatedBy: "admin-uid",
+        updatedAt: serverTimestamp()
+      })
+    );
+  }
+);
