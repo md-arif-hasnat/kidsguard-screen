@@ -516,11 +516,13 @@ class UpdateRepository(private val context: Context) {
 
         val installedSigners = signerDigests(installedInfo)
         val archiveSigners = signerDigests(archiveInfo)
-        if (
-            installedSigners.isEmpty() ||
-            archiveSigners.isEmpty() ||
-            installedSigners.intersect(archiveSigners).isEmpty()
-        ) {
+        if (installedSigners.isEmpty()) {
+            return "Installed KidsGuard signing certificate could not be read."
+        }
+        if (archiveSigners.isEmpty()) {
+            return "Downloaded APK signing certificate could not be read."
+        }
+        if (installedSigners.intersect(archiveSigners).isEmpty()) {
             return "APK signing certificate does not match the installed " +
                 "KidsGuard app. The downloaded file was removed."
         }
@@ -534,11 +536,19 @@ class UpdateRepository(private val context: Context) {
         val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val signingInfo = packageInfo.signingInfo
                 ?: return emptySet()
-            if (signingInfo.hasMultipleSigners()) {
-                signingInfo.apkContentsSigners
+            // Some Android builds expose an empty certificate-history array
+            // for archive APKs even though apkContentsSigners is populated.
+            // Include both sources so current signers and key-rotation history
+            // can be matched reliably across devices.
+            val currentSigners = signingInfo.apkContentsSigners.orEmpty()
+            val signerHistory = if (signingInfo.hasMultipleSigners()) {
+                emptyArray()
             } else {
-                signingInfo.signingCertificateHistory
+                signingInfo.signingCertificateHistory.orEmpty()
             }
+            (currentSigners + signerHistory).distinctBy {
+                it.toCharsString()
+            }.toTypedArray()
         } else {
             @Suppress("DEPRECATION")
             packageInfo.signatures
