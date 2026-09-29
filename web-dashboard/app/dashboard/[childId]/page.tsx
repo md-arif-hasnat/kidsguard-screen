@@ -153,6 +153,8 @@ export default function ChildDashboard() {
 
   const [offlineAlertSaving, setOfflineAlertSaving] =
     useState(false);
+  const [locationRefreshState, setLocationRefreshState] =
+    useState<'IDLE' | 'SENDING' | 'SENT' | 'ERROR'>('IDLE');
 
   const [offlineAlertSaved, setOfflineAlertSaved] =
     useState(false);
@@ -386,12 +388,12 @@ export default function ChildDashboard() {
     isLoading: true
   };
 
-  const handleCommand = async (type: CommandType) => {
+  const handleCommand = async (type: CommandType): Promise<boolean> => {
     if (!isFirebaseConfigured) {
         alert("Firebase not configured. Commands disabled in mock mode.");
-        return;
+        return false;
     }
-    if (!profile || !family) return;
+    if (!profile || !family) return false;
     try {
         await CommandRepository.sendCommand(
             childId,
@@ -402,9 +404,21 @@ export default function ChildDashboard() {
             null,
             role
         );
+        return true;
     } catch (e) {
         alert("Failed to send command.");
+        return false;
     }
+  };
+
+  const handleLocationRefreshRequest = async () => {
+    if (locationRefreshState === 'SENDING') return;
+    setLocationRefreshState('SENDING');
+    const sent = await handleCommand(CommandType.REFRESH_LOCATION);
+    setLocationRefreshState(sent ? 'SENT' : 'ERROR');
+    window.setTimeout(() => {
+      setLocationRefreshState('IDLE');
+    }, 3000);
   };
 
   const handleAvatarSelect = async (newAvatarId: string) => {
@@ -697,16 +711,27 @@ const handleSaveOfflineAlertSettings = async () => {
                     {canControl && (
                         <button
                             type="button"
-                            onClick={() => handleCommand(CommandType.REFRESH_LOCATION)}
+                            onClick={handleLocationRefreshRequest}
+                            disabled={locationRefreshState === 'SENDING'}
                             className={cn(
-                                "flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-colors",
+                                "flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                                 deviceIsStale
                                   ? "bg-amber-700 text-white hover:bg-amber-800"
                                   : "bg-rose-700 text-white hover:bg-rose-800"
                             )}
                         >
-                            <RotateCcw size={16} />
-                            Request Location Refresh
+                            {locationRefreshState === 'SENDING'
+                              ? <Loader2 size={16} className="animate-spin" />
+                              : locationRefreshState === 'SENT'
+                                ? <CheckCircle2 size={16} />
+                                : <RotateCcw size={16} />}
+                            {locationRefreshState === 'SENDING'
+                              ? 'Sending Request...'
+                              : locationRefreshState === 'SENT'
+                                ? 'Request Sent'
+                                : locationRefreshState === 'ERROR'
+                                  ? 'Try Again'
+                                  : 'Request Location Refresh'}
                         </button>
                     )}
                 </section>
