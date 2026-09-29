@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     title: "KidsGuard",
     statusBarStyle: "black-translucent",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   openGraph: {
     type: "website",
     siteName: "KidsGuard",
