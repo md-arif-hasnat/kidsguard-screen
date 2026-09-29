@@ -5,6 +5,7 @@ import React, {
 } from "react";
 import {
   Calendar,
+  ChevronDown,
   Clock,
   Loader2,
   Save,
@@ -200,96 +201,104 @@ export default function LockSchedulePanel({
   }
 
   return (
-    <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 md:p-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
         <div>
-          <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-xl font-black text-slate-800">
             <Clock className="text-primary-600" />
             Bedtime & Lock Schedule
           </h3>
-          <p className="text-slate-500 font-medium text-sm mt-1">
-            Set different overnight lock times for school days and weekends.
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            Set overnight lock times for school days and weekends.
           </p>
         </div>
+        <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
 
-        <div className="flex items-center gap-3">
-          <span className={
-            "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest " +
-            (currentStatus === "Schedule Active"
-              ? "bg-rose-100 text-rose-700"
-              : currentStatus === "Disabled"
-              ? "bg-slate-100 text-slate-400"
-              : "bg-emerald-100 text-emerald-700")
-          }>
-            {currentStatus}
-          </span>
-          <Switch
-            enabled={enabled}
-            disabled={!canEdit}
-            onChange={() => setEnabled(value => !value)}
-          />
+      <div className="border-t border-slate-100 p-6 md:p-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <p className="text-sm font-bold text-slate-600">
+            Schedule control
+          </p>
+          <div className="flex items-center gap-3">
+            <span className={
+              "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest " +
+              (currentStatus === "Schedule Active"
+                ? "bg-rose-100 text-rose-700"
+                : currentStatus === "Disabled"
+                ? "bg-slate-100 text-slate-400"
+                : "bg-emerald-100 text-emerald-700")
+            }>
+              {currentStatus}
+            </span>
+            <Switch
+              enabled={enabled}
+              disabled={!canEdit}
+              onChange={() => setEnabled(value => !value)}
+            />
+          </div>
         </div>
-      </div>
 
-      <div className={"grid grid-cols-1 xl:grid-cols-2 gap-5 " + (!enabled ? "opacity-60" : "")}>
-        {windows.slice(0, 2).map(window => (
-          <ScheduleWindowEditor
-            key={window.id}
-            window={window}
-            disabled={!enabled || !canEdit}
-            onChange={updates => updateWindow(window.id, updates)}
-          />
-        ))}
-      </div>
-
-      <div className="mt-6 rounded-2xl bg-slate-50 border border-slate-100 p-5">
-        <div className="flex items-center gap-2 text-slate-700 font-bold">
-          <ShieldCheck size={18} className="text-primary-600" />
-          Schedule protection
+        <div className={"grid grid-cols-1 gap-5 xl:grid-cols-2 " + (!enabled ? "opacity-60" : "")}>
+          {windows.slice(0, 2).map(window => (
+            <ScheduleWindowEditor
+              key={window.id}
+              window={window}
+              disabled={!enabled || !canEdit}
+              onChange={updates => updateWindow(window.id, updates)}
+            />
+          ))}
         </div>
-        <ul className="text-xs text-slate-500 mt-3 space-y-2">
-          <li>• Overnight windows continue correctly after midnight.</li>
-          <li>• Parent remote unlock pauses the lock until that window ends.</li>
-          <li>• Manual parent lock always takes priority.</li>
-          <li>• Phone, emergency access and KidsGuard remain available.</li>
-        </ul>
-      </div>
 
-      <button
-        type="button"
-        disabled={!canEdit || saving}
-        onClick={save}
-        className={
-          "mt-6 w-full font-black py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 uppercase tracking-widest text-xs disabled:opacity-50 " +
-          (saveSuccess
-            ? "bg-emerald-600 text-white"
-            : "bg-slate-900 hover:bg-slate-800 text-white")
-        }
-      >
-        {saving ? (
-          <>
-            <Loader2 className="animate-spin" size={16} />
-            Saving...
-          </>
-        ) : saveSuccess ? (
-          <>
-            <ShieldCheck size={16} />
-            Saved
-          </>
-        ) : (
-          <>
-            <Save size={16} />
-            Save Schedule
-          </>
+        <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-5">
+          <div className="flex items-center gap-2 font-bold text-slate-700">
+            <ShieldCheck size={18} className="text-primary-600" />
+            Schedule protection
+          </div>
+          <ul className="mt-3 space-y-2 text-xs text-slate-500">
+            <li>• Overnight windows continue correctly after midnight.</li>
+            <li>• Parent remote unlock pauses the lock until that window ends.</li>
+            <li>• Manual parent lock always takes priority.</li>
+            <li>• Phone, emergency access and KidsGuard remain available.</li>
+          </ul>
+        </div>
+
+        <button
+          type="button"
+          disabled={!canEdit || saving}
+          onClick={save}
+          className={
+            "mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-4 text-xs font-black uppercase tracking-widest shadow-lg disabled:opacity-50 " +
+            (saveSuccess
+              ? "bg-emerald-600 text-white"
+              : "bg-slate-900 text-white hover:bg-slate-800")
+          }
+        >
+          {saving ? (
+            <>
+              <Loader2 className="animate-spin" size={16} />
+              Saving...
+            </>
+          ) : saveSuccess ? (
+            <>
+              <ShieldCheck size={16} />
+              Saved
+            </>
+          ) : (
+            <>
+              <Save size={16} />
+              Save Schedule
+            </>
+          )}
+        </button>
+
+        {saveError && (
+          <p className="mt-4 text-center text-xs font-bold text-rose-500">
+            {saveError}
+          </p>
         )}
-      </button>
-
-      {saveError && (
-        <p className="mt-4 text-center text-xs font-bold text-rose-500">
-          {saveError}
-        </p>
-      )}
-    </section>
+      </div>
+    </details>
   );
 }
 
