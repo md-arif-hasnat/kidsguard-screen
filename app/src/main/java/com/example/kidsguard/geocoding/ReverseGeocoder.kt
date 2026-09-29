@@ -2,6 +2,7 @@ package com.example.kidsguard.geocoding
 
 import android.content.Context
 import android.location.Geocoder
+import java.io.IOException
 import java.util.Locale
 
 class ReverseGeocoder(
@@ -74,6 +75,20 @@ class ReverseGeocoder(
                 )
                 null
             }
+        } catch (e: IOException) {
+            // Android's platform geocoder can be temporarily unavailable due
+            // to network or backend conditions. Coordinates are still valid,
+            // so let the caller save them and retry address lookup naturally
+            // on a later location update. This is expected degradation, not
+            // an application error that belongs in the admin issues feed.
+            lastException = e.toString()
+            lastAddressInfo = null
+            lastResultCount = 0
+            android.util.Log.w(
+                "ReverseGeocoder",
+                "Geocoder temporarily unavailable for ($latitude, $longitude): ${e.message}"
+            )
+            null
         } catch (e: Exception) {
             lastException = e.toString()
             lastAddressInfo = null
