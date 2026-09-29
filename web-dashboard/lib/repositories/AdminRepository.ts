@@ -1,4 +1,4 @@
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import {
   collection,
   collectionGroup,
@@ -10,7 +10,9 @@ import {
   getCountFromServer,
   Timestamp,
   orderBy,
-  limit
+  limit,
+  serverTimestamp,
+  setDoc
 } from "firebase/firestore";
 
 export interface GlobalMetrics {
@@ -62,6 +64,15 @@ export interface AdminFamilyOverview {
   lastActiveDate?: string;
 }
 
+export type AdminIssueStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+
+export interface AdminIssueTriage {
+  fingerprint: string;
+  status: AdminIssueStatus;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
 export interface AdminErrorReport {
   id: string;
   childId: string;
@@ -96,6 +107,50 @@ export class AdminRepository {
       id: reportDocument.id,
       ...reportDocument.data()
     } as AdminErrorReport));
+  }
+
+  static async getIssueTriage(): Promise<Record<string, AdminIssueTriage>> {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const snapshot = await getDocs(collection(db, "issueTriage"));
+    return Object.fromEntries(snapshot.docs.map(triageDocument => {
+      const data = triageDocument.data();
+      const rawUpdatedAt = data.updatedAt;
+      return [
+        triageDocument.id,
+        {
+          fingerprint: data.fingerprint || triageDocument.id,
+          status: data.status as AdminIssueStatus,
+          updatedAt: typeof rawUpdatedAt === "number"
+            ? rawUpdatedAt
+            : rawUpdatedAt?.toMillis?.(),
+          updatedBy: data.updatedBy
+        }
+      ];
+    }));
+  }
+
+  static async setIssueStatus(
+    fingerprint: string,
+    status: AdminIssueStatus
+  ): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = auth?.currentUser;
+    if (!user) throw new Error("Admin authentication required");
+    if (!fingerprint || fingerprint.length > 128 || fingerprint.includes("/")) {
+      throw new Error("Invalid issue fingerprint");
+    }
+
+    await setDoc(
+      doc(db, "issueTriage", fingerprint),
+      {
+        fingerprint,
+        status,
+        updatedBy: user.uid,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
   }
 
   static async getFamilyOverview(
