@@ -104,6 +104,30 @@ service cloud.firestore {
                 );
             }
 
+            match /issueTriage/{fingerprint} {
+              allow read: if isPlatformAdmin();
+
+              allow create, update: if isPlatformAdmin() &&
+                fingerprint.size() > 0 &&
+                fingerprint.size() <= 128 &&
+                request.resource.data.fingerprint == fingerprint &&
+                request.resource.data.status in [
+                  'OPEN',
+                  'ACKNOWLEDGED',
+                  'RESOLVED'
+                ] &&
+                request.resource.data.updatedBy == request.auth.uid &&
+                request.resource.data.updatedAt == request.time &&
+                request.resource.data.keys().hasOnly([
+                  'fingerprint',
+                  'status',
+                  'updatedBy',
+                  'updatedAt'
+                ]);
+
+              allow delete: if false;
+            }
+
             match /platformAdmins/{adminId} {
               allow get: if isEmailVerified() &&
                 request.auth.uid == adminId;
