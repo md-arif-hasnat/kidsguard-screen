@@ -540,21 +540,29 @@ class UpdateRepository(private val context: Context) {
             // for archive APKs even though apkContentsSigners is populated.
             // Include both sources so current signers and key-rotation history
             // can be matched reliably across devices.
-            val currentSigners = signingInfo.apkContentsSigners.orEmpty()
-            val signerHistory = if (signingInfo.hasMultipleSigners()) {
-                emptyArray()
-            } else {
-                signingInfo.signingCertificateHistory.orEmpty()
-            }
+            val currentSigners: List<android.content.pm.Signature> =
+                signingInfo.apkContentsSigners
+                    ?.toList()
+                    .orEmpty()
+            val signerHistory: List<android.content.pm.Signature> =
+                if (signingInfo.hasMultipleSigners()) {
+                    emptyList()
+                } else {
+                    signingInfo.signingCertificateHistory
+                        ?.toList()
+                        .orEmpty()
+                }
             (currentSigners + signerHistory).distinctBy {
                 it.toCharsString()
-            }.toTypedArray()
+            }
         } else {
             @Suppress("DEPRECATION")
             packageInfo.signatures
+                ?.toList()
+                .orEmpty()
         }
 
-        return signatures.orEmpty().map { signature ->
+        return signatures.map { signature ->
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(signature.toByteArray())
             digest.joinToString("") { byte ->
