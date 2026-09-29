@@ -137,6 +137,14 @@ export default function ChildDashboard() {
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  const [statusNow, setStatusNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setStatusNow(Date.now());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const [offlineAlertSettings, setOfflineAlertSettings] =
     useState<OfflineAlertSettings>({
       enabled: true,
@@ -464,7 +472,7 @@ const handleSaveOfflineAlertSettings = async () => {
   })) : MOCK_DEVIATIONS;
 
   const deviceLastSeenAgeMs = status?.lastSeen
-    ? Math.max(0, Date.now() - status.lastSeen)
+    ? Math.max(0, statusNow - status.lastSeen)
     : null;
   const deviceIsStale =
     status?.online === true &&
@@ -663,7 +671,7 @@ const handleSaveOfflineAlertSettings = async () => {
                         {status?.lastLocation?.timestamp && (
                             <p className="text-[10px] text-slate-400 font-medium ml-7 md:ml-9">
                                 {(() => {
-                                    const diff = Date.now() - status.lastLocation.timestamp;
+                                    const diff = statusNow - status.lastLocation.timestamp;
                                     if (diff < 60000) return "Live Location";
                                     return `Updated ${Math.round(diff / 60000)}m ago`;
                                 })()}
@@ -862,7 +870,7 @@ const handleSaveOfflineAlertSettings = async () => {
                     <div className="grid grid-cols-1 gap-4 border-t border-slate-100 p-5 sm:grid-cols-2 md:grid-cols-4 md:p-6">
                         <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
                         <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
-                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((Date.now() - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (Date.now() - status.lastSeen < 60000) ? "healthy" : "warning"} />
+                        <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((statusNow - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (statusNow - status.lastSeen < 60000) ? "healthy" : "warning"} />
                         <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
                     </div>
                 </details>
