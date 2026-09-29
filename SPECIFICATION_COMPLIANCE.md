@@ -208,7 +208,7 @@ Status legend:
 
 | Requirement | Status | Completion condition |
 |---|---|---|
-| versionCode/versionName discipline | Complete | v1.0.59 current. |
+| versionCode/versionName discipline | Complete | v1.0.60 current. |
 | Release date/notes/APK/minimum version | Partial | Metadata system exists; mandatory enforcement requires verification. |
 | GitHub release artifact | Partial | Manual workflow; current repository artifact is outdated. |
 | Internal release states | Complete | Draft and Testing never change child config; confirmed Published transitions atomically activate a release, and only inactive releases can be Deprecated. |
