@@ -463,6 +463,22 @@ const handleSaveOfflineAlertSettings = async () => {
     severity: d.severity
   })) : MOCK_DEVIATIONS;
 
+  const deviceLastSeenAgeMs = status?.lastSeen
+    ? Math.max(0, Date.now() - status.lastSeen)
+    : null;
+  const deviceIsStale =
+    status?.online === true &&
+    deviceLastSeenAgeMs !== null &&
+    deviceLastSeenAgeMs > 30 * 60 * 1000;
+  const deviceIsConnected = status?.online === true && !deviceIsStale;
+  const deviceConnectionLabel = !isFirebaseConfigured
+    ? 'Mock Online'
+    : deviceIsStale
+      ? `Stale (${Math.round((deviceLastSeenAgeMs || 0) / 60000)}m)`
+      : deviceIsConnected
+        ? 'Connected'
+        : 'Offline';
+
   if (profileLoading) {
       return (
           <DashboardLayout>
@@ -636,7 +652,7 @@ const handleSaveOfflineAlertSettings = async () => {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                 <StatCard label="Battery" value={`${displayData.battery}%`} icon={Battery} color={displayData.battery < 20 ? "text-red-500" : "text-primary-500"} />
-                <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={status?.online ? "text-yellow-500" : "text-slate-400"} />
+                <StatCard label="Last Seen" value={displayData.lastSeen} icon={Zap} color={deviceIsStale ? "text-amber-500" : deviceIsConnected ? "text-yellow-500" : "text-slate-400"} />
                 <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-wider mb-1 md:mb-2">Current Zone</div>
                     <div className="flex flex-col">
@@ -681,8 +697,20 @@ const handleSaveOfflineAlertSettings = async () => {
                         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md border border-slate-100 z-10">
                         <p className="text-[10px] font-bold text-slate-400 uppercase">Device Status</p>
                         <div className="flex items-center gap-2">
-                            <div className={cn("w-2 h-2 rounded-full animate-pulse", status?.online ? "bg-green-500" : "bg-red-500")} />
-                            <p className="text-sm font-bold text-slate-700">{isFirebaseConfigured ? (status?.online ? 'Connected' : 'Offline') : 'Mock Online'}</p>
+                            <div className={cn(
+                                "h-2 w-2 rounded-full",
+                                deviceIsStale
+                                  ? "bg-amber-500"
+                                  : deviceIsConnected || !isFirebaseConfigured
+                                    ? "animate-pulse bg-green-500"
+                                    : "bg-red-500"
+                            )} />
+                            <p className={cn(
+                                "text-sm font-bold",
+                                deviceIsStale ? "text-amber-600" : "text-slate-700"
+                            )}>
+                                {deviceConnectionLabel}
+                            </p>
                         </div>
                         </div>
                         </>
