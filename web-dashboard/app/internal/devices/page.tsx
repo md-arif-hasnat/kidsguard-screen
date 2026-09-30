@@ -98,6 +98,13 @@ export default function InternalDevicesPage() {
   const [statusNow, setStatusNow] = useState(() => Date.now());
 
   useEffect(() => {
+    const childId = new URLSearchParams(window.location.search).get('child');
+    if (!childId) return;
+    setSearch(childId);
+    setDeviceFilter('ALL');
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setStatusNow(Date.now());
     }, 60_000);
