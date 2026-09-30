@@ -956,7 +956,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -5189,20 +5189,36 @@ export const onAdminSupportActivityPush = functions.firestore
       ? afterReplies[afterReplies.length - 1]
       : null;
     const newParentMessage = newReply?.authorRole === "PARENT";
+    const newAdminReply =
+      newReply?.authorRole === "ADMIN" ||
+      newReply?.authorRole === "SUPPORT";
 
-    if (!created && !newParentMessage) return null;
+    if (created || newParentMessage) {
+      await notifyPlatformAdmins({
+        type: "ADMIN_SUPPORT",
+        eventId: `support-${context.params.ticketId}-${afterReplies.length}`,
+        title: String(after.subject || "New support message"),
+        body: String(
+          newParentMessage
+            ? newReply.message
+            : after.message || "A new support ticket needs a response."
+        ),
+        clickAction: `/internal/support?ticket=${encodeURIComponent(context.params.ticketId)}`
+      });
+    }
 
-    await notifyPlatformAdmins({
-      type: "ADMIN_SUPPORT",
-      eventId: `support-${context.params.ticketId}-${afterReplies.length}`,
-      title: String(after.subject || "New support message"),
-      body: String(
-        newParentMessage
-          ? newReply.message
-          : after.message || "A new support ticket needs a response."
-      ),
-      clickAction: `/internal/support?ticket=${encodeURIComponent(context.params.ticketId)}`
-    });
+    if (newAdminReply && typeof after.parentUid === "string" && after.parentUid) {
+      await notifyParent(after.parentUid, {
+        type: "SUPPORT_REPLY",
+        title: "New support reply",
+        body: String(newReply.message || "KidsGuard Support replied to your ticket."),
+        childId: "",
+        eventId: `support-reply-${context.params.ticketId}-${newReply.replyId || afterReplies.length}`,
+        clickAction: `/support/${encodeURIComponent(context.params.ticketId)}`,
+        familyId: String(after.familyId || "")
+      });
+    }
+
     return null;
   });
 
