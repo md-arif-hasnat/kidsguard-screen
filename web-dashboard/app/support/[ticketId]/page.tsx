@@ -16,6 +16,7 @@ import { SupportRepository, SupportTicket } from '@/lib/repositories/SupportRepo
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
 import SupportAttachments from '@/components/support/SupportAttachments';
+import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
 
 export default function TicketConversationPage() {
   const params = useParams();
@@ -37,6 +38,14 @@ export default function TicketConversationPage() {
       return () => unsub();
     }
   }, [ticketId]);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    void NotificationRepository.markAllAsReadByType(
+      profile.uid,
+      'SUPPORT_REPLY'
+    );
+  }, [profile?.uid, ticketId]);
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
