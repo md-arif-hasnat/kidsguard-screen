@@ -23,7 +23,7 @@ import {
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { signOut, observeAuth } from '@/lib/auth';
-import { NotificationRepository } from '@/lib/repositories/NotificationRepository';
+import { NotificationRepository, NotificationHistoryItem } from '@/lib/repositories/NotificationRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 
@@ -81,7 +81,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const navItems = [
+  const navItems: Array<{
+    name: string;
+    href: string;
+    icon: React.ElementType;
+    badge?: number;
+    notificationType?: NotificationHistoryItem['type'];
+  }> = [
     { name: 'Family Overview', href: '/', icon: Users },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
     { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
@@ -125,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               key={item.name}
               href={item.href}
               onClick={() => {
-                if ('notificationType' in item && item.notificationType && user?.uid) {
+                if (item.notificationType && user?.uid) {
                   void NotificationRepository.markAllAsReadByType(
                     user.uid,
                     item.notificationType
