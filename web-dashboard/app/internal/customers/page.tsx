@@ -23,6 +23,11 @@ export default function InternalCustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    const familyId = new URLSearchParams(window.location.search).get('family');
+    if (familyId) setSearchTerm(familyId);
+  }, []);
+
+  useEffect(() => {
     async function load() {
         try {
             const data = await ParentRepository.getAllParents();
