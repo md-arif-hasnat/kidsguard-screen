@@ -5137,7 +5137,7 @@ async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
       }
     });
 
-    const invalidDeletes: Promise<FirebaseFirestore.WriteResult>[] = [];
+    const invalidDeletes: Promise<admin.firestore.WriteResult>[] = [];
     response.responses.forEach((item, index) => {
       const code = item.error?.code;
       if (
