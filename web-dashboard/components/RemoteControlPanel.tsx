@@ -164,6 +164,11 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                 </summary>
 
                 <div className="border-t border-slate-100 bg-slate-50 p-6 md:p-8">
+                    <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold">
+                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-600">Pending: queued</span>
+                        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-700">Delivered: child received</span>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-700">Applied: completed</span>
+                    </div>
                     <div className="space-y-4">
                         {recentCommands.length > 0 ? recentCommands.map(cmd => {
                             const effectiveStatus = getEffectiveStatus(cmd);
@@ -175,13 +180,31 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                                                 {cmd.commandType.replace(/_/g, ' ')}
                                             </p>
                                             <p className="text-[10px] font-medium text-slate-400">
-                                                {new Date(cmd.createdAt).toLocaleTimeString()}
+                                                Sent {formatCommandTime(cmd.createdAt)}
                                             </p>
                                         </div>
                                         <StatusBadge status={effectiveStatus} />
                                     </div>
+                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium text-slate-400">
+                                        {cmd.receivedAt && (
+                                            <span>Received {formatCommandTime(cmd.receivedAt)}</span>
+                                        )}
+                                        {cmd.executedAt && (
+                                            <span>
+                                                {effectiveStatus === 'APPLIED' ? 'Applied' : 'Finished'} {formatCommandTime(cmd.executedAt)}
+                                            </span>
+                                        )}
+                                        {!cmd.receivedAt && effectiveStatus === 'PENDING' && (
+                                            <span>Waiting for child device</span>
+                                        )}
+                                    </div>
                                     {cmd.resultMessage && (
-                                        <p className="mt-2 text-[10px] font-medium text-slate-500">
+                                        <p className={cn(
+                                            "mt-2 text-[10px] font-bold",
+                                            effectiveStatus === 'FAILED' || effectiveStatus === 'EXPIRED'
+                                              ? "text-rose-500"
+                                              : "text-slate-500"
+                                        )}>
                                             {cmd.resultMessage}
                                         </p>
                                     )}
@@ -231,6 +254,23 @@ function StatusBadge({ status }: { status: string }) {
             {status}
         </span>
     );
+}
+
+function formatCommandTime(value: any): string {
+    if (!value) return 'Unknown';
+    const timestamp = typeof value === 'number'
+        ? value
+        : typeof value?.toMillis === 'function'
+          ? value.toMillis()
+          : typeof value?.toDate === 'function'
+            ? value.toDate().getTime()
+            : Number(value);
+    if (!Number.isFinite(timestamp)) return 'Unknown';
+    return new Date(timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
 }
 
 function getEffectiveStatus(command: any): string {
