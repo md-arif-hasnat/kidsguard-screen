@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import InternalLayout from '@/components/InternalLayout';
 import {
     MessageSquare,
@@ -21,8 +20,6 @@ import { clsx } from 'clsx';
 import SupportAttachments from '@/components/support/SupportAttachments';
 
 export default function InternalSupportPage() {
-  const searchParams = useSearchParams();
-  const requestedTicketId = searchParams.get("ticket");
   const { admin, loading: adminLoading } = useInternalAdmin();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,18 +29,20 @@ export default function InternalSupportPage() {
   const [filter, setFilter] = useState<TicketStatus | 'ALL'>('ALL');
 
   useEffect(() => {
+    setRequestedTicketId(new URLSearchParams(window.location.search).get('ticket'));
+  }, []);
+
+  useEffect(() => {
     const unsub = SupportRepository.listenToAllTickets((data) => {
         setTickets(data);
         setLoading(false);
-        setSelectedTicket(current => {
-            const targetId = requestedTicketId || current?.ticketId;
-            return targetId
-                ? data.find(t => t.ticketId === targetId) || current
-                : current;
-        });
+        if (selectedTicket) {
+            const updated = data.find(t => t.ticketId === selectedTicket.ticketId);
+            if (updated) setSelectedTicket(updated);
+        }
     });
     return () => unsub();
-  }, [requestedTicketId]);
+  }, [selectedTicket?.ticketId]);
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
