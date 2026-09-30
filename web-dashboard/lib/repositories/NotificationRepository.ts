@@ -59,7 +59,7 @@ export interface NotificationHistoryItem {
   type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' |
     'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' |
     'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' |
-    'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE';
+    'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY';
   childId?: string;
   clickAction?: string;
   createdAt: any;
@@ -186,6 +186,43 @@ export class NotificationRepository {
       return onSnapshot(q, (snapshot) => {
           onUpdate(snapshot.size);
       });
+  }
+
+  static listenToUnreadCountByType(
+    uid: string,
+    type: NotificationHistoryItem["type"],
+    onUpdate: (count: number) => void
+  ) {
+    if (!db || !uid) return () => {};
+
+    const q = query(
+      collection(db, "notifications"),
+      where("userId", "==", uid),
+      where("read", "==", false)
+    );
+
+    return onSnapshot(q, snapshot => {
+      onUpdate(snapshot.docs.filter(item => item.data().type === type).length);
+    });
+  }
+
+  static async markAllAsReadByType(
+    uid: string,
+    type: NotificationHistoryItem["type"]
+  ): Promise<void> {
+    if (!db || !uid) return;
+    const q = query(
+      collection(db, "notifications"),
+      where("userId", "==", uid),
+      where("read", "==", false)
+    );
+    const snapshot = await getDocs(q);
+    const matching = snapshot.docs.filter(item => item.data().type === type);
+    if (matching.length === 0) return;
+
+    const batch = writeBatch(db);
+    matching.forEach(item => batch.update(item.ref, { read: true }));
+    await batch.commit();
   }
 
   static async markAsRead(uid: string, notificationId: string): Promise<void> {
