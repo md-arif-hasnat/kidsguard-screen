@@ -5087,6 +5087,15 @@ type PlatformAdminPush = {
 };
 
 async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
+  await db.collection("adminNotifications").doc(payload.eventId).set({
+    type: payload.type,
+    title: payload.title,
+    body: payload.body,
+    clickAction: payload.clickAction,
+    eventId: payload.eventId,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
   const adminSnapshot = await db
     .collection("platformAdmins")
     .where("active", "==", true)
