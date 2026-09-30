@@ -40,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
   const [user, setUser] = useState<any>(null);
   const { role } = useParentProfile();
 
@@ -53,6 +54,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     });
     return () => unsubAuth();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setSupportUnreadCount(0);
+      return;
+    }
+    return NotificationRepository.listenToUnreadCountByType(
+      user.uid,
+      'SUPPORT_REPLY',
+      setSupportUnreadCount
+    );
+  }, [user?.uid]);
 
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
@@ -111,7 +124,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Link
               key={item.name}
               href={item.href}
-              onClick={() => { if (onClose) onClose(); }}
+              onClick={() => {
+                if (item.notificationType && user?.uid) {
+                  void NotificationRepository.markAllAsReadByType(
+                    user.uid,
+                    item.notificationType
+                  );
+                }
+                if (onClose) onClose();
+              }}
               className={cn(
                 "flex items-center justify-between px-4 py-3 rounded-lg transition-colors",
                 isActive
