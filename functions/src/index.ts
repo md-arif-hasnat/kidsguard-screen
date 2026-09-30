@@ -5082,7 +5082,7 @@ type PlatformAdminPush = {
   title: string;
   body: string;
   clickAction: string;
-  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE";
+  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE" | "ADMIN_SUBSCRIPTION";
   eventId: string;
 };
 
@@ -5230,5 +5230,157 @@ export const onAdminDeviceWarningPush = functions.firestore
       body,
       clickAction: `/internal/devices?child=${encodeURIComponent(context.params.childId)}`
     });
+    return null;
+  });
+
+
+function normalizedSubscriptionStatus(value: unknown): string {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isActiveSubscriptionStatus(value: unknown): boolean {
+  return ["ACTIVE", "TRIAL", "TRIALING", "SUBSCRIBED"].includes(
+    normalizedSubscriptionStatus(value)
+  );
+}
+
+function isCancelledSubscriptionStatus(value: unknown): boolean {
+  return ["CANCELLED", "CANCELED"].includes(
+    normalizedSubscriptionStatus(value)
+  );
+}
+
+async function subscriptionCustomerLabel(
+  family: admin.firestore.DocumentData
+): Promise<string> {
+  const ownerId = typeof family.ownerId === "string" ? family.ownerId : "";
+  if (ownerId) {
+    const ownerSnapshot = await db.collection("parents").doc(ownerId).get();
+    const owner = ownerSnapshot.data() || {};
+    return String(
+      owner.displayName ||
+      owner.email ||
+      family.settings?.name ||
+      family.name ||
+      "New customer"
+    );
+  }
+  return String(family.settings?.name || family.name || "New customer");
+}
+
+export const onAdminSubscriptionChangedPush = functions.firestore
+  .document("families/{familyId}")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+
+    const before = change.before.exists ? change.before.data() || {} : {};
+    const after = change.after.data() || {};
+    const beforeStatus = normalizedSubscriptionStatus(
+      before.subscription?.status
+    );
+    const afterStatus = normalizedSubscriptionStatus(
+      after.subscription?.status
+    );
+
+    if (beforeStatus === afterStatus) return null;
+
+    const becameActive =
+      isActiveSubscriptionStatus(afterStatus) &&
+      !isActiveSubscriptionStatus(beforeStatus);
+    const becameCancelled =
+      isCancelledSubscriptionStatus(afterStatus) &&
+      !isCancelledSubscriptionStatus(beforeStatus);
+
+    if (!becameActive && !becameCancelled) return null;
+
+    const familyId = context.params.familyId;
+    const customer = await subscriptionCustomerLabel(after);
+    const trackingRef = db
+      .collection("adminSubscriptionNotifications")
+      .doc(familyId);
+
+    if (becameActive) {
+      await trackingRef.set({
+        familyId,
+        customer,
+        subscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+        retentionNotified: false,
+        cancelledAt: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      await notifyPlatformAdmins({
+        type: "ADMIN_SUBSCRIPTION",
+        eventId: `subscription-started-${familyId}-${context.eventId}`,
+        title: "New customer subscribed",
+        body: `${customer} started a subscription.`,
+        clickAction: `/internal/customers?family=${encodeURIComponent(familyId)}`
+      });
+    }
+
+    if (becameCancelled) {
+      await trackingRef.set({
+        familyId,
+        customer,
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      await notifyPlatformAdmins({
+        type: "ADMIN_SUBSCRIPTION",
+        eventId: `subscription-cancelled-${familyId}-${context.eventId}`,
+        title: "Customer cancelled subscription",
+        body: `${customer} cancelled their subscription.`,
+        clickAction: `/internal/customers?family=${encodeURIComponent(familyId)}`
+      });
+    }
+
+    return null;
+  });
+
+export const sendAdminSevenDaySubscriptionPush = functions.pubsub
+  .schedule("every 60 minutes")
+  .timeZone("Europe/Berlin")
+  .onRun(async () => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const trackingSnapshot = await db
+      .collection("adminSubscriptionNotifications")
+      .limit(500)
+      .get();
+
+    for (const trackingDocument of trackingSnapshot.docs) {
+      const tracking = trackingDocument.data();
+      if (tracking.retentionNotified === true) continue;
+
+      const subscribedAt = adminNotificationMillis(tracking.subscribedAt);
+      if (!subscribedAt || subscribedAt > sevenDaysAgo) continue;
+
+      const familySnapshot = await db
+        .collection("families")
+        .doc(trackingDocument.id)
+        .get();
+      if (!familySnapshot.exists) continue;
+
+      const family = familySnapshot.data() || {};
+      if (!isActiveSubscriptionStatus(family.subscription?.status)) continue;
+
+      const customer =
+        tracking.customer || await subscriptionCustomerLabel(family);
+
+      await notifyPlatformAdmins({
+        type: "ADMIN_SUBSCRIPTION",
+        eventId: `subscription-seven-days-${trackingDocument.id}-${subscribedAt}`,
+        title: "Customer active after 7 days",
+        body: `${customer} kept their subscription active for 7 days.`,
+        clickAction: `/internal/customers?family=${encodeURIComponent(trackingDocument.id)}`
+      });
+
+      await trackingDocument.ref.set({
+        retentionNotified: true,
+        retentionNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
     return null;
   });
