@@ -4861,7 +4861,7 @@ function adminReminderDocumentId(key: string): string {
 
 export const sendAdminOpenNotificationReminder = functions
   .runWith({ secrets: ["RESEND_API_KEY"], timeoutSeconds: 120 })
-  .pubsub.schedule("every 30 minutes")
+  .pubsub.schedule("every 5 minutes")
   .timeZone("Europe/Berlin")
   .onRun(async () => {
     const now = Date.now();
