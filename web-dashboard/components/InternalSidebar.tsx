@@ -32,18 +32,30 @@ interface InternalSidebarProps {
 const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const [notificationCounts, setNotificationCounts] = React.useState<Record<string, number>>({});
+
+  React.useEffect(() => {
+    const updateCounts = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, number>>).detail || {};
+      setNotificationCounts(detail);
+    };
+    window.addEventListener('admin-notification-counts', updateCounts);
+    return () => window.removeEventListener('admin-notification-counts', updateCounts);
+  }, []);
 
   const internalItems = [
     { name: 'System Analytics', href: '/internal/analytics', icon: BarChart3 },
     { name: 'App Releases', href: '/internal/releases', icon: Zap },
-    { name: 'Customers', href: '/internal/customers', icon: Users },
+    { name: 'Customers', href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
     { name: 'Families', href: '/internal/families', icon: Home },
-    { name: 'Devices', href: '/internal/devices', icon: Smartphone },
-    { name: 'Support Inbox', href: '/internal/support', icon: MessageSquare },
-    { name: 'Issues', href: '/internal/issues', icon: AlertCircle },
+    { name: 'Devices', href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
+    { name: 'Support Inbox', href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT' },
+    { name: 'Issues', href: '/internal/issues', icon: AlertCircle, notificationType: 'ISSUE' },
     { name: 'Audit Logs', href: '/internal/audit', icon: ClipboardList },
     { name: 'Settings', href: '/internal/settings', icon: Settings },
   ];
+
+  const highestUnread = Math.max(0, ...Object.values(notificationCounts));
 
   const handleSignOut = async () => {
     await signOut();
@@ -72,6 +84,10 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
       >
         {internalItems.map((item) => {
           const isActive = pathname === item.href;
+          const unreadCount = item.notificationType
+            ? notificationCounts[item.notificationType] || 0
+            : 0;
+          const isPriority = unreadCount > 0 && unreadCount === highestUnread;
           return (
             <Link
               key={item.name}
@@ -81,11 +97,28 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
                 isActive
                   ? "bg-rose-600 text-white shadow-lg shadow-rose-900/20"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  : isPriority
+                    ? "bg-rose-500/10 text-rose-200 ring-1 ring-rose-500/20 hover:bg-rose-500/20"
+                    : unreadCount > 0
+                      ? "bg-amber-500/5 text-slate-200 hover:bg-slate-800 hover:text-white"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
               )}
             >
               <item.icon size={20} />
-              <span className="font-medium text-sm">{item.name}</span>
+              <span className="min-w-0 flex-1 font-medium text-sm">{item.name}</span>
+              {unreadCount > 0 && (
+                <span
+                  title={isPriority ? 'Highest unread priority' : 'Unread notifications'}
+                  className={cn(
+                    "flex min-h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black",
+                    isPriority
+                      ? "bg-rose-500 text-white"
+                      : "bg-amber-500/20 text-amber-300"
+                  )}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}
