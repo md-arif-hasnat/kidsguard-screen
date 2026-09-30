@@ -5076,3 +5076,159 @@ export const sendAdminOpenNotificationReminder = functions
     console.log(`Admin reminder sent for ${unsent.length} item(s).`);
     return null;
   });
+
+
+type PlatformAdminPush = {
+  title: string;
+  body: string;
+  clickAction: string;
+  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE";
+  eventId: string;
+};
+
+async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
+  const adminSnapshot = await db
+    .collection("platformAdmins")
+    .where("active", "==", true)
+    .get();
+
+  const allowedRoles = new Set(["SUPER_ADMIN", "PLATFORM_ADMIN", "DEV_ADMIN"]);
+  const dashboardBase = "https://kidsguard-screen.vercel.app";
+  const targetUrl = new URL(payload.clickAction, dashboardBase).href;
+
+  for (const adminDocument of adminSnapshot.docs) {
+    if (!allowedRoles.has(String(adminDocument.data().role || ""))) continue;
+
+    const tokenSnapshot = await db
+      .collection("users")
+      .doc(adminDocument.id)
+      .collection("notificationTokens")
+      .get();
+
+    const tokenDocuments = tokenSnapshot.docs.filter(document => {
+      const data = document.data();
+      return data.enabled !== false && typeof data.token === "string" && data.token;
+    });
+    const tokens = tokenDocuments.map(document => String(document.data().token));
+    if (tokens.length === 0) continue;
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: payload.title,
+        body: payload.body
+      },
+      data: {
+        type: payload.type,
+        eventId: payload.eventId,
+        title: payload.title,
+        body: payload.body,
+        clickAction: targetUrl,
+        url: targetUrl
+      },
+      webpush: {
+        notification: {
+          icon: `${dashboardBase}/app-icon.png`,
+          badge: `${dashboardBase}/symbol.png`
+        },
+        fcmOptions: {
+          link: targetUrl
+        }
+      }
+    });
+
+    const invalidDeletes: Promise<FirebaseFirestore.WriteResult>[] = [];
+    response.responses.forEach((item, index) => {
+      const code = item.error?.code;
+      if (
+        code === "messaging/invalid-registration-token" ||
+        code === "messaging/registration-token-not-registered"
+      ) {
+        invalidDeletes.push(tokenDocuments[index].ref.delete());
+      }
+    });
+    await Promise.all(invalidDeletes);
+  }
+}
+
+export const onAdminIssueCreatedPush = functions.firestore
+  .document("children/{childId}/errorReports/{reportId}")
+  .onCreate(async (snapshot, context) => {
+    const report = snapshot.data();
+    const fingerprint = String(report.fingerprint || context.params.reportId);
+    await notifyPlatformAdmins({
+      type: "ADMIN_ISSUE",
+      eventId: `issue-${context.params.reportId}`,
+      title: String(report.tag || "New KidsGuard issue"),
+      body: String(report.message || "A new application issue needs review."),
+      clickAction: `/internal/issues?fingerprint=${encodeURIComponent(fingerprint)}`
+    });
+    return null;
+  });
+
+export const onAdminSupportActivityPush = functions.firestore
+  .document("supportTickets/{ticketId}")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+    const after = change.after.data() || {};
+    const before = change.before.exists ? change.before.data() || {} : null;
+    const afterReplies = Array.isArray(after.replies) ? after.replies : [];
+    const beforeReplies = Array.isArray(before?.replies) ? before?.replies : [];
+
+    const created = !change.before.exists;
+    const newReply = afterReplies.length > beforeReplies.length
+      ? afterReplies[afterReplies.length - 1]
+      : null;
+    const newParentMessage = newReply?.authorRole === "PARENT";
+
+    if (!created && !newParentMessage) return null;
+
+    await notifyPlatformAdmins({
+      type: "ADMIN_SUPPORT",
+      eventId: `support-${context.params.ticketId}-${afterReplies.length}`,
+      title: String(after.subject || "New support message"),
+      body: String(
+        newParentMessage
+          ? newReply.message
+          : after.message || "A new support ticket needs a response."
+      ),
+      clickAction: `/internal/support?ticket=${encodeURIComponent(context.params.ticketId)}`
+    });
+    return null;
+  });
+
+export const onAdminDeviceWarningPush = functions.firestore
+  .document("children/{childId}/status/current")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+    const after = change.after.data() || {};
+    const before = change.before.exists ? change.before.data() || {} : {};
+
+    const syncBecameUnhealthy =
+      after.syncHealthy === false && before.syncHealthy !== false;
+    const deviceWentOffline =
+      after.online === false && before.online !== false;
+
+    if (!syncBecameUnhealthy && !deviceWentOffline) return null;
+
+    const childSnapshot = await db
+      .collection("children")
+      .doc(context.params.childId)
+      .get();
+    const child = childSnapshot.data() || {};
+    const childName = String(
+      after.childName || child.name || child.childName || "Child"
+    );
+    const body = syncBecameUnhealthy
+      ? String(after.syncErrorMessage || "Device sync is unhealthy.")
+      : `${childName}'s device went offline.`;
+
+    await notifyPlatformAdmins({
+      type: "ADMIN_DEVICE",
+      eventId: `device-${context.params.childId}-${Date.now()}`,
+      title: `${childName} device warning`,
+      body,
+      clickAction: `/internal/devices?child=${encodeURIComponent(context.params.childId)}`
+    });
+    return null;
+  });
