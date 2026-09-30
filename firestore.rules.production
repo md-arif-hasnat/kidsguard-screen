@@ -104,6 +104,11 @@ service cloud.firestore {
                 );
             }
 
+            match /adminNotifications/{notificationId} {
+              allow read: if isPlatformAdmin();
+              allow create, update, delete: if false;
+            }
+
             match /issueTriage/{fingerprint} {
               allow read: if isPlatformAdmin();
 
