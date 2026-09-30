@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import InternalSidebar from './InternalSidebar';
-import { Menu, Search, User, Bell } from 'lucide-react';
+import AdminNotificationCenter from './AdminNotificationCenter';
+import { Menu, Search } from 'lucide-react';
 import { useInternalAdmin, InternalAdminProvider } from '@/lib/context/InternalAdminContext';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -65,7 +66,8 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 md:gap-6">
+            <AdminNotificationCenter />
             <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20 rounded-full">
                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                 <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Internal Session</span>
