@@ -4820,3 +4820,259 @@ export const onFamilyMembershipSync =
         await batch.commit();
       }
     });
+
+
+// Admin notification reminder: sends one email when an actionable item remains
+// open for at least one hour. Reminder documents provide idempotency and are
+// removed after the item is resolved, so a later recurrence can notify again.
+type AdminReminderItem = {
+  key: string;
+  type: "Issue" | "Support" | "Device";
+  title: string;
+  detail: string;
+  href: string;
+  activeSince: number;
+};
+
+function adminNotificationMillis(value: any): number {
+  if (typeof value === "number") return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?.seconds === "number") return value.seconds * 1000;
+  return 0;
+}
+
+function adminNotificationEscape(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function adminReminderDocumentId(key: string): string {
+  return Buffer.from(key)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+export const sendAdminOpenNotificationReminder = functions
+  .runWith({ secrets: ["RESEND_API_KEY"], timeoutSeconds: 120 })
+  .pubsub.schedule("every 30 minutes")
+  .timeZone("Europe/Berlin")
+  .onRun(async () => {
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const dashboardBase = "https://kidsguard-screen.vercel.app";
+    const items: AdminReminderItem[] = [];
+
+    const [reportSnapshot, triageSnapshot, ticketSnapshot, childrenSnapshot] =
+      await Promise.all([
+        db.collectionGroup("errorReports").limit(500).get(),
+        db.collection("issueTriage").get(),
+        db.collection("supportTickets").get(),
+        db.collection("children").limit(500).get()
+      ]);
+
+    const triage = new Map<string, FirebaseFirestore.DocumentData>();
+    triageSnapshot.docs.forEach(document => triage.set(document.id, document.data()));
+
+    const issueReports = new Map<string, FirebaseFirestore.DocumentData[]>();
+    reportSnapshot.docs.forEach(document => {
+      const report = document.data();
+      const fingerprint = report.fingerprint || document.id;
+      const existing = issueReports.get(fingerprint) || [];
+      existing.push(report);
+      issueReports.set(fingerprint, existing);
+    });
+
+    issueReports.forEach((reports, fingerprint) => {
+      const state = triage.get(fingerprint);
+      const stateUpdatedAt = adminNotificationMillis(state?.updatedAt);
+      const reportsAfterResolution = state?.status === "RESOLVED"
+        ? reports.filter(report =>
+            adminNotificationMillis(report.capturedAt) > stateUpdatedAt
+          )
+        : reports;
+
+      if (state?.status === "ACKNOWLEDGED" || reportsAfterResolution.length === 0) {
+        return;
+      }
+
+      const ordered = [...reportsAfterResolution].sort(
+        (a, b) =>
+          adminNotificationMillis(a.capturedAt) -
+          adminNotificationMillis(b.capturedAt)
+      );
+      const firstSeen = adminNotificationMillis(ordered[0]?.capturedAt);
+      if (!firstSeen || firstSeen > oneHourAgo) return;
+      const latest = ordered[ordered.length - 1];
+
+      items.push({
+        key: `issue:${fingerprint}:${firstSeen}`,
+        type: "Issue",
+        title: latest.tag || "Open application issue",
+        detail: latest.message || "An application error needs review.",
+        href: `/internal/issues?fingerprint=${encodeURIComponent(fingerprint)}`,
+        activeSince: firstSeen
+      });
+    });
+
+    ticketSnapshot.docs.forEach(document => {
+      const ticket = document.data();
+      if (!["OPEN", "IN_PROGRESS"].includes(ticket.status)) return;
+
+      const parentReplies = Array.isArray(ticket.replies)
+        ? ticket.replies.filter((reply: any) => reply.authorRole === "PARENT")
+        : [];
+      const latestParentReply = parentReplies.sort(
+        (a: any, b: any) =>
+          adminNotificationMillis(b.createdAt) -
+          adminNotificationMillis(a.createdAt)
+      )[0];
+      const activeSince = adminNotificationMillis(
+        latestParentReply?.createdAt || ticket.updatedAt || ticket.createdAt
+      );
+      if (!activeSince || activeSince > oneHourAgo) return;
+
+      const ticketId = ticket.ticketId || document.id;
+      items.push({
+        key: `support:${ticketId}:${activeSince}`,
+        type: "Support",
+        title: ticket.subject || "Open support ticket",
+        detail:
+          latestParentReply?.message ||
+          ticket.message ||
+          "A support conversation needs a response.",
+        href: `/internal/support?ticket=${encodeURIComponent(ticketId)}`,
+        activeSince
+      });
+    });
+
+    const deviceStatuses = await Promise.all(
+      childrenSnapshot.docs.map(async childDocument => {
+        const status = await db
+          .collection("children")
+          .doc(childDocument.id)
+          .collection("status")
+          .doc("current")
+          .get();
+        return {
+          childId: childDocument.id,
+          child: childDocument.data(),
+          status: status.exists ? status.data() || {} : {}
+        };
+      })
+    );
+
+    deviceStatuses.forEach(({ childId, child, status }) => {
+      const lastSeen = adminNotificationMillis(status.lastSeen);
+      const syncFailureAt = adminNotificationMillis(status.lastSyncFailureAt);
+      const syncFailure = status.syncHealthy === false;
+      const stale = !lastSeen || lastSeen <= oneHourAgo;
+      const offline = status.online === false;
+      const activeSince = syncFailure
+        ? (syncFailureAt || lastSeen)
+        : lastSeen;
+
+      if (!syncFailure && !stale && !offline) return;
+      if (activeSince && activeSince > oneHourAgo) return;
+
+      const childName =
+        status.childName || child.name || child.childName || "Unknown child";
+      const reason = syncFailure
+        ? status.syncErrorMessage || "Device sync is unhealthy."
+        : stale
+          ? "Device has not reported for at least one hour."
+          : "Device remains offline.";
+
+      items.push({
+        key: `device:${childId}:${activeSince || "never"}:${syncFailure ? "sync" : "offline"}`,
+        type: "Device",
+        title: `${childName} device warning`,
+        detail: reason,
+        href: `/internal/devices?child=${encodeURIComponent(childId)}`,
+        activeSince: activeSince || 0
+      });
+    });
+
+    const reminders = db.collection("adminNotificationReminders");
+    const reminderSnapshot = await reminders.get();
+    const activeKeys = new Set(items.map(item => item.key));
+    const cleanupBatch = db.batch();
+
+    reminderSnapshot.docs.forEach(document => {
+      const key = document.data().key;
+      if (!activeKeys.has(key)) cleanupBatch.delete(document.ref);
+    });
+    await cleanupBatch.commit();
+
+    const existingKeys = new Set(
+      reminderSnapshot.docs.map(document => document.data().key as string)
+    );
+    const unsent = items.filter(item => !existingKeys.has(item.key));
+    if (unsent.length === 0) {
+      console.log("Admin reminder: no newly eligible notifications.");
+      return null;
+    }
+
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const rows = unsent.map(item => {
+      const url = `${dashboardBase}${item.href}`;
+      return `
+        <div style="padding:16px 0;border-bottom:1px solid #e2e8f0">
+          <div style="font-size:12px;font-weight:700;color:#e11d48;text-transform:uppercase">
+            ${adminNotificationEscape(item.type)}
+          </div>
+          <h3 style="margin:6px 0;color:#0f172a">
+            ${adminNotificationEscape(item.title)}
+          </h3>
+          <p style="margin:0 0 10px;color:#475569">
+            ${adminNotificationEscape(item.detail)}
+          </p>
+          <a href="${adminNotificationEscape(url)}" style="color:#e11d48;font-weight:700">
+            Open exact item
+          </a>
+        </div>`;
+    }).join("");
+
+    const result = await resend.emails.send({
+      from: "KidsGuard <onboarding@resend.dev>",
+      to: ["arifhasnat07@gmail.com"],
+      subject: `[KidsGuard Admin] ${unsent.length} item${unsent.length === 1 ? "" : "s"} open for 1 hour`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto">
+          <h2 style="color:#0f172a">KidsGuard admin attention required</h2>
+          <p style="color:#475569">
+            The following notification${unsent.length === 1 ? " has" : "s have"} remained open for at least one hour.
+          </p>
+          ${rows}
+          <p style="margin-top:20px;color:#94a3b8;font-size:12px">
+            This reminder is sent once per unresolved occurrence.
+          </p>
+        </div>`
+    });
+
+    if (result.error) {
+      throw new Error(`Admin reminder email failed: ${result.error.message}`);
+    }
+
+    const sentBatch = db.batch();
+    unsent.forEach(item => {
+      sentBatch.set(reminders.doc(adminReminderDocumentId(item.key)), {
+        key: item.key,
+        type: item.type,
+        title: item.title,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        recipient: "arifhasnat07@gmail.com"
+      });
+    });
+    await sentBatch.commit();
+
+    console.log(`Admin reminder sent for ${unsent.length} item(s).`);
+    return null;
+  });
