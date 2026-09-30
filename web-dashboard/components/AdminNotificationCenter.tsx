@@ -2,7 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bell, MessageSquare, Smartphone } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  CheckCheck,
+  MessageSquare,
+  Smartphone,
+  Users
+} from "lucide-react";
+import {
+  collection,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  writeBatch
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useInternalAdmin } from "@/lib/context/InternalAdminContext";
 import {
   AdminDeviceHealth,
   AdminErrorReport,
@@ -14,13 +34,24 @@ import {
   SupportTicket
 } from "@/lib/repositories/SupportRepository";
 
+type NotificationType = "ISSUE" | "SUPPORT" | "DEVICE" | "CUSTOMER";
+
 type AdminNotification = {
   id: string;
   title: string;
   detail: string;
   href: string;
   timestamp: number;
-  type: "ISSUE" | "SUPPORT" | "DEVICE";
+  type: NotificationType;
+};
+
+type StoredAdminNotification = {
+  id: string;
+  title?: string;
+  body?: string;
+  clickAction?: string;
+  type?: string;
+  createdAt?: unknown;
 };
 
 function toMillis(value: any): number {
@@ -41,11 +72,18 @@ function relativeTime(timestamp: number): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function readStateId(notificationId: string): string {
+  return encodeURIComponent(notificationId);
+}
+
 export default function AdminNotificationCenter() {
+  const { admin } = useInternalAdmin();
   const [reports, setReports] = useState<AdminErrorReport[]>([]);
   const [triage, setTriage] = useState<Record<string, AdminIssueTriage>>({});
   const [devices, setDevices] = useState<AdminDeviceHealth[]>([]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [storedEvents, setStoredEvents] = useState<StoredAdminNotification[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +116,37 @@ export default function AdminNotificationCenter() {
   }, []);
 
   useEffect(() => {
+    if (!db || !admin?.uid) return;
+    const database = db;
+    const readRef = collection(
+      database,
+      "users",
+      admin.uid,
+      "adminNotificationState"
+    );
+    return onSnapshot(readRef, snapshot => {
+      setReadIds(new Set(snapshot.docs.map(document => document.data().notificationId)));
+    });
+  }, [admin?.uid]);
+
+  useEffect(() => {
+    if (!db) return;
+    const eventsQuery = query(
+      collection(db, "adminNotifications"),
+      orderBy("createdAt", "desc"),
+      limit(200)
+    );
+    return onSnapshot(eventsQuery, snapshot => {
+      setStoredEvents(snapshot.docs.map(document => ({
+        id: document.id,
+        ...document.data()
+      })));
+    }, error => {
+      console.error("Stored admin notifications could not be loaded:", error);
+    });
+  }, []);
+
+  useEffect(() => {
     const close = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -106,7 +175,7 @@ export default function AdminNotificationCenter() {
       if (savedTriage?.status === "ACKNOWLEDGED") return;
       if (savedTriage?.status === "RESOLVED" && !recurredAfterResolution) return;
       items.push({
-        id: `issue:${fingerprint}`,
+        id: `issue:${fingerprint}:${report.capturedAt || 0}`,
         title: report.tag || "Open issue",
         detail: report.message || "An app error needs review.",
         href: `/internal/issues?fingerprint=${encodeURIComponent(fingerprint)}`,
@@ -120,12 +189,18 @@ export default function AdminNotificationCenter() {
       const latestParentReply = [...(ticket.replies || [])]
         .reverse()
         .find(reply => reply.authorRole === "PARENT");
+      const timestamp = toMillis(
+        latestParentReply?.createdAt || ticket.updatedAt || ticket.createdAt
+      );
       items.push({
-        id: `support:${ticket.ticketId}`,
+        id: `support:${ticket.ticketId}:${timestamp}`,
         title: ticket.subject || "Support message",
-        detail: latestParentReply?.message || ticket.message || "A support ticket needs attention.",
+        detail:
+          latestParentReply?.message ||
+          ticket.message ||
+          "A support ticket needs attention.",
         href: `/internal/support?ticket=${encodeURIComponent(ticket.ticketId)}`,
-        timestamp: toMillis(latestParentReply?.createdAt || ticket.updatedAt || ticket.createdAt),
+        timestamp,
         type: "SUPPORT"
       });
     });
@@ -140,8 +215,9 @@ export default function AdminNotificationCenter() {
         : stale
           ? "Device has not reported for more than 30 minutes."
           : "Device is offline.";
+      const warningKind = syncFailure ? "sync" : "offline";
       items.push({
-        id: `device:${device.childId}`,
+        id: `device:${device.childId}:${warningKind}:${device.lastSeen || 0}`,
         title: `${device.childName} device warning`,
         detail,
         href: `/internal/devices?child=${encodeURIComponent(device.childId)}`,
@@ -150,12 +226,93 @@ export default function AdminNotificationCenter() {
       });
     });
 
-    return items.sort((a, b) => b.timestamp - a.timestamp);
-  }, [devices, reports, tickets, triage]);
+    storedEvents.forEach(event => {
+      if (event.type !== "ADMIN_SUBSCRIPTION") return;
+      items.push({
+        id: `event:${event.id}`,
+        title: event.title || "Customer subscription update",
+        detail: event.body || "A customer subscription changed.",
+        href: event.clickAction || "/internal/customers",
+        timestamp: toMillis(event.createdAt),
+        type: "CUSTOMER"
+      });
+    });
 
-  const icon = (type: AdminNotification["type"]) => {
+    return items.sort((a, b) => b.timestamp - a.timestamp);
+  }, [devices, reports, storedEvents, tickets, triage]);
+
+  const unreadNotifications = useMemo(
+    () => notifications.filter(notification => !readIds.has(notification.id)),
+    [notifications, readIds]
+  );
+
+  useEffect(() => {
+    const counts: Record<NotificationType, number> = {
+      ISSUE: 0,
+      SUPPORT: 0,
+      DEVICE: 0,
+      CUSTOMER: 0
+    };
+    unreadNotifications.forEach(notification => {
+      counts[notification.type] += 1;
+    });
+    window.dispatchEvent(new CustomEvent("admin-notification-counts", {
+      detail: counts
+    }));
+  }, [unreadNotifications]);
+
+  const markRead = async (notification: AdminNotification) => {
+    if (!db || !admin?.uid) return;
+    setReadIds(current => new Set(current).add(notification.id));
+    await setDoc(
+      doc(
+        db,
+        "users",
+        admin.uid,
+        "adminNotificationState",
+        readStateId(notification.id)
+      ),
+      {
+        notificationId: notification.id,
+        type: notification.type,
+        readAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  };
+
+  const markAllRead = async () => {
+    if (!db || !admin?.uid || unreadNotifications.length === 0) return;
+    const batch = writeBatch(db);
+    unreadNotifications.forEach(notification => {
+      batch.set(
+        doc(
+          db,
+          "users",
+          admin.uid,
+          "adminNotificationState",
+          readStateId(notification.id)
+        ),
+        {
+          notificationId: notification.id,
+          type: notification.type,
+          readAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    });
+    setReadIds(current => {
+      const next = new Set(current);
+      unreadNotifications.forEach(notification => next.add(notification.id));
+      return next;
+    });
+    await batch.commit();
+  };
+
+  const icon = (type: NotificationType) => {
     if (type === "SUPPORT") return <MessageSquare size={16} className="text-sky-400" />;
     if (type === "DEVICE") return <Smartphone size={16} className="text-amber-400" />;
+    if (type === "CUSTOMER") return <Users size={16} className="text-violet-400" />;
     return <AlertTriangle size={16} className="text-rose-400" />;
   };
 
@@ -163,50 +320,64 @@ export default function AdminNotificationCenter() {
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        aria-label={`Admin notifications: ${notifications.length}`}
+        aria-label={`Admin notifications: ${unreadNotifications.length}`}
         onClick={() => setOpen(value => !value)}
         className="relative rounded-xl border border-slate-800 bg-slate-800/50 p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
       >
         <Bell size={20} />
-        {notifications.length > 0 && (
+        {unreadNotifications.length > 0 && (
           <span className="absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white">
-            {notifications.length > 99 ? "99+" : notifications.length}
+            {unreadNotifications.length > 99 ? "99+" : unreadNotifications.length}
           </span>
         )}
       </button>
 
       {open && (
         <div className="fixed left-3 right-3 top-[74px] z-50 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[390px]">
-          <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
             <div>
               <p className="text-sm font-black text-white">Admin Notifications</p>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Issues, support and devices
+                Prioritized by unread section
               </p>
             </div>
-            <span className="rounded-full bg-rose-500/10 px-2 py-1 text-xs font-black text-rose-400">
-              {notifications.length} open
-            </span>
+            {unreadNotifications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void markAllRead()}
+                className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-white"
+              >
+                <CheckCheck size={14} />
+                Mark all read
+              </button>
+            )}
           </div>
 
           <div className="max-h-[65vh] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {unreadNotifications.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <Bell size={28} className="mx-auto mb-3 text-emerald-400" />
-                <p className="text-sm font-bold text-white">Nothing needs attention</p>
-                <p className="mt-1 text-xs text-slate-500">All monitored items are clear.</p>
+                <p className="text-sm font-bold text-white">Nothing unread</p>
+                <p className="mt-1 text-xs text-slate-500">New alerts will appear here.</p>
               </div>
-            ) : notifications.map(notification => (
+            ) : unreadNotifications.map(notification => (
               <Link
                 key={notification.id}
                 href={notification.href}
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  void markRead(notification);
+                  setOpen(false);
+                }}
                 className="flex gap-3 border-b border-slate-800/80 px-4 py-3 transition-colors last:border-0 hover:bg-slate-800/70"
               >
-                <span className="mt-0.5 rounded-lg bg-slate-950 p-2">{icon(notification.type)}</span>
+                <span className="mt-0.5 rounded-lg bg-slate-950 p-2">
+                  {icon(notification.type)}
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3">
-                    <span className="truncate text-xs font-black text-white">{notification.title}</span>
+                    <span className="truncate text-xs font-black text-white">
+                      {notification.title}
+                    </span>
                     <span className="shrink-0 text-[10px] text-slate-500">
                       {relativeTime(notification.timestamp)}
                     </span>
