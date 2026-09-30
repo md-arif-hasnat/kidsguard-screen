@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import InternalSidebar from './InternalSidebar';
 import AdminNotificationCenter from './AdminNotificationCenter';
+import AdminPushPrompt from './AdminPushPrompt';
 import { Menu, Search } from 'lucide-react';
 import { useInternalAdmin, InternalAdminProvider } from '@/lib/context/InternalAdminContext';
 import { useRouter, usePathname } from 'next/navigation';
@@ -45,6 +46,7 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
   return (
     <div className="flex min-h-screen bg-slate-950 overflow-x-hidden text-slate-200">
       <InternalSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <AdminPushPrompt />
 
       <div className="flex-1 flex flex-col lg:ml-64 w-full">
         {/* Top Header */}
