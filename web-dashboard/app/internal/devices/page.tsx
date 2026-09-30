@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
   AlertTriangle,
@@ -90,7 +89,6 @@ function isDeviceOnline(device: AdminDeviceHealth, now: number) {
 }
 
 export default function InternalDevicesPage() {
-  const searchParams = useSearchParams();
   const [devices, setDevices] = useState<AdminDeviceHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -98,13 +96,6 @@ export default function InternalDevicesPage() {
   const [updateConfig, setUpdateConfig] = useState<UpdateConfig | null>(null);
   const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>('ALL');
   const [statusNow, setStatusNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const childId = searchParams.get('child');
-    if (!childId) return;
-    setSearch(childId);
-    setDeviceFilter('ALL');
-  }, [searchParams]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
