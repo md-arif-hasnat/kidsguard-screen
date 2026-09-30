@@ -86,41 +86,63 @@ export class NotificationRepository {
     await setDoc(ref, settings, { merge: true });
   }
 
-  static async registerDevice(uid: string, deviceName: string): Promise<void> {
-    if (!db || !messaging) return;
+  static async registerDevice(uid: string, deviceName: string): Promise<boolean> {
+    if (!db || !messaging || typeof window === "undefined") return false;
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) return false;
 
     try {
-      // Request permission
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
+      if (permission !== "granted") {
         console.warn("Notification permission denied.");
-        return;
+        return false;
       }
 
-      // Get token
+      const serviceWorkerRegistration = await navigator.serviceWorker.register(
+        "/firebase-messaging-sw.js"
+      );
       const token = await getToken(messaging, {
-        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        serviceWorkerRegistration
       });
 
-      if (token) {
-        const deviceId = window.navigator.userAgent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 50);
-        // New Path: users/{uid}/notificationTokens/{tokenId}
-        const deviceRef = doc(db, "users", uid, "notificationTokens", deviceId);
+      if (!token) return false;
 
-        const now = serverTimestamp();
-        await setDoc(deviceRef, {
-          token,
-          platform: 'ios-pwa',
-          enabled: true,
-          createdAt: now,
-          updatedAt: now
-        }, { merge: true });
+      const deviceId = window.navigator.userAgent
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(0, 50);
+      const deviceRef = doc(db, "users", uid, "notificationTokens", deviceId);
+      const now = serverTimestamp();
 
-        console.log("Web FCM token registered (ios-pwa):", token);
-      }
+      await setDoc(deviceRef, {
+        token,
+        platform: "ios-pwa",
+        deviceName,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now
+      }, { merge: true });
+
+      console.log("Web FCM token registered (ios-pwa).");
+      return true;
     } catch (error) {
       console.error("Error registering device for FCM:", error);
+      return false;
     }
+  }
+
+  static listenForForegroundMessages(
+    onNotification: (payload: { title: string; body: string; url: string }) => void
+  ): () => void {
+    if (!messaging) return () => {};
+
+    return onMessage(messaging, payload => {
+      const data = payload.data || {};
+      onNotification({
+        title: payload.notification?.title || data.title || "KidsGuard Admin",
+        body: payload.notification?.body || data.body || "A new alert needs attention.",
+        url: data.clickAction || data.url || "/internal"
+      });
+    });
   }
 
   static listenToNotifications(uid: string, onUpdate: (notifications: NotificationHistoryItem[]) => void) {
