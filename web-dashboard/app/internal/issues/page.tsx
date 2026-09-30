@@ -39,6 +39,14 @@ export default function InternalIssuesPage() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    const fingerprint = new URLSearchParams(window.location.search).get("fingerprint");
+    if (!fingerprint) return;
+    setSearch(fingerprint);
+    setStatusFilter("ALL");
+    setExpandedId(fingerprint);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     Promise.all([
       AdminRepository.getErrorReports(),
