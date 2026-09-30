@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, Search } from "lucide-react";
 import InternalLayout from "@/components/InternalLayout";
 import {
@@ -30,7 +29,6 @@ const statusStyles: Record<AdminIssueStatus, string> = {
 };
 
 export default function InternalIssuesPage() {
-  const searchParams = useSearchParams();
   const [reports, setReports] = useState<AdminErrorReport[]>([]);
   const [triage, setTriage] = useState<Record<string, AdminIssueTriage>>({});
   const [loading, setLoading] = useState(true);
@@ -39,14 +37,6 @@ export default function InternalIssuesPage() {
   const [statusFilter, setStatusFilter] = useState<IssueStatusFilter>("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fingerprint = searchParams.get("fingerprint");
-    if (!fingerprint) return;
-    setSearch(fingerprint);
-    setStatusFilter("ALL");
-    setExpandedId(fingerprint);
-  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
