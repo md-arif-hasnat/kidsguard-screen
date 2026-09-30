@@ -4877,10 +4877,10 @@ export const sendAdminOpenNotificationReminder = functions
         db.collection("children").limit(500).get()
       ]);
 
-    const triage = new Map<string, FirebaseFirestore.DocumentData>();
+    const triage = new Map<string, admin.firestore.DocumentData>();
     triageSnapshot.docs.forEach(document => triage.set(document.id, document.data()));
 
-    const issueReports = new Map<string, FirebaseFirestore.DocumentData[]>();
+    const issueReports = new Map<string, admin.firestore.DocumentData[]>();
     reportSnapshot.docs.forEach(document => {
       const report = document.data();
       const fingerprint = report.fingerprint || document.id;
