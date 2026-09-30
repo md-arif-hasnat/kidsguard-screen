@@ -98,7 +98,13 @@ export default function AdminNotificationCenter() {
     });
 
     issueGroups.forEach((report, fingerprint) => {
-      if ((triage[fingerprint]?.status || "OPEN") !== "OPEN") return;
+      const savedTriage = triage[fingerprint];
+      const recurredAfterResolution =
+        savedTriage?.status === "RESOLVED" &&
+        savedTriage.updatedAt !== undefined &&
+        report.capturedAt > savedTriage.updatedAt;
+      if (savedTriage?.status === "ACKNOWLEDGED") return;
+      if (savedTriage?.status === "RESOLVED" && !recurredAfterResolution) return;
       items.push({
         id: `issue:${fingerprint}`,
         title: report.tag || "Open issue",
