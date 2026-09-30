@@ -283,13 +283,15 @@ export default function AdminNotificationCenter() {
 
   const markAllRead = async () => {
     if (!db || !admin?.uid || unreadNotifications.length === 0) return;
-    const batch = writeBatch(db);
+    const database = db;
+    const adminUid = admin.uid;
+    const batch = writeBatch(database);
     unreadNotifications.forEach(notification => {
       batch.set(
         doc(
-          db,
+          database,
           "users",
-          admin.uid,
+          adminUid,
           "adminNotificationState",
           readStateId(notification.id)
         ),
