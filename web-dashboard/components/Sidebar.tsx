@@ -125,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               key={item.name}
               href={item.href}
               onClick={() => {
-                if (item.notificationType && user?.uid) {
+                if ('notificationType' in item && item.notificationType && user?.uid) {
                   void NotificationRepository.markAllAsReadByType(
                     user.uid,
                     item.notificationType
