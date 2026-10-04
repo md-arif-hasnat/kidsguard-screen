@@ -233,6 +233,11 @@ service cloud.firestore {
                   allow write: if isFamilyOwner(familyId);
                 }
 
+                match /weeklyReports/{reportId} {
+                  allow read: if isFamilyMember(familyId);
+                  allow create, update, delete: if false;
+                }
+
                 match /children/{childId}/youtubeHistory/{historyId} {
                   allow read: if canReadChild(childId) &&
                     get(
