@@ -11,6 +11,7 @@ import {
   Smartphone,
   MessageSquare,
   AlertCircle,
+  HeartPulse,
   ClipboardList,
   Settings,
   LogOut,
@@ -44,6 +45,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   }, []);
 
   const internalItems = [
+    { name: 'System Health', href: '/internal/health', icon: HeartPulse },
     { name: 'System Analytics', href: '/internal/analytics', icon: BarChart3 },
     { name: 'App Releases', href: '/internal/releases', icon: Zap },
     { name: 'Customers', href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },

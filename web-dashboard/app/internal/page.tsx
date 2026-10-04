@@ -9,7 +9,8 @@ import {
     Users,
     Smartphone,
     ArrowUpRight,
-    MessageCircle
+    MessageCircle,
+    HeartPulse
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,6 +23,13 @@ export default function InternalDashboard() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+        <DashboardCard
+            title="System Health"
+            href="/internal/health"
+            icon={HeartPulse}
+            desc="Automated checks for devices, sync, permissions, alerts and support."
+            color="text-cyan-500"
+        />
         <DashboardCard
             title="System Analytics"
             href="/internal/analytics"
