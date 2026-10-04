@@ -956,7 +956,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1369,7 +1369,8 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
         'APP_LIMIT_REACHED': 'appUsage',
-        'BLOCKED_APP_ATTEMPT': 'appUsage'
+        'BLOCKED_APP_ATTEMPT': 'appUsage',
+        'WEEKLY_REPORT': 'appUsage'
     };
 
     const settingKey = typeMap[payload.type];
@@ -5407,5 +5408,298 @@ export const sendAdminSevenDaySubscriptionPush = functions.pubsub
       }, { merge: true });
     }
 
+    return null;
+  });
+
+type WeeklyAppTotal = {
+  appName: string;
+  packageName: string;
+  totalTimeMs: number;
+};
+
+function weeklyDateKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function weeklyDateKeys(startMs: number, count: number): string[] {
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(startMs + index * 24 * 60 * 60 * 1000);
+    return weeklyDateKey(date);
+  });
+}
+
+async function weeklyAppUsage(
+  childId: string,
+  dateKeys: string[]
+): Promise<{ total: number; apps: WeeklyAppTotal[] }> {
+  const snapshots = await Promise.all(dateKeys.map(dateKey =>
+    db.collection("children")
+      .doc(childId)
+      .collection("appUsage")
+      .doc(dateKey)
+      .collection("apps")
+      .get()
+  ));
+  const appTotals = new Map<string, WeeklyAppTotal>();
+  let total = 0;
+
+  snapshots.forEach(snapshot => snapshot.docs.forEach(document => {
+    const data = document.data();
+    const totalTimeMs = Number(data.totalTimeMs || 0);
+    if (totalTimeMs <= 0) return;
+    total += totalTimeMs;
+    const packageName = String(data.packageName || document.id);
+    const current = appTotals.get(packageName) || {
+      appName: String(data.appName || "Unknown app"),
+      packageName,
+      totalTimeMs: 0
+    };
+    current.totalTimeMs += totalTimeMs;
+    appTotals.set(packageName, current);
+  }));
+
+  return {
+    total,
+    apps: [...appTotals.values()]
+      .sort((first, second) => second.totalTimeMs - first.totalTimeMs)
+      .slice(0, 5)
+  };
+}
+
+async function buildWeeklySafetyReport(
+  familyId: string,
+  periodStart: number,
+  periodEnd: number
+): Promise<{ reportId: string; report: admin.firestore.DocumentData }> {
+  const familyRef = db.collection("families").doc(familyId);
+  const familySnapshot = await familyRef.get();
+  if (!familySnapshot.exists) throw new Error(`Family ${familyId} not found`);
+
+  const currentKeys = weeklyDateKeys(periodStart, 7);
+  const previousStart = periodStart - 7 * 24 * 60 * 60 * 1000;
+  const previousKeys = weeklyDateKeys(previousStart, 7);
+  const childSnapshot = await db.collection("children")
+    .where("familyId", "==", familyId)
+    .get();
+
+  const childReports = await Promise.all(childSnapshot.docs.map(async childDocument => {
+    const childId = childDocument.id;
+    const child = childDocument.data();
+    const childRef = db.collection("children").doc(childId);
+    const familyChildRef = familyRef.collection("children").doc(childId);
+
+    const [
+      currentUsage,
+      previousUsage,
+      youtubeSnapshot,
+      browserSnapshot,
+      installedSnapshot,
+      restrictionSnapshot,
+      statusSnapshot
+    ] = await Promise.all([
+      weeklyAppUsage(childId, currentKeys),
+      weeklyAppUsage(childId, previousKeys),
+      familyChildRef.collection("youtubeHistory")
+        .where("capturedAt", ">=", periodStart)
+        .where("capturedAt", "<=", periodEnd)
+        .get(),
+      familyChildRef.collection("browserHistory")
+        .where("capturedAt", ">=", periodStart)
+        .where("capturedAt", "<=", periodEnd)
+        .get(),
+      childRef.collection("installedApps").get(),
+      childRef.collection("appRestrictionEvents")
+        .where("occurredAt", ">=", periodStart)
+        .where("occurredAt", "<=", periodEnd)
+        .get(),
+      childRef.collection("status").doc("current").get()
+    ]);
+
+    const installedApps = installedSnapshot.docs.filter(document => {
+      const data = document.data();
+      const installedAt = adminNotificationMillis(
+        data.installedAt || data.firstInstallTime || data.createdAt
+      );
+      return installedAt >= periodStart && installedAt <= periodEnd;
+    }).length;
+    const status = statusSnapshot.data() || {};
+
+    return {
+      childId,
+      childName: String(status.childName || child.name || child.childName || "Child"),
+      screenTimeMs: currentUsage.total,
+      previousScreenTimeMs: previousUsage.total,
+      youtubeViews: youtubeSnapshot.size,
+      browserVisits: browserSnapshot.size,
+      installedApps,
+      blockedAttempts: restrictionSnapshot.size,
+      deviceOnline: status.online === true,
+      topApps: currentUsage.apps
+    };
+  }));
+
+  const notificationSnapshot = await db.collection("notifications")
+    .where("familyId", "==", familyId)
+    .limit(1000)
+    .get();
+  const safetyTypes = new Set([
+    "SOS",
+    "TAMPER_ALERT",
+    "PERMISSION_CHANGE_REQUEST",
+    "SYNC_ERROR",
+    "BATTERY",
+    "DEVICE_OFFLINE"
+  ]);
+  const safetyAlerts = notificationSnapshot.docs.filter(document => {
+    const data = document.data();
+    const createdAt = adminNotificationMillis(data.createdAt);
+    return createdAt >= periodStart && createdAt <= periodEnd &&
+      safetyTypes.has(String(data.type || ""));
+  }).length;
+
+  const screenTimeMs = childReports.reduce((sum, child) => sum + child.screenTimeMs, 0);
+  const previousScreenTimeMs = childReports.reduce(
+    (sum, child) => sum + child.previousScreenTimeMs,
+    0
+  );
+  const changePercent = previousScreenTimeMs > 0
+    ? Math.round(((screenTimeMs - previousScreenTimeMs) / previousScreenTimeMs) * 100)
+    : screenTimeMs > 0 ? 100 : 0;
+  const totals = {
+    screenTimeMs,
+    previousScreenTimeMs,
+    screenTimeChangePercent: changePercent,
+    youtubeViews: childReports.reduce((sum, child) => sum + child.youtubeViews, 0),
+    browserVisits: childReports.reduce((sum, child) => sum + child.browserVisits, 0),
+    installedApps: childReports.reduce((sum, child) => sum + child.installedApps, 0),
+    blockedAttempts: childReports.reduce((sum, child) => sum + child.blockedAttempts, 0),
+    safetyAlerts,
+    offlineDevices: childReports.filter(child => !child.deviceOnline).length
+  };
+  const highlights: string[] = [];
+  if (totals.blockedAttempts > 0) {
+    highlights.push(`${totals.blockedAttempts} blocked-app attempt${totals.blockedAttempts === 1 ? "" : "s"} need review.`);
+  }
+  if (totals.safetyAlerts > 0) {
+    highlights.push(`${totals.safetyAlerts} safety alert${totals.safetyAlerts === 1 ? "" : "s"} were recorded.`);
+  }
+  if (totals.offlineDevices > 0) {
+    highlights.push(`${totals.offlineDevices} child device${totals.offlineDevices === 1 ? " is" : "s are"} currently offline.`);
+  }
+  highlights.push(
+    changePercent === 0
+      ? "Screen time is unchanged from the previous seven days."
+      : `Screen time is ${Math.abs(changePercent)}% ${changePercent > 0 ? "higher" : "lower"} than the previous seven days.`
+  );
+  if (totals.installedApps > 0) {
+    highlights.push(`${totals.installedApps} new app${totals.installedApps === 1 ? " was" : "s were"} installed.`);
+  }
+  if (highlights.length === 1) {
+    highlights.unshift("No urgent safety event was recorded this week.");
+  }
+
+  const reportId = weeklyDateKey(new Date(periodEnd));
+  const report = {
+    familyId,
+    periodStart,
+    periodEnd,
+    generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    childReports,
+    totals,
+    highlights,
+    version: 1
+  };
+  await familyRef.collection("weeklyReports").doc(reportId).set(report, { merge: true });
+  return { reportId, report };
+}
+
+export const generateWeeklySafetyReportNow = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth || context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError("unauthenticated", "Verified sign-in required.");
+    }
+    const familyId = typeof data?.familyId === "string" ? data.familyId : "";
+    if (!familyId) {
+      throw new functions.https.HttpsError("invalid-argument", "familyId is required.");
+    }
+    const familySnapshot = await db.collection("families").doc(familyId).get();
+    const family = familySnapshot.data() || {};
+    const members = new Set<string>([
+      family.ownerId,
+      ...(Array.isArray(family.memberUids) ? family.memberUids : []),
+      ...(Array.isArray(family.managerUids) ? family.managerUids : [])
+    ].filter((value): value is string => typeof value === "string" && value.length > 0));
+    if (!familySnapshot.exists || !members.has(context.auth.uid)) {
+      throw new functions.https.HttpsError("permission-denied", "Family access denied.");
+    }
+
+    const periodEnd = Date.now();
+    const periodStart = periodEnd - 7 * 24 * 60 * 60 * 1000;
+    const result = await buildWeeklySafetyReport(familyId, periodStart, periodEnd);
+    return { reportId: result.reportId };
+  }
+);
+
+export const generateWeeklySafetyReports = functions
+  .runWith({ secrets: ["RESEND_API_KEY"], timeoutSeconds: 540, memory: "1GB" })
+  .pubsub.schedule("0 8 * * 1")
+  .timeZone("Europe/Berlin")
+  .onRun(async () => {
+    const now = new Date();
+    const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const periodEnd = todayStart - 1;
+    const periodStart = todayStart - 7 * 24 * 60 * 60 * 1000;
+    const familiesSnapshot = await db.collection("families").limit(500).get();
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    for (const familyDocument of familiesSnapshot.docs) {
+      try {
+        const family = familyDocument.data();
+        const result = await buildWeeklySafetyReport(
+          familyDocument.id,
+          periodStart,
+          periodEnd
+        );
+        const memberIds = [...new Set<string>([
+          family.ownerId,
+          ...(Array.isArray(family.memberUids) ? family.memberUids : []),
+          ...(Array.isArray(family.managerUids) ? family.managerUids : [])
+        ].filter((value): value is string => typeof value === "string" && value.length > 0))];
+
+        for (const parentId of memberIds) {
+          const parentSnapshot = await db.collection("parents").doc(parentId).get();
+          if (!parentSnapshot.exists) continue;
+          const parent = parentSnapshot.data() || {};
+          await notifyParent(parentId, {
+            type: "WEEKLY_REPORT",
+            title: "Your weekly safety report is ready",
+            body: `${result.report.totals.screenTimeChangePercent > 0 ? "+" : ""}${result.report.totals.screenTimeChangePercent}% screen-time change · ${result.report.totals.safetyAlerts} safety alerts`,
+            childId: "",
+            familyId: familyDocument.id,
+            eventId: `weekly-report-${familyDocument.id}-${result.reportId}`,
+            clickAction: `/reports?week=${encodeURIComponent(result.reportId)}`
+          });
+
+          if (typeof parent.email === "string" && parent.email) {
+            await resend.emails.send({
+              from: "KidsGuard <onboarding@resend.dev>",
+              to: [parent.email],
+              subject: "Your KidsGuard weekly safety report",
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#0f172a">
+                  <h2>Your weekly safety report is ready</h2>
+                  <p>Screen time: <strong>${Math.round(result.report.totals.screenTimeMs / 60000)} minutes</strong></p>
+                  <p>YouTube: <strong>${result.report.totals.youtubeViews}</strong> · Web visits: <strong>${result.report.totals.browserVisits}</strong></p>
+                  <p>Blocked attempts: <strong>${result.report.totals.blockedAttempts}</strong> · Safety alerts: <strong>${result.report.totals.safetyAlerts}</strong></p>
+                  <p><a href="https://kidsguard-screen.vercel.app/reports?week=${encodeURIComponent(result.reportId)}" style="color:#2563eb;font-weight:700">Open full weekly report</a></p>
+                </div>`
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Weekly report failed for family ${familyDocument.id}:`, error);
+      }
+    }
     return null;
   });
