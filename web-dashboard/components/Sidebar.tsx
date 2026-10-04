@@ -89,6 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     notificationType?: NotificationHistoryItem['type'];
   }> = [
     { name: 'Family Overview', href: '/', icon: Users },
+    { name: 'Weekly Reports', href: '/reports', icon: BarChart3 },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
     { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
     { name: 'Family', href: '/settings/family', icon: Users },
