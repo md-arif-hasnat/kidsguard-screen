@@ -19,6 +19,10 @@ import { ConfigRepository, ReleaseChannel, ReleaseStatus, AppRelease, UpdateConf
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import { PlatformAdminRole } from '@/lib/repositories/PlatformAdminRepository';
 import { clsx } from 'clsx';
+import {
+  AdminDeviceHealth,
+  AdminRepository
+} from '@/lib/repositories/AdminRepository';
 
 const QA_CHECKS = [
   { id: 'build', label: 'APK build completed successfully' },
@@ -30,6 +34,9 @@ const QA_CHECKS = [
   { id: 'remoteRules', label: 'Remote lock, bedtime and app rules were tested' },
   { id: 'updateFlow', label: 'Update prompt and installation flow were tested' }
 ] as const;
+
+const normalizeVersion = (version?: string) =>
+  (version || '').trim().replace(/^v/i, '');
 
 export default function ReleaseManager() {
   const { admin, loading: adminLoading } = useInternalAdmin();
@@ -44,6 +51,7 @@ export default function ReleaseManager() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
+  const [devices, setDevices] = useState<AdminDeviceHealth[]>([]);
 
   // Form State
   const [versionCode, setVersionCode] = useState(1);
@@ -86,9 +94,10 @@ export default function ReleaseManager() {
       }, 10000);
 
       try {
-        const [active, releases] = await Promise.all([
+        const [active, releases, deviceHealth] = await Promise.all([
           ConfigRepository.getUpdateConfig(),
-          ConfigRepository.getRecentReleases(10)
+          ConfigRepository.getRecentReleases(10),
+          AdminRepository.getDeviceHealth()
         ]);
 
         if (active) {
@@ -109,6 +118,7 @@ export default function ReleaseManager() {
           setWebNotes(Array.isArray(active.webReleaseNotes) ? active.webReleaseNotes.join('\n') : active.webReleaseNotes || '');
         }
         setHistory(releases);
+        setDevices(deviceHealth);
         console.log("RELEASE_DEBUG: data load successful");
       } catch (err: any) {
         console.error("RELEASE_DEBUG: data load failed", err);
@@ -137,6 +147,20 @@ export default function ReleaseManager() {
 
   const artifactKey = `${apkUrl.trim()}|${apkSha256.trim().toLowerCase()}`;
   const qaComplete = QA_CHECKS.every(check => qaChecklist[check.id]);
+  const reportingDevices = devices.filter(device =>
+    Boolean(normalizeVersion(device.appVersion))
+  );
+  const installedLatestCount = currentConfig
+    ? reportingDevices.filter(device =>
+        normalizeVersion(device.appVersion) ===
+          normalizeVersion(currentConfig.latestVersionName)
+      ).length
+    : 0;
+  const pendingUpdateCount = reportingDevices.length - installedLatestCount;
+  const unknownVersionCount = devices.length - reportingDevices.length;
+  const adoptionPercentage = reportingDevices.length > 0
+    ? Math.round((installedLatestCount / reportingDevices.length) * 100)
+    : 0;
 
   const verifyArtifact = async () => {
     const validationError = validate();
@@ -504,6 +528,41 @@ export default function ReleaseManager() {
               </p>
             </div>
           </div>
+        )}
+
+        {currentConfig && (
+          <section className="mb-8 rounded-3xl border border-slate-800 bg-slate-900 p-5 md:p-6">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">
+                  Rollout Adoption · v{currentConfig.latestVersionName}
+                </h2>
+                <p className="mt-1 text-[10px] font-medium text-slate-500">
+                  Based on the latest child device health reports.
+                </p>
+              </div>
+              <span className={clsx(
+                "rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest",
+                adoptionPercentage >= 90
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+              )}>
+                {adoptionPercentage}% Adopted
+              </span>
+            </div>
+            <div className="mb-5 h-2 overflow-hidden rounded-full bg-slate-950">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all"
+                style={{ width: `${adoptionPercentage}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <RolloutMetric label="Known Devices" value={reportingDevices.length} />
+              <RolloutMetric label="Updated" value={installedLatestCount} tone="success" />
+              <RolloutMetric label="Update Pending" value={pendingUpdateCount} tone="warning" />
+              <RolloutMetric label="Version Unknown" value={unknownVersionCount} />
+            </div>
+          </section>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -981,4 +1040,32 @@ function TipItem({ label, text }: { label: string, text: string }) {
             <span className="text-[10px] text-slate-500 font-medium">{text}</span>
         </li>
     )
+}
+
+function RolloutMetric({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string;
+  value: number;
+  tone?: 'default' | 'success' | 'warning';
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <p className={clsx(
+        "text-xl font-black",
+        tone === 'success'
+          ? "text-emerald-400"
+          : tone === 'warning'
+            ? "text-amber-400"
+            : "text-white"
+      )}>
+        {value}
+      </p>
+      <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-500">
+        {label}
+      </p>
+    </div>
+  );
 }
