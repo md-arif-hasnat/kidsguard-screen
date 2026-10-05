@@ -1,8 +1,13 @@
 package com.example.kidsguard.ui.screens
 
+import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,6 +62,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.accessibility.KidsGuardAccessibilityService
 //mport com.example.kidsguard.firebase.FirebaseConfig
 import com.example.kidsguard.sync.FirebaseConfig
 import com.example.kidsguard.utils.PermissionUtils
@@ -155,6 +161,22 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
     }
     var approvedPermissionChanges by remember {
         mutableStateOf<Map<String, Long>>(emptyMap())
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        locationGranted = PermissionUtils.hasLocationPermission(context)
+    }
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        bgLocationGranted = PermissionUtils.hasBackgroundLocationPermission(context)
+    }
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        audioGranted = PermissionUtils.hasAudioPermission(context)
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -389,10 +411,12 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Location Access",
                         isGranted = locationGranted
                     ) {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
                     }
                 }
             )
@@ -411,10 +435,11 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Always-On Location",
                         isGranted = bgLocationGranted
                     ) {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            backgroundLocationLauncher.launch(
+                                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                            )
+                        }
                     }
                 }
             )
@@ -433,8 +458,19 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Usage Statistics",
                         isGranted = usageStatsGranted
                     ) {
-                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                    context.startActivity(intent)
+                        val packageUri = Uri.parse("package:${context.packageName}")
+                        val directIntent = Intent(
+                            Settings.ACTION_USAGE_ACCESS_SETTINGS,
+                            packageUri
+                        )
+                        val fallbackIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                        context.startActivity(
+                            if (directIntent.resolveActivity(context.packageManager) != null) {
+                                directIntent
+                            } else {
+                                fallbackIntent
+                            }
+                        )
                     }
                 }
             )
@@ -476,8 +512,32 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Accessibility Service",
                         isGranted = accessibilityEnabled
                     ) {
-                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    context.startActivity(intent)
+                        val componentName = ComponentName(
+                            context,
+                            KidsGuardAccessibilityService::class.java
+                        )
+                        val directIntent = Intent(
+                            "android.settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS"
+                        ).apply {
+                            putExtra(
+                                "android.intent.extra.COMPONENT_NAME",
+                                componentName.flattenToString()
+                            )
+                        }
+                        val fallbackIntent = Intent(
+                            Settings.ACTION_ACCESSIBILITY_SETTINGS
+                        )
+                        try {
+                            context.startActivity(
+                                if (directIntent.resolveActivity(context.packageManager) != null) {
+                                    directIntent
+                                } else {
+                                    fallbackIntent
+                                }
+                            )
+                        } catch (_: Exception) {
+                            context.startActivity(fallbackIntent)
+                        }
                     }
                 }
             )
@@ -496,8 +556,17 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Ignore Battery Limits",
                         isGranted = batteryIgnored
                     ) {
-                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                    context.startActivity(intent)
+                        val directIntent = Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        try {
+                            context.startActivity(directIntent)
+                        } catch (_: Exception) {
+                            context.startActivity(
+                                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            )
+                        }
                     }
                 }
             )
@@ -516,10 +585,9 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                         permissionName = "Microphone Access",
                         isGranted = audioGranted
                     ) {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
+                        microphonePermissionLauncher.launch(
+                            Manifest.permission.RECORD_AUDIO
+                        )
                     }
                 }
             )

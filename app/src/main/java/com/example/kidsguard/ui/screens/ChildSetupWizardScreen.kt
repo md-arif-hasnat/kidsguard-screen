@@ -57,6 +57,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.kidsguard.admin.KidsGuardAdminReceiver
+import com.example.kidsguard.accessibility.KidsGuardAccessibilityService
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.utils.NotificationAccessHelper
 import com.example.kidsguard.utils.PermissionUtils
@@ -391,8 +392,8 @@ fun ChildSetupWizardScreen(
 
             SetupStepId.ACCESSIBILITY -> {
                 val componentName = ComponentName(
-                    context.packageName,
-                    "${context.packageName}.accessibility.KidsGuardAccessibilityService"
+                    context,
+                    KidsGuardAccessibilityService::class.java
                 )
 
                 val directIntent = Intent(
