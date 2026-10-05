@@ -18,6 +18,17 @@ import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import { PlatformAdminRole } from '@/lib/repositories/PlatformAdminRepository';
 import { clsx } from 'clsx';
 
+const QA_CHECKS = [
+  { id: 'build', label: 'APK build completed successfully' },
+  { id: 'install', label: 'APK installed on a real child phone' },
+  { id: 'upgrade', label: 'Existing login, pairing and settings were preserved' },
+  { id: 'sync', label: 'Usage and Firebase sync were tested' },
+  { id: 'location', label: 'Location and device status were tested' },
+  { id: 'notifications', label: 'Parent notifications were tested' },
+  { id: 'remoteRules', label: 'Remote lock, bedtime and app rules were tested' },
+  { id: 'updateFlow', label: 'Update prompt and installation flow were tested' }
+] as const;
+
 export default function ReleaseManager() {
   const { admin, loading: adminLoading } = useInternalAdmin();
   const [loading, setLoading] = useState(true);
@@ -41,6 +52,9 @@ export default function ReleaseManager() {
   const [notes, setReleaseNotes] = useState('');
   const [fileSize, setFileSize] = useState('');
   const [minAndroid, setMinAndroid] = useState('8.0');
+  const [qaChecklist, setQaChecklist] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(QA_CHECKS.map(check => [check.id, false]))
+  );
 
   // Web Fields
   const [webVersion, setWebVersion] = useState('1.0.0');
@@ -116,6 +130,7 @@ export default function ReleaseManager() {
   };
 
   const artifactKey = `${apkUrl.trim()}|${apkSha256.trim().toLowerCase()}`;
+  const qaComplete = QA_CHECKS.every(check => qaChecklist[check.id]);
 
   const verifyArtifact = async () => {
     const validationError = validate();
@@ -170,7 +185,8 @@ export default function ReleaseManager() {
     minimumAndroidVersion: minAndroid,
     webVersion,
     webUpdateMessage: webMessage,
-    webReleaseNotes: webNotes.split('\n').filter(n => n.trim() !== '')
+    webReleaseNotes: webNotes.split('\n').filter(n => n.trim() !== ''),
+    qaChecklist
   });
 
   const refreshReleaseData = async () => {
@@ -204,6 +220,16 @@ export default function ReleaseManager() {
     const validationError = validate();
     if (validationError) {
       setStatus({ type: 'error', message: validationError });
+      return;
+    }
+    if (
+      releaseStatus === 'PUBLISHED' &&
+      !qaComplete
+    ) {
+      setStatus({
+        type: 'error',
+        message: 'Complete every production QA check before publishing.'
+      });
       return;
     }
     if (
@@ -279,6 +305,13 @@ export default function ReleaseManager() {
     setStatus(null);
     try {
       if (nextStatus === 'PUBLISHED') {
+        const savedQa = release.qaChecklist || {};
+        const savedQaComplete = QA_CHECKS.every(check => savedQa[check.id]);
+        if (!savedQaComplete) {
+          throw new Error(
+            'This release does not have a completed production QA checklist.'
+          );
+        }
         const verification = await ConfigRepository.verifyReleaseArtifact(
           release.apkDownloadUrl,
           release.apkSha256
@@ -518,6 +551,48 @@ export default function ReleaseManager() {
                       </div>
 
                       <div className="border-t border-slate-800 pt-8">
+                          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                  <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
+                                      Production QA Checklist
+                                  </h3>
+                                  <p className="mt-1 text-[10px] font-medium text-slate-500">
+                                      All checks are required before publishing to child devices.
+                                  </p>
+                              </div>
+                              <span className={clsx(
+                                "w-fit rounded-lg border px-3 py-1.5 text-[9px] font-black uppercase tracking-widest",
+                                qaComplete
+                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                              )}>
+                                  {QA_CHECKS.filter(check => qaChecklist[check.id]).length}/{QA_CHECKS.length} Complete
+                              </span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              {QA_CHECKS.map(check => (
+                                  <label
+                                    key={check.id}
+                                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 transition-colors hover:border-rose-500/40"
+                                  >
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(qaChecklist[check.id])}
+                                        onChange={event => setQaChecklist(current => ({
+                                          ...current,
+                                          [check.id]: event.target.checked
+                                        }))}
+                                        className="mt-0.5 h-4 w-4 accent-emerald-500"
+                                      />
+                                      <span className="text-[11px] font-bold leading-5 text-slate-300">
+                                          {check.label}
+                                      </span>
+                                  </label>
+                              ))}
+                          </div>
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-8">
                           <h3 className="text-xs font-black text-white mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
                               <Monitor size={16} className="text-rose-500" />
                               Web / PWA Update Configuration
@@ -636,6 +711,16 @@ export default function ReleaseManager() {
                                                           Active
                                                       </span>
                                                   )}
+                                                  <span className={clsx(
+                                                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                                                      QA_CHECKS.every(check => rel.qaChecklist?.[check.id])
+                                                        ? "bg-emerald-500/10 text-emerald-400"
+                                                        : "bg-slate-800 text-slate-500"
+                                                  )}>
+                                                      {QA_CHECKS.every(check => rel.qaChecklist?.[check.id])
+                                                        ? 'QA Passed'
+                                                        : 'QA Pending'}
+                                                  </span>
                                               </div>
                                               <p className="text-[10px] text-slate-500 mt-1 font-bold">Code: {rel.latestVersionCode}</p>
                                           </div>

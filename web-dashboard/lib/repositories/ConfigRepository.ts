@@ -13,6 +13,7 @@ import {
 
 export type ReleaseChannel = 'stable' | 'beta' | 'alpha';
 export type ReleaseStatus = 'DRAFT' | 'TESTING' | 'PUBLISHED' | 'DEPRECATED';
+export type ReleaseQaChecklist = Record<string, boolean>;
 
 export interface UpdateConfig {
   latestVersionCode: number;
@@ -29,6 +30,7 @@ export interface UpdateConfig {
   webVersion?: string;
   webUpdateMessage?: string;
   webReleaseNotes?: string | string[];
+  qaChecklist?: ReleaseQaChecklist;
 }
 
 export interface AppRelease extends UpdateConfig {
