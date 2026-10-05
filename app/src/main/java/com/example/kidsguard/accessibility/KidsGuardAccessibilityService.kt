@@ -571,7 +571,8 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             if (candidate.videoId.isNullOrBlank()) {
                 val current = activeYouTubeSession
                 if (
-                    current?.title == candidate.videoTitle &&
+                    current != null &&
+                    current.title == candidate.videoTitle &&
                     !current.videoId.isNullOrBlank()
                 ) {
                     enrichedCandidate = candidate.copy(
