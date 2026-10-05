@@ -26,6 +26,7 @@ function isManagerRole(role: unknown): boolean {
 const RETENTION_BATCH_SIZE = 400;
 const RETENTION_MAX_BATCHES = 5;
 const RETENTION_MAX_DATED_TREES = 100;
+const ALLOWED_RETENTION_DAYS = new Set([30, 90, 365]);
 
 async function deleteExpiredByField(
   collectionRef: admin.firestore.CollectionReference,
@@ -3705,12 +3706,11 @@ export const cleanupFamilyRetentionData = onSchedule(
       const retentionDays =
         familyData.settings?.dataRetentionDays;
 
-      // Missing, Forever (0), or unreasonable values never delete data.
+      // Missing, Forever (0), or unsupported values never delete data.
       if (
         typeof retentionDays !== 'number' ||
         !Number.isInteger(retentionDays) ||
-        retentionDays < 1 ||
-        retentionDays > 3650
+        !ALLOWED_RETENTION_DAYS.has(retentionDays)
       ) {
         continue;
       }

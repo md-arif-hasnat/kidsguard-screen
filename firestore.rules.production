@@ -43,6 +43,20 @@ service cloud.firestore {
           return isEmailVerified() &&
             familyData(familyId).ownerId == request.auth.uid;
         }
+
+        function hasValidRetentionPolicy() {
+          return request.resource.data.settings is map &&
+            (
+              !request.resource.data.settings.keys()
+                .hasAny(['dataRetentionDays']) ||
+              request.resource.data.settings.dataRetentionDays in [
+                0,
+                30,
+                90,
+                365
+              ]
+            );
+        }
             function isDeviceOwner(deviceId) {
               return isSignedIn() &&
                 get(
@@ -213,6 +227,7 @@ service cloud.firestore {
             request.resource.data.subscription.status == 'PENDING';
 
                 allow update: if isFamilyOwner(familyId) &&
+                  hasValidRetentionPolicy() &&
                   request.resource.data.ownerId ==
                     resource.data.ownerId &&
                   !request.resource.data

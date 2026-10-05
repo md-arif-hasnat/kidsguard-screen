@@ -643,6 +643,49 @@ test(
 );
 
 test(
+  "owner can select only supported data retention policies",
+  async () => {
+    const db = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const familyRef = doc(db, "families", "family-1");
+
+    await assertSucceeds(
+      setDoc(
+        familyRef,
+        { settings: { dataRetentionDays: 90 } },
+        { merge: true }
+      )
+    );
+
+    await assertSucceeds(
+      setDoc(
+        familyRef,
+        { settings: { dataRetentionDays: 0 } },
+        { merge: true }
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        familyRef,
+        { settings: { dataRetentionDays: 1 } },
+        { merge: true }
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        familyRef,
+        { settings: { dataRetentionDays: "90" } },
+        { merge: true }
+      )
+    );
+  }
+);
+
+test(
   "outsider cannot read another family",
   async () => {
     const db = verifiedDb(

@@ -183,6 +183,24 @@ export default function PrivacyPolicyPage() {
             meet legal obligations. Retention periods may differ depending on
             the type of information and the family&apos;s settings.
           </p>
+
+          <p className="mt-3">
+            The Family Owner may select 30 days, 90 days, one year, or Forever
+            for child history. When a limited period is selected, KidsGuard
+            automatically removes older location history, activity history,
+            app-usage history, web activity, YouTube history, browser history,
+            restriction events, route deviations, SOS events, and child error
+            reports.
+          </p>
+
+          <p className="mt-3">
+            Retention cleanup does not remove the child&apos;s current location,
+            family or child profiles, device records, parental controls, safe
+            zones, account settings, or security audit records. These records
+            remain available while required to operate and secure the account,
+            or until the account is deleted subject to applicable legal
+            obligations.
+          </p>
         </section>
 
         <section className="mt-8">
