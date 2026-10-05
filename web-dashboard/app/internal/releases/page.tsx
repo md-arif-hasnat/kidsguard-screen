@@ -35,6 +35,9 @@ export default function ReleaseManager() {
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [changingReleaseId, setChangingReleaseId] = useState<string | null>(null);
+  const [editingQaReleaseId, setEditingQaReleaseId] = useState<string | null>(null);
+  const [editingQaChecklist, setEditingQaChecklist] = useState<Record<string, boolean>>({});
+  const [savingQa, setSavingQa] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
@@ -342,6 +345,53 @@ export default function ReleaseManager() {
       });
     } finally {
       setChangingReleaseId(null);
+    }
+  };
+
+  const openQaReview = (release: AppRelease) => {
+    setEditingQaReleaseId(release.id);
+    setEditingQaChecklist(
+      Object.fromEntries(
+        QA_CHECKS.map(check => [
+          check.id,
+          Boolean(release.qaChecklist?.[check.id])
+        ])
+      )
+    );
+    setStatus(null);
+  };
+
+  const saveQaReview = async (release: AppRelease) => {
+    if (!canManage) return;
+    setSavingQa(true);
+    setStatus(null);
+    try {
+      await ConfigRepository.updateReleaseQaChecklist(
+        release.id,
+        editingQaChecklist,
+        {
+          uid: admin?.uid || "unknown",
+          email: admin?.email
+        }
+      );
+      const completed = QA_CHECKS.every(
+        check => editingQaChecklist[check.id]
+      );
+      setStatus({
+        type: 'success',
+        message: completed
+          ? `QA passed for v${release.latestVersionName}. It is ready to publish.`
+          : `QA progress saved for v${release.latestVersionName}.`
+      });
+      setEditingQaReleaseId(null);
+      await refreshReleaseData();
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to save QA review.'
+      });
+    } finally {
+      setSavingQa(false);
     }
   };
 
@@ -738,6 +788,18 @@ export default function ReleaseManager() {
                                       </div>
 
                                       <div className="flex flex-wrap gap-2 mt-3">
+                                          {(lifecycle === 'DRAFT' || lifecycle === 'TESTING') && (
+                                              <button
+                                                  type="button"
+                                                  disabled={isChanging || savingQa || !canManage}
+                                                  onClick={() => editingQaReleaseId === rel.id
+                                                    ? setEditingQaReleaseId(null)
+                                                    : openQaReview(rel)}
+                                                  className="text-[8px] font-black uppercase px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 disabled:opacity-40"
+                                              >
+                                                  {editingQaReleaseId === rel.id ? 'Close QA' : 'Review QA'}
+                                              </button>
+                                          )}
                                           {lifecycle === 'DRAFT' && (
                                               <button
                                                   type="button"
@@ -772,6 +834,39 @@ export default function ReleaseManager() {
                                               <Loader2 className="animate-spin text-rose-500" size={14} />
                                           )}
                                       </div>
+                                      {editingQaReleaseId === rel.id && (
+                                          <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+                                              <div className="space-y-2">
+                                                  {QA_CHECKS.map(check => (
+                                                      <label
+                                                        key={check.id}
+                                                        className="flex cursor-pointer items-start gap-2 rounded-lg bg-slate-900 px-3 py-2"
+                                                      >
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={Boolean(editingQaChecklist[check.id])}
+                                                            onChange={event => setEditingQaChecklist(current => ({
+                                                              ...current,
+                                                              [check.id]: event.target.checked
+                                                            }))}
+                                                            className="mt-0.5 h-3.5 w-3.5 accent-emerald-500"
+                                                          />
+                                                          <span className="text-[9px] font-bold leading-4 text-slate-400">
+                                                              {check.label}
+                                                          </span>
+                                                      </label>
+                                                  ))}
+                                              </div>
+                                              <button
+                                                type="button"
+                                                disabled={savingQa || !canManage}
+                                                onClick={() => void saveQaReview(rel)}
+                                                className="w-full rounded-lg bg-cyan-600 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-white disabled:opacity-50"
+                                              >
+                                                  {savingQa ? 'Saving QA…' : 'Save QA Progress'}
+                                              </button>
+                                          </div>
+                                      )}
                                   </div>
                               );
                           })

@@ -252,6 +252,37 @@ export class ConfigRepository {
     await batch.commit();
   }
 
+  static async updateReleaseQaChecklist(
+    releaseId: string,
+    qaChecklist: ReleaseQaChecklist,
+    user: ReleaseActor
+  ): Promise<void> {
+    if (!db) throw new Error("Firebase is not configured.");
+
+    const releaseRef = doc(db, "appReleases", releaseId);
+    const releaseSnap = await getDoc(releaseRef);
+    if (!releaseSnap.exists()) {
+      throw new Error("Release not found.");
+    }
+
+    const status = (releaseSnap.data().status || 'PUBLISHED') as ReleaseStatus;
+    if (status !== 'DRAFT' && status !== 'TESTING') {
+      throw new Error("QA checks can only be edited before publishing.");
+    }
+
+    const batch = writeBatch(db);
+    batch.update(releaseRef, {
+      qaChecklist,
+      qaUpdatedAt: serverTimestamp(),
+      qaUpdatedByUid: user.uid,
+      qaUpdatedByEmail: user.email || "unknown",
+      updatedAt: serverTimestamp(),
+      updatedByUid: user.uid,
+      updatedByEmail: user.email || "unknown"
+    });
+    await batch.commit();
+  }
+
   private static toActiveConfig(
     release: ReleaseInput,
     releasedAt: unknown
