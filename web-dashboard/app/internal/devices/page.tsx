@@ -27,19 +27,25 @@ import {
 
 type DeviceFilter =
   | 'ALL'
+  | 'ACTIVE'
   | 'ONLINE'
   | 'OFFLINE'
   | 'STALE'
+  | 'UPDATED'
   | 'UPDATE_PENDING'
+  | 'INACTIVE'
   | 'SYNC_WARNING'
   | 'UNKNOWN_VERSION';
 
 const FILTER_LABELS: Record<DeviceFilter, string> = {
   ALL: 'All',
+  ACTIVE: 'Active (7 days)',
   ONLINE: 'Online',
   OFFLINE: 'Offline',
   STALE: 'Stale',
+  UPDATED: 'Updated',
   UPDATE_PENDING: 'Update Pending',
+  INACTIVE: 'Inactive (7+ days)',
   SYNC_WARNING: 'Sync Warning',
   UNKNOWN_VERSION: 'Unknown Version'
 };
@@ -76,6 +82,14 @@ function isLatestVersion(deviceVersion: string | undefined, latestVersion: strin
 }
 
 const STALE_AFTER_MS = 30 * 60 * 1000;
+const ACTIVE_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isDeviceActive(device: AdminDeviceHealth, now: number) {
+  return Boolean(
+    device.lastSeen &&
+    now - device.lastSeen <= ACTIVE_DEVICE_WINDOW_MS
+  );
+}
 
 function isDeviceStale(device: AdminDeviceHealth, now: number) {
   return Boolean(
@@ -98,10 +112,19 @@ export default function InternalDevicesPage() {
   const [statusNow, setStatusNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const childId = new URLSearchParams(window.location.search).get('child');
-    if (!childId) return;
-    setSearch(childId);
-    setDeviceFilter('ALL');
+    const params = new URLSearchParams(window.location.search);
+    const childId = params.get('child');
+    const requestedFilter = params.get('filter') as DeviceFilter | null;
+
+    if (childId) {
+      setSearch(childId);
+      setDeviceFilter('ALL');
+      return;
+    }
+
+    if (requestedFilter && requestedFilter in FILTER_LABELS) {
+      setDeviceFilter(requestedFilter);
+    }
   }, []);
 
   useEffect(() => {
@@ -142,7 +165,9 @@ export default function InternalDevicesPage() {
     device => device.syncHealthy === false
   ).length;
   const latestVersion = updateConfig?.latestVersionName || '';
-  const reportingDevices = devices.filter(device => Boolean(device.appVersion));
+  const activeDevices = devices.filter(device => isDeviceActive(device, statusNow));
+  const inactiveCount = devices.length - activeDevices.length;
+  const reportingDevices = activeDevices.filter(device => Boolean(device.appVersion));
   const currentVersionCount = latestVersion
     ? reportingDevices.filter(device =>
         isLatestVersion(device.appVersion, latestVersion)
@@ -151,7 +176,7 @@ export default function InternalDevicesPage() {
   const updatePendingCount = latestVersion
     ? reportingDevices.length - currentVersionCount
     : 0;
-  const unknownVersionCount = devices.length - reportingDevices.length;
+  const unknownVersionCount = activeDevices.length - reportingDevices.length;
   const adoptionPercentage = reportingDevices.length > 0 && latestVersion
     ? Math.round((currentVersionCount / reportingDevices.length) * 100)
     : 0;
@@ -165,10 +190,13 @@ export default function InternalDevicesPage() {
 
   const filterCounts: Record<DeviceFilter, number> = {
     ALL: devices.length,
+    ACTIVE: activeDevices.length,
     ONLINE: onlineCount,
     OFFLINE: devices.length - onlineCount,
     STALE: staleCount,
+    UPDATED: currentVersionCount,
     UPDATE_PENDING: updatePendingCount,
+    INACTIVE: inactiveCount,
     SYNC_WARNING: unhealthyCount,
     UNKNOWN_VERSION: unknownVersionCount
   };
@@ -178,13 +206,25 @@ export default function InternalDevicesPage() {
     return devices.filter(device => {
       const matchesFilter =
         deviceFilter === 'ALL' ||
+        (deviceFilter === 'ACTIVE' && isDeviceActive(device, statusNow)) ||
         (deviceFilter === 'ONLINE' && isDeviceOnline(device, statusNow)) ||
         (deviceFilter === 'OFFLINE' && !isDeviceOnline(device, statusNow)) ||
         (deviceFilter === 'STALE' && isDeviceStale(device, statusNow)) ||
         (
+          deviceFilter === 'UPDATED' &&
+          isDeviceActive(device, statusNow) &&
+          Boolean(latestVersion && device.appVersion) &&
+          isLatestVersion(device.appVersion, latestVersion)
+        ) ||
+        (
           deviceFilter === 'UPDATE_PENDING' &&
+          isDeviceActive(device, statusNow) &&
           Boolean(latestVersion && device.appVersion) &&
           !isLatestVersion(device.appVersion, latestVersion)
+        ) ||
+        (
+          deviceFilter === 'INACTIVE' &&
+          !isDeviceActive(device, statusNow)
         ) ||
         (
           deviceFilter === 'SYNC_WARNING' &&
@@ -192,6 +232,7 @@ export default function InternalDevicesPage() {
         ) ||
         (
           deviceFilter === 'UNKNOWN_VERSION' &&
+          isDeviceActive(device, statusNow) &&
           !device.appVersion
         );
 

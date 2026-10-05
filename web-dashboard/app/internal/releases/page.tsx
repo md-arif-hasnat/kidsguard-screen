@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import InternalLayout from '@/components/InternalLayout';
 import {
   Rocket,
@@ -628,11 +629,11 @@ export default function ReleaseManager() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <RolloutMetric label="Active Devices" value={activeDevices.length} />
-              <RolloutMetric label="Updated" value={installedLatestCount} tone="success" />
-              <RolloutMetric label="Update Pending" value={pendingUpdateCount} tone="warning" />
-              <RolloutMetric label="Version Unknown" value={unknownVersionCount} />
-              <RolloutMetric label="Inactive Excluded" value={inactiveExcludedCount} />
+              <RolloutMetric label="Active Devices" value={activeDevices.length} href="/internal/devices?filter=ACTIVE" />
+              <RolloutMetric label="Updated" value={installedLatestCount} tone="success" href="/internal/devices?filter=UPDATED" />
+              <RolloutMetric label="Update Pending" value={pendingUpdateCount} tone="warning" href="/internal/devices?filter=UPDATE_PENDING" />
+              <RolloutMetric label="Version Unknown" value={unknownVersionCount} href="/internal/devices?filter=UNKNOWN_VERSION" />
+              <RolloutMetric label="Inactive Excluded" value={inactiveExcludedCount} href="/internal/devices?filter=INACTIVE" />
             </div>
           </section>
         )}
@@ -1117,14 +1118,20 @@ function TipItem({ label, text }: { label: string, text: string }) {
 function RolloutMetric({
   label,
   value,
-  tone = 'default'
+  tone = 'default',
+  href
 }: {
   label: string;
   value: number;
   tone?: 'default' | 'success' | 'warning';
+  href: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+    <Link
+      href={href}
+      title={`View ${label.toLowerCase()} devices`}
+      className="group rounded-xl border border-slate-800 bg-slate-950 p-4 transition hover:-translate-y-0.5 hover:border-cyan-500/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+    >
       <p className={clsx(
         "text-xl font-black",
         tone === 'success'
@@ -1138,6 +1145,9 @@ function RolloutMetric({
       <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-500">
         {label}
       </p>
-    </div>
+      <p className="mt-2 text-[9px] font-bold uppercase tracking-wider text-cyan-400 opacity-0 transition group-hover:opacity-100 group-focus:opacity-100">
+        View devices →
+      </p>
+    </Link>
   );
 }
