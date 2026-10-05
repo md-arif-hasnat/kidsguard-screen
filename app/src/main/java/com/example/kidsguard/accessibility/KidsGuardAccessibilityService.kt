@@ -39,6 +39,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -561,19 +562,76 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             youtubeRepository
         )
         if (candidate != null) {
-            updateYouTubeSession(candidate)
+            var enrichedCandidate = candidate
+            var resolveRequest: YouTubeResolveRequest? = null
 
-            // Accessibility can identify a Short's title without exposing its
-            // video ID. Resolve it through the API as well, otherwise Shorts
-            // are saved and synced with no thumbnail.
+            // Shorts commonly expose the title in Accessibility but keep the
+            // video ID and artwork only in MediaSession. Merge both sources
+            // before spending a YouTube Data API search request.
             if (candidate.videoId.isNullOrBlank()) {
-                YouTubeVideoResolver.buildRequest(
+                val current = activeYouTubeSession
+                if (
+                    current?.title == candidate.videoTitle &&
+                    !current.videoId.isNullOrBlank()
+                ) {
+                    enrichedCandidate = candidate.copy(
+                        videoId = current.videoId,
+                        youtubeUrl = current.youtubeUrl,
+                        thumbnailUrl = current.thumbnailUrl,
+                        linkSource = current.linkSource,
+                        linkConfidence = current.linkConfidence
+                    )
+                } else {
+                    val mediaSnapshot = MediaSessionMetadataReader.readYouTubeSession(
+                        context = applicationContext,
+                        debugLog = { message ->
+                            youtubeRepository.addDebugLog(message)
+                        }
+                    )
+                    resolveRequest = YouTubeVideoResolver.buildRequest(
+                        title = candidate.videoTitle,
+                        channel = candidate.channelName
+                            ?: mediaSnapshot?.artist,
+                        durationMs = mediaSnapshot?.durationMs,
+                        mediaId = mediaSnapshot?.mediaId,
+                        mediaUri = mediaSnapshot?.mediaUri
+                    )
+                    val directResolved = resolveRequest?.let {
+                        YouTubeVideoResolver.resolveDirect(it)
+                    }
+                    if (directResolved != null) {
+                        enrichedCandidate = candidate.copy(
+                            channelName = candidate.channelName
+                                ?: mediaSnapshot?.artist,
+                            videoId = directResolved.videoId,
+                            youtubeUrl = directResolved.youtubeUrl,
+                            thumbnailUrl = directResolved.thumbnailUrl
+                                ?: mediaSnapshot?.artworkUri,
+                            linkSource = directResolved.source,
+                            linkConfidence = directResolved.confidence,
+                            extractionStrategy =
+                                "${candidate.extractionStrategy}+MEDIA_SESSION"
+                        )
+                        youtubeRepository.addDebugLog(
+                            "SHORTS_DIRECT_METADATA id=${directResolved.videoId} " +
+                                    "thumb=${enrichedCandidate.thumbnailUrl}"
+                        )
+                    }
+                }
+            }
+
+            updateYouTubeSession(enrichedCandidate)
+
+            // When neither Accessibility nor MediaSession exposes a direct
+            // ID, resolve the Short by title/channel through the API.
+            if (enrichedCandidate.videoId.isNullOrBlank()) {
+                (resolveRequest ?: YouTubeVideoResolver.buildRequest(
                     title = candidate.videoTitle,
                     channel = candidate.channelName,
                     durationMs = null,
                     mediaId = null,
                     mediaUri = null
-                )?.let { request ->
+                ))?.let { request ->
                     startApiResolution(request, candidate.screenType)
                 }
             }
@@ -692,10 +750,14 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 }
 
             if (searchResponse == null) {
+                val apiError = YouTubeApiClient.lastError
                 youtubeRepository.addDebugLog(
-                    "YOUTUBE_API_SEARCH_NO_RESPONSE error=${YouTubeApiClient.lastError}"
+                    "YOUTUBE_API_SEARCH_NO_RESPONSE error=$apiError"
                 )
                 applyFallbackSearchUrl(resolveRequest, screenType)
+                if (apiError == "YOUTUBE_SEARCH_COOLDOWN") {
+                    scheduleApiResolutionRetry(resolveRequest, screenType)
+                }
                 return@launch
             }
 
@@ -755,6 +817,28 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                         "thumb=${apiResolved.thumbnailUrl} " +
                         "confidence=${apiResolved.confidence}"
             )
+        }
+    }
+
+    private fun scheduleApiResolutionRetry(
+        resolveRequest: YouTubeResolveRequest,
+        screenType: YouTubeScreenType
+    ) {
+        serviceScope.launch {
+            delay(16_000L)
+            withContext(Dispatchers.Main.immediate) {
+                val active = activeYouTubeSession
+                if (
+                    active?.title == resolveRequest.title &&
+                    active.videoId.isNullOrBlank()
+                ) {
+                    active.apiResolutionAttempted = false
+                    youtubeRepository.addDebugLog(
+                        "YOUTUBE_API_COOLDOWN_RETRY title=${resolveRequest.title}"
+                    )
+                    startApiResolution(resolveRequest, screenType)
+                }
+            }
         }
     }
 
