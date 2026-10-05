@@ -33,6 +33,8 @@ export default function ReleaseManager() {
   const [versionName, setVersionName] = useState('1.0.0');
   const [apkUrl, setApkUrl] = useState('');
   const [apkSha256, setApkSha256] = useState('');
+  const [verifyingArtifact, setVerifyingArtifact] = useState(false);
+  const [verifiedArtifactKey, setVerifiedArtifactKey] = useState('');
   const [mandatory, setMandatory] = useState(false);
   const [channel, setChannel] = useState<ReleaseChannel>('stable');
   const [message, setMessage] = useState('New version available. Please update for the best experience.');
@@ -113,6 +115,48 @@ export default function ReleaseManager() {
     return null;
   };
 
+  const artifactKey = `${apkUrl.trim()}|${apkSha256.trim().toLowerCase()}`;
+
+  const verifyArtifact = async () => {
+    const validationError = validate();
+    if (validationError) {
+      setStatus({ type: 'error', message: validationError });
+      return false;
+    }
+    setVerifyingArtifact(true);
+    setStatus(null);
+    try {
+      const result = await ConfigRepository.verifyReleaseArtifact(
+        apkUrl.trim(),
+        apkSha256.trim().toLowerCase()
+      );
+      if (!result.verified) {
+        setVerifiedArtifactKey('');
+        setStatus({
+          type: 'error',
+          message: `SHA-256 mismatch. Downloaded file: ${result.actualSha256}`
+        });
+        return false;
+      }
+      setVerifiedArtifactKey(artifactKey);
+      setFileSize(`${(result.fileSizeBytes / 1024 / 1024).toFixed(2)} MB`);
+      setStatus({
+        type: 'success',
+        message: 'APK download and SHA-256 verified successfully.'
+      });
+      return true;
+    } catch (err: any) {
+      setVerifiedArtifactKey('');
+      setStatus({
+        type: 'error',
+        message: err.message || 'APK verification failed.'
+      });
+      return false;
+    } finally {
+      setVerifyingArtifact(false);
+    }
+  };
+
   const releaseInput = () => ({
     latestVersionCode: versionCode,
     latestVersionName: versionName,
@@ -160,6 +204,13 @@ export default function ReleaseManager() {
     const validationError = validate();
     if (validationError) {
       setStatus({ type: 'error', message: validationError });
+      return;
+    }
+    if (
+      releaseStatus === 'PUBLISHED' &&
+      verifiedArtifactKey !== artifactKey &&
+      !(await verifyArtifact())
+    ) {
       return;
     }
     if (
@@ -227,6 +278,17 @@ export default function ReleaseManager() {
     setChangingReleaseId(release.id);
     setStatus(null);
     try {
+      if (nextStatus === 'PUBLISHED') {
+        const verification = await ConfigRepository.verifyReleaseArtifact(
+          release.apkDownloadUrl,
+          release.apkSha256
+        );
+        if (!verification.verified) {
+          throw new Error(
+            `SHA-256 mismatch. Downloaded file: ${verification.actualSha256}`
+          );
+        }
+      }
       await ConfigRepository.updateReleaseStatus(
         release.id,
         nextStatus,
@@ -345,7 +407,10 @@ export default function ReleaseManager() {
                               <input
                                   type="url"
                                   value={apkUrl}
-                                  onChange={e => setApkUrl(e.target.value)}
+                                  onChange={e => {
+                                    setApkUrl(e.target.value);
+                                    setVerifiedArtifactKey('');
+                                  }}
                                   placeholder="https://github.com/.../release.apk"
                                   className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-medium text-sm text-white"
                               />
@@ -355,12 +420,35 @@ export default function ReleaseManager() {
                               <input
                                   type="text"
                                   value={apkSha256}
-                                  onChange={e => setApkSha256(e.target.value.replace(/\s/g, ''))}
+                                  onChange={e => {
+                                    setApkSha256(e.target.value.replace(/\s/g, ''));
+                                    setVerifiedArtifactKey('');
+                                  }}
                                   placeholder="64-character SHA-256 checksum"
                                   maxLength={64}
                                   spellCheck={false}
                                   className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-rose-500 outline-none font-mono text-xs text-white"
                               />
+                              <div className="flex items-center justify-between gap-3 pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void verifyArtifact()}
+                                  disabled={verifyingArtifact || !canManage}
+                                  className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-300 disabled:opacity-50"
+                                >
+                                  {verifyingArtifact ? 'Verifying…' : 'Verify APK'}
+                                </button>
+                                <span className={clsx(
+                                  "text-[10px] font-black uppercase tracking-wider",
+                                  verifiedArtifactKey === artifactKey && artifactKey !== '|'
+                                    ? "text-emerald-400"
+                                    : "text-slate-600"
+                                )}>
+                                  {verifiedArtifactKey === artifactKey && artifactKey !== '|'
+                                    ? 'Integrity verified'
+                                    : 'Verification required before publish'}
+                                </span>
+                              </div>
                           </div>
                           <div className="space-y-1.5">
                               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Release Channel</label>

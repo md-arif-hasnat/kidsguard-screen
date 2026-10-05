@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 admin.initializeApp();
 
@@ -834,6 +834,129 @@ export const onAppUpdatePublished = functions.firestore
             })
         ));
     });
+
+const RELEASE_DOWNLOAD_HOSTS = new Set([
+  'github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  'raw.githubusercontent.com',
+  'firebasestorage.googleapis.com',
+  'storage.googleapis.com'
+]);
+
+/**
+ * Downloads an APK from an approved release host and independently verifies
+ * its SHA-256 before an administrator publishes it to child devices.
+ */
+export const verifyReleaseArtifact = functions
+  .runWith({ timeoutSeconds: 120, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Verified administrator sign-in required.'
+      );
+    }
+
+    const adminSnapshot = await db
+      .collection('platformAdmins')
+      .doc(context.auth.uid)
+      .get();
+    const adminData = adminSnapshot.data();
+    const allowedRoles = new Set([
+      'SUPER_ADMIN',
+      'PLATFORM_ADMIN',
+      'DEV_ADMIN'
+    ]);
+    if (
+      !adminSnapshot.exists ||
+      adminData?.active !== true ||
+      !allowedRoles.has(String(adminData?.role || ''))
+    ) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Active platform administrator access required.'
+      );
+    }
+
+    const downloadUrl = String(data?.apkDownloadUrl || '').trim();
+    const expectedSha256 = String(data?.apkSha256 || '')
+      .trim()
+      .toLowerCase();
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(downloadUrl);
+    } catch {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid APK download URL is required.'
+      );
+    }
+    if (
+      parsedUrl.protocol !== 'https:' ||
+      !RELEASE_DOWNLOAD_HOSTS.has(parsedUrl.hostname)
+    ) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'APK must be hosted on an approved HTTPS release host.'
+      );
+    }
+    if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid APK SHA-256 is required.'
+      );
+    }
+
+    const response = await fetch(downloadUrl, { redirect: 'follow' });
+    if (!response.ok) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `APK download failed with HTTP ${response.status}.`
+      );
+    }
+    const finalUrl = new URL(response.url);
+    if (
+      finalUrl.protocol !== 'https:' ||
+      !RELEASE_DOWNLOAD_HOSTS.has(finalUrl.hostname)
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'APK download redirected to an unapproved host.'
+      );
+    }
+
+    const maximumBytes = 250 * 1024 * 1024;
+    const declaredBytes = Number(response.headers.get('content-length') || 0);
+    if (declaredBytes > maximumBytes) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'APK is larger than the 250 MB verification limit.'
+      );
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > maximumBytes) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Downloaded APK is empty or exceeds the verification limit.'
+      );
+    }
+    if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Downloaded file is not a valid APK/ZIP artifact.'
+      );
+    }
+
+    const actualSha256 = createHash('sha256').update(bytes).digest('hex');
+    return {
+      verified: actualSha256 === expectedSha256,
+      expectedSha256,
+      actualSha256,
+      fileSizeBytes: bytes.length,
+      finalUrl: response.url
+    };
+  });
 
 /**
  * Triggered when a new family invitation is created.

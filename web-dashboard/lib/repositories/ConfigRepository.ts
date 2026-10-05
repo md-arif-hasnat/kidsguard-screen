@@ -1,4 +1,4 @@
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import {
   collection,
   doc,
@@ -46,8 +46,47 @@ export interface AppRelease extends UpdateConfig {
 
 type ReleaseInput = Omit<UpdateConfig, 'releasedAt'>;
 type ReleaseActor = { uid: string; email?: string | null };
+export type ArtifactVerification = {
+  verified: boolean;
+  expectedSha256: string;
+  actualSha256: string;
+  fileSizeBytes: number;
+  finalUrl: string;
+};
 
 export class ConfigRepository {
+  static async verifyReleaseArtifact(
+    apkDownloadUrl: string,
+    apkSha256: string
+  ): Promise<ArtifactVerification> {
+    const currentUser = auth?.currentUser;
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    if (!currentUser || !projectId) {
+      throw new Error("Administrator session is unavailable.");
+    }
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/verifyReleaseArtifact`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          data: { apkDownloadUrl, apkSha256 }
+        })
+      }
+    );
+    const payload = await response.json();
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.error?.message || "APK verification failed."
+      );
+    }
+    return payload.result as ArtifactVerification;
+  }
+
   static async getUpdateConfig(): Promise<UpdateConfig | null> {
     if (!db) return null;
     console.log("RELEASE_DEBUG: loading active config started");
