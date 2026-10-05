@@ -110,11 +110,15 @@ class UpdateRepository(private val context: Context) {
             if (info != null) {
                 val currentCode = getCurrentVersionCode()
                 val currentName = getCurrentVersionName()
-                val isAvailable = info.latestVersionCode > currentCode
+                val isAvailable =
+                    !info.rolloutPaused && info.latestVersionCode > currentCode
                 
                 Log.i(TAG, "Installed Version: $currentName ($currentCode)")
                 Log.i(TAG, "Latest Version: ${info.latestVersionName} (${info.latestVersionCode})")
                 Log.i(TAG, "Should Update: $isAvailable")
+                if (info.rolloutPaused) {
+                    Log.w(TAG, "Update rollout is paused by an administrator")
+                }
                 
                 _updateState.value = _updateState.value.copy(
                     updateInfo = info,
@@ -205,7 +209,11 @@ class UpdateRepository(private val context: Context) {
         currentVersionCode: Int
     ) {
         val isMandatory = info.mandatoryUpdate || info.forceUpdate
-        if (isMandatory && info.latestVersionCode > currentVersionCode) {
+        if (
+            !info.rolloutPaused &&
+            isMandatory &&
+            info.latestVersionCode > currentVersionCode
+        ) {
             mandatoryUpdatePrefs.edit()
                 .putLong("version_code", info.latestVersionCode)
                 .putString("version_name", info.latestVersionName)

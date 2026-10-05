@@ -11,7 +11,9 @@ import {
   ExternalLink,
   ShieldAlert,
   FileCode,
-  Monitor
+  Monitor,
+  PauseCircle,
+  PlayCircle
 } from 'lucide-react';
 import { ConfigRepository, ReleaseChannel, ReleaseStatus, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
@@ -38,6 +40,7 @@ export default function ReleaseManager() {
   const [editingQaReleaseId, setEditingQaReleaseId] = useState<string | null>(null);
   const [editingQaChecklist, setEditingQaChecklist] = useState<Record<string, boolean>>({});
   const [savingQa, setSavingQa] = useState(false);
+  const [changingRollout, setChangingRollout] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
@@ -395,6 +398,45 @@ export default function ReleaseManager() {
     }
   };
 
+  const toggleRollout = async (release: AppRelease) => {
+    if (!canPublish) return;
+    const nextPaused = !Boolean(currentConfig?.rolloutPaused);
+    if (!window.confirm(
+      nextPaused
+        ? `Pause v${release.latestVersionName}? New update prompts and downloads will stop.`
+        : `Resume v${release.latestVersionName} rollout to child devices?`
+    )) {
+      return;
+    }
+
+    setChangingRollout(true);
+    setStatus(null);
+    try {
+      await ConfigRepository.setRolloutPaused(
+        release.id,
+        nextPaused,
+        {
+          uid: admin?.uid || "unknown",
+          email: admin?.email
+        }
+      );
+      setStatus({
+        type: 'success',
+        message: nextPaused
+          ? `v${release.latestVersionName} rollout paused.`
+          : `v${release.latestVersionName} rollout resumed.`
+      });
+      await refreshReleaseData();
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to change rollout state.'
+      });
+    } finally {
+      setChangingRollout(false);
+    }
+  };
+
   if (loading || adminLoading) {
     return (
       <InternalLayout>
@@ -449,6 +491,18 @@ export default function ReleaseManager() {
           )}>
             {status.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
             <p className="font-bold text-xs uppercase tracking-wider">{status.message}</p>
+          </div>
+        )}
+
+        {currentConfig?.rolloutPaused && (
+          <div className="mb-8 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
+            <PauseCircle size={20} />
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider">APK rollout paused</p>
+              <p className="mt-1 text-[10px] font-medium text-amber-200/70">
+                Child devices will not be offered v{currentConfig.latestVersionName} until rollout resumes.
+              </p>
+            </div>
           </div>
         )}
 
@@ -832,6 +886,24 @@ export default function ReleaseManager() {
                                           )}
                                           {isChanging && (
                                               <Loader2 className="animate-spin text-rose-500" size={14} />
+                                          )}
+                                          {isActive && lifecycle === 'PUBLISHED' && (
+                                              <button
+                                                type="button"
+                                                disabled={changingRollout || !canPublish}
+                                                onClick={() => void toggleRollout(rel)}
+                                                className={clsx(
+                                                  "flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded disabled:opacity-40",
+                                                  currentConfig?.rolloutPaused
+                                                    ? "bg-emerald-500/10 text-emerald-400"
+                                                    : "bg-rose-500/10 text-rose-400"
+                                                )}
+                                              >
+                                                {currentConfig?.rolloutPaused
+                                                  ? <PlayCircle size={11} />
+                                                  : <PauseCircle size={11} />}
+                                                {currentConfig?.rolloutPaused ? 'Resume Rollout' : 'Pause Rollout'}
+                                              </button>
                                           )}
                                       </div>
                                       {editingQaReleaseId === rel.id && (

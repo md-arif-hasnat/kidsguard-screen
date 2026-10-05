@@ -31,6 +31,7 @@ export interface UpdateConfig {
   webUpdateMessage?: string;
   webReleaseNotes?: string | string[];
   qaChecklist?: ReleaseQaChecklist;
+  rolloutPaused?: boolean;
 }
 
 export interface AppRelease extends UpdateConfig {
@@ -283,6 +284,46 @@ export class ConfigRepository {
     await batch.commit();
   }
 
+  static async setRolloutPaused(
+    releaseId: string,
+    paused: boolean,
+    user: ReleaseActor
+  ): Promise<void> {
+    if (!db) throw new Error("Firebase is not configured.");
+
+    const activeRef = doc(db, "appConfig", "update");
+    const activeSnap = await getDoc(activeRef);
+    if (!activeSnap.exists()) {
+      throw new Error("No active release was found.");
+    }
+
+    const releaseRef = doc(db, "appReleases", releaseId);
+    const releaseSnap = await getDoc(releaseRef);
+    if (!releaseSnap.exists()) {
+      throw new Error("Release not found.");
+    }
+    const release = releaseSnap.data() as AppRelease;
+    const active = activeSnap.data() as UpdateConfig;
+    if (active.latestVersionCode !== release.latestVersionCode) {
+      throw new Error("Only the active release rollout can be changed.");
+    }
+
+    const timestamp = serverTimestamp();
+    const audit = {
+      rolloutPaused: paused,
+      rolloutUpdatedAt: timestamp,
+      rolloutUpdatedByUid: user.uid,
+      rolloutUpdatedByEmail: user.email || "unknown",
+      updatedAt: timestamp,
+      updatedByUid: user.uid,
+      updatedByEmail: user.email || "unknown"
+    };
+    const batch = writeBatch(db);
+    batch.set(activeRef, audit, { merge: true });
+    batch.update(releaseRef, audit);
+    await batch.commit();
+  }
+
   private static toActiveConfig(
     release: ReleaseInput,
     releasedAt: unknown
@@ -301,6 +342,7 @@ export class ConfigRepository {
       webVersion: release.webVersion,
       webUpdateMessage: release.webUpdateMessage,
       webReleaseNotes: release.webReleaseNotes,
+      rolloutPaused: false,
       releasedAt
     };
   }

@@ -12,6 +12,7 @@ data class AppUpdateInfo(
     var forceUpdate: Boolean = false,
     var mandatoryUpdate: Boolean = false,
     var releaseChannel: String = "stable",
+    var rolloutPaused: Boolean = false,
     var releasedAt: Timestamp? = null,
     var fileSize: String = "",
     var apkSha256: String = "",
