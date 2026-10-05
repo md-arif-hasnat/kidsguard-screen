@@ -38,6 +38,8 @@ const QA_CHECKS = [
 const normalizeVersion = (version?: string) =>
   (version || '').trim().replace(/^v/i, '');
 
+const ACTIVE_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default function ReleaseManager() {
   const { admin, loading: adminLoading } = useInternalAdmin();
   const [loading, setLoading] = useState(true);
@@ -147,7 +149,11 @@ export default function ReleaseManager() {
 
   const artifactKey = `${apkUrl.trim()}|${apkSha256.trim().toLowerCase()}`;
   const qaComplete = QA_CHECKS.every(check => qaChecklist[check.id]);
-  const reportingDevices = devices.filter(device =>
+  const activeCutoff = Date.now() - ACTIVE_DEVICE_WINDOW_MS;
+  const activeDevices = devices.filter(device =>
+    Boolean(device.lastSeen && device.lastSeen >= activeCutoff)
+  );
+  const reportingDevices = activeDevices.filter(device =>
     Boolean(normalizeVersion(device.appVersion))
   );
   const installedLatestCount = currentConfig
@@ -157,7 +163,8 @@ export default function ReleaseManager() {
       ).length
     : 0;
   const pendingUpdateCount = reportingDevices.length - installedLatestCount;
-  const unknownVersionCount = devices.length - reportingDevices.length;
+  const unknownVersionCount = activeDevices.length - reportingDevices.length;
+  const inactiveExcludedCount = devices.length - activeDevices.length;
   const adoptionPercentage = reportingDevices.length > 0
     ? Math.round((installedLatestCount / reportingDevices.length) * 100)
     : 0;
@@ -538,7 +545,7 @@ export default function ReleaseManager() {
                   Rollout Adoption · v{currentConfig.latestVersionName}
                 </h2>
                 <p className="mt-1 text-[10px] font-medium text-slate-500">
-                  Based on the latest child device health reports.
+                  Active devices that reported health during the last 7 days.
                 </p>
               </div>
               <span className={clsx(
@@ -556,11 +563,12 @@ export default function ReleaseManager() {
                 style={{ width: `${adoptionPercentage}%` }}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <RolloutMetric label="Known Devices" value={reportingDevices.length} />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <RolloutMetric label="Active Devices" value={activeDevices.length} />
               <RolloutMetric label="Updated" value={installedLatestCount} tone="success" />
               <RolloutMetric label="Update Pending" value={pendingUpdateCount} tone="warning" />
               <RolloutMetric label="Version Unknown" value={unknownVersionCount} />
+              <RolloutMetric label="Inactive Excluded" value={inactiveExcludedCount} />
             </div>
           </section>
         )}
