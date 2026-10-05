@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUpRight,
   CheckCircle2,
   Clock3,
   HeartPulse,
@@ -10,6 +11,7 @@ import {
   RefreshCw,
   XCircle
 } from "lucide-react";
+import Link from "next/link";
 import InternalLayout from "@/components/InternalLayout";
 import {
   AdminDeviceHealth,
@@ -25,6 +27,8 @@ type HealthCheck = {
   name: string;
   detail: string;
   status: CheckStatus;
+  href: string;
+  action: string;
   count?: number;
 };
 
@@ -105,42 +109,56 @@ export default function InternalHealthPage() {
         name: "Device heartbeat",
         detail: stale.length ? `${stale.length} device(s) have not reported in 30 minutes.` : "All reporting devices have a recent heartbeat.",
         status: stale.length ? "WARNING" : "HEALTHY",
+        href: "/internal/devices",
+        action: "View devices",
         count: stale.length
       },
       {
         name: "Cloud sync pipeline",
         detail: unhealthy.length ? `${unhealthy.length} device(s) report an unhealthy sync state.` : "No device reports an active sync failure.",
         status: unhealthy.length ? "CRITICAL" : "HEALTHY",
+        href: "/internal/devices",
+        action: "Inspect sync",
         count: unhealthy.length
       },
       {
         name: "Permission coverage",
         detail: permissionWarnings.length ? `${permissionWarnings.length} device(s) have a required permission disabled.` : "All reported permission sets are healthy.",
         status: permissionWarnings.length ? "WARNING" : "HEALTHY",
+        href: "/internal/devices",
+        action: "Review permissions",
         count: permissionWarnings.length
       },
       {
         name: "Telemetry onboarding",
         detail: neverReported.length ? `${neverReported.length} paired device(s) have never sent telemetry.` : "Every paired device has reported telemetry.",
         status: neverReported.length ? "WARNING" : "HEALTHY",
+        href: "/internal/devices",
+        action: "View onboarding",
         count: neverReported.length
       },
       {
         name: "Open application issues",
         detail: openFingerprints.size ? `${openFingerprints.size} unresolved issue group(s) need review.` : "No unresolved application issue is detected.",
         status: openFingerprints.size ? "CRITICAL" : "HEALTHY",
+        href: "/internal/issues",
+        action: "Open issues",
         count: openFingerprints.size
       },
       {
         name: "Support response queue",
         detail: openTickets.length ? `${openTickets.length} support conversation(s) are open.` : "No support conversation is waiting.",
         status: openTickets.length ? "WARNING" : "HEALTHY",
+        href: "/internal/support",
+        action: "Open support",
         count: openTickets.length
       },
       {
         name: "Release configuration",
         detail: release?.latestVersionName ? `Latest configured version is ${release.latestVersionName}.` : "No active application release is configured.",
-        status: release?.latestVersionName ? "HEALTHY" : "CRITICAL"
+        status: release?.latestVersionName ? "HEALTHY" : "CRITICAL",
+        href: "/internal/releases",
+        action: "Manage releases"
       }
     ];
   }, [devices, release, reports, tickets, triage]);
@@ -191,11 +209,19 @@ export default function InternalHealthPage() {
           {checks.map(check => {
             const Icon = check.status === "HEALTHY" ? CheckCircle2 : check.status === "WARNING" ? AlertTriangle : XCircle;
             return (
-              <article key={check.name} className={`rounded-2xl border p-5 ${statusStyle[check.status]}`}>
+              <Link
+                key={check.name}
+                href={check.href}
+                aria-label={`${check.action}: ${check.name}`}
+                className={`group rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:border-current ${statusStyle[check.status]}`}
+              >
                 <div className="flex items-start justify-between gap-3"><Icon size={22} /><span className="rounded-full bg-slate-950/50 px-2 py-1 text-[9px] font-black tracking-wider">{check.status}</span></div>
                 <h2 className="mt-5 font-black text-white">{check.name}</h2>
                 <p className="mt-2 text-xs leading-5 text-slate-400">{check.detail}</p>
-              </article>
+                <div className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider opacity-70 transition group-hover:opacity-100">
+                  {check.action}<ArrowUpRight size={13} />
+                </div>
+              </Link>
             );
           })}
         </section>
