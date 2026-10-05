@@ -7,6 +7,7 @@ import {
   Bell,
   CheckCheck,
   MessageSquare,
+  Rocket,
   Smartphone,
   Users
 } from "lucide-react";
@@ -34,7 +35,7 @@ import {
   SupportTicket
 } from "@/lib/repositories/SupportRepository";
 
-type NotificationType = "ISSUE" | "SUPPORT" | "DEVICE" | "CUSTOMER";
+type NotificationType = "ISSUE" | "SUPPORT" | "DEVICE" | "CUSTOMER" | "RELEASE";
 
 type AdminNotification = {
   id: string;
@@ -227,14 +228,14 @@ export default function AdminNotificationCenter() {
     });
 
     storedEvents.forEach(event => {
-      if (event.type !== "ADMIN_SUBSCRIPTION") return;
+      if (event.type !== "ADMIN_SUBSCRIPTION" && event.type !== "ADMIN_RELEASE") return;
       items.push({
         id: `event:${event.id}`,
-        title: event.title || "Customer subscription update",
-        detail: event.body || "A customer subscription changed.",
-        href: event.clickAction || "/internal/customers",
+        title: event.title || (event.type === "ADMIN_RELEASE" ? "Release rollout update" : "Customer subscription update"),
+        detail: event.body || (event.type === "ADMIN_RELEASE" ? "A release rollout needs attention." : "A customer subscription changed."),
+        href: event.clickAction || (event.type === "ADMIN_RELEASE" ? "/internal/releases" : "/internal/customers"),
         timestamp: toMillis(event.createdAt),
-        type: "CUSTOMER"
+        type: event.type === "ADMIN_RELEASE" ? "RELEASE" : "CUSTOMER"
       });
     });
 
@@ -251,7 +252,8 @@ export default function AdminNotificationCenter() {
       ISSUE: 0,
       SUPPORT: 0,
       DEVICE: 0,
-      CUSTOMER: 0
+      CUSTOMER: 0,
+      RELEASE: 0
     };
     unreadNotifications.forEach(notification => {
       counts[notification.type] += 1;
@@ -315,6 +317,7 @@ export default function AdminNotificationCenter() {
     if (type === "SUPPORT") return <MessageSquare size={16} className="text-sky-400" />;
     if (type === "DEVICE") return <Smartphone size={16} className="text-amber-400" />;
     if (type === "CUSTOMER") return <Users size={16} className="text-violet-400" />;
+    if (type === "RELEASE") return <Rocket size={16} className="text-cyan-400" />;
     return <AlertTriangle size={16} className="text-rose-400" />;
   };
 

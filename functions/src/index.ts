@@ -5206,7 +5206,7 @@ type PlatformAdminPush = {
   title: string;
   body: string;
   clickAction: string;
-  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE" | "ADMIN_SUBSCRIPTION";
+  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE" | "ADMIN_SUBSCRIPTION" | "ADMIN_RELEASE";
   eventId: string;
 };
 
@@ -5283,6 +5283,89 @@ async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
     await Promise.all(invalidDeletes);
   }
 }
+
+async function notifyPlatformAdminsOnce(payload: PlatformAdminPush): Promise<void> {
+  const existing = await db.collection("adminNotifications").doc(payload.eventId).get();
+  if (existing.exists) return;
+  await notifyPlatformAdmins(payload);
+}
+
+const RELEASE_ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const RELEASE_PENDING_ALERT_MS = 6 * 60 * 60 * 1000;
+const RELEASE_LOW_ADOPTION_ALERT_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Checks rollout adoption hourly. Each rollout milestone has a deterministic
+ * notification ID, so administrators receive it only once per release.
+ */
+export const monitorReleaseRollout = functions.pubsub
+  .schedule("every 60 minutes")
+  .timeZone("Europe/Berlin")
+  .onRun(async () => {
+    const configSnapshot = await db.doc("appConfig/update").get();
+    if (!configSnapshot.exists) return null;
+
+    const config = configSnapshot.data() || {};
+    const versionCode = Number(config.latestVersionCode || 0);
+    const versionName = String(config.latestVersionName || versionCode);
+    const releasedAt = adminNotificationMillis(config.releasedAt);
+    if (!versionCode || !releasedAt || config.rolloutPaused === true) return null;
+
+    const childrenSnapshot = await db.collection("children").limit(500).get();
+    const statuses = await Promise.all(childrenSnapshot.docs.map(async child => {
+      const statusSnapshot = await child.ref.collection("status").doc("current").get();
+      return statusSnapshot.exists ? statusSnapshot.data() || {} : {};
+    }));
+    const activeCutoff = Date.now() - RELEASE_ACTIVE_WINDOW_MS;
+    const activeStatuses = statuses.filter(status =>
+      adminNotificationMillis(status.lastSeen) >= activeCutoff
+    );
+    const reporting = activeStatuses.filter(status =>
+      String(status.appVersion || "").trim().length > 0
+    );
+    const normalize = (value: unknown) =>
+      String(value || "").trim().replace(/^v/i, "");
+    const updated = reporting.filter(status =>
+      normalize(status.appVersion) === normalize(versionName)
+    ).length;
+    const pending = reporting.length - updated;
+    const unknown = activeStatuses.length - reporting.length;
+    const age = Date.now() - releasedAt;
+    const adoption = reporting.length > 0
+      ? Math.round((updated / reporting.length) * 100)
+      : 0;
+
+    if (activeStatuses.length > 0 && updated === activeStatuses.length) {
+      await notifyPlatformAdminsOnce({
+        type: "ADMIN_RELEASE",
+        eventId: `release-rollout-complete-${versionCode}`,
+        title: `v${versionName} rollout complete`,
+        body: `All ${activeStatuses.length} active devices are updated.`,
+        clickAction: "/internal/releases"
+      });
+      return null;
+    }
+
+    if (age >= RELEASE_LOW_ADOPTION_ALERT_MS && adoption < 90) {
+      await notifyPlatformAdminsOnce({
+        type: "ADMIN_RELEASE",
+        eventId: `release-low-adoption-${versionCode}`,
+        title: `v${versionName} rollout needs attention`,
+        body: `${adoption}% adoption after 24 hours: ${pending} pending and ${unknown} version unknown.`,
+        clickAction: "/internal/releases"
+      });
+    } else if (age >= RELEASE_PENDING_ALERT_MS && (pending > 0 || unknown > 0)) {
+      await notifyPlatformAdminsOnce({
+        type: "ADMIN_RELEASE",
+        eventId: `release-pending-${versionCode}`,
+        title: `v${versionName} rollout is still pending`,
+        body: `${pending} active devices need the update; ${unknown} have not reported a version.`,
+        clickAction: "/internal/releases"
+      });
+    }
+
+    return null;
+  });
 
 export const onAdminIssueCreatedPush = functions.firestore
   .document("children/{childId}/errorReports/{reportId}")

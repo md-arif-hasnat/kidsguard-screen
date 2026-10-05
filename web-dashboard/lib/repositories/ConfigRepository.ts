@@ -324,6 +324,46 @@ export class ConfigRepository {
     await batch.commit();
   }
 
+  static async setMandatoryUpdate(
+    releaseId: string,
+    mandatory: boolean,
+    user: ReleaseActor
+  ): Promise<void> {
+    if (!db) throw new Error("Firebase is not configured.");
+
+    const activeRef = doc(db, "appConfig", "update");
+    const releaseRef = doc(db, "appReleases", releaseId);
+    const [activeSnap, releaseSnap] = await Promise.all([
+      getDoc(activeRef),
+      getDoc(releaseRef)
+    ]);
+    if (!activeSnap.exists() || !releaseSnap.exists()) {
+      throw new Error("Active release was not found.");
+    }
+
+    const active = activeSnap.data() as UpdateConfig;
+    const release = releaseSnap.data() as AppRelease;
+    if (active.latestVersionCode !== release.latestVersionCode) {
+      throw new Error("Only the active release can enforce mandatory updates.");
+    }
+
+    const timestamp = serverTimestamp();
+    const audit = {
+      mandatoryUpdate: mandatory,
+      forceUpdate: mandatory,
+      mandatoryUpdatedAt: timestamp,
+      mandatoryUpdatedByUid: user.uid,
+      mandatoryUpdatedByEmail: user.email || "unknown",
+      updatedAt: timestamp,
+      updatedByUid: user.uid,
+      updatedByEmail: user.email || "unknown"
+    };
+    const batch = writeBatch(db);
+    batch.set(activeRef, audit, { merge: true });
+    batch.update(releaseRef, audit);
+    await batch.commit();
+  }
+
   private static toActiveConfig(
     release: ReleaseInput,
     releasedAt: unknown

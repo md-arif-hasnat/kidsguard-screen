@@ -52,6 +52,7 @@ export default function ReleaseManager() {
   const [editingQaChecklist, setEditingQaChecklist] = useState<Record<string, boolean>>({});
   const [savingQa, setSavingQa] = useState(false);
   const [changingRollout, setChangingRollout] = useState(false);
+  const [changingMandatory, setChangingMandatory] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
@@ -491,6 +492,46 @@ export default function ReleaseManager() {
       });
     } finally {
       setChangingRollout(false);
+    }
+  };
+
+  const toggleMandatoryUpdate = async (release: AppRelease) => {
+    if (!admin || !canPublish) return;
+    const nextMandatory = !Boolean(currentConfig?.mandatoryUpdate);
+    const confirmed = window.confirm(
+      nextMandatory
+        ? `Require every older KidsGuard version to update to v${release.latestVersionName}? Older apps will be blocked until the update is installed.`
+        : `Remove the mandatory update gate for v${release.latestVersionName}? Older versions will be usable again.`
+    );
+    if (!confirmed) return;
+
+    setChangingMandatory(true);
+    setStatus(null);
+    try {
+      await ConfigRepository.setMandatoryUpdate(
+        release.id,
+        nextMandatory,
+        admin
+      );
+      const [releases, active] = await Promise.all([
+        ConfigRepository.getRecentReleases(10),
+        ConfigRepository.getUpdateConfig()
+      ]);
+      setHistory(releases);
+      setCurrentConfig(active);
+      setStatus({
+        type: 'success',
+        message: nextMandatory
+          ? `Older versions are now blocked until v${release.latestVersionName} is installed.`
+          : `Mandatory update enforcement for v${release.latestVersionName} was removed.`
+      });
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Failed to change mandatory update enforcement.'
+      });
+    } finally {
+      setChangingMandatory(false);
     }
   };
 
@@ -1020,22 +1061,40 @@ export default function ReleaseManager() {
                                               <Loader2 className="animate-spin text-rose-500" size={14} />
                                           )}
                                           {isActive && lifecycle === 'PUBLISHED' && (
-                                              <button
-                                                type="button"
-                                                disabled={changingRollout || !canPublish}
-                                                onClick={() => void toggleRollout(rel)}
-                                                className={clsx(
-                                                  "flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded disabled:opacity-40",
-                                                  currentConfig?.rolloutPaused
-                                                    ? "bg-emerald-500/10 text-emerald-400"
-                                                    : "bg-rose-500/10 text-rose-400"
-                                                )}
-                                              >
-                                                {currentConfig?.rolloutPaused
-                                                  ? <PlayCircle size={11} />
-                                                  : <PauseCircle size={11} />}
-                                                {currentConfig?.rolloutPaused ? 'Resume Rollout' : 'Pause Rollout'}
-                                              </button>
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  disabled={changingRollout || !canPublish}
+                                                  onClick={() => void toggleRollout(rel)}
+                                                  className={clsx(
+                                                    "flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded disabled:opacity-40",
+                                                    currentConfig?.rolloutPaused
+                                                      ? "bg-emerald-500/10 text-emerald-400"
+                                                      : "bg-rose-500/10 text-rose-400"
+                                                  )}
+                                                >
+                                                  {currentConfig?.rolloutPaused
+                                                    ? <PlayCircle size={11} />
+                                                    : <PauseCircle size={11} />}
+                                                  {currentConfig?.rolloutPaused ? 'Resume Rollout' : 'Pause Rollout'}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={changingMandatory || !canPublish}
+                                                  onClick={() => void toggleMandatoryUpdate(rel)}
+                                                  className={clsx(
+                                                    "flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded disabled:opacity-40",
+                                                    currentConfig?.mandatoryUpdate
+                                                      ? "bg-emerald-500/10 text-emerald-400"
+                                                      : "bg-amber-500/10 text-amber-400"
+                                                  )}
+                                                >
+                                                  <ShieldAlert size={11} />
+                                                  {currentConfig?.mandatoryUpdate
+                                                    ? 'Mandatory Active'
+                                                    : 'Require Update'}
+                                                </button>
+                                              </>
                                           )}
                                       </div>
                                       {editingQaReleaseId === rel.id && (

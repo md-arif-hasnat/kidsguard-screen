@@ -47,7 +47,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   const internalItems = [
     { name: 'System Health', href: '/internal/health', icon: HeartPulse },
     { name: 'System Analytics', href: '/internal/analytics', icon: BarChart3 },
-    { name: 'App Releases', href: '/internal/releases', icon: Zap },
+    { name: 'App Releases', href: '/internal/releases', icon: Zap, notificationType: 'RELEASE' },
     { name: 'Customers', href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
     { name: 'Families', href: '/internal/families', icon: Home },
     { name: 'Devices', href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
