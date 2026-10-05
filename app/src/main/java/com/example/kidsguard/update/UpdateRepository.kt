@@ -472,7 +472,12 @@ class UpdateRepository(private val context: Context) {
         val archiveInfo = context.packageManager.getPackageArchiveInfo(
             apkFile.absolutePath,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
+                // A few OEM PackageManager implementations populate only the
+                // legacy signatures field for archive APKs. Request both so
+                // certificate verification remains available on those phones.
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNING_CERTIFICATES or
+                    PackageManager.GET_SIGNATURES
             } else {
                 @Suppress("DEPRECATION")
                 PackageManager.GET_SIGNATURES
@@ -504,7 +509,9 @@ class UpdateRepository(private val context: Context) {
             context.packageManager.getPackageInfo(
                 context.packageName,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    PackageManager.GET_SIGNING_CERTIFICATES
+                    @Suppress("DEPRECATION")
+                    PackageManager.GET_SIGNING_CERTIFICATES or
+                        PackageManager.GET_SIGNATURES
                 } else {
                     @Suppress("DEPRECATION")
                     PackageManager.GET_SIGNATURES
@@ -535,24 +542,27 @@ class UpdateRepository(private val context: Context) {
     ): Set<String> {
         val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val signingInfo = packageInfo.signingInfo
-                ?: return emptySet()
             // Some Android builds expose an empty certificate-history array
             // for archive APKs even though apkContentsSigners is populated.
             // Include both sources so current signers and key-rotation history
             // can be matched reliably across devices.
             val currentSigners: List<android.content.pm.Signature> =
-                signingInfo.apkContentsSigners
+                signingInfo?.apkContentsSigners
                     ?.toList()
                     .orEmpty()
             val signerHistory: List<android.content.pm.Signature> =
-                if (signingInfo.hasMultipleSigners()) {
+                if (signingInfo == null || signingInfo.hasMultipleSigners()) {
                     emptyList()
                 } else {
                     signingInfo.signingCertificateHistory
                         ?.toList()
                         .orEmpty()
                 }
-            (currentSigners + signerHistory).distinctBy {
+            @Suppress("DEPRECATION")
+            val legacySigners = packageInfo.signatures
+                ?.toList()
+                .orEmpty()
+            (currentSigners + signerHistory + legacySigners).distinctBy {
                 it.toCharsString()
             }
         } else {
