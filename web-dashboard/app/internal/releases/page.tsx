@@ -13,7 +13,8 @@ import {
   FileCode,
   Monitor,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  RefreshCw
 } from 'lucide-react';
 import { ConfigRepository, ReleaseChannel, ReleaseStatus, AppRelease, UpdateConfig } from '@/lib/repositories/ConfigRepository';
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
@@ -54,6 +55,8 @@ export default function ReleaseManager() {
   const [history, setHistory] = useState<AppRelease[]>([]);
   const [currentConfig, setCurrentConfig] = useState<UpdateConfig | null>(null);
   const [devices, setDevices] = useState<AdminDeviceHealth[]>([]);
+  const [rolloutUpdatedAt, setRolloutUpdatedAt] = useState<Date | null>(null);
+  const [refreshingRollout, setRefreshingRollout] = useState(false);
 
   // Form State
   const [versionCode, setVersionCode] = useState(1);
@@ -121,6 +124,7 @@ export default function ReleaseManager() {
         }
         setHistory(releases);
         setDevices(deviceHealth);
+        setRolloutUpdatedAt(new Date());
         console.log("RELEASE_DEBUG: data load successful");
       } catch (err: any) {
         console.error("RELEASE_DEBUG: data load failed", err);
@@ -134,6 +138,27 @@ export default function ReleaseManager() {
 
     loadData();
     return () => clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const deviceHealth = await AdminRepository.getDeviceHealth();
+        if (active) {
+          setDevices(deviceHealth);
+          setRolloutUpdatedAt(new Date());
+        }
+      } catch (refreshError) {
+        console.warn('ROLLOUT_DEBUG: automatic refresh failed', refreshError);
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const validate = () => {
@@ -468,6 +493,23 @@ export default function ReleaseManager() {
     }
   };
 
+  const refreshRollout = async () => {
+    if (refreshingRollout) return;
+    setRefreshingRollout(true);
+    try {
+      const deviceHealth = await AdminRepository.getDeviceHealth();
+      setDevices(deviceHealth);
+      setRolloutUpdatedAt(new Date());
+    } catch (refreshError: any) {
+      setStatus({
+        type: 'error',
+        message: refreshError.message || 'Rollout data could not be refreshed.'
+      });
+    } finally {
+      setRefreshingRollout(false);
+    }
+  };
+
   if (loading || adminLoading) {
     return (
       <InternalLayout>
@@ -548,14 +590,36 @@ export default function ReleaseManager() {
                   Active devices that reported health during the last 7 days.
                 </p>
               </div>
-              <span className={clsx(
-                "rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest",
-                adoptionPercentage >= 90
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                  : "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
-              )}>
-                {adoptionPercentage}% Adopted
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-right">
+                  <span className={clsx(
+                    "inline-block rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest",
+                    adoptionPercentage >= 90
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      : "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                  )}>
+                    {adoptionPercentage}% Adopted
+                  </span>
+                  {rolloutUpdatedAt && (
+                    <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-slate-600">
+                      Updated {rolloutUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void refreshRollout()}
+                  disabled={refreshingRollout}
+                  aria-label="Refresh rollout adoption"
+                  title="Refresh rollout adoption"
+                  className="rounded-lg border border-slate-700 bg-slate-950 p-2 text-slate-400 transition-colors hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={15}
+                    className={refreshingRollout ? 'animate-spin' : ''}
+                  />
+                </button>
+              </div>
             </div>
             <div className="mb-5 h-2 overflow-hidden rounded-full bg-slate-950">
               <div
