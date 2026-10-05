@@ -60,13 +60,12 @@ export class ConfigRepository {
     apkSha256: string
   ): Promise<ArtifactVerification> {
     const currentUser = auth?.currentUser;
-    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    if (!currentUser || !projectId) {
+    if (!currentUser) {
       throw new Error("Administrator session is unavailable.");
     }
     const idToken = await currentUser.getIdToken();
     const response = await fetch(
-      `https://us-central1-${projectId}.cloudfunctions.net/verifyReleaseArtifact`,
+      "/api/internal/verify-release",
       {
         method: "POST",
         headers: {
