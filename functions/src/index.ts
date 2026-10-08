@@ -1,4 +1,5 @@
-import * as functions from 'firebase-functions';
+// Keep the existing Gen 1 API contract explicit while using the current SDK.
+import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { createHash, randomUUID } from 'crypto';
