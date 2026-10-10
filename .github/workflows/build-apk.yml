@@ -14,6 +14,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Reject tracked signing material
+        shell: bash
+        run: |
+          TRACKED_SIGNING_FILES=$(git ls-files '*.jks' '*.keystore' 'key.properties' 'keystore.properties' 'signing.properties')
+          if [ -n "$TRACKED_SIGNING_FILES" ]; then
+            echo "Release signing material must not be committed:"
+            echo "$TRACKED_SIGNING_FILES"
+            exit 1
+          fi
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
