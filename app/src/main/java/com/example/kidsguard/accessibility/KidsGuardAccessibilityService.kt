@@ -156,9 +156,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             isKidsGuardTamperScreen(packageName, className)
         ) {
             val isCriticalTamperScreen =
-                className.contains("Uninstall", ignoreCase = true) ||
-                    className.contains("PackageInstaller", ignoreCase = true) ||
-                    className.contains("DeviceAdmin", ignoreCase = true)
+                isKidsGuardRemovalScreen(className)
 
             if (
                 prefHelper.isPermissionChangeAuthorized() &&
@@ -389,6 +387,29 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                     "TAMPER_ALERT_FIRESTORE_FAILED ${e.message}"
                 )
             }
+    }
+
+    private fun isKidsGuardRemovalScreen(className: String): Boolean {
+        if (
+            className.contains("Uninstall", ignoreCase = true) ||
+            className.contains("PackageInstaller", ignoreCase = true) ||
+            className.contains("DeviceAdmin", ignoreCase = true)
+        ) {
+            return true
+        }
+
+        // Huawei/EMUI often uses a generic Settings activity class for the
+        // Device Administrator screen, so identify the recovery page by its
+        // visible KidsGuard removal controls as well.
+        val root = rootInActiveWindow ?: return false
+        val mentionsKidsGuard =
+            !root.findAccessibilityNodeInfosByText("KidsGuard").isNullOrEmpty()
+        val hasRemovalControl =
+            !root.findAccessibilityNodeInfosByText("Deactivate").isNullOrEmpty() ||
+                !root.findAccessibilityNodeInfosByText("Uninstall").isNullOrEmpty() ||
+                !root.findAccessibilityNodeInfosByText("Stop KidsGuard").isNullOrEmpty()
+
+        return mentionsKidsGuard && hasRemovalControl
     }
 
     private fun isKidsGuardTamperScreen(
