@@ -201,6 +201,19 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 reason = tamperReason
             )
 
+            // Keep an emergency recovery path available when the KidsGuard UI
+            // cannot be opened (for example after a broken update). Android's
+            // own Device Admin and package-uninstall confirmations remain in
+            // control, while the parent is still alerted immediately.
+            if (isCriticalTamperScreen) {
+                Log.w(
+                    TAG_RUNTIME,
+                    "KIDSGUARD_RECOVERY_REMOVAL_ALLOWED " +
+                        "package=$packageName class=$className"
+                )
+                return
+            }
+
             performGlobalAction(GLOBAL_ACTION_BACK)
             return
         }
