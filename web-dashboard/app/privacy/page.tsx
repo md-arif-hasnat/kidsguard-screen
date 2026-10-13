@@ -298,6 +298,22 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
+        <section className="mt-8 rounded-xl border border-sky-800 bg-sky-950/30 p-5">
+          <h2 className="text-xl font-semibold text-white">
+            Privacy information for children
+          </h2>
+          <p className="mt-3 leading-7 text-slate-300">
+            Children and families can read our shorter, plain-language{" "}
+            <Link
+              href="/child-privacy"
+              className="font-semibold text-blue-400 hover:underline"
+            >
+              Privacy for Children notice
+            </Link>
+            .
+          </p>
+        </section>
+
         <section className="mt-8 border-t border-slate-800 pt-6">
           <h2 className="text-xl font-semibold text-white">13. Contact</h2>
 
