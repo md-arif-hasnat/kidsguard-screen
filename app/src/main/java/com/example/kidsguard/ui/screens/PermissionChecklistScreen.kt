@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -592,7 +593,23 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/child-privacy")
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Privacy for Children")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             val allDone =
                 locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled
