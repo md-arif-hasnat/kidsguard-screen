@@ -324,7 +324,35 @@ const getFriendlyAuthError = (err: any): string => {
     setLoadingMessage("Connecting to Google...");
     try {
       const user = await loginWithGoogle();
-      if (user) await handlePostLogin(user, "google.com");
+      if (user) {
+        const existingProfile =
+          await ParentRepository.getProfile(user.uid);
+
+        if (!existingProfile && !acceptedLegalTerms) {
+          await signOut();
+          setError(
+            "Select Create Account, confirm that you are at least 18, and accept the Terms and Privacy Policy before continuing with Google."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!existingProfile) {
+          await ParentRepository.updateProfile(user.uid, {
+            uid: user.uid,
+            legalConsentAcceptedAt: serverTimestamp(),
+            termsVersion: "2026-08-11",
+            privacyVersion: "2026-08-11",
+            adultConfirmedAt: serverTimestamp(),
+          });
+        }
+
+        await handlePostLogin(
+          user,
+          "google.com",
+          !existingProfile
+        );
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -337,7 +365,35 @@ const getFriendlyAuthError = (err: any): string => {
     setLoadingMessage("Connecting to Apple...");
     try {
       const user = await loginWithApple();
-      if (user) await handlePostLogin(user, "apple.com");
+      if (user) {
+        const existingProfile =
+          await ParentRepository.getProfile(user.uid);
+
+        if (!existingProfile && !acceptedLegalTerms) {
+          await signOut();
+          setError(
+            "Select Create Account, confirm that you are at least 18, and accept the Terms and Privacy Policy before continuing with Apple."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!existingProfile) {
+          await ParentRepository.updateProfile(user.uid, {
+            uid: user.uid,
+            legalConsentAcceptedAt: serverTimestamp(),
+            termsVersion: "2026-08-11",
+            privacyVersion: "2026-08-11",
+            adultConfirmedAt: serverTimestamp(),
+          });
+        }
+
+        await handlePostLogin(
+          user,
+          "apple.com",
+          !existingProfile
+        );
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
