@@ -261,6 +261,29 @@ service cloud.firestore {
                           allow update, delete: if false;
 
                         }
+                        match /tamperEvents/{eventId} {
+                          allow read: if canReadChild(childId);
+
+                          allow create: if isChildIdentity(childId) &&
+                            request.resource.data.type == 'TAMPER_ALERT' &&
+                            request.resource.data.childId == childId &&
+                            request.resource.data.familyId ==
+                              get(
+                                /databases/$(database)/documents/children/$(childId)
+                              ).data.familyId &&
+                            request.resource.data.reason in [
+                              'DEVICE_ADMIN_DISABLED',
+                              'ACCESSIBILITY_DISABLED',
+                              'KIDSGUARD_UNINSTALL_ATTEMPT',
+                              'KIDSGUARD_SETTINGS_TAMPER_ATTEMPT'
+                            ] &&
+                            request.resource.data.title is string &&
+                            request.resource.data.title.size() <= 120 &&
+                            request.resource.data.body is string &&
+                            request.resource.data.body.size() <= 300;
+
+                          allow update, delete: if false;
+                        }
                               match /sosEvents/{eventId} {
                                 allow read: if canReadChild(childId);
 
