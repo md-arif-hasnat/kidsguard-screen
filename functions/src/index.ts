@@ -3838,6 +3838,10 @@ export const requestSubscriptionCancellation =
       };
     }
 
+    const providerSubscriptionId =
+      subscription.paddleSubscriptionId ||
+      subscription.stripeSubscriptionId ||
+      null;
     const requestedAt = admin.firestore.Timestamp.now();
     const requestRef = db.collection('subscriptionCancellationRequests').doc();
     const effectiveAt = subscription.currentPeriodEndsAt || requestedAt;
@@ -3855,10 +3859,14 @@ export const requestSubscriptionCancellation =
         requestedAt,
         effectiveAt,
         subscriptionStatusAtRequest: status,
-        providerSubscriptionId:
-          subscription.stripeSubscriptionId || null,
+        providerSubscriptionId,
+        provider: subscription.paddleSubscriptionId
+          ? 'PADDLE'
+          : subscription.stripeSubscriptionId
+            ? 'STRIPE'
+            : null,
         reason: reason || null,
-        status: subscription.stripeSubscriptionId
+        status: providerSubscriptionId
           ? 'PENDING_PROVIDER_CONFIRMATION'
           : 'CONFIRMED',
         source: 'WEB_CANCELLATION_PAGE'
@@ -3871,7 +3879,7 @@ export const requestSubscriptionCancellation =
         'subscription.cancellationRequestId': requestRef.id,
         'subscription.cancellationEffectiveAt': effectiveAt,
         'subscription.cancellationStatus':
-          subscription.stripeSubscriptionId
+          providerSubscriptionId
             ? 'PENDING_PROVIDER_CONFIRMATION'
             : 'CONFIRMED'
       });
@@ -3888,7 +3896,7 @@ export const requestSubscriptionCancellation =
       metadata: {
         effectiveAt,
         requiresProviderConfirmation:
-          Boolean(subscription.stripeSubscriptionId)
+          Boolean(providerSubscriptionId)
       },
       createdAt:
         admin.firestore.FieldValue.serverTimestamp()
@@ -3900,7 +3908,7 @@ export const requestSubscriptionCancellation =
       requestId: requestRef.id,
       effectiveAt,
       pendingProviderConfirmation:
-        Boolean(subscription.stripeSubscriptionId)
+        Boolean(providerSubscriptionId)
     };
   });
 
@@ -6391,7 +6399,7 @@ export const paddleBillingWebhook = functions
             data.current_billing_period?.ends_at
           );
           if (periodEnd !== null) {
-            patch['subscription.currentPeriodEnd'] =
+            patch['subscription.currentPeriodEndsAt'] =
               periodEnd;
           }
 
