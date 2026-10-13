@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { observeAuth, signOut } from '../auth';
 import { ParentRepository, ParentProfile } from '../repositories/ParentRepository';
 import { FamilyRepository, FamilyData, FamilyRole } from '../repositories/FamilyRepository';
@@ -27,6 +27,7 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
   const [profile, setProfile] = useState<ParentProfile | null>(null);
   const [family, setFamily] = useState<FamilyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const provisioningFamilyRef = useRef(false);
 
   // 1. Sync with Firebase Auth
   useEffect(() => {
@@ -57,18 +58,28 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
     const unsub = ParentRepository.listenToProfile(authUser.uid, async (data) => {
         setProfile(data);
 
-        // Auto-provisioning logic (Linear fallback)
-        if (data && !data.familyId) {
-            console.log("CONTEXT: Auto-provisioning family for:", authUser.uid);
+        // Provision exactly once through an atomic backend transaction.
+        if (
+          data &&
+          !data.familyId &&
+          !data.ownedFamilyId &&
+          !provisioningFamilyRef.current
+        ) {
+            provisioningFamilyRef.current = true;
+            console.log(
+              "CONTEXT: Securely provisioning family for:",
+              authUser.uid
+            );
             try {
-                const newFId = await FamilyRepository.createFamily(authUser.uid, authUser.email, data.displayName);
-                await ParentRepository.updateProfile(authUser.uid, {
-                    familyId: newFId,
-                    role: 'OWNER'
-                });
+                await FamilyRepository.ensureParentFamily();
             } catch (e) {
-                console.error("CONTEXT: Auto-provision failed", e);
+                console.error(
+                  "CONTEXT: Auto-provision failed",
+                  e
+                );
                 setLoading(false);
+            } finally {
+                provisioningFamilyRef.current = false;
             }
         } else if (!data) {
             // Profile doesn't exist yet, should be created by Login page
