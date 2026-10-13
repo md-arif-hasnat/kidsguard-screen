@@ -3816,12 +3816,23 @@ export const requestSubscriptionCancellation =
     const subscription = familyData.subscription || {};
     const status = String(subscription.status || 'NONE').toUpperCase();
 
-    if (status === 'CANCELED' || status === 'CANCELLED') {
+    const cancellationAlreadyScheduled =
+      status === 'CANCELED' ||
+      status === 'CANCELLED' ||
+      subscription.cancelAtPeriodEnd === true ||
+      subscription.cancellationStatus === 'CONFIRMED' ||
+      subscription.cancellationStatus ===
+        'PENDING_PROVIDER_CONFIRMATION';
+
+    if (cancellationAlreadyScheduled) {
       return {
         success: true,
         alreadyCanceled: true,
         requestId: subscription.cancellationRequestId || null,
-        effectiveAt: subscription.cancellationEffectiveAt || null
+        effectiveAt: subscription.cancellationEffectiveAt || null,
+        pendingProviderConfirmation:
+          subscription.cancellationStatus ===
+          'PENDING_PROVIDER_CONFIRMATION'
       };
     }
 
