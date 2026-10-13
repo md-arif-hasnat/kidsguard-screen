@@ -344,7 +344,11 @@ export class FamilyRepository {
       subscription: {
           status: "PENDING",
           baseChildSlots: 2,
-          extraChildSlots: 0
+          extraChildSlots: 0,
+          billingInterval: "MONTHLY",
+          currency: "EUR",
+          basePriceCents: 299,
+          extraChildPriceCents: 199
       },
       settings: {
         name: `${parentDisplayName || 'New'} Family`,
