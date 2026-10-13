@@ -14,6 +14,7 @@ import {
   getAvatarUrl,
 } from "@/lib/context/ParentProfileContext";
 import Link from "next/link";
+import LegalFooter from "./LegalFooter";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -318,6 +319,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <main className="min-h-full bg-[#f5f5f7] p-4 md:p-8">
             {children}
           </main>
+          <LegalFooter />
         </div>
       </div>
     </div>
