@@ -2,13 +2,15 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { createHash, randomUUID } from 'crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'crypto';
+import { defineSecret } from 'firebase-functions/params';
 
 admin.initializeApp();
 
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 const storageBucket = admin.storage().bucket();
+const paddleWebhookSecret = defineSecret('PADDLE_WEBHOOK_SECRET');
 
 type CanonicalFamilyRole = 'OWNER' | 'MANAGER' | 'VIEWER';
 
@@ -6179,4 +6181,301 @@ export const generateWeeklySafetyReports = functions
       }
     }
     return null;
+  });
+
+
+type PaddleWebhookPayload = {
+  event_id?: string;
+  event_type?: string;
+  occurred_at?: string;
+  data?: Record<string, any>;
+};
+
+function verifyPaddleWebhookSignature(
+  rawBody: Buffer,
+  signatureHeader: string,
+  secret: string
+): boolean {
+  const parts = signatureHeader.split(';');
+  const timestamp = parts
+    .find((part) => part.startsWith('ts='))
+    ?.slice(3);
+  const signatures = parts
+    .filter((part) => part.startsWith('h1='))
+    .map((part) => part.slice(3))
+    .filter(Boolean);
+
+  if (!timestamp || signatures.length === 0) {
+    return false;
+  }
+
+  const timestampSeconds = Number(timestamp);
+  if (
+    !Number.isFinite(timestampSeconds) ||
+    Math.abs(Date.now() / 1000 - timestampSeconds) > 300
+  ) {
+    return false;
+  }
+
+  const signedPayload =
+    `${timestamp}:${rawBody.toString('utf8')}`;
+  const expected = createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest();
+
+  return signatures.some((signature) => {
+    if (!/^[a-f0-9]{64}$/i.test(signature)) {
+      return false;
+    }
+    const supplied = Buffer.from(signature, 'hex');
+    return supplied.length === expected.length &&
+      timingSafeEqual(supplied, expected);
+  });
+}
+
+function paddleStatus(value: unknown): string {
+  switch (String(value || '').toLowerCase()) {
+    case 'trialing':
+      return 'TRIALING';
+    case 'active':
+      return 'ACTIVE';
+    case 'past_due':
+      return 'PAST_DUE';
+    case 'paused':
+      return 'PAUSED';
+    case 'canceled':
+      return 'CANCELED';
+    default:
+      return 'NONE';
+  }
+}
+
+function paddleDateMillis(value: unknown): number | null {
+  if (typeof value !== 'string' || !value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export const paddleBillingWebhook = functions
+  .runWith({
+    secrets: [paddleWebhookSecret],
+    timeoutSeconds: 60,
+    memory: '256MB'
+  })
+  .https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST').status(405).send('Method Not Allowed');
+      return;
+    }
+
+    const signatureHeader = req.get('paddle-signature') || '';
+    const secret = paddleWebhookSecret.value();
+    if (
+      !secret ||
+      !verifyPaddleWebhookSignature(
+        req.rawBody,
+        signatureHeader,
+        secret
+      )
+    ) {
+      console.warn('Rejected Paddle webhook with invalid signature.');
+      res.status(401).send('Invalid signature');
+      return;
+    }
+
+    let payload: PaddleWebhookPayload;
+    try {
+      payload = JSON.parse(req.rawBody.toString('utf8'));
+    } catch {
+      res.status(400).send('Invalid JSON');
+      return;
+    }
+
+    const eventId =
+      typeof payload.event_id === 'string'
+        ? payload.event_id.trim()
+        : '';
+    const eventType =
+      typeof payload.event_type === 'string'
+        ? payload.event_type.trim()
+        : '';
+    const data = payload.data || {};
+    const customData =
+      data.custom_data &&
+      typeof data.custom_data === 'object'
+        ? data.custom_data
+        : {};
+    const familyId =
+      typeof customData.familyId === 'string'
+        ? customData.familyId.trim()
+        : '';
+    const parentUid =
+      typeof customData.parentUid === 'string'
+        ? customData.parentUid.trim()
+        : '';
+
+    if (!eventId || !eventType) {
+      res.status(400).send('Missing event identity');
+      return;
+    }
+
+    if (!familyId) {
+      console.error(
+        `Paddle event ${eventId} is missing custom_data.familyId.`
+      );
+      res.status(422).send('Missing family mapping');
+      return;
+    }
+
+    const eventRef = db
+      .collection('paddleWebhookEvents')
+      .doc(eventId);
+    const familyRef = db
+      .collection('families')
+      .doc(familyId);
+
+    try {
+      const result = await db.runTransaction(async (transaction) => {
+        const [eventSnapshot, familySnapshot] = await Promise.all([
+          transaction.get(eventRef),
+          transaction.get(familyRef)
+        ]);
+
+        if (eventSnapshot.exists) {
+          return 'duplicate';
+        }
+        if (!familySnapshot.exists) {
+          throw new Error('FAMILY_NOT_FOUND');
+        }
+
+        const familyData = familySnapshot.data() || {};
+        if (
+          parentUid &&
+          familyData.ownerId &&
+          familyData.ownerId !== parentUid
+        ) {
+          throw new Error('OWNER_MISMATCH');
+        }
+
+        const subscription =
+          familyData.subscription || {};
+        const patch: Record<string, any> = {
+          'subscription.provider': 'PADDLE',
+          'subscription.lastPaddleEventId': eventId,
+          'subscription.lastPaddleEventType': eventType,
+          'subscription.lastProviderSyncAt':
+            admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (typeof data.customer_id === 'string') {
+          patch['subscription.paddleCustomerId'] =
+            data.customer_id;
+        }
+        if (
+          typeof data.id === 'string' &&
+          eventType.startsWith('subscription.')
+        ) {
+          patch['subscription.paddleSubscriptionId'] =
+            data.id;
+        }
+        if (typeof data.subscription_id === 'string') {
+          patch['subscription.paddleSubscriptionId'] =
+            data.subscription_id;
+        }
+
+        if (eventType.startsWith('subscription.')) {
+          patch['subscription.status'] =
+            paddleStatus(data.status);
+
+          const periodEnd = paddleDateMillis(
+            data.current_billing_period?.ends_at
+          );
+          if (periodEnd !== null) {
+            patch['subscription.currentPeriodEnd'] =
+              periodEnd;
+          }
+
+          const scheduledChange =
+            data.scheduled_change;
+          const cancellationScheduled =
+            scheduledChange?.action === 'cancel';
+          patch['subscription.cancelAtPeriodEnd'] =
+            cancellationScheduled;
+
+          const effectiveAt = paddleDateMillis(
+            scheduledChange?.effective_at
+          );
+          if (effectiveAt !== null) {
+            patch['subscription.cancellationEffectiveAt'] =
+              effectiveAt;
+          } else if (!cancellationScheduled) {
+            patch['subscription.cancellationEffectiveAt'] =
+              admin.firestore.FieldValue.delete();
+          }
+
+          const extraPriceId =
+            process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+          if (extraPriceId && Array.isArray(data.items)) {
+            const paidExtraSlots = data.items.reduce(
+              (total: number, item: any) => {
+                const itemPriceId =
+                  item?.price?.id ||
+                  item?.price_id;
+                if (itemPriceId !== extraPriceId) {
+                  return total;
+                }
+                const quantity = Number(item?.quantity || 0);
+                return total +
+                  (Number.isInteger(quantity) && quantity > 0
+                    ? quantity
+                    : 0);
+              },
+              0
+            );
+            patch['subscription.extraChildSlots'] =
+              paidExtraSlots;
+          }
+        }
+
+        transaction.update(familyRef, patch);
+        transaction.create(eventRef, {
+          eventId,
+          eventType,
+          familyId,
+          parentUid: parentUid || null,
+          occurredAt:
+            paddleDateMillis(payload.occurred_at) ||
+            Date.now(),
+          processedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+          status: 'PROCESSED'
+        });
+
+        return 'processed';
+      });
+
+      res.status(200).json({
+        received: true,
+        duplicate: result === 'duplicate'
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'UNKNOWN_ERROR';
+      console.error(
+        `Paddle webhook ${eventId} failed:`,
+        error
+      );
+
+      if (
+        message === 'FAMILY_NOT_FOUND' ||
+        message === 'OWNER_MISMATCH'
+      ) {
+        res.status(422).send(message);
+        return;
+      }
+
+      res.status(500).send('Webhook processing failed');
+    }
   });
