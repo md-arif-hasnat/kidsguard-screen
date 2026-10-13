@@ -324,7 +324,8 @@ export default function Home() {
                             />
                             <span className="text-xs leading-5 text-slate-600">
                                 I confirm that I am this child&apos;s parent or legal guardian and consent to KidsGuard monitoring this device, including location, app usage, web and YouTube activity, safety alerts, and parental controls. I have read the{' '}
-                                <a href="/privacy" target="_blank" className="font-bold text-primary-600 hover:underline">Privacy Policy</a>{' '}
+                                <a href="/privacy" target="_blank" className="font-bold text-primary-600 hover:underline">Privacy Policy</a>,{' '}
+                                <a href="/child-privacy" target="_blank" className="font-bold text-primary-600 hover:underline">Privacy for Children</a>{' '}
                                 and{' '}
                                 <a href="/terms" target="_blank" className="font-bold text-primary-600 hover:underline">Terms</a>.
                                 <span className="mt-1 block text-[10px] text-slate-400">Consent version {PARENTAL_CONSENT_VERSION}</span>
