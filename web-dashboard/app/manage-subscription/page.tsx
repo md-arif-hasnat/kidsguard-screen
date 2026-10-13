@@ -42,13 +42,23 @@ export default function ManageSubscriptionPage() {
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
-  const cancellationScheduled =
-    subscription?.cancelAtPeriodEnd === true && !kept;
   const ended =
     status === "CANCELED" ||
     status === "CANCELLED" ||
     status === "EXPIRED" ||
     status === "NONE";
+  const cancellationRequested =
+    Boolean(subscription?.cancellationRequestedAt) ||
+    Boolean(subscription?.cancellationRequestId) ||
+    subscription?.cancellationStatus === "CONFIRMED" ||
+    subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
+  const cancellationScheduled =
+    !ended &&
+    !kept &&
+    (subscription?.cancelAtPeriodEnd === true || cancellationRequested);
+  const cancellationPendingProvider =
+    subscription?.cancelAtPeriodEnd !== true &&
+    subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
   const effectiveDate = formatDate(
     subscription?.cancellationEffectiveAt ||
       subscription?.currentPeriodEndsAt
@@ -127,11 +137,14 @@ export default function ManageSubscriptionPage() {
             <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
               <CalendarClock className="h-10 w-10 text-amber-600" />
               <h2 className="mt-3 text-xl font-black text-amber-900">
-                Cancellation scheduled
+                {cancellationPendingProvider
+                  ? "Cancellation request received"
+                  : "Cancellation scheduled"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-amber-800">
-                Your subscription is scheduled to end on {effectiveDate}.
-                You can keep the subscription before that date.
+                {cancellationPendingProvider
+                  ? "Your cancellation request has been recorded and is awaiting payment-provider confirmation. You do not need to submit it again."
+                  : `Your subscription is scheduled to end on ${effectiveDate}. You can keep the subscription before that date.`}
               </p>
 
               <button
