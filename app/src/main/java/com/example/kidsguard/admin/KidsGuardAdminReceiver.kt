@@ -57,7 +57,7 @@ class KidsGuardAdminReceiver : DeviceAdminReceiver() {
         val familyId = prefHelper.familyId
 
         if (!childId.isNullOrBlank() && !familyId.isNullOrBlank()) {
-            val notification = mapOf(
+            val notification = mutableMapOf<String, Any?>(
                 "type" to "TAMPER_ALERT",
                 "title" to "Security Alert",
                 "body" to "KidsGuard Device Admin protection was disabled.",
@@ -65,19 +65,26 @@ class KidsGuardAdminReceiver : DeviceAdminReceiver() {
                 "childId" to childId,
                 "childName" to prefHelper.childName,
                 "familyId" to familyId,
+                "userId" to prefHelper.parentUid,
                 "createdAt" to FieldValue.serverTimestamp(),
                 "read" to false,
                 "clickAction" to "/dashboard/$childId"
             )
 
+            val pendingResult = goAsync()
+            val timeBucket = System.currentTimeMillis() / 120_000L
             FirebaseFirestore.getInstance()
                 .collection(FirebaseConfig.COL_NOTIFICATIONS)
-                .add(notification)
+                .document("tamper_${childId}_$timeBucket")
+                .set(notification)
                 .addOnSuccessListener {
                     Log.i(TAG, "DEVICE_ADMIN_TAMPER_ALERT_SENT")
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "DEVICE_ADMIN_TAMPER_ALERT_FAILED", e)
+                }
+                .addOnCompleteListener {
+                    pendingResult.finish()
                 }
         }
         Toast.makeText(context, "KidsGuard Protection Disabled", Toast.LENGTH_SHORT).show()
