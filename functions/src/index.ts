@@ -1177,7 +1177,9 @@ export const checkOfflineChildren = functions.pubsub
 
         // Missing settings default to Never. Parents must explicitly enable
         // offline alerts and choose a delay from the child overview.
-        const enabled = settings.enabled === true;
+        const enabled =
+          settings.configuredByParent === true &&
+          settings.enabled === true;
 
         const requestedThreshold = Number(
           settings.thresholdMinutes
