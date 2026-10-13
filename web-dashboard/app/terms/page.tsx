@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service | KidsGuard",
@@ -305,6 +306,13 @@ export default function TermsOfServicePage() {
             <strong className="text-white">United Foreign Trade</strong>
             <br />
             Bangladesh
+          </p>
+
+          <p className="mt-3">
+            Provider details:{" "}
+            <Link className="text-blue-400 underline hover:text-blue-300" href="/impressum">
+              Impressum
+            </Link>
           </p>
 
           <p className="mt-3">
