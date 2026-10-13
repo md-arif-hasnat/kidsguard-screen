@@ -960,6 +960,15 @@ const getFriendlyAuthError = (err: any): string => {
           >
             Terms of Service
           </a>
+
+          <span aria-hidden="true">•</span>
+
+          <a
+            href="/impressum"
+            className="transition-colors hover:text-slate-300 hover:underline"
+          >
+            Impressum
+          </a>
         </div>
 
         <p className="uppercase tracking-[0.2em] opacity-60">
