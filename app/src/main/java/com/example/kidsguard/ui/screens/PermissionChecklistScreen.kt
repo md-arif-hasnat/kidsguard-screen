@@ -595,7 +595,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             val allDone =
-                locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled && audioGranted
+                locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled
 
             Button(
                 onClick = onBack,
