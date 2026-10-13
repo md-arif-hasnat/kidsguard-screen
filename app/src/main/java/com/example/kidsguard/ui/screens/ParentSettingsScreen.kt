@@ -17,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -150,6 +152,62 @@ fun ParentSettingsScreen(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
+            )
+
+            ControlRow(
+                icon = Icons.Default.Info,
+                title = "Privacy Policy",
+                subtitle = "How KidsGuard collects and protects data",
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/privacy")
+                        )
+                    )
+                }
+            )
+
+            ControlRow(
+                icon = Icons.Default.Lock,
+                title = "Privacy for Children",
+                subtitle = "A simple privacy guide for children",
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/child-privacy")
+                        )
+                    )
+                }
+            )
+
+            ControlRow(
+                icon = Icons.Default.Info,
+                title = "Terms of Service",
+                subtitle = "Rules for using KidsGuard",
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/terms")
+                        )
+                    )
+                }
+            )
+
+            ControlRow(
+                icon = Icons.Default.Info,
+                title = "Impressum",
+                subtitle = "Service provider and contact information",
+                onClick = {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/impressum")
+                        )
+                    )
+                }
             )
 
             ControlRow(
