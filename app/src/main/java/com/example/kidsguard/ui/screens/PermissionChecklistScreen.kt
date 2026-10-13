@@ -517,10 +517,10 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                             KidsGuardAccessibilityService::class.java
                         )
                         val directIntent = Intent(
-                            "android.settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS"
+                            "android.settings.ACCESSIBILITY_DETAILS_SETTINGS"
                         ).apply {
                             putExtra(
-                                "android.intent.extra.COMPONENT_NAME",
+                                Intent.EXTRA_COMPONENT_NAME,
                                 componentName.flattenToString()
                             )
                         }
@@ -573,7 +573,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
 
             PermissionCard(
                 title = "Microphone Access",
-                description = "Required for voice commands and SOS audio monitoring.",
+                description = "Optional. Reserved for supported voice commands; KidsGuard does not record audio in the background.",
                 icon = Icons.Default.Mic,
                 status = if (audioGranted) "Ready" else "Missing",
                 isGranted = audioGranted,
