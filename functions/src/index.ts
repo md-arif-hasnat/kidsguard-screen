@@ -3761,6 +3761,115 @@ export const cancelFamilyDeletion =
     };
   });
 
+export const ensureParentFamily =
+  functions.https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'You must be signed in.'
+      );
+    }
+    if (context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Your email must be verified.'
+      );
+    }
+
+    const uid = context.auth.uid;
+    const parentRef = db.collection('parents').doc(uid);
+    const familyId = randomUUID();
+    const familyRef = db.collection('families').doc(familyId);
+
+    return db.runTransaction(async (transaction) => {
+      const parentSnapshot = await transaction.get(parentRef);
+      if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Parent profile not found.'
+        );
+      }
+
+      const parentData = parentSnapshot.data() || {};
+      const existingFamilyId =
+        typeof parentData.familyId === 'string' &&
+        parentData.familyId
+          ? parentData.familyId
+          : typeof parentData.ownedFamilyId === 'string' &&
+              parentData.ownedFamilyId
+            ? parentData.ownedFamilyId
+            : null;
+
+      if (existingFamilyId) {
+        return {
+          success: true,
+          familyId: existingFamilyId,
+          created: false
+        };
+      }
+
+      const displayName =
+        typeof parentData.displayName === 'string' &&
+        parentData.displayName.trim()
+          ? parentData.displayName.trim()
+          : 'New';
+      const email =
+        typeof context.auth.token.email === 'string'
+          ? context.auth.token.email
+          : null;
+
+      transaction.create(familyRef, {
+        familyId,
+        ownerId: uid,
+        members: [{
+          uid,
+          email,
+          displayName,
+          role: 'OWNER',
+          joinedAt:
+            admin.firestore.Timestamp.now(),
+          assignedChildren: ['*']
+        }],
+        memberUids: [uid],
+        managerUids: [uid],
+        childDeviceIds: [],
+        subscription: {
+          status: 'PENDING',
+          baseChildSlots: 2,
+          extraChildSlots: 0,
+          billingInterval: 'MONTHLY',
+          currency: 'EUR',
+          basePriceCents: 299,
+          extraChildPriceCents: 199
+        },
+        settings: {
+          name: `${displayName} Family`,
+          timezone: 'Europe/Berlin',
+          country: 'DE',
+          language: 'en',
+          dataRetentionDays: 365
+        },
+        createdAt:
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      transaction.update(parentRef, {
+        familyId,
+        ownedFamilyId: familyId,
+        activeFamilyId: familyId,
+        role: 'OWNER',
+        familyProvisionedAt:
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: true,
+        familyId,
+        created: true
+      };
+    });
+  });
+
 export const requestSubscriptionCancellation =
   functions.https.onCall(async (data, context) => {
     if (!context.auth) {
