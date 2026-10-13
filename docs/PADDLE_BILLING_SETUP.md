@@ -10,12 +10,16 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
    - EUR 2.99 per month
    - seven-day trial
    - two child devices included
-4. Start in Paddle Sandbox.
-5. In Vercel, add:
+4. Create a recurring extra-child add-on:
+   - EUR 1.99 per month for each additional child slot
+   - same monthly billing interval as the Family Plan
+5. Start in Paddle Sandbox.
+6. In Vercel, add:
    - `NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox`
    - `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=<sandbox client token>`
    - `NEXT_PUBLIC_PADDLE_PRICE_ID=<sandbox recurring price id>`
-6. Redeploy the web dashboard.
+   - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID=<sandbox add-on price id>`
+7. Redeploy the web dashboard.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
 
