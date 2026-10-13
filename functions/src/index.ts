@@ -3759,6 +3759,138 @@ export const cancelFamilyDeletion =
     };
   });
 
+export const requestSubscriptionCancellation =
+  functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'You must be signed in.'
+      );
+    }
+
+    if (context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Your email must be verified.'
+      );
+    }
+
+    const uid = context.auth.uid;
+    const parentSnapshot = await db
+      .collection('parents')
+      .doc(uid)
+      .get();
+
+    if (!parentSnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Parent profile not found.'
+      );
+    }
+
+    const familyId = parentSnapshot.data()?.familyId;
+    if (typeof familyId !== 'string' || !familyId) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'No family is connected to this account.'
+      );
+    }
+
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Family not found.'
+      );
+    }
+
+    const familyData = familySnapshot.data() || {};
+    if (familyData.ownerId !== uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only the family owner can cancel the subscription.'
+      );
+    }
+
+    const subscription = familyData.subscription || {};
+    const status = String(subscription.status || 'NONE').toUpperCase();
+
+    if (status === 'CANCELED' || status === 'CANCELLED') {
+      return {
+        success: true,
+        alreadyCanceled: true,
+        requestId: subscription.cancellationRequestId || null,
+        effectiveAt: subscription.cancellationEffectiveAt || null
+      };
+    }
+
+    const requestedAt = admin.firestore.Timestamp.now();
+    const requestRef = db.collection('subscriptionCancellationRequests').doc();
+    const effectiveAt = subscription.currentPeriodEndsAt || requestedAt;
+    const reason =
+      typeof data?.reason === 'string'
+        ? data.reason.trim().slice(0, 500)
+        : '';
+
+    await db.runTransaction(async (transaction) => {
+      transaction.set(requestRef, {
+        requestId: requestRef.id,
+        familyId,
+        requestedBy: uid,
+        requesterEmail: context.auth?.token.email || null,
+        requestedAt,
+        effectiveAt,
+        subscriptionStatusAtRequest: status,
+        providerSubscriptionId:
+          subscription.stripeSubscriptionId || null,
+        reason: reason || null,
+        status: subscription.stripeSubscriptionId
+          ? 'PENDING_PROVIDER_CONFIRMATION'
+          : 'CONFIRMED',
+        source: 'WEB_CANCELLATION_PAGE'
+      });
+
+      transaction.update(familyRef, {
+        'subscription.cancelAtPeriodEnd': true,
+        'subscription.cancellationRequestedAt': requestedAt,
+        'subscription.cancellationRequestedBy': uid,
+        'subscription.cancellationRequestId': requestRef.id,
+        'subscription.cancellationEffectiveAt': effectiveAt,
+        'subscription.cancellationStatus':
+          subscription.stripeSubscriptionId
+            ? 'PENDING_PROVIDER_CONFIRMATION'
+            : 'CONFIRMED'
+      });
+    });
+
+    await db.collection('auditLogs').add({
+      actorUid: uid,
+      actorEmail: context.auth?.token.email || null,
+      familyId,
+      action: 'SUBSCRIPTION_CANCELLATION_REQUESTED',
+      targetType: 'SUBSCRIPTION',
+      targetId: requestRef.id,
+      severity: 'NOTICE',
+      metadata: {
+        effectiveAt,
+        requiresProviderConfirmation:
+          Boolean(subscription.stripeSubscriptionId)
+      },
+      createdAt:
+        admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+      success: true,
+      alreadyCanceled: false,
+      requestId: requestRef.id,
+      effectiveAt,
+      pendingProviderConfirmation:
+        Boolean(subscription.stripeSubscriptionId)
+    };
+  });
+
 export const cleanupExpiredFamilyExports =
 onSchedule(
   {
