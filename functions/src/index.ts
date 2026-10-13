@@ -3958,15 +3958,14 @@ export const resumeScheduledSubscription =
       };
     }
 
-    const effectiveAt = subscription.cancellationEffectiveAt;
-    const effectiveMillis =
-      typeof effectiveAt?.toMillis === 'function'
-        ? effectiveAt.toMillis()
-        : null;
+    const status = String(
+      subscription.status || 'NONE'
+    ).toUpperCase();
 
     if (
-      effectiveMillis !== null &&
-      effectiveMillis <= Date.now()
+      status === 'CANCELED' ||
+      status === 'CANCELLED' ||
+      status === 'EXPIRED'
     ) {
       throw new functions.https.HttpsError(
         'failed-precondition',
