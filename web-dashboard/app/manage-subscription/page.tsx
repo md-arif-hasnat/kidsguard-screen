@@ -159,16 +159,12 @@ export default function ManageSubscriptionPage() {
               <p className="mt-2 text-sm leading-6 text-blue-800">
                 Start a new subscription to restore paid KidsGuard access.
               </p>
-              <a
-                href="mailto:anish.jmc07@yahoo.com?subject=KidsGuard%20Subscribe%20Again"
+              <Link
+                href="/subscribe"
                 className="mt-6 flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-4 font-black text-white hover:bg-blue-700"
               >
                 Subscribe Again
-              </a>
-              <p className="mt-3 text-center text-xs text-blue-700">
-                Online checkout will replace this contact action when the
-                payment provider is connected.
-              </p>
+              </Link>
             </section>
           ) : (
             <section className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
