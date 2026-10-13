@@ -134,10 +134,16 @@ export default function TermsOfServicePage() {
 
           <p className="mt-3">
             Subscriptions renew automatically at the applicable billing
-            interval until cancelled. You may cancel through the available
-            billing portal or by contacting support. Unless applicable law
-            requires otherwise, cancellation takes effect at the end of the
-            current paid billing period.
+            interval until cancelled. You may submit a cancellation directly
+            through the{" "}
+            <Link
+              className="text-blue-400 underline hover:text-blue-300"
+              href="/cancel-subscription"
+            >
+              KidsGuard cancellation page
+            </Link>
+            . Unless applicable law requires otherwise, cancellation takes
+            effect at the end of the current paid billing period.
           </p>
 
           <p className="mt-3">
