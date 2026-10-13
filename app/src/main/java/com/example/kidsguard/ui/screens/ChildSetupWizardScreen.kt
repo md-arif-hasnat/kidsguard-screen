@@ -397,10 +397,10 @@ fun ChildSetupWizardScreen(
                 )
 
                 val directIntent = Intent(
-                    "android.settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS"
+                    "android.settings.ACCESSIBILITY_DETAILS_SETTINGS"
                 ).apply {
                     putExtra(
-                        "android.intent.extra.COMPONENT_NAME",
+                        Intent.EXTRA_COMPONENT_NAME,
                         componentName.flattenToString()
                     )
                 }
