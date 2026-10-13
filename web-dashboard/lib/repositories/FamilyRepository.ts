@@ -926,6 +926,48 @@ const updatedManagerUids =
     */
   }
 
+static async resumeScheduledSubscription(): Promise<{
+  success: boolean;
+  wasScheduled: boolean;
+}> {
+  const currentUser = auth?.currentUser;
+  const projectId =
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  if (!currentUser || !projectId) {
+    throw new Error(
+      "Please sign in with the Family Owner account."
+    );
+  }
+
+  const idToken = await currentUser.getIdToken(true);
+  const response = await fetch(
+    `https://us-central1-${projectId}.cloudfunctions.net/resumeScheduledSubscription`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ data: {} }),
+    }
+  );
+
+  const payload = await response.json();
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error?.message ||
+        "Could not keep the subscription active."
+    );
+  }
+
+  return {
+    success: payload.result?.success === true,
+    wasScheduled:
+      payload.result?.wasScheduled === true,
+  };
+}
+
 static async requestSubscriptionCancellation(
   reason: string = ""
 ): Promise<{
