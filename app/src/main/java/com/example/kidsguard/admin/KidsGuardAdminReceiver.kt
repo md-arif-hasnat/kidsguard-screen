@@ -72,10 +72,12 @@ class KidsGuardAdminReceiver : DeviceAdminReceiver() {
             )
 
             val pendingResult = goAsync()
-            val timeBucket = System.currentTimeMillis() / 120_000L
+            val eventId = "device_admin_${System.currentTimeMillis()}"
             FirebaseFirestore.getInstance()
-                .collection(FirebaseConfig.COL_NOTIFICATIONS)
-                .document("tamper_${childId}_$timeBucket")
+                .collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("tamperEvents")
+                .document(eventId)
                 .set(notification)
                 .addOnSuccessListener {
                     Log.i(TAG, "DEVICE_ADMIN_TAMPER_ALERT_SENT")
