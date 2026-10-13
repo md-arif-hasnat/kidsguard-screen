@@ -109,6 +109,7 @@ export interface LockSchedule {
 export interface OfflineAlertSettings {
   enabled: boolean;
   thresholdMinutes: number;
+  configuredByParent?: boolean;
   updatedAt?: any;
   updatedBy?: string;
 }
@@ -168,15 +169,17 @@ static listenToOfflineAlertSettings(
     (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as Partial<OfflineAlertSettings>;
+        const configuredByParent = data.configuredByParent === true;
 
         onUpdate({
-          enabled: data.enabled === true,
+          enabled: configuredByParent && data.enabled === true,
           thresholdMinutes:
             Number(data.thresholdMinutes) > 0
               ? Number(data.thresholdMinutes)
               : 30,
           updatedAt: data.updatedAt,
           updatedBy: data.updatedBy,
+          configuredByParent,
         });
       } else {
         onUpdate({
@@ -253,6 +256,7 @@ static async setOfflineAlertSettings(
     {
       enabled,
       thresholdMinutes,
+      configuredByParent: true,
       updatedAt: serverTimestamp(),
       updatedBy: "PARENT",
     },
