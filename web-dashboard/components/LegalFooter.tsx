@@ -27,6 +27,9 @@ export default function LegalFooter({ dark = false }: LegalFooterProps) {
         <Link href="/privacy" className={linkClass}>
           Privacy Policy
         </Link>
+        <Link href="/child-privacy" className={linkClass}>
+          Privacy for Children
+        </Link>
         <Link href="/terms" className={linkClass}>
           Terms of Service
         </Link>
