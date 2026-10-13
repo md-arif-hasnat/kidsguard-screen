@@ -2,6 +2,12 @@ import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getMessaging, Messaging } from "firebase/messaging";
+import {
+  AppCheck,
+  ReCaptchaEnterpriseProvider,
+  getAppCheck,
+  initializeAppCheck,
+} from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,6 +23,7 @@ let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
 let messaging: Messaging | undefined;
+let appCheck: AppCheck | undefined;
 
 export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey &&
@@ -31,8 +38,30 @@ if (isFirebaseConfigured) {
   auth = getAuth(app);
   db = getFirestore(app);
 
-  // Messaging only works in the browser
+  // Messaging and App Check only run in the browser.
   if (typeof window !== "undefined") {
+    const appCheckSiteKey =
+      process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY || "";
+
+    if (appCheckSiteKey) {
+      try {
+        appCheck = initializeAppCheck(app, {
+          provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+          isTokenAutoRefreshEnabled: true,
+        });
+      } catch (appCheckError) {
+        // Next.js hot reload may evaluate this module more than once.
+        try {
+          appCheck = getAppCheck(app);
+        } catch {
+          console.error(
+            "Firebase App Check could not be initialized.",
+            appCheckError
+          );
+        }
+      }
+    }
+
     try {
       messaging = getMessaging(app);
     } catch (e) {
@@ -41,7 +70,7 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { app, auth, db, messaging };
+export { app, auth, db, messaging, appCheck };
 
 export const isDev = process.env.NODE_ENV === 'development';
 export const showMocks = isDev && !isFirebaseConfigured;
