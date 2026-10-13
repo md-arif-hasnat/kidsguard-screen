@@ -1382,23 +1382,20 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
 }
 
 export const onTamperAlertCreated = functions.firestore
-  .document("notifications/{notificationId}")
+  .document("children/{childId}/tamperEvents/{eventId}")
   .onCreate(async (snapshot, context) => {
     const data = snapshot.data();
-
-    if(data.generatedBy === "cloud_function"){
-    return null;
-    }
 
     if (data.type !== "TAMPER_ALERT") {
       return null;
     }
 
-    const childId = data.childId;
+    const childId = String(context.params.childId || data.childId || "");
+    const eventId = String(context.params.eventId || "");
 
     if (!childId) {
       console.warn("Tamper alert missing childId", {
-        notificationId: context.params.notificationId,
+        eventId,
         childId,
       });
       return null;
@@ -1411,10 +1408,9 @@ export const onTamperAlertCreated = functions.firestore
         data.body ||
         "Someone tried to disable or remove KidsGuard protection.",
       childId,
-      eventId: context.params.notificationId,
+      eventId,
       clickAction: data.clickAction || `/dashboard/${childId}`,
       familyId: data.familyId || "",
-      skipHistory: true,
     };
 
     const parentUid = data.userId;
@@ -1422,7 +1418,7 @@ export const onTamperAlertCreated = functions.firestore
       await notifyParent(parentUid, payload);
     } else {
       console.warn("Tamper alert missing parentUid; using family fallback", {
-        notificationId: context.params.notificationId,
+        eventId,
         childId,
       });
       await broadcastToParents(childId, payload);
