@@ -148,7 +148,7 @@ static listenToOfflineAlertSettings(
 ) {
   if (!db || !childId) {
     onUpdate({
-      enabled: true,
+      enabled: false,
       thresholdMinutes: 30,
     });
 
@@ -170,7 +170,7 @@ static listenToOfflineAlertSettings(
         const data = snapshot.data() as Partial<OfflineAlertSettings>;
 
         onUpdate({
-          enabled: data.enabled !== false,
+          enabled: data.enabled === true,
           thresholdMinutes:
             Number(data.thresholdMinutes) > 0
               ? Number(data.thresholdMinutes)
@@ -180,7 +180,7 @@ static listenToOfflineAlertSettings(
         });
       } else {
         onUpdate({
-          enabled: true,
+          enabled: false,
           thresholdMinutes: 30,
         });
       }
@@ -192,7 +192,7 @@ static listenToOfflineAlertSettings(
       );
 
       onUpdate({
-        enabled: true,
+        enabled: false,
         thresholdMinutes: 30,
       });
     }
@@ -232,7 +232,7 @@ static async setOfflineAlertSettings(
     ? Math.min(
         24 * 60,
         Math.max(
-          10,
+          5,
           Number.isFinite(requestedMinutes)
             ? Math.round(requestedMinutes)
             : 30
