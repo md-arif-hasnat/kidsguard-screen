@@ -1394,19 +1394,17 @@ export const onTamperAlertCreated = functions.firestore
       return null;
     }
 
-    const parentUid = data.userId;
     const childId = data.childId;
 
-    if (!parentUid || !childId) {
-      console.warn("Tamper alert missing parentUid or childId", {
+    if (!childId) {
+      console.warn("Tamper alert missing childId", {
         notificationId: context.params.notificationId,
-        parentUid,
         childId,
       });
       return null;
     }
 
-    await notifyParent(parentUid, {
+    const payload: NotificationPayload = {
       type: "TAMPER_ALERT",
       title: data.title || "Security Alert",
       body:
@@ -1417,7 +1415,18 @@ export const onTamperAlertCreated = functions.firestore
       clickAction: data.clickAction || `/dashboard/${childId}`,
       familyId: data.familyId || "",
       skipHistory: true,
-    });
+    };
+
+    const parentUid = data.userId;
+    if (parentUid) {
+      await notifyParent(parentUid, payload);
+    } else {
+      console.warn("Tamper alert missing parentUid; using family fallback", {
+        notificationId: context.params.notificationId,
+        childId,
+      });
+      await broadcastToParents(childId, payload);
+    }
 
     return null;
   });
