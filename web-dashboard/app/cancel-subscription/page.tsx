@@ -18,6 +18,7 @@ export default function CancelSubscriptionPage() {
   const [result, setResult] = useState<{
     requestId: string | null;
     pendingProviderConfirmation: boolean;
+    alreadyCanceled: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +41,7 @@ export default function CancelSubscriptionPage() {
         requestId: response.requestId,
         pendingProviderConfirmation:
           response.pendingProviderConfirmation,
+        alreadyCanceled: response.alreadyCanceled,
       });
     } catch (requestError: any) {
       setError(
@@ -76,17 +78,26 @@ export default function CancelSubscriptionPage() {
           <div className="mt-8 rounded-2xl border border-emerald-700 bg-emerald-950/40 p-6">
             <CheckCircle2 className="h-10 w-10 text-emerald-400" />
             <h2 className="mt-3 text-xl font-bold text-emerald-200">
-              Cancellation request recorded
+              {result.alreadyCanceled
+                ? "Cancellation already scheduled"
+                : "Cancellation request recorded"}
             </h2>
             <p className="mt-2 leading-6 text-emerald-100/80">
-              Your request has been timestamped and linked to your family
-              subscription.
+              {result.alreadyCanceled
+                ? "No duplicate request was created. Your existing cancellation remains active."
+                : "Your request has been timestamped and linked to your family subscription."}
             </p>
             {result.requestId && (
               <p className="mt-3 break-all text-xs text-emerald-300">
                 Confirmation: {result.requestId}
               </p>
             )}
+            <Link
+              href="/"
+              className="mt-5 inline-flex rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white hover:bg-emerald-600"
+            >
+              Return to Dashboard
+            </Link>
             {result.pendingProviderConfirmation && (
               <p className="mt-4 rounded-xl bg-amber-950/60 p-4 text-sm text-amber-200">
                 Payment-provider confirmation is pending. Keep this
