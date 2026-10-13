@@ -30,8 +30,8 @@ export default function LegalFooter({ dark = false }: LegalFooterProps) {
         <Link href="/terms" className={linkClass}>
           Terms of Service
         </Link>
-        <Link href="/cancel-subscription" className={linkClass}>
-          Cancel Subscription
+        <Link href="/manage-subscription" className={linkClass}>
+          Manage Subscription
         </Link>
         <Link href="/delete-account" className={linkClass}>
           Delete Account
