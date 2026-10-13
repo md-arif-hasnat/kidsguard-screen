@@ -3902,6 +3902,125 @@ export const requestSubscriptionCancellation =
     };
   });
 
+export const resumeScheduledSubscription =
+  functions.https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'You must be signed in.'
+      );
+    }
+
+    if (context.auth.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Your email must be verified.'
+      );
+    }
+
+    const uid = context.auth.uid;
+    const parentSnapshot = await db
+      .collection('parents')
+      .doc(uid)
+      .get();
+    const familyId = parentSnapshot.data()?.familyId;
+
+    if (typeof familyId !== 'string' || !familyId) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'No family is connected to this account.'
+      );
+    }
+
+    const familyRef = db.collection('families').doc(familyId);
+    const familySnapshot = await familyRef.get();
+
+    if (!familySnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Family not found.'
+      );
+    }
+
+    const familyData = familySnapshot.data() || {};
+    if (familyData.ownerId !== uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only the family owner can manage the subscription.'
+      );
+    }
+
+    const subscription = familyData.subscription || {};
+    if (subscription.cancelAtPeriodEnd !== true) {
+      return {
+        success: true,
+        wasScheduled: false
+      };
+    }
+
+    const effectiveAt = subscription.cancellationEffectiveAt;
+    const effectiveMillis =
+      typeof effectiveAt?.toMillis === 'function'
+        ? effectiveAt.toMillis()
+        : null;
+
+    if (
+      effectiveMillis !== null &&
+      effectiveMillis <= Date.now()
+    ) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This subscription has already ended. Start a new subscription instead.'
+      );
+    }
+
+    const requestId = subscription.cancellationRequestId;
+    await db.runTransaction(async (transaction) => {
+      transaction.update(familyRef, {
+        'subscription.cancelAtPeriodEnd': false,
+        'subscription.cancellationRequestedAt':
+          admin.firestore.FieldValue.delete(),
+        'subscription.cancellationRequestedBy':
+          admin.firestore.FieldValue.delete(),
+        'subscription.cancellationRequestId':
+          admin.firestore.FieldValue.delete(),
+        'subscription.cancellationEffectiveAt':
+          admin.firestore.FieldValue.delete(),
+        'subscription.cancellationStatus':
+          admin.firestore.FieldValue.delete()
+      });
+
+      if (typeof requestId === 'string' && requestId) {
+        transaction.set(
+          db.collection('subscriptionCancellationRequests').doc(requestId),
+          {
+            status: 'REVOKED',
+            revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+            revokedBy: uid
+          },
+          {merge: true}
+        );
+      }
+    });
+
+    await db.collection('auditLogs').add({
+      actorUid: uid,
+      actorEmail: context.auth?.token.email || null,
+      familyId,
+      action: 'SUBSCRIPTION_CANCELLATION_REVOKED',
+      targetType: 'SUBSCRIPTION',
+      targetId: requestId || familyId,
+      severity: 'NOTICE',
+      createdAt:
+        admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+      success: true,
+      wasScheduled: true
+    };
+  });
+
 export const cleanupExpiredFamilyExports =
 onSchedule(
   {
