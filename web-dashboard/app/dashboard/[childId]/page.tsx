@@ -147,9 +147,11 @@ export default function ChildDashboard() {
 
   const [offlineAlertSettings, setOfflineAlertSettings] =
     useState<OfflineAlertSettings>({
-      enabled: true,
+      enabled: false,
       thresholdMinutes: 30
     });
+
+  const offlineAlertPresetValues = [10, 15, 30, 60, 120, 300];
 
   const [offlineAlertSaving, setOfflineAlertSaving] =
     useState(false);
@@ -844,11 +846,13 @@ const handleSaveOfflineAlertSettings = async () => {
                   <select
                     id="offline-alert-delay"
                     value={
-                      offlineAlertSettings.enabled
-                        ? String(
+                      !offlineAlertSettings.enabled
+                        ? "never"
+                        : offlineAlertPresetValues.includes(
                             offlineAlertSettings.thresholdMinutes
                           )
-                        : "never"
+                          ? String(offlineAlertSettings.thresholdMinutes)
+                          : "custom"
                     }
                     onChange={(event) => {
                       const value = event.target.value;
@@ -857,6 +861,19 @@ const handleSaveOfflineAlertSettings = async () => {
                         setOfflineAlertSettings((current) => ({
                           ...current,
                           enabled: false,
+                        }));
+
+                        return;
+                      }
+
+                      if (value === "custom") {
+                        setOfflineAlertSettings((current) => ({
+                          ...current,
+                          enabled: true,
+                          thresholdMinutes:
+                            current.thresholdMinutes >= 5
+                              ? current.thresholdMinutes
+                              : 30,
                         }));
 
                         return;
@@ -882,12 +899,50 @@ const handleSaveOfflineAlertSettings = async () => {
                   >
                     <option value="10">10 minutes</option>
                     <option value="15">15 minutes</option>
-                    <option value="30">30 minutes — Default</option>
+                    <option value="30">30 minutes</option>
                     <option value="60">1 hour</option>
                     <option value="120">2 hours</option>
                     <option value="300">5 hours</option>
+                    <option value="custom">Custom time</option>
                     <option value="never">Never</option>
                   </select>
+
+                  {offlineAlertSettings.enabled &&
+                    !offlineAlertPresetValues.includes(
+                      offlineAlertSettings.thresholdMinutes
+                    ) && (
+                      <div className="mt-4">
+                        <label
+                          htmlFor="offline-alert-custom-minutes"
+                          className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+                        >
+                          Custom delay (minutes)
+                        </label>
+                        <input
+                          id="offline-alert-custom-minutes"
+                          type="number"
+                          min="5"
+                          max="1440"
+                          step="1"
+                          value={offlineAlertSettings.thresholdMinutes}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            setOfflineAlertSettings((current) => ({
+                              ...current,
+                              enabled: true,
+                              thresholdMinutes: Number.isFinite(value)
+                                ? value
+                                : 30,
+                            }));
+                          }}
+                          disabled={!canManageWellbeing}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Choose between 5 minutes and 24 hours.
+                        </p>
+                      </div>
+                    )}
 
                   <button
                     type="button"
