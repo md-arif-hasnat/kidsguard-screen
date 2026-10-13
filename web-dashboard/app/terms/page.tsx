@@ -138,9 +138,9 @@ export default function TermsOfServicePage() {
             through the{" "}
             <Link
               className="text-blue-400 underline hover:text-blue-300"
-              href="/cancel-subscription"
+              href="/manage-subscription"
             >
-              KidsGuard cancellation page
+              KidsGuard subscription management page
             </Link>
             . Unless applicable law requires otherwise, cancellation takes
             effect at the end of the current paid billing period.
