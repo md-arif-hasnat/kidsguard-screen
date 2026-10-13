@@ -42,11 +42,12 @@ export default function ManageSubscriptionPage() {
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
+  const neverSubscribed = status === "NONE";
   const ended =
     status === "CANCELED" ||
     status === "CANCELLED" ||
     status === "EXPIRED" ||
-    status === "NONE";
+    neverSubscribed;
   const cancellationRequested =
     Boolean(subscription?.cancellationRequestedAt) ||
     Boolean(subscription?.cancellationRequestId) ||
@@ -167,16 +168,20 @@ export default function ManageSubscriptionPage() {
           ) : ended ? (
             <section className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-6">
               <h2 className="text-xl font-black text-blue-950">
-                Subscription inactive
+                {neverSubscribed
+                  ? "Start your subscription"
+                  : "Subscription inactive"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-blue-800">
-                Start a new subscription to restore paid KidsGuard access.
+                {neverSubscribed
+                  ? "Subscribe to unlock paid KidsGuard access."
+                  : "Start a new subscription to restore paid KidsGuard access."}
               </p>
               <Link
                 href="/subscribe"
                 className="mt-6 flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-4 font-black text-white hover:bg-blue-700"
               >
-                Subscribe Again
+                {neverSubscribed ? "Subscribe Now" : "Subscribe Again"}
               </Link>
             </section>
           ) : (
