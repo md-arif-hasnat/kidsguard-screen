@@ -91,6 +91,11 @@ export interface FamilySubscription {
   stripeSubscriptionId?: string;
   stripePriceId?: string;
   cancelAtPeriodEnd?: boolean;
+  cancellationRequestedAt?: any;
+  cancellationRequestedBy?: string;
+  cancellationRequestId?: string;
+  cancellationEffectiveAt?: any;
+  cancellationStatus?: "CONFIRMED" | "PENDING_PROVIDER_CONFIRMATION";
 }
 
 export interface FamilyData {
@@ -920,6 +925,59 @@ const updatedManagerUids =
     return true;
     */
   }
+
+static async requestSubscriptionCancellation(
+  reason: string = ""
+): Promise<{
+  success: boolean;
+  alreadyCanceled: boolean;
+  requestId: string | null;
+  effectiveAt: any;
+  pendingProviderConfirmation: boolean;
+}> {
+  const currentUser = auth?.currentUser;
+  const projectId =
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  if (!currentUser || !projectId) {
+    throw new Error(
+      "Please sign in with the Family Owner account."
+    );
+  }
+
+  const idToken = await currentUser.getIdToken(true);
+  const response = await fetch(
+    `https://us-central1-${projectId}.cloudfunctions.net/requestSubscriptionCancellation`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        data: { reason },
+      }),
+    }
+  );
+
+  const payload = await response.json();
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error?.message ||
+        "Could not submit the subscription cancellation."
+    );
+  }
+
+  return {
+    success: payload.result?.success === true,
+    alreadyCanceled:
+      payload.result?.alreadyCanceled === true,
+    requestId: payload.result?.requestId || null,
+    effectiveAt: payload.result?.effectiveAt || null,
+    pendingProviderConfirmation:
+      payload.result?.pendingProviderConfirmation === true,
+  };
+}
 
 static async requestFamilyDeletion(): Promise<boolean> {
   const currentUser = auth?.currentUser;
