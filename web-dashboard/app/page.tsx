@@ -330,7 +330,21 @@ export default function Home() {
                                 <span className="mt-1 block text-[10px] text-slate-400">Consent version {PARENTAL_CONSENT_VERSION}</span>
                             </span>
                         </label>
-                        {pairingError && <p className="text-rose-600 text-xs font-bold">{pairingError}</p>}
+                        {pairingError && (
+                          <div className="space-y-3">
+                            <p className="text-rose-600 text-xs font-bold">{pairingError}</p>
+                            {(pairingError.includes("extra child slot") ||
+                              pairingError.includes("current plan allows")) && (
+                              <button
+                                type="button"
+                                onClick={() => router.push("/add-child-slot")}
+                                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100"
+                              >
+                                Add Child Slot · €1.99/month
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <button
                             disabled={isPairing || pairingCode.length < 6 || !parentalConsentAccepted}
                             className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
