@@ -324,6 +324,54 @@ export class FamilyRepository {
     });
   }
 
+  static async ensureParentFamily(): Promise<{
+    familyId: string;
+    created: boolean;
+  }> {
+    const currentUser = auth?.currentUser;
+    const projectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+    if (!currentUser || !projectId) {
+      throw new Error(
+        "You must be signed in to create a family."
+      );
+    }
+
+    const idToken = await currentUser.getIdToken(true);
+    const response = await fetch(
+      `https://us-central1-${projectId}.cloudfunctions.net/ensureParentFamily`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ data: {} }),
+      }
+    );
+
+    const payload = await response.json();
+    if (!response.ok || payload.error) {
+      throw new Error(
+        payload.error?.message ||
+          "Family setup could not be completed."
+      );
+    }
+
+    const familyId = payload.result?.familyId;
+    if (typeof familyId !== "string" || !familyId) {
+      throw new Error(
+        "Family setup returned an invalid response."
+      );
+    }
+
+    return {
+      familyId,
+      created: payload.result?.created === true,
+    };
+  }
+
   static async createFamily(parentId: string, parentEmail?: string | null, parentDisplayName?: string | null): Promise<string> {
     if (!db) throw new Error("Firestore not initialized");
     const familyId = uuidv4();
