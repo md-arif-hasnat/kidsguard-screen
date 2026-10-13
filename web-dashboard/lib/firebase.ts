@@ -5,7 +5,6 @@ import { getMessaging, Messaging } from "firebase/messaging";
 import {
   AppCheck,
   ReCaptchaEnterpriseProvider,
-  getAppCheck,
   initializeAppCheck,
 } from "firebase/app-check";
 
@@ -44,16 +43,20 @@ if (isFirebaseConfigured) {
       process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY || "";
 
     if (appCheckSiteKey) {
-      try {
-        appCheck = initializeAppCheck(app, {
-          provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
-          isTokenAutoRefreshEnabled: true,
-        });
-      } catch (appCheckError) {
-        // Next.js hot reload may evaluate this module more than once.
+      const browserState = globalThis as typeof globalThis & {
+        __kidsguardAppCheck?: AppCheck;
+      };
+
+      if (browserState.__kidsguardAppCheck) {
+        appCheck = browserState.__kidsguardAppCheck;
+      } else {
         try {
-          appCheck = getAppCheck(app);
-        } catch {
+          appCheck = initializeAppCheck(app, {
+            provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+            isTokenAutoRefreshEnabled: true,
+          });
+          browserState.__kidsguardAppCheck = appCheck;
+        } catch (appCheckError) {
           console.error(
             "Firebase App Check could not be initialized.",
             appCheckError
