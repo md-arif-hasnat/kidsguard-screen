@@ -127,12 +127,18 @@ export default function ManageSubscriptionPage() {
             <section className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
               <CheckCircle2 className="h-10 w-10 text-emerald-600" />
               <h2 className="mt-3 text-xl font-black text-emerald-900">
-                Your subscription will remain active
+                Subscription active
               </h2>
               <p className="mt-2 text-sm leading-6 text-emerald-700">
-                The scheduled cancellation has been withdrawn. Your current
-                subscription and renewal settings remain active.
+                The cancellation has been withdrawn. Your subscription will
+                remain active and continue renewing normally.
               </p>
+              <Link
+                href="/cancel-subscription"
+                className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-rose-200 bg-white px-5 py-4 font-black text-rose-600 hover:bg-rose-50"
+              >
+                Cancel Subscription
+              </Link>
             </section>
           ) : cancellationScheduled ? (
             <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
