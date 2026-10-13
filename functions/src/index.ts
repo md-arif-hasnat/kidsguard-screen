@@ -3776,7 +3776,8 @@ export const ensureParentFamily =
       );
     }
 
-    const uid = context.auth.uid;
+    const authenticatedUser = context.auth;
+    const uid = authenticatedUser.uid;
     const parentRef = db.collection('parents').doc(uid);
     const familyId = randomUUID();
     const familyRef = db.collection('families').doc(familyId);
@@ -3814,8 +3815,8 @@ export const ensureParentFamily =
           ? parentData.displayName.trim()
           : 'New';
       const email =
-        typeof context.auth.token.email === 'string'
-          ? context.auth.token.email
+        typeof authenticatedUser.token.email === 'string'
+          ? authenticatedUser.token.email
           : null;
 
       transaction.create(familyRef, {
