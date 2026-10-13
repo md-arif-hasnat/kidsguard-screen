@@ -593,42 +593,44 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TextButton(
-                onClick = {
-                    context.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://kidsguard-screen.vercel.app/child-privacy")
-                        )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Privacy for Children")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             val allDone =
                 locationGranted && bgLocationGranted && usageStatsGranted && overlayGranted && accessibilityEnabled
 
-            Button(
-                onClick = onBack,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (allDone) MaterialTheme.colorScheme.primary else Color.Gray
-                )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                if (allDone) {
-                    Icon(Icons.Default.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Complete Setup")
-                } else {
-                    Text("Grant All to Continue")
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (allDone) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                ) {
+                    if (allDone) {
+                        Icon(Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Complete Setup")
+                    } else {
+                        Text("Grant All to Continue")
+                    }
+                }
+
+                TextButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://kidsguard-screen.vercel.app/child-privacy")
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Privacy for Children")
                 }
             }
         }
