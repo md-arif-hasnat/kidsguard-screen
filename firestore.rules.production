@@ -210,7 +210,27 @@ service cloud.firestore {
 
     match /billingConfig/{configId} {
       allow read: if isEmailVerified();
-      allow create, update, delete: if isAdmin();
+
+      // Billing configuration is managed only by verified platform admins.
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /paddleWebhookEvents/{eventId} {
+      // Webhook receipts are written only through the Admin SDK after
+      // Paddle signature verification. Clients can never forge or alter them.
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /subscriptionCancellationRequests/{requestId} {
+      // Requests are created and changed only by trusted Cloud Functions.
+      allow read: if isPlatformAdmin() ||
+        (
+          isEmailVerified() &&
+          resource.data.familyId is string &&
+          isFamilyOwner(resource.data.familyId)
+        );
+      allow create, update, delete: if false;
     }
 
         match /families/{familyId} {
