@@ -176,12 +176,15 @@ export default function DeleteAccountPage() {
           </div>
         )}
 
-        <div className="mt-8 border-t border-slate-100 pt-6 text-center">
-          <Link
-            href="/privacy"
-            className="text-sm font-bold text-blue-600 hover:underline"
-          >
-            View Privacy Policy
+        <div className="mt-8 flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-slate-100 pt-6 text-center">
+          <Link href="/privacy" className="text-sm font-bold text-blue-600 hover:underline">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="text-sm font-bold text-blue-600 hover:underline">
+            Terms
+          </Link>
+          <Link href="/impressum" className="text-sm font-bold text-blue-600 hover:underline">
+            Impressum
           </Link>
         </div>
       </div>
