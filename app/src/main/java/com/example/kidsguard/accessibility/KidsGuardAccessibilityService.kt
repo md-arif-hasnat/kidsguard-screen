@@ -366,11 +366,12 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             "clickAction" to "/dashboard/$childId"
         )
 
-        val timeBucket = now / 120_000L
-        val alertId = "tamper_${childId}_$timeBucket"
+        val alertId = "tamper_${reason.lowercase()}_$now"
 
         FirebaseFirestore.getInstance()
-            .collection(FirebaseConfig.COL_NOTIFICATIONS)
+            .collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("tamperEvents")
             .document(alertId)
             .set(notification)
             .addOnSuccessListener {
