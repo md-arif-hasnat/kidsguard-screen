@@ -23,12 +23,38 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
 
+## Secure webhook deployment
+
+The callable checkout remains disabled until Paddle configuration is complete. The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`, rejects signatures older than five minutes, deduplicates `event_id` values and atomically synchronizes the family subscription.
+
+1. Store the Paddle endpoint secret in Firebase Secret Manager:
+
+   ```powershell
+   firebase functions:secrets:set PADDLE_WEBHOOK_SECRET
+   ```
+
+2. Add the Functions runtime parameter `PADDLE_EXTRA_CHILD_PRICE_ID` using the exact Paddle recurring add-on price ID. Until it is present, the webhook intentionally does not change `extraChildSlots`.
+3. Deploy the webhook:
+
+   ```powershell
+   $env:FUNCTIONS_DISCOVERY_TIMEOUT="60"
+   firebase deploy --only "functions:paddleBillingWebhook"
+   ```
+
+4. In Paddle Sandbox, create a notification destination using the deployed function URL and subscribe to:
+   - `subscription.created`
+   - `subscription.updated`
+   - `subscription.activated`
+   - `subscription.paused`
+   - `subscription.resumed`
+   - `subscription.canceled`
+   - `transaction.completed`
+
+Every checkout must include `custom_data.familyId` and `custom_data.parentUid`. Events without a family mapping or with an owner mismatch are rejected.
+
 ## Required before live payments
 
-- Implement and deploy a signature-verified Paddle webhook.
-- Subscribe to transaction and subscription lifecycle events.
-- Store event IDs for deduplication.
-- Sync customer, subscription, status, scheduled cancellation and effective date to the family record.
 - Replace the provisional local cancellation handling with Paddle API/customer-portal cancellation.
 - Test the full sandbox lifecycle: trial, paid, past due, cancellation, undo cancellation and resubscription.
+- Confirm that the add-on quantity updates `subscription.extraChildSlots` only after a verified subscription event.
 - Switch Vercel variables to production only after Paddle approves the domain and product.
