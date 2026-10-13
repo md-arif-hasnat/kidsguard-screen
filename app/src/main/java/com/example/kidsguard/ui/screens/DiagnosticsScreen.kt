@@ -266,10 +266,30 @@ private fun openNotificationSettings(context: Context) {
 }
 
 private fun openAccessibilitySettings(context: Context) {
-    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+    val componentName = android.content.ComponentName(
+        context,
+        com.example.kidsguard.accessibility.KidsGuardAccessibilityService::class.java
+    )
+    val directIntent = Intent(
+        "android.settings.ACCESSIBILITY_DETAILS_SETTINGS"
+    ).apply {
+        putExtra(Intent.EXTRA_COMPONENT_NAME, componentName.flattenToString())
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
-    context.startActivity(intent)
+    val fallbackIntent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        context.startActivity(
+            if (directIntent.resolveActivity(context.packageManager) != null) {
+                directIntent
+            } else {
+                fallbackIntent
+            }
+        )
+    } catch (_: Exception) {
+        context.startActivity(fallbackIntent)
+    }
 }
 
 private fun openBatteryOptimizationSettings(context: Context) {
