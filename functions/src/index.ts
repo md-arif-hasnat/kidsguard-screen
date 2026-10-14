@@ -80,6 +80,114 @@ async function callPaddleSubscriptionApi(
   return payload?.data || {};
 }
 
+type PaddleSubscriptionItem = {
+  price?: {id?: string};
+  price_id?: string;
+  quantity?: number;
+};
+
+type PaddleSubscriptionWithItems = PaddleSubscriptionResponse & {
+  items?: PaddleSubscriptionItem[];
+};
+
+async function getPaddleSubscription(
+  subscriptionId: string
+): Promise<PaddleSubscriptionWithItems> {
+  const apiKey = paddleApiKey.value().trim();
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Paddle billing is not configured.'
+    );
+  }
+
+  const response = await fetch(
+    `${paddleApiBaseUrl(apiKey)}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {headers: {Authorization: `Bearer ${apiKey}`}}
+  );
+  const payload = await response.json().catch(() => null) as
+    | {data?: PaddleSubscriptionWithItems; error?: {detail?: string}}
+    | null;
+
+  if (!response.ok || !payload?.data) {
+    console.error(
+      `Paddle subscription lookup failed for ${subscriptionId}:`,
+      payload?.error?.detail || response.status
+    );
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Paddle could not read the subscription. Please try again.'
+    );
+  }
+  return payload.data;
+}
+
+async function addPaddleExtraChildSlot(
+  subscriptionId: string,
+  extraChildPriceId: string
+): Promise<number> {
+  const apiKey = paddleApiKey.value().trim();
+  const subscription = await getPaddleSubscription(subscriptionId);
+  const existingItems = Array.isArray(subscription.items)
+    ? subscription.items
+    : [];
+  let nextExtraQuantity = 1;
+  let foundExtraPrice = false;
+
+  const items = existingItems.map((item) => {
+    const priceId = item.price?.id || item.price_id;
+    if (!priceId) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Paddle returned an incomplete subscription item.'
+      );
+    }
+    const quantity = Number.isInteger(item.quantity) && Number(item.quantity) > 0
+      ? Number(item.quantity)
+      : 1;
+    if (priceId === extraChildPriceId) {
+      foundExtraPrice = true;
+      nextExtraQuantity = quantity + 1;
+      return {price_id: priceId, quantity: nextExtraQuantity};
+    }
+    return {price_id: priceId, quantity};
+  });
+
+  if (!foundExtraPrice) {
+    items.push({price_id: extraChildPriceId, quantity: 1});
+  }
+
+  const response = await fetch(
+    `${paddleApiBaseUrl(apiKey)}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        items,
+        proration_billing_mode: 'prorated_immediately',
+        on_payment_failure: 'prevent_change'
+      })
+    }
+  );
+  const payload = await response.json().catch(() => null) as
+    | {error?: {detail?: string}}
+    | null;
+  if (!response.ok) {
+    console.error(
+      `Paddle extra-child update failed for ${subscriptionId}:`,
+      payload?.error?.detail || response.status
+    );
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Paddle could not charge for the extra child slot. No slot was added.'
+    );
+  }
+  return nextExtraQuantity;
+}
+
 type CanonicalFamilyRole = 'OWNER' | 'MANAGER' | 'VIEWER';
 
 function normalizeFamilyRole(role: unknown): CanonicalFamilyRole | null {
@@ -3939,6 +4047,144 @@ export const ensureParentFamily =
     });
   });
 
+export const purchaseExtraChildSlot =
+  functions
+    .runWith({secrets: [paddleApiKey]})
+    .https.onCall(async (_data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+          'unauthenticated',
+          'You must be signed in.'
+        );
+      }
+      if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Your email must be verified.'
+        );
+      }
+
+      const uid = context.auth.uid;
+      const parentSnapshot = await db.collection('parents').doc(uid).get();
+      const familyId = parentSnapshot.data()?.familyId;
+      if (typeof familyId !== 'string' || !familyId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'No family is connected to this account.'
+        );
+      }
+
+      const familyRef = db.collection('families').doc(familyId);
+      const familySnapshot = await familyRef.get();
+      if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+      }
+
+      const familyData = familySnapshot.data() || {};
+      if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Only the family owner can purchase child slots.'
+        );
+      }
+
+      const subscription = familyData.subscription || {};
+      const status = String(subscription.status || 'NONE').toUpperCase();
+      if (status !== 'ACTIVE' && status !== 'TRIALING') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'An active subscription is required before adding a child slot.'
+        );
+      }
+      if (subscription.cancelAtPeriodEnd === true) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Keep the subscription active before adding a child slot.'
+        );
+      }
+
+      const subscriptionId = subscription.paddleSubscriptionId;
+      const extraChildPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+      if (
+        typeof subscriptionId !== 'string' ||
+        !subscriptionId ||
+        !extraChildPriceId
+      ) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Extra-child billing is not configured for this subscription.'
+        );
+      }
+
+      const maxSlots = Number.isInteger(subscription.maxChildSlots)
+        ? Math.max(2, subscription.maxChildSlots)
+        : 10;
+      if (getAllowedChildSlots(familyData) >= maxSlots) {
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          `This family has reached the maximum of ${maxSlots} child slots.`
+        );
+      }
+
+      await db.runTransaction(async (transaction) => {
+        const latestSnapshot = await transaction.get(familyRef);
+        const latestData = latestSnapshot.data() || {};
+        const latestSubscription = latestData.subscription || {};
+        const pendingAt = Number(
+          latestSubscription.extraChildPurchasePendingAt || 0
+        );
+        if (pendingAt > Date.now() - 5 * 60 * 1000) {
+          throw new functions.https.HttpsError(
+            'aborted',
+            'An extra-child purchase is already processing.'
+          );
+        }
+        if (getAllowedChildSlots(latestData) >= maxSlots) {
+          throw new functions.https.HttpsError(
+            'resource-exhausted',
+            `This family has reached the maximum of ${maxSlots} child slots.`
+          );
+        }
+        transaction.update(familyRef, {
+          'subscription.extraChildPurchasePendingAt': Date.now(),
+          'subscription.extraChildPurchasePendingBy': uid,
+          'subscription.extraChildPurchaseStatus': 'PROCESSING'
+        });
+      });
+
+      try {
+        const expectedQuantity = await addPaddleExtraChildSlot(
+          subscriptionId,
+          extraChildPriceId
+        );
+        await familyRef.update({
+          'subscription.extraChildPurchaseExpectedQuantity': expectedQuantity,
+          'subscription.extraChildPurchaseStatus': 'AWAITING_WEBHOOK'
+        });
+        await db.collection('auditLogs').add({
+          actorUid: uid,
+          actorEmail: context.auth.token.email || null,
+          familyId,
+          action: 'EXTRA_CHILD_SLOT_PURCHASED',
+          targetType: 'SUBSCRIPTION',
+          targetId: subscriptionId,
+          severity: 'NOTICE',
+          metadata: {expectedQuantity},
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return {success: true, expectedQuantity};
+      } catch (error) {
+        await familyRef.update({
+          'subscription.extraChildPurchasePendingAt':
+            admin.firestore.FieldValue.delete(),
+          'subscription.extraChildPurchasePendingBy':
+            admin.firestore.FieldValue.delete(),
+          'subscription.extraChildPurchaseStatus': 'FAILED'
+        });
+        throw error;
+      }
+    });
+
 export const requestSubscriptionCancellation =
   functions
     .runWith({secrets: [paddleApiKey]})
@@ -6666,6 +6912,14 @@ export const paddleBillingWebhook = functions
             );
             patch['subscription.extraChildSlots'] =
               paidExtraSlots;
+            patch['subscription.extraChildPurchasePendingAt'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.extraChildPurchasePendingBy'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.extraChildPurchaseExpectedQuantity'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.extraChildPurchaseStatus'] =
+              'CONFIRMED';
           }
         }
 
