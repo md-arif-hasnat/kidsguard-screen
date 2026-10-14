@@ -12,6 +12,7 @@ export default function AddChildSlotPage() {
   const router = useRouter();
   const { family, loading, role } = useParentProfile();
   const [purchasing, setPurchasing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const subscription = family?.subscription;
@@ -19,6 +20,7 @@ export default function AddChildSlotPage() {
   const extra = subscription?.extraChildSlots || 0;
   const allowed = included + extra;
   const childCount = family?.childDeviceIds?.length || 0;
+  const canRemove = extra > 0 && childCount <= allowed - 1;
   const providerReady = Boolean(
     process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID
   );
@@ -45,6 +47,24 @@ export default function AddChildSlotPage() {
     }
   };
 
+  const removeSlot = async () => {
+    setRemoving(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      await FamilyRepository.removeExtraChildSlot();
+      setSuccess(true);
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : "Could not remove the extra child slot."
+      );
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   if (loading || role !== FamilyRole.OWNER) {
     return (
       <DashboardLayout>
@@ -64,7 +84,7 @@ export default function AddChildSlotPage() {
           </div>
           <div>
             <h1 className="text-3xl font-black text-slate-900">
-              Add Another Child
+              Manage Child Slots
             </h1>
             <p className="mt-2 text-slate-500">
               Purchase one additional child-device slot before pairing.
@@ -133,13 +153,14 @@ export default function AddChildSlotPage() {
         )}
         {success && (
           <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-            Payment confirmed by Paddle. Your extra slot is being activated.
+            Paddle accepted the billing change. The slot count will refresh
+            after the signed webhook is processed.
           </p>
         )}
 
         <button
           type="button"
-          disabled={!providerReady || purchasing || success}
+          disabled={!providerReady || purchasing || removing || success}
           onClick={purchaseSlot}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -150,6 +171,25 @@ export default function AddChildSlotPage() {
               ? "Slot Activation Pending"
               : "Buy Extra Slot · €1.99/month"}
         </button>
+
+        {extra > 0 && (
+          <div className="mt-4">
+            <button
+              type="button"
+              disabled={!providerReady || !canRemove || purchasing || removing || success}
+              onClick={removeSlot}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-4 font-black text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {removing && <Loader2 className="h-5 w-5 animate-spin" />}
+              {removing ? "Updating Billing…" : "Remove One Paid Slot"}
+            </button>
+            {!canRemove && (
+              <p className="mt-2 text-center text-xs font-semibold text-slate-500">
+                This slot is in use. Remove a connected child device first.
+              </p>
+            )}
+          </div>
+        )}
 
         <Link
           href="/"
