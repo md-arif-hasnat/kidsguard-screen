@@ -314,7 +314,10 @@ export class FamilyRepository {
     const familyRef = doc(db, "families", familyId);
     return onSnapshot(familyRef, (snapshot) => {
       if (snapshot.exists()) {
-        onUpdate(snapshot.data() as FamilyData);
+        onUpdate({
+          ...(snapshot.data() as Omit<FamilyData, "familyId">),
+          familyId: snapshot.id
+        } as FamilyData);
       } else {
         onUpdate(null);
       }
