@@ -75,7 +75,6 @@ import com.example.kidsguard.R
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.data.RemoteStatusService
 import com.example.kidsguard.data.findActivity
-import com.example.kidsguard.data.isCurrentTimeInSchedule
 import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.utils.PermissionUtils
@@ -143,24 +142,6 @@ fun HomeScreen(
         if (prefHelper.userRole == "CHILD") {
             context.let { RemoteStatusService.updateChildStatus(it, prefHelper) }
             RemoteStatusService.startRemoteCommandListener(prefHelper)
-        }
-    }
-
-    // Phase 7.5: Periodically check schedule
-    LaunchedEffect(Unit) {
-        while (true) {
-            val shouldBeLocked = isCurrentTimeInSchedule(prefHelper)
-            if (shouldBeLocked && !prefHelper.isLocked) {
-                repository.addEvent(
-                    ActivityEvent(
-                        type = "KID_MODE_ENABLED",
-                        title = "Kid Mode Enabled",
-                        description = "Scheduled lock active"
-                    )
-                )
-                onActivate()
-            }
-            delay(60000) // Check every minute
         }
     }
 
@@ -652,7 +633,7 @@ fun HomeScreen(
                             StatusItem(
                                 label = "Schedule",
                                 value = "${prefHelper.scheduleStartTime} - ${prefHelper.scheduleEndTime}",
-                                active = isCurrentTimeInSchedule(prefHelper)
+                                active = prefHelper.isScheduleWindowActive
                             )
                         }
                     }
