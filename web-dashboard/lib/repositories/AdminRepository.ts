@@ -57,6 +57,7 @@ export interface AdminFamilyOverview {
   managerCount: number;
   childCount: number;
   subscriptionStatus: string;
+  subscribedAt?: number;
   childSlots: number;
   dataRetentionDays?: number;
   deletionStatus?: string;
@@ -186,6 +187,10 @@ export class AdminRepository {
       const owner = parentsById.get(family.ownerId) || {};
       const subscription = family.subscription || {};
       const rawCreatedAt = family.createdAt;
+      const rawSubscribedAt =
+        subscription.subscribedAt ||
+        subscription.trialStartsAt ||
+        subscription.trialStartedAt;
 
       return {
         familyId: familyDocument.id,
@@ -203,6 +208,9 @@ export class AdminRepository {
           : 0,
         childCount: childCounts.get(familyDocument.id) || 0,
         subscriptionStatus: subscription.status || "UNKNOWN",
+        subscribedAt: typeof rawSubscribedAt === "number"
+          ? rawSubscribedAt
+          : rawSubscribedAt?.toMillis?.(),
         childSlots:
           (subscription.baseChildSlots || 0) +
           (subscription.extraChildSlots || 0),
