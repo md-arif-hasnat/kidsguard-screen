@@ -88,6 +88,7 @@ class LockScheduleManager(
         val isKnownScheduleLock =
             prefHelper.lockReason == LockReason.SCHEDULE
         val isLegacyScheduleLock =
+            wasScheduleEnabled &&
             prefHelper.isLocked &&
                 prefHelper.lockReason == LockReason.NONE
 
@@ -259,7 +260,10 @@ class LockScheduleManager(
 
     private fun scheduleCalendar(schedule: LockSchedule): Calendar {
         val timezone = schedule.timezone
-            .takeIf { it.isNotBlank() }
+            .takeIf {
+                it.isNotBlank() &&
+                    TimeZone.getAvailableIDs().contains(it)
+            }
             ?.let(TimeZone::getTimeZone)
             ?: TimeZone.getDefault()
         return Calendar.getInstance(timezone)
