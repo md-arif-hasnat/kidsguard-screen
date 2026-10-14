@@ -15,10 +15,15 @@ import {
     Filter
 } from 'lucide-react';
 import { ParentRepository, ParentProfile } from '@/lib/repositories/ParentRepository';
+import {
+    AdminFamilyOverview,
+    AdminRepository
+} from '@/lib/repositories/AdminRepository';
 import { clsx } from 'clsx';
 
 export default function InternalCustomersPage() {
   const [parents, setParents] = useState<ParentProfile[]>([]);
+  const [families, setFamilies] = useState<AdminFamilyOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -30,8 +35,12 @@ export default function InternalCustomersPage() {
   useEffect(() => {
     async function load() {
         try {
-            const data = await ParentRepository.getAllParents();
-            setParents(data);
+            const [parentData, familyData] = await Promise.all([
+                ParentRepository.getAllParents(),
+                AdminRepository.getFamilyOverview()
+            ]);
+            setParents(parentData);
+            setFamilies(familyData);
         } catch (e) {
             console.error(e);
         } finally {
@@ -40,6 +49,18 @@ export default function InternalCustomersPage() {
     }
     load();
   }, []);
+
+  const familyByOwnerId = new Map(
+    families.map(family => [family.ownerId, family])
+  );
+
+  const formatSubscribedAt = (value?: number) => {
+    if (!value) return 'Not subscribed';
+    return new Intl.DateTimeFormat('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(value));
+  };
 
   const filteredParents = parents.filter(p =>
     p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -90,6 +111,7 @@ export default function InternalCustomersPage() {
                           <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Family ID</th>
                           <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Region</th>
                           <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Joined At</th>
+                          <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Subscribed On</th>
                           <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
                       </tr>
                   </thead>
@@ -124,6 +146,18 @@ export default function InternalCustomersPage() {
                                   <div className="flex flex-col">
                                       <p className="text-[10px] font-bold text-slate-300">{parent.createdAt?.seconds ? new Date(parent.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
                                       <p className="text-[9px] font-medium text-slate-600 italic">Created</p>
+                                  </div>
+                              </td>
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                  <div className="flex flex-col">
+                                      <p className="text-[10px] font-bold text-slate-300">
+                                          {formatSubscribedAt(
+                                            familyByOwnerId.get(parent.uid)?.subscribedAt
+                                          )}
+                                      </p>
+                                      <p className="text-[9px] font-medium text-slate-600 italic">
+                                          {familyByOwnerId.get(parent.uid)?.subscriptionStatus || 'NONE'}
+                                      </p>
                                   </div>
                               </td>
                               <td className="px-6 py-5 text-right">
