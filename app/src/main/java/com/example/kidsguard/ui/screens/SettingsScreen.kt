@@ -74,28 +74,23 @@ fun SettingsScreen(onBack: () -> Unit, prefHelper: PreferenceHelper) {
 
             ListItem(
                 headlineContent = { Text("Lock Schedule") },
-                supportingContent = { Text("Automatically lock device during hours") },
-                trailingContent = { 
-                    Switch(checked = prefHelper.isScheduleEnabled, onCheckedChange = { prefHelper.isScheduleEnabled = it }) 
+                supportingContent = {
+                    Text(
+                        if (prefHelper.isScheduleEnabled) {
+                            "${prefHelper.scheduleStartTime} – ${prefHelper.scheduleEndTime} · Managed by parent"
+                        } else {
+                            "Off · Managed by parent"
+                        }
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = prefHelper.isScheduleEnabled,
+                        onCheckedChange = null,
+                        enabled = false
+                    )
                 }
             )
-            
-            if (prefHelper.isScheduleEnabled) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    OutlinedTextField(
-                        value = prefHelper.scheduleStartTime,
-                        onValueChange = { prefHelper.scheduleStartTime = it },
-                        label = { Text("Start") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = prefHelper.scheduleEndTime,
-                        onValueChange = { prefHelper.scheduleEndTime = it },
-                        label = { Text("End") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
         }
     }
 }
