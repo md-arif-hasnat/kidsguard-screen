@@ -88,6 +88,7 @@ export interface FamilySubscription {
   trialStartsAt?: any;
   trialEndsAt?: any;
   currentPeriodEndsAt?: any;
+  nextBilledAt?: any;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   stripePriceId?: string;
@@ -96,7 +97,7 @@ export interface FamilySubscription {
   cancellationRequestedBy?: string;
   cancellationRequestId?: string;
   cancellationEffectiveAt?: any;
-  cancellationStatus?: "CONFIRMED" | "PENDING_PROVIDER_CONFIRMATION";
+  cancellationStatus?: "CONFIRMED" | "PENDING_PROVIDER_CONFIRMATION" | "COMPLETED";
 }
 
 export interface FamilyData {

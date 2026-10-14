@@ -16,6 +16,9 @@ const paddleApiKey = defineSecret('PADDLE_API_KEY');
 type PaddleSubscriptionResponse = {
   id?: string;
   status?: string;
+  next_billed_at?: string | null;
+  current_billing_period?: {ends_at?: string} | null;
+  trial_dates?: {starts_at?: string; ends_at?: string} | null;
   scheduled_change?: {
     action?: string;
     effective_at?: string;
@@ -4402,8 +4405,22 @@ export const requestSubscriptionCancellation =
           ? data.reason.trim().slice(0, 500)
           : '';
 
+      const subscribedAtMs =
+        typeof subscription.subscribedAt?.toMillis === 'function'
+          ? subscription.subscribedAt.toMillis()
+          : typeof subscription.subscribedAt === 'number'
+            ? subscription.subscribedAt
+            : Number.NaN;
       let effectiveAt: unknown =
-        subscription.currentPeriodEndsAt || requestedAt;
+        subscription.trialEndsAt ||
+        subscription.currentPeriodEndsAt ||
+        (
+          status === 'TRIALING' && Number.isFinite(subscribedAtMs)
+            ? admin.firestore.Timestamp.fromMillis(
+              subscribedAtMs + 7 * 24 * 60 * 60 * 1000
+            )
+            : requestedAt
+        );
       let providerStatus: string | null = null;
 
       if (providerSubscriptionId) {
@@ -4414,7 +4431,10 @@ export const requestSubscriptionCancellation =
           );
         providerStatus = paddleSubscription.status || null;
         const paddleEffectiveAt =
-          paddleSubscription.scheduled_change?.effective_at;
+          paddleSubscription.scheduled_change?.effective_at ||
+          paddleSubscription.trial_dates?.ends_at ||
+          paddleSubscription.current_billing_period?.ends_at ||
+          paddleSubscription.next_billed_at;
         if (paddleEffectiveAt) {
           const parsedEffectiveAt =
             admin.firestore.Timestamp.fromDate(
@@ -4527,6 +4547,33 @@ export const resumeScheduledSubscription =
       }
 
       const subscription = familyData.subscription || {};
+      const cancellationEffectiveAt =
+        subscription.cancellationEffectiveAt;
+      const cancellationEffectiveAtMs =
+        typeof cancellationEffectiveAt?.toMillis === 'function'
+          ? cancellationEffectiveAt.toMillis()
+          : typeof cancellationEffectiveAt === 'number'
+            ? cancellationEffectiveAt
+            : typeof cancellationEffectiveAt === 'string'
+              ? Date.parse(cancellationEffectiveAt)
+              : Number.NaN;
+
+      if (
+        Number.isFinite(cancellationEffectiveAtMs) &&
+        cancellationEffectiveAtMs <= Date.now()
+      ) {
+        await familyRef.update({
+          'subscription.status': 'CANCELED',
+          'subscription.cancelAtPeriodEnd': false,
+          'subscription.cancellationStatus': 'COMPLETED',
+          'subscription.cancelledAt':
+            admin.firestore.FieldValue.serverTimestamp()
+        });
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This subscription has already ended. Start a new subscription instead.'
+        );
+      }
       if (subscription.cancelAtPeriodEnd !== true) {
         return {
           success: true,
@@ -4611,6 +4658,50 @@ export const resumeScheduledSubscription =
         wasScheduled: true
       };
     });
+
+export const reconcileExpiredSubscriptionCancellations = functions.pubsub
+  .schedule('every 5 minutes')
+  .timeZone('Europe/Berlin')
+  .onRun(async () => {
+    const snapshot = await db
+      .collection('families')
+      .where('subscription.cancelAtPeriodEnd', '==', true)
+      .limit(500)
+      .get();
+    const now = Date.now();
+    const batch = db.batch();
+    let updated = 0;
+
+    snapshot.docs.forEach((familyDoc) => {
+      const subscription = familyDoc.data().subscription || {};
+      const effectiveAt = subscription.cancellationEffectiveAt;
+      const effectiveAtMs =
+        typeof effectiveAt?.toMillis === 'function'
+          ? effectiveAt.toMillis()
+          : typeof effectiveAt === 'number'
+            ? effectiveAt
+            : typeof effectiveAt === 'string'
+              ? Date.parse(effectiveAt)
+              : Number.NaN;
+
+      if (!Number.isFinite(effectiveAtMs) || effectiveAtMs > now) return;
+
+      batch.update(familyDoc.ref, {
+        'subscription.status': 'CANCELED',
+        'subscription.cancelAtPeriodEnd': false,
+        'subscription.cancellationStatus': 'COMPLETED',
+        'subscription.cancelledAt':
+          admin.firestore.FieldValue.serverTimestamp(),
+        'subscription.updatedAt':
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+      updated += 1;
+    });
+
+    if (updated > 0) await batch.commit();
+    console.log(`Reconciled ${updated} expired subscription cancellations.`);
+    return null;
+  });
 
 export const cleanupExpiredFamilyExports =
 onSchedule(
@@ -6994,6 +7085,23 @@ export const paddleBillingWebhook = functions
           if (periodEnd !== null) {
             patch['subscription.currentPeriodEndsAt'] =
               periodEnd;
+          }
+
+          const trialStart = paddleDateMillis(
+            data.trial_dates?.starts_at
+          );
+          if (trialStart !== null) {
+            patch['subscription.trialStartsAt'] = trialStart;
+          }
+          const trialEnd = paddleDateMillis(
+            data.trial_dates?.ends_at
+          );
+          if (trialEnd !== null) {
+            patch['subscription.trialEndsAt'] = trialEnd;
+          }
+          const nextBilledAt = paddleDateMillis(data.next_billed_at);
+          if (nextBilledAt !== null) {
+            patch['subscription.nextBilledAt'] = nextBilledAt;
           }
 
           const scheduledChange =

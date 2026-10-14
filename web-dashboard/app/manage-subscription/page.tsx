@@ -38,12 +38,26 @@ function formatDate(value: any): string {
   }).format(date);
 }
 
+function timestampMillis(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?.seconds === "number") return value.seconds * 1000;
+  const parsed = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function ManageSubscriptionPage() {
   const router = useRouter();
   const { family, loading, role } = useParentProfile();
   const [working, setWorking] = useState(false);
   const [kept, setKept] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!loading && role !== FamilyRole.OWNER) {
@@ -54,10 +68,26 @@ export default function ManageSubscriptionPage() {
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
   const neverSubscribed = status === "NONE";
+  const subscribedAt = timestampMillis(subscription?.subscribedAt);
+  const isTrial = status === "TRIAL" || status === "TRIALING";
+  const calculatedTrialEnd =
+    isTrial && subscribedAt !== null
+      ? subscribedAt + 7 * 24 * 60 * 60 * 1000
+      : null;
+  const cancellationEffectiveAt = timestampMillis(
+    subscription?.cancellationEffectiveAt ||
+      (isTrial ? subscription?.trialEndsAt : null) ||
+      subscription?.currentPeriodEndsAt ||
+      subscription?.nextBilledAt ||
+      calculatedTrialEnd
+  );
+  const cancellationTimePassed =
+    cancellationEffectiveAt !== null && cancellationEffectiveAt <= now;
   const ended =
     status === "CANCELED" ||
     status === "CANCELLED" ||
     status === "EXPIRED" ||
+    cancellationTimePassed ||
     neverSubscribed;
   const cancellationRequested =
     Boolean(subscription?.cancellationRequestedAt) ||
@@ -66,6 +96,7 @@ export default function ManageSubscriptionPage() {
     subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
   const cancellationScheduled =
     !ended &&
+    !cancellationTimePassed &&
     !kept &&
     (subscription?.cancelAtPeriodEnd === true || cancellationRequested);
   const cancellationPendingProvider =
@@ -73,7 +104,10 @@ export default function ManageSubscriptionPage() {
     subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
   const effectiveDate = formatDate(
     subscription?.cancellationEffectiveAt ||
-      subscription?.currentPeriodEndsAt
+      (isTrial ? subscription?.trialEndsAt : null) ||
+      subscription?.currentPeriodEndsAt ||
+      subscription?.nextBilledAt ||
+      calculatedTrialEnd
   );
 
   const keepSubscription = async () => {

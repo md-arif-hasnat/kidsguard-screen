@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
+exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -2873,12 +2873,24 @@ exports.requestSubscriptionCancellation = functions
     const reason = typeof data?.reason === 'string'
         ? data.reason.trim().slice(0, 500)
         : '';
-    let effectiveAt = subscription.currentPeriodEndsAt || requestedAt;
+    const subscribedAtMs = typeof subscription.subscribedAt?.toMillis === 'function'
+        ? subscription.subscribedAt.toMillis()
+        : typeof subscription.subscribedAt === 'number'
+            ? subscription.subscribedAt
+            : Number.NaN;
+    let effectiveAt = subscription.trialEndsAt ||
+        subscription.currentPeriodEndsAt ||
+        (status === 'TRIALING' && Number.isFinite(subscribedAtMs)
+            ? admin.firestore.Timestamp.fromMillis(subscribedAtMs + 7 * 24 * 60 * 60 * 1000)
+            : requestedAt);
     let providerStatus = null;
     if (providerSubscriptionId) {
         const paddleSubscription = await callPaddleSubscriptionApi(providerSubscriptionId, 'cancel');
         providerStatus = paddleSubscription.status || null;
-        const paddleEffectiveAt = paddleSubscription.scheduled_change?.effective_at;
+        const paddleEffectiveAt = paddleSubscription.scheduled_change?.effective_at ||
+            paddleSubscription.trial_dates?.ends_at ||
+            paddleSubscription.current_billing_period?.ends_at ||
+            paddleSubscription.next_billed_at;
         if (paddleEffectiveAt) {
             const parsedEffectiveAt = admin.firestore.Timestamp.fromDate(new Date(paddleEffectiveAt));
             effectiveAt = parsedEffectiveAt;
@@ -2959,6 +2971,24 @@ exports.resumeScheduledSubscription = functions
         throw new functions.https.HttpsError('permission-denied', 'Only the family owner can manage the subscription.');
     }
     const subscription = familyData.subscription || {};
+    const cancellationEffectiveAt = subscription.cancellationEffectiveAt;
+    const cancellationEffectiveAtMs = typeof cancellationEffectiveAt?.toMillis === 'function'
+        ? cancellationEffectiveAt.toMillis()
+        : typeof cancellationEffectiveAt === 'number'
+            ? cancellationEffectiveAt
+            : typeof cancellationEffectiveAt === 'string'
+                ? Date.parse(cancellationEffectiveAt)
+                : Number.NaN;
+    if (Number.isFinite(cancellationEffectiveAtMs) &&
+        cancellationEffectiveAtMs <= Date.now()) {
+        await familyRef.update({
+            'subscription.status': 'CANCELED',
+            'subscription.cancelAtPeriodEnd': false,
+            'subscription.cancellationStatus': 'COMPLETED',
+            'subscription.cancelledAt': admin.firestore.FieldValue.serverTimestamp()
+        });
+        throw new functions.https.HttpsError('failed-precondition', 'This subscription has already ended. Start a new subscription instead.');
+    }
     if (subscription.cancelAtPeriodEnd !== true) {
         return {
             success: true,
@@ -3012,6 +3042,44 @@ exports.resumeScheduledSubscription = functions
         success: true,
         wasScheduled: true
     };
+});
+exports.reconcileExpiredSubscriptionCancellations = functions.pubsub
+    .schedule('every 5 minutes')
+    .timeZone('Europe/Berlin')
+    .onRun(async () => {
+    const snapshot = await db
+        .collection('families')
+        .where('subscription.cancelAtPeriodEnd', '==', true)
+        .limit(500)
+        .get();
+    const now = Date.now();
+    const batch = db.batch();
+    let updated = 0;
+    snapshot.docs.forEach((familyDoc) => {
+        const subscription = familyDoc.data().subscription || {};
+        const effectiveAt = subscription.cancellationEffectiveAt;
+        const effectiveAtMs = typeof effectiveAt?.toMillis === 'function'
+            ? effectiveAt.toMillis()
+            : typeof effectiveAt === 'number'
+                ? effectiveAt
+                : typeof effectiveAt === 'string'
+                    ? Date.parse(effectiveAt)
+                    : Number.NaN;
+        if (!Number.isFinite(effectiveAtMs) || effectiveAtMs > now)
+            return;
+        batch.update(familyDoc.ref, {
+            'subscription.status': 'CANCELED',
+            'subscription.cancelAtPeriodEnd': false,
+            'subscription.cancellationStatus': 'COMPLETED',
+            'subscription.cancelledAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+        });
+        updated += 1;
+    });
+    if (updated > 0)
+        await batch.commit();
+    console.log(`Reconciled ${updated} expired subscription cancellations.`);
+    return null;
 });
 exports.cleanupExpiredFamilyExports = (0, scheduler_1.onSchedule)({
     schedule: "every 15 minutes",
@@ -4624,6 +4692,18 @@ exports.paddleBillingWebhook = functions
                 if (periodEnd !== null) {
                     patch['subscription.currentPeriodEndsAt'] =
                         periodEnd;
+                }
+                const trialStart = paddleDateMillis(data.trial_dates?.starts_at);
+                if (trialStart !== null) {
+                    patch['subscription.trialStartsAt'] = trialStart;
+                }
+                const trialEnd = paddleDateMillis(data.trial_dates?.ends_at);
+                if (trialEnd !== null) {
+                    patch['subscription.trialEndsAt'] = trialEnd;
+                }
+                const nextBilledAt = paddleDateMillis(data.next_billed_at);
+                if (nextBilledAt !== null) {
+                    patch['subscription.nextBilledAt'] = nextBilledAt;
                 }
                 const scheduledChange = data.scheduled_change;
                 const cancellationScheduled = scheduledChange?.action === 'cancel';
