@@ -1,10 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useParentProfile } from "@/lib/context/ParentProfileContext";
+import { FamilyRole } from "@/lib/repositories/FamilyRepository";
 
 interface LegalFooterProps {
   dark?: boolean;
 }
 
 export default function LegalFooter({ dark = false }: LegalFooterProps) {
+  const { role } = useParentProfile();
+  const canManageSubscription = role === FamilyRole.OWNER;
   const linkClass = dark
     ? "text-slate-400 transition-colors hover:text-white hover:underline"
     : "text-slate-500 transition-colors hover:text-blue-600 hover:underline";
@@ -33,9 +39,11 @@ export default function LegalFooter({ dark = false }: LegalFooterProps) {
         <Link href="/terms" className={linkClass}>
           Terms of Service
         </Link>
-        <Link href="/manage-subscription" className={linkClass}>
-          Manage Subscription
-        </Link>
+        {canManageSubscription && (
+          <Link href="/manage-subscription" className={linkClass}>
+            Manage Subscription
+          </Link>
+        )}
         <Link href="/delete-account" className={linkClass}>
           Delete Account
         </Link>
