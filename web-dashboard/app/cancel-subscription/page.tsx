@@ -5,11 +5,16 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { observeAuth } from "@/lib/auth";
-import { FamilyRepository } from "@/lib/repositories/FamilyRepository";
+import {
+  FamilyRepository,
+  FamilyRole,
+} from "@/lib/repositories/FamilyRepository";
+import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import LegalFooter from "@/components/LegalFooter";
 
 export default function CancelSubscriptionPage() {
   const router = useRouter();
+  const { role, loading: profileLoading } = useParentProfile();
   const [authChecked, setAuthChecked] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -28,6 +33,17 @@ export default function CancelSubscriptionPage() {
       setAuthChecked(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (
+      authChecked &&
+      isSignedIn &&
+      !profileLoading &&
+      role !== FamilyRole.OWNER
+    ) {
+      router.replace("/");
+    }
+  }, [authChecked, isSignedIn, profileLoading, role, router]);
 
   const submitCancellation = async () => {
     if (!confirmed || submitting) return;
@@ -53,7 +69,10 @@ export default function CancelSubscriptionPage() {
     }
   };
 
-  if (!authChecked) {
+  if (
+    !authChecked ||
+    (isSignedIn && (profileLoading || role !== FamilyRole.OWNER))
+  ) {
     return (
       <main className="min-h-screen bg-slate-950 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
