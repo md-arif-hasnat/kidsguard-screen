@@ -122,19 +122,21 @@ async function getPaddleSubscription(
   return payload.data;
 }
 
-async function addPaddleExtraChildSlot(
+async function changePaddleExtraChildSlots(
   subscriptionId: string,
-  extraChildPriceId: string
+  extraChildPriceId: string,
+  delta: 1 | -1
 ): Promise<number> {
   const apiKey = paddleApiKey.value().trim();
   const subscription = await getPaddleSubscription(subscriptionId);
   const existingItems = Array.isArray(subscription.items)
     ? subscription.items
     : [];
-  let nextExtraQuantity = 1;
+  let nextExtraQuantity = delta > 0 ? 1 : 0;
   let foundExtraPrice = false;
+  const items: Array<{price_id: string; quantity: number}> = [];
 
-  const items = existingItems.map((item) => {
+  for (const item of existingItems) {
     const priceId = item.price?.id || item.price_id;
     if (!priceId) {
       throw new functions.https.HttpsError(
@@ -147,14 +149,23 @@ async function addPaddleExtraChildSlot(
       : 1;
     if (priceId === extraChildPriceId) {
       foundExtraPrice = true;
-      nextExtraQuantity = quantity + 1;
-      return {price_id: priceId, quantity: nextExtraQuantity};
+      nextExtraQuantity = Math.max(0, quantity + delta);
+      if (nextExtraQuantity > 0) {
+        items.push({price_id: priceId, quantity: nextExtraQuantity});
+      }
+      continue;
     }
-    return {price_id: priceId, quantity};
-  });
+    items.push({price_id: priceId, quantity});
+  }
 
-  if (!foundExtraPrice) {
+  if (!foundExtraPrice && delta > 0) {
     items.push({price_id: extraChildPriceId, quantity: 1});
+  }
+  if (!foundExtraPrice && delta < 0) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'No paid extra child slot is available to remove.'
+    );
   }
 
   const response = await fetch(
@@ -182,7 +193,7 @@ async function addPaddleExtraChildSlot(
     );
     throw new functions.https.HttpsError(
       'unavailable',
-      'Paddle could not charge for the extra child slot. No slot was added.'
+      'Paddle could not update the extra child slots. No billing change was made.'
     );
   }
   return nextExtraQuantity;
@@ -4153,9 +4164,10 @@ export const purchaseExtraChildSlot =
       });
 
       try {
-        const expectedQuantity = await addPaddleExtraChildSlot(
+        const expectedQuantity = await changePaddleExtraChildSlots(
           subscriptionId,
-          extraChildPriceId
+          extraChildPriceId,
+          1
         );
         await familyRef.update({
           'subscription.extraChildPurchaseExpectedQuantity': expectedQuantity,
@@ -4179,6 +4191,117 @@ export const purchaseExtraChildSlot =
             admin.firestore.FieldValue.delete(),
           'subscription.extraChildPurchasePendingBy':
             admin.firestore.FieldValue.delete(),
+          'subscription.extraChildPurchaseStatus': 'FAILED'
+        });
+        throw error;
+      }
+    });
+
+export const removeExtraChildSlot =
+  functions
+    .runWith({secrets: [paddleApiKey]})
+    .https.onCall(async (_data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+      }
+      if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'Your email must be verified.');
+      }
+
+      const uid = context.auth.uid;
+      const parentSnapshot = await db.collection('parents').doc(uid).get();
+      const familyId = parentSnapshot.data()?.familyId;
+      if (typeof familyId !== 'string' || !familyId) {
+        throw new functions.https.HttpsError('failed-precondition', 'No family is connected to this account.');
+      }
+
+      const familyRef = db.collection('families').doc(familyId);
+      const familySnapshot = await familyRef.get();
+      const familyData = familySnapshot.data() || {};
+      if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Family not found.');
+      }
+      if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the family owner can remove child slots.');
+      }
+
+      const subscription = familyData.subscription || {};
+      const extraSlots = Number(subscription.extraChildSlots || 0);
+      const baseSlots = Number(subscription.baseChildSlots || 2);
+      const connectedChildren = Array.isArray(familyData.childDeviceIds)
+        ? familyData.childDeviceIds.length
+        : 0;
+      if (!Number.isInteger(extraSlots) || extraSlots < 1) {
+        throw new functions.https.HttpsError('failed-precondition', 'There is no paid child slot to remove.');
+      }
+      if (connectedChildren > baseSlots + extraSlots - 1) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Remove an unused child device before reducing the paid slot count.'
+        );
+      }
+
+      const subscriptionId = subscription.paddleSubscriptionId;
+      const extraChildPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+      if (typeof subscriptionId !== 'string' || !subscriptionId || !extraChildPriceId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Extra-child billing is not configured for this subscription.'
+        );
+      }
+
+      await db.runTransaction(async (transaction) => {
+        const latestSnapshot = await transaction.get(familyRef);
+        const latestData = latestSnapshot.data() || {};
+        const latestSubscription = latestData.subscription || {};
+        const latestExtraSlots = Number(latestSubscription.extraChildSlots || 0);
+        const latestBaseSlots = Number(latestSubscription.baseChildSlots || 2);
+        const latestChildCount = Array.isArray(latestData.childDeviceIds)
+          ? latestData.childDeviceIds.length
+          : 0;
+        const pendingAt = Number(latestSubscription.extraChildPurchasePendingAt || 0);
+        if (pendingAt > Date.now() - 5 * 60 * 1000) {
+          throw new functions.https.HttpsError('aborted', 'A child-slot billing change is already processing.');
+        }
+        if (latestExtraSlots < 1 || latestChildCount > latestBaseSlots + latestExtraSlots - 1) {
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            'The slot is currently in use. Remove a child device first.'
+          );
+        }
+        transaction.update(familyRef, {
+          'subscription.extraChildPurchasePendingAt': Date.now(),
+          'subscription.extraChildPurchasePendingBy': uid,
+          'subscription.extraChildPurchaseStatus': 'PROCESSING_REMOVAL'
+        });
+      });
+
+      try {
+        const expectedQuantity = await changePaddleExtraChildSlots(
+          subscriptionId,
+          extraChildPriceId,
+          -1
+        );
+        await familyRef.update({
+          'subscription.extraChildPurchaseExpectedQuantity': expectedQuantity,
+          'subscription.extraChildPurchaseStatus': 'AWAITING_WEBHOOK'
+        });
+        await db.collection('auditLogs').add({
+          actorUid: uid,
+          actorEmail: context.auth.token.email || null,
+          familyId,
+          action: 'EXTRA_CHILD_SLOT_REMOVED',
+          targetType: 'SUBSCRIPTION',
+          targetId: subscriptionId,
+          severity: 'NOTICE',
+          metadata: {expectedQuantity},
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return {success: true, expectedQuantity};
+      } catch (error) {
+        await familyRef.update({
+          'subscription.extraChildPurchasePendingAt': admin.firestore.FieldValue.delete(),
+          'subscription.extraChildPurchasePendingBy': admin.firestore.FieldValue.delete(),
           'subscription.extraChildPurchaseStatus': 'FAILED'
         });
         throw error;
