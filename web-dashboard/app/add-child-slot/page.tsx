@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, PlusCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertCircle, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
+import { FamilyRepository, FamilyRole } from "@/lib/repositories/FamilyRepository";
 
 export default function AddChildSlotPage() {
-  const { family } = useParentProfile();
+  const router = useRouter();
+  const { family, loading, role } = useParentProfile();
+  const [purchasing, setPurchasing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const subscription = family?.subscription;
   const included = subscription?.baseChildSlots || 2;
   const extra = subscription?.extraChildSlots || 0;
@@ -15,6 +22,38 @@ export default function AddChildSlotPage() {
   const providerReady = Boolean(
     process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID
   );
+
+  useEffect(() => {
+    if (!loading && role !== FamilyRole.OWNER) router.replace("/");
+  }, [loading, role, router]);
+
+  const purchaseSlot = async () => {
+    setPurchasing(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      await FamilyRepository.purchaseExtraChildSlot();
+      setSuccess(true);
+    } catch (purchaseError) {
+      setError(
+        purchaseError instanceof Error
+          ? purchaseError.message
+          : "Could not purchase the extra child slot."
+      );
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  if (loading || role !== FamilyRole.OWNER) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -73,9 +112,8 @@ export default function AddChildSlotPage() {
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <AlertCircle className="h-5 w-5 text-amber-600" />
             <p className="mt-2 text-sm font-semibold leading-6 text-amber-800">
-              The add-on price is configured. Signed webhook and secure
-              server-side subscription-update integration must be deployed
-              before charging customers.
+              Your saved Paddle payment method will be charged the prorated
+              amount now. The slot unlocks only after Paddle confirms it.
             </p>
           </div>
         ) : (
@@ -88,11 +126,29 @@ export default function AddChildSlotPage() {
           </div>
         )}
 
+        {error && (
+          <p className="mt-5 rounded-xl bg-rose-50 p-4 text-sm font-bold text-rose-700">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+            Payment confirmed by Paddle. Your extra slot is being activated.
+          </p>
+        )}
+
         <button
-          disabled
-          className="mt-6 w-full cursor-not-allowed rounded-xl bg-blue-600 px-5 py-4 font-black text-white opacity-50"
+          type="button"
+          disabled={!providerReady || purchasing || success}
+          onClick={purchaseSlot}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Continue to Add Slot
+          {purchasing && <Loader2 className="h-5 w-5 animate-spin" />}
+          {purchasing
+            ? "Processing Secure Payment…"
+            : success
+              ? "Slot Activation Pending"
+              : "Buy Extra Slot · €1.99/month"}
         </button>
 
         <Link
