@@ -6505,6 +6505,17 @@ export const paddleBillingWebhook = functions
           patch['subscription.status'] =
             paddleStatus(data.status);
 
+          if (!subscription.subscribedAt) {
+            const subscribedAt =
+              paddleDateMillis(data.started_at) ||
+              paddleDateMillis(data.created_at) ||
+              paddleDateMillis(payload.occurred_at);
+            if (subscribedAt !== null) {
+              patch['subscription.subscribedAt'] =
+                subscribedAt;
+            }
+          }
+
           const periodEnd = paddleDateMillis(
             data.current_billing_period?.ends_at
           );
