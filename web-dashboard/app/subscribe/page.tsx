@@ -256,9 +256,20 @@ export default function SubscribePage() {
             </>
           )}
 
-          <div className="mt-7 flex items-center gap-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-            Payment details are entered only in Paddle&apos;s secure checkout.
+          <div className="mt-7 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+              Payment details are entered only in Paddle&apos;s secure checkout.
+            </div>
+            <p className="mt-3 border-t border-emerald-200 pt-3">
+              Need help? Email{" "}
+              <a
+                href="mailto:arifhasnat07@gmail.com?subject=KidsGuard%20Subscription%20Support"
+                className="font-black text-emerald-900 underline"
+              >
+                arifhasnat07@gmail.com
+              </a>
+            </p>
           </div>
         </div>
       </div>
