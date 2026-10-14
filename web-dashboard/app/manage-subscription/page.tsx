@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CalendarClock,
@@ -12,7 +13,10 @@ import {
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
-import { FamilyRepository } from "@/lib/repositories/FamilyRepository";
+import {
+  FamilyRepository,
+  FamilyRole,
+} from "@/lib/repositories/FamilyRepository";
 
 function formatDate(value: any): string {
   if (!value) return "the end of the current billing period";
@@ -35,10 +39,17 @@ function formatDate(value: any): string {
 }
 
 export default function ManageSubscriptionPage() {
-  const { family, loading } = useParentProfile();
+  const router = useRouter();
+  const { family, loading, role } = useParentProfile();
   const [working, setWorking] = useState(false);
   const [kept, setKept] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && role !== FamilyRole.OWNER) {
+      router.replace("/");
+    }
+  }, [loading, role, router]);
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
@@ -88,7 +99,7 @@ export default function ManageSubscriptionPage() {
     }
   };
 
-  if (loading) {
+  if (loading || role !== FamilyRole.OWNER) {
     return (
       <DashboardLayout>
         <div className="flex min-h-[50vh] items-center justify-center">
