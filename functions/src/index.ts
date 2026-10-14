@@ -11,6 +11,74 @@ const db = admin.firestore();
 const bucket = admin.storage().bucket();
 const storageBucket = admin.storage().bucket();
 const paddleWebhookSecret = defineSecret('PADDLE_WEBHOOK_SECRET');
+const paddleApiKey = defineSecret('PADDLE_API_KEY');
+
+type PaddleSubscriptionResponse = {
+  id?: string;
+  status?: string;
+  scheduled_change?: {
+    action?: string;
+    effective_at?: string;
+  } | null;
+};
+
+function paddleApiBaseUrl(apiKey: string): string {
+  return apiKey.includes('_sdbx_')
+    ? 'https://sandbox-api.paddle.com'
+    : 'https://api.paddle.com';
+}
+
+async function callPaddleSubscriptionApi(
+  subscriptionId: string,
+  action: 'cancel' | 'resume'
+): Promise<PaddleSubscriptionResponse> {
+  const apiKey = paddleApiKey.value().trim();
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Paddle billing is not configured.'
+    );
+  }
+
+  const isCancel = action === 'cancel';
+  const endpoint = isCancel
+    ? `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`
+    : `/subscriptions/${encodeURIComponent(subscriptionId)}`;
+  const response = await fetch(
+    `${paddleApiBaseUrl(apiKey)}${endpoint}`,
+    {
+      method: isCancel ? 'POST' : 'PATCH',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(
+        isCancel
+          ? {effective_from: 'next_billing_period'}
+          : {scheduled_change: null}
+      )
+    }
+  );
+
+  const payload = await response.json().catch(() => null) as
+    | {data?: PaddleSubscriptionResponse; error?: {detail?: string}}
+    | null;
+
+  if (!response.ok) {
+    const detail = payload?.error?.detail ||
+      `Paddle returned HTTP ${response.status}.`;
+    console.error(
+      `Paddle subscription ${action} failed for ${subscriptionId}:`,
+      detail
+    );
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Paddle could not update the subscription. Please try again.'
+    );
+  }
+
+  return payload?.data || {};
+}
 
 type CanonicalFamilyRole = 'OWNER' | 'MANAGER' | 'VIEWER';
 
@@ -3872,273 +3940,308 @@ export const ensureParentFamily =
   });
 
 export const requestSubscriptionCancellation =
-  functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'You must be signed in.'
-      );
-    }
-
-    if (context.auth.token.email_verified !== true) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Your email must be verified.'
-      );
-    }
-
-    const uid = context.auth.uid;
-    const parentSnapshot = await db
-      .collection('parents')
-      .doc(uid)
-      .get();
-
-    if (!parentSnapshot.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Parent profile not found.'
-      );
-    }
-
-    const familyId = parentSnapshot.data()?.familyId;
-    if (typeof familyId !== 'string' || !familyId) {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'No family is connected to this account.'
-      );
-    }
-
-    const familyRef = db.collection('families').doc(familyId);
-    const familySnapshot = await familyRef.get();
-    if (!familySnapshot.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Family not found.'
-      );
-    }
-
-    const familyData = familySnapshot.data() || {};
-    if (familyData.ownerId !== uid) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Only the family owner can cancel the subscription.'
-      );
-    }
-
-    const subscription = familyData.subscription || {};
-    const status = String(subscription.status || 'NONE').toUpperCase();
-
-    const cancellationAlreadyScheduled =
-      status === 'CANCELED' ||
-      status === 'CANCELLED' ||
-      subscription.cancelAtPeriodEnd === true ||
-      subscription.cancellationStatus === 'CONFIRMED' ||
-      subscription.cancellationStatus ===
-        'PENDING_PROVIDER_CONFIRMATION';
-
-    if (cancellationAlreadyScheduled) {
-      return {
-        success: true,
-        alreadyCanceled: true,
-        requestId: subscription.cancellationRequestId || null,
-        effectiveAt: subscription.cancellationEffectiveAt || null,
-        pendingProviderConfirmation:
-          subscription.cancellationStatus ===
-          'PENDING_PROVIDER_CONFIRMATION'
-      };
-    }
-
-    const providerSubscriptionId =
-      subscription.paddleSubscriptionId ||
-      subscription.stripeSubscriptionId ||
-      null;
-    const requestedAt = admin.firestore.Timestamp.now();
-    const requestRef = db.collection('subscriptionCancellationRequests').doc();
-    const effectiveAt = subscription.currentPeriodEndsAt || requestedAt;
-    const reason =
-      typeof data?.reason === 'string'
-        ? data.reason.trim().slice(0, 500)
-        : '';
-
-    await db.runTransaction(async (transaction) => {
-      transaction.set(requestRef, {
-        requestId: requestRef.id,
-        familyId,
-        requestedBy: uid,
-        requesterEmail: context.auth?.token.email || null,
-        requestedAt,
-        effectiveAt,
-        subscriptionStatusAtRequest: status,
-        providerSubscriptionId,
-        provider: subscription.paddleSubscriptionId
-          ? 'PADDLE'
-          : subscription.stripeSubscriptionId
-            ? 'STRIPE'
-            : null,
-        reason: reason || null,
-        status: providerSubscriptionId
-          ? 'PENDING_PROVIDER_CONFIRMATION'
-          : 'CONFIRMED',
-        source: 'WEB_CANCELLATION_PAGE'
-      });
-
-      transaction.update(familyRef, {
-        'subscription.cancelAtPeriodEnd': true,
-        'subscription.cancellationRequestedAt': requestedAt,
-        'subscription.cancellationRequestedBy': uid,
-        'subscription.cancellationRequestId': requestRef.id,
-        'subscription.cancellationEffectiveAt': effectiveAt,
-        'subscription.cancellationStatus':
-          providerSubscriptionId
-            ? 'PENDING_PROVIDER_CONFIRMATION'
-            : 'CONFIRMED'
-      });
-    });
-
-    await db.collection('auditLogs').add({
-      actorUid: uid,
-      actorEmail: context.auth?.token.email || null,
-      familyId,
-      action: 'SUBSCRIPTION_CANCELLATION_REQUESTED',
-      targetType: 'SUBSCRIPTION',
-      targetId: requestRef.id,
-      severity: 'NOTICE',
-      metadata: {
-        effectiveAt,
-        requiresProviderConfirmation:
-          Boolean(providerSubscriptionId)
-      },
-      createdAt:
-        admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return {
-      success: true,
-      alreadyCanceled: false,
-      requestId: requestRef.id,
-      effectiveAt,
-      pendingProviderConfirmation:
-        Boolean(providerSubscriptionId)
-    };
-  });
-
-export const resumeScheduledSubscription =
-  functions.https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'You must be signed in.'
-      );
-    }
-
-    if (context.auth.token.email_verified !== true) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Your email must be verified.'
-      );
-    }
-
-    const uid = context.auth.uid;
-    const parentSnapshot = await db
-      .collection('parents')
-      .doc(uid)
-      .get();
-    const familyId = parentSnapshot.data()?.familyId;
-
-    if (typeof familyId !== 'string' || !familyId) {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'No family is connected to this account.'
-      );
-    }
-
-    const familyRef = db.collection('families').doc(familyId);
-    const familySnapshot = await familyRef.get();
-
-    if (!familySnapshot.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Family not found.'
-      );
-    }
-
-    const familyData = familySnapshot.data() || {};
-    if (familyData.ownerId !== uid) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Only the family owner can manage the subscription.'
-      );
-    }
-
-    const subscription = familyData.subscription || {};
-    if (subscription.cancelAtPeriodEnd !== true) {
-      return {
-        success: true,
-        wasScheduled: false
-      };
-    }
-
-    const status = String(
-      subscription.status || 'NONE'
-    ).toUpperCase();
-
-    if (
-      status === 'CANCELED' ||
-      status === 'CANCELLED' ||
-      status === 'EXPIRED'
-    ) {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'This subscription has already ended. Start a new subscription instead.'
-      );
-    }
-
-    const requestId = subscription.cancellationRequestId;
-    await db.runTransaction(async (transaction) => {
-      transaction.update(familyRef, {
-        'subscription.cancelAtPeriodEnd': false,
-        'subscription.cancellationRequestedAt':
-          admin.firestore.FieldValue.delete(),
-        'subscription.cancellationRequestedBy':
-          admin.firestore.FieldValue.delete(),
-        'subscription.cancellationRequestId':
-          admin.firestore.FieldValue.delete(),
-        'subscription.cancellationEffectiveAt':
-          admin.firestore.FieldValue.delete(),
-        'subscription.cancellationStatus':
-          admin.firestore.FieldValue.delete()
-      });
-
-      if (typeof requestId === 'string' && requestId) {
-        transaction.set(
-          db.collection('subscriptionCancellationRequests').doc(requestId),
-          {
-            status: 'REVOKED',
-            revokedAt: admin.firestore.FieldValue.serverTimestamp(),
-            revokedBy: uid
-          },
-          {merge: true}
+  functions
+    .runWith({secrets: [paddleApiKey]})
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+          'unauthenticated',
+          'You must be signed in.'
         );
       }
+
+      if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Your email must be verified.'
+        );
+      }
+
+      const uid = context.auth.uid;
+      const parentSnapshot = await db
+        .collection('parents')
+        .doc(uid)
+        .get();
+
+      if (!parentSnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Parent profile not found.'
+        );
+      }
+
+      const familyId = parentSnapshot.data()?.familyId;
+      if (typeof familyId !== 'string' || !familyId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'No family is connected to this account.'
+        );
+      }
+
+      const familyRef = db.collection('families').doc(familyId);
+      const familySnapshot = await familyRef.get();
+      if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Family not found.'
+        );
+      }
+
+      const familyData = familySnapshot.data() || {};
+      if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Only the family owner can cancel the subscription.'
+        );
+      }
+
+      const subscription = familyData.subscription || {};
+      const status = String(subscription.status || 'NONE').toUpperCase();
+      const cancellationConfirmed =
+        status === 'CANCELED' ||
+        status === 'CANCELLED' ||
+        (
+          subscription.cancelAtPeriodEnd === true &&
+          subscription.cancellationStatus === 'CONFIRMED'
+        );
+
+      if (cancellationConfirmed) {
+        return {
+          success: true,
+          alreadyCanceled: true,
+          requestId: subscription.cancellationRequestId || null,
+          effectiveAt: subscription.cancellationEffectiveAt || null,
+          pendingProviderConfirmation: false
+        };
+      }
+
+      if (subscription.stripeSubscriptionId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This legacy subscription must be managed through support.'
+        );
+      }
+
+      const providerSubscriptionId =
+        typeof subscription.paddleSubscriptionId === 'string'
+          ? subscription.paddleSubscriptionId
+          : null;
+      const requestedAt = admin.firestore.Timestamp.now();
+      const requestRef = db.collection('subscriptionCancellationRequests').doc();
+      const reason =
+        typeof data?.reason === 'string'
+          ? data.reason.trim().slice(0, 500)
+          : '';
+
+      let effectiveAt: unknown =
+        subscription.currentPeriodEndsAt || requestedAt;
+      let providerStatus: string | null = null;
+
+      if (providerSubscriptionId) {
+        const paddleSubscription =
+          await callPaddleSubscriptionApi(
+            providerSubscriptionId,
+            'cancel'
+          );
+        providerStatus = paddleSubscription.status || null;
+        const paddleEffectiveAt =
+          paddleSubscription.scheduled_change?.effective_at;
+        if (paddleEffectiveAt) {
+          const parsedEffectiveAt =
+            admin.firestore.Timestamp.fromDate(
+              new Date(paddleEffectiveAt)
+            );
+          effectiveAt = parsedEffectiveAt;
+        }
+      }
+
+      await db.runTransaction(async (transaction) => {
+        transaction.set(requestRef, {
+          requestId: requestRef.id,
+          familyId,
+          requestedBy: uid,
+          requesterEmail: context.auth?.token.email || null,
+          requestedAt,
+          effectiveAt,
+          subscriptionStatusAtRequest: status,
+          providerSubscriptionId,
+          provider: providerSubscriptionId ? 'PADDLE' : null,
+          providerStatus,
+          reason: reason || null,
+          status: 'CONFIRMED',
+          source: 'WEB_CANCELLATION_PAGE'
+        });
+
+        transaction.update(familyRef, {
+          'subscription.cancelAtPeriodEnd': true,
+          'subscription.cancellationRequestedAt': requestedAt,
+          'subscription.cancellationRequestedBy': uid,
+          'subscription.cancellationRequestId': requestRef.id,
+          'subscription.cancellationEffectiveAt': effectiveAt,
+          'subscription.cancellationStatus': 'CONFIRMED'
+        });
+      });
+
+      await db.collection('auditLogs').add({
+        actorUid: uid,
+        actorEmail: context.auth?.token.email || null,
+        familyId,
+        action: 'SUBSCRIPTION_CANCELLATION_CONFIRMED',
+        targetType: 'SUBSCRIPTION',
+        targetId: requestRef.id,
+        severity: 'NOTICE',
+        metadata: {
+          effectiveAt,
+          provider: providerSubscriptionId ? 'PADDLE' : null
+        },
+        createdAt:
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: true,
+        alreadyCanceled: false,
+        requestId: requestRef.id,
+        effectiveAt,
+        pendingProviderConfirmation: false
+      };
     });
 
-    await db.collection('auditLogs').add({
-      actorUid: uid,
-      actorEmail: context.auth?.token.email || null,
-      familyId,
-      action: 'SUBSCRIPTION_CANCELLATION_REVOKED',
-      targetType: 'SUBSCRIPTION',
-      targetId: requestId || familyId,
-      severity: 'NOTICE',
-      createdAt:
-        admin.firestore.FieldValue.serverTimestamp()
-    });
+export const resumeScheduledSubscription =
+  functions
+    .runWith({secrets: [paddleApiKey]})
+    .https.onCall(async (_data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+          'unauthenticated',
+          'You must be signed in.'
+        );
+      }
 
-    return {
-      success: true,
-      wasScheduled: true
-    };
-  });
+      if (context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Your email must be verified.'
+        );
+      }
+
+      const uid = context.auth.uid;
+      const parentSnapshot = await db
+        .collection('parents')
+        .doc(uid)
+        .get();
+      const familyId = parentSnapshot.data()?.familyId;
+
+      if (typeof familyId !== 'string' || !familyId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'No family is connected to this account.'
+        );
+      }
+
+      const familyRef = db.collection('families').doc(familyId);
+      const familySnapshot = await familyRef.get();
+
+      if (!familySnapshot.exists) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'Family not found.'
+        );
+      }
+
+      const familyData = familySnapshot.data() || {};
+      if (familyData.ownerId !== uid) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Only the family owner can manage the subscription.'
+        );
+      }
+
+      const subscription = familyData.subscription || {};
+      if (subscription.cancelAtPeriodEnd !== true) {
+        return {
+          success: true,
+          wasScheduled: false
+        };
+      }
+
+      const status = String(
+        subscription.status || 'NONE'
+      ).toUpperCase();
+
+      if (
+        status === 'CANCELED' ||
+        status === 'CANCELLED' ||
+        status === 'EXPIRED'
+      ) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This subscription has already ended. Start a new subscription instead.'
+        );
+      }
+
+      const providerSubscriptionId =
+        typeof subscription.paddleSubscriptionId === 'string'
+          ? subscription.paddleSubscriptionId
+          : null;
+      if (providerSubscriptionId) {
+        await callPaddleSubscriptionApi(
+          providerSubscriptionId,
+          'resume'
+        );
+      } else if (subscription.stripeSubscriptionId) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This legacy subscription must be managed through support.'
+        );
+      }
+
+      const requestId = subscription.cancellationRequestId;
+      await db.runTransaction(async (transaction) => {
+        transaction.update(familyRef, {
+          'subscription.cancelAtPeriodEnd': false,
+          'subscription.cancellationRequestedAt':
+            admin.firestore.FieldValue.delete(),
+          'subscription.cancellationRequestedBy':
+            admin.firestore.FieldValue.delete(),
+          'subscription.cancellationRequestId':
+            admin.firestore.FieldValue.delete(),
+          'subscription.cancellationEffectiveAt':
+            admin.firestore.FieldValue.delete(),
+          'subscription.cancellationStatus':
+            admin.firestore.FieldValue.delete()
+        });
+
+        if (typeof requestId === 'string' && requestId) {
+          transaction.set(
+            db.collection('subscriptionCancellationRequests').doc(requestId),
+            {
+              status: 'REVOKED',
+              revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+              revokedBy: uid
+            },
+            {merge: true}
+          );
+        }
+      });
+
+      await db.collection('auditLogs').add({
+        actorUid: uid,
+        actorEmail: context.auth?.token.email || null,
+        familyId,
+        action: 'SUBSCRIPTION_CANCELLATION_REVOKED',
+        targetType: 'SUBSCRIPTION',
+        targetId: requestId || familyId,
+        severity: 'NOTICE',
+        createdAt:
+          admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: true,
+        wasScheduled: true
+      };
+    });
 
 export const cleanupExpiredFamilyExports =
 onSchedule(
