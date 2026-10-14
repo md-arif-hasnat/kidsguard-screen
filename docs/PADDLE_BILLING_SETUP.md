@@ -25,7 +25,7 @@ The browser token and price ID are intentionally public Paddle identifiers. Neve
 
 ## Secure webhook deployment
 
-The callable checkout remains disabled until Paddle configuration is complete. The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`, rejects signatures older than five minutes, deduplicates `event_id` values and atomically synchronizes the family subscription.
+The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`, rejects signatures older than five minutes, deduplicates `event_id` values and atomically synchronizes the family subscription. The `purchaseExtraChildSlot` callable updates the existing Paddle subscription and uses immediate proration with payment-failure protection; access is granted only by the signed webhook.
 
 1. Store the Paddle endpoint secret in Firebase Secret Manager:
 
@@ -34,14 +34,19 @@ The callable checkout remains disabled until Paddle configuration is complete. T
    ```
 
 2. Add the Functions runtime parameter `PADDLE_EXTRA_CHILD_PRICE_ID` using the exact Paddle recurring add-on price ID. Until it is present, the webhook intentionally does not change `extraChildSlots`.
-3. Deploy the webhook:
+3. Store a Paddle API key that has subscription read/write permission:
+
+   ```powershell
+   firebase functions:secrets:set PADDLE_API_KEY
+   ```
+4. Deploy the billing functions:
 
    ```powershell
    $env:FUNCTIONS_DISCOVERY_TIMEOUT="60"
-   firebase deploy --only "functions:paddleBillingWebhook"
+   firebase deploy --only "functions:paddleBillingWebhook,functions:purchaseExtraChildSlot"
    ```
 
-4. In Paddle Sandbox, create a notification destination using the deployed function URL and subscribe to:
+5. In Paddle Sandbox, create a notification destination using the deployed function URL and subscribe to:
    - `subscription.created`
    - `subscription.updated`
    - `subscription.activated`
@@ -54,7 +59,6 @@ Every checkout must include `custom_data.familyId` and `custom_data.parentUid`. 
 
 ## Required before live payments
 
-- Replace the provisional local cancellation handling with Paddle API/customer-portal cancellation.
 - Test the full sandbox lifecycle: trial, paid, past due, cancellation, undo cancellation and resubscription.
 - Confirm that the add-on quantity updates `subscription.extraChildSlots` only after a verified subscription event.
 - Switch Vercel variables to production only after Paddle approves the domain and product.
