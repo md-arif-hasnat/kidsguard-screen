@@ -28,6 +28,14 @@ import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.SyncRemoteCommand
 import com.google.android.gms.location.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class BackgroundTrackingService : Service() {
 
@@ -41,10 +49,12 @@ class BackgroundTrackingService : Service() {
     private lateinit var reverseGeocoder: ReverseGeocoder
     private lateinit var syncProvider: FirebaseRemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
+    private lateinit var lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager
     private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
     private var forceNextLocationSync = false
     private var lastListenedChildId: String? = null
     private var locationHandlerThread: android.os.HandlerThread? = null
+    private val serviceScope = CoroutineScope(Job() + Dispatchers.Default)
 
     companion object {
         private const val NOTIFICATION_ID = 101
@@ -104,10 +114,12 @@ class BackgroundTrackingService : Service() {
         notificationEngine = LocalNotificationEngine(appContext, errorLogRepository)
         
         val trackingManager = BackgroundTrackingManager(LocalTrackingScheduler(appContext), trackingRepository)
-        val lockScheduleManager =
+        lockScheduleManager =
             com.example.kidsguard.managers.LockScheduleManager(
                 appContext,
-                prefHelper
+                prefHelper,
+                onLockRequested = { broadcastCommandIntent("LOCK") },
+                onUnlockRequested = { broadcastCommandIntent("UNLOCK") }
             )
         
         commandHandler = RemoteCommandHandler(
@@ -146,6 +158,28 @@ class BackgroundTrackingService : Service() {
 
         setupLocationCallback()
         setupCommandListener()
+        startLockScheduleMonitoring()
+    }
+
+    private fun startLockScheduleMonitoring() {
+        if (prefHelper.userRole != "CHILD") return
+
+        lockScheduleManager.evaluateNow()
+        serviceScope.launch {
+            while (isActive) {
+                lockScheduleManager.evaluateNow()
+                delay(60_000L)
+            }
+        }
+
+        val childId = prefHelper.childId
+        if (childId.isNotBlank()) {
+            serviceScope.launch {
+                syncProvider.listenToLockSchedule(childId).collect { schedule ->
+                    lockScheduleManager.updateSchedule(schedule)
+                }
+            }
+        }
     }
 
     private fun setupCommandListener() {
@@ -322,6 +356,7 @@ class BackgroundTrackingService : Service() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
         locationHandlerThread?.quitSafely()
         locationHandlerThread = null
+        serviceScope.cancel()
         
         trackingRepository.updateState(TrackingState.STOPPED)
         
