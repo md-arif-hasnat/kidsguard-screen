@@ -43,7 +43,7 @@ The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`
 
    ```powershell
    $env:FUNCTIONS_DISCOVERY_TIMEOUT="60"
-   firebase deploy --only "functions:paddleBillingWebhook,functions:purchaseExtraChildSlot"
+   firebase deploy --only "functions:paddleBillingWebhook,functions:purchaseExtraChildSlot,functions:removeExtraChildSlot"
    ```
 
 5. In Paddle Sandbox, create a notification destination using the deployed function URL and subscribe to:
