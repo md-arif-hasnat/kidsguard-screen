@@ -1058,6 +1058,39 @@ static async purchaseExtraChildSlot(): Promise<{
   };
 }
 
+static async removeExtraChildSlot(): Promise<{
+  success: boolean;
+  expectedQuantity: number;
+}> {
+  const currentUser = auth?.currentUser;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!currentUser || !projectId) {
+    throw new Error("Please sign in with the Family Owner account.");
+  }
+  const idToken = await currentUser.getIdToken(true);
+  const response = await fetch(
+    `https://us-central1-${projectId}.cloudfunctions.net/removeExtraChildSlot`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ data: {} }),
+    }
+  );
+  const payload = await response.json();
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error?.message || "Could not remove the extra child slot."
+    );
+  }
+  return {
+    success: payload.result?.success === true,
+    expectedQuantity: Number(payload.result?.expectedQuantity || 0),
+  };
+}
+
 static async requestSubscriptionCancellation(
   reason: string = ""
 ): Promise<{
