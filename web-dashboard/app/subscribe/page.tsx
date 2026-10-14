@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AlertCircle, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
+import { auth } from "@/lib/firebase";
 
 declare global {
   interface Window {
@@ -47,6 +48,15 @@ export default function SubscribePage() {
     () => Boolean(clientToken && priceId),
     []
   );
+  const parentUid =
+    profile?.uid || auth?.currentUser?.uid || "";
+  const familyId =
+    family?.familyId ||
+    profile?.activeFamilyId ||
+    profile?.ownedFamilyId ||
+    profile?.familyId ||
+    profile?.familyIds?.[0] ||
+    "";
 
   const initializePaddle = () => {
     if (!configured || !window.Paddle) return;
@@ -64,14 +74,22 @@ export default function SubscribePage() {
   };
 
   const openCheckout = () => {
-    if (
-      !window.Paddle ||
-      !sdkReady ||
-      !profile?.uid ||
-      !family?.familyId ||
-      !legalAccepted ||
-      !earlyStartAccepted
-    ) {
+    if (!window.Paddle || !sdkReady) {
+      setError("Secure checkout is still loading. Please try again.");
+      return;
+    }
+
+    if (!parentUid) {
+      setError("Your signed-in parent account could not be verified. Please sign in again.");
+      return;
+    }
+
+    if (!familyId) {
+      setError("Your family account is not ready for checkout. Please refresh the page and try again.");
+      return;
+    }
+
+    if (!legalAccepted || !earlyStartAccepted) {
       setError("Complete the required confirmations before checkout.");
       return;
     }
@@ -83,8 +101,8 @@ export default function SubscribePage() {
       window.Paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customData: {
-          parentUid: profile.uid,
-          familyId: family.familyId,
+          parentUid,
+          familyId,
           product: "kidsguard_family",
         },
         settings: {
