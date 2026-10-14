@@ -280,6 +280,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Apply the persisted parent schedule before choosing the first screen.
+        // This prevents a short unlocked window after app or phone restart.
+        if (prefHelper.userRole == "CHILD") {
+            lockScheduleManager.evaluateNow()
+        }
+
         // Determining initial screen
         handleIntent(intent)
         val initialScreen = if (currentScreenState.value == Screen.AppBlocked) {
