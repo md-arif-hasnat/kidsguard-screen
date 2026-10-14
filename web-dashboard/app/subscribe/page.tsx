@@ -1,12 +1,14 @@
 "use client";
 
 import Script from "next/script";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { auth } from "@/lib/firebase";
+import { FamilyRole } from "@/lib/repositories/FamilyRepository";
 
 declare global {
   interface Window {
@@ -37,12 +39,19 @@ const environment =
     : "sandbox";
 
 export default function SubscribePage() {
-  const { profile, family, loading } = useParentProfile();
+  const router = useRouter();
+  const { profile, family, loading, role } = useParentProfile();
   const [sdkReady, setSdkReady] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [earlyStartAccepted, setEarlyStartAccepted] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && role !== FamilyRole.OWNER) {
+      router.replace("/");
+    }
+  }, [loading, role, router]);
 
   const configured = useMemo(
     () => Boolean(clientToken && priceId),
@@ -120,7 +129,7 @@ export default function SubscribePage() {
     }
   };
 
-  if (loading) {
+  if (loading || role !== FamilyRole.OWNER) {
     return (
       <DashboardLayout>
         <div className="flex min-h-[50vh] items-center justify-center">
