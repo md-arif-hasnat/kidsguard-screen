@@ -84,6 +84,7 @@ export interface FamilySubscription {
   currency?: "EUR";
   basePriceCents?: number;
   extraChildPriceCents?: number;
+  subscribedAt?: any;
   trialStartsAt?: any;
   trialEndsAt?: any;
   currentPeriodEndsAt?: any;
