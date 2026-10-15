@@ -117,7 +117,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-[#f5f5f7] text-[#1d1d1f]">
+    <div className="flex min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#1d1d1f]">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
