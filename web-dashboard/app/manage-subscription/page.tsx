@@ -90,8 +90,6 @@ export default function ManageSubscriptionPage() {
     cancellationTimePassed ||
     neverSubscribed;
   const cancellationRequested =
-    Boolean(subscription?.cancellationRequestedAt) ||
-    Boolean(subscription?.cancellationRequestId) ||
     subscription?.cancellationStatus === "CONFIRMED" ||
     subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
   const cancellationScheduled =
@@ -108,6 +106,15 @@ export default function ManageSubscriptionPage() {
       subscription?.currentPeriodEndsAt ||
       subscription?.nextBilledAt ||
       calculatedTrialEnd
+  );
+  const firstChargeAt = formatDate(
+    subscription?.trialEndsAt ||
+      subscription?.nextBilledAt ||
+      calculatedTrialEnd
+  );
+  const nextChargeAt = formatDate(
+    subscription?.nextBilledAt ||
+      subscription?.currentPeriodEndsAt
   );
 
   const keepSubscription = async () => {
@@ -242,8 +249,9 @@ export default function ManageSubscriptionPage() {
                 Subscription active
               </h2>
               <p className="mt-2 text-sm leading-6 text-emerald-700">
-                Your KidsGuard subscription is active. You can submit a clear
-                cancellation request at any time.
+                {isTrial
+                  ? `€0 due today. Your first €2.99 monthly charge is scheduled for ${firstChargeAt}.`
+                  : `Your KidsGuard subscription is active. Your next €2.99 monthly charge is scheduled for ${nextChargeAt}.`}
               </p>
               <Link
                 href="/cancel-subscription"
