@@ -175,6 +175,24 @@ export default function SubscribePage() {
             <h2 className="mt-2 text-2xl font-black text-slate-900">
               7-day trial, then €2.99/month
             </h2>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-700">
+                  Due today
+                </p>
+                <p className="mt-1 text-2xl font-black text-emerald-950">
+                  €0.00
+                </p>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-blue-700">
+                  After 7 days
+                </p>
+                <p className="mt-1 text-2xl font-black text-blue-950">
+                  €2.99/month
+                </p>
+              </div>
+            </div>
             <ul className="mt-4 space-y-2 text-sm text-slate-600">
               <li>• Includes up to two child devices</li>
               <li>• Recurs monthly until cancelled</li>
