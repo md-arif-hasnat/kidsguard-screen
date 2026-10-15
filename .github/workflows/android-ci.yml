@@ -47,6 +47,9 @@ jobs:
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
       - name: Verify Kotlin and unit tests
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
