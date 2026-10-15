@@ -90,7 +90,6 @@ export default function ManageSubscriptionPage() {
     cancellationTimePassed ||
     neverSubscribed;
   const cancellationRequested =
-    subscription?.cancellationStatus === "CONFIRMED" ||
     subscription?.cancellationStatus === "PENDING_PROVIDER_CONFIRMATION";
   const cancellationScheduled =
     !ended &&
