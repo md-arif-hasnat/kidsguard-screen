@@ -7122,6 +7122,21 @@ export const paddleBillingWebhook = functions
               admin.firestore.FieldValue.delete();
           }
 
+          // A newly-created/resumed subscription must not inherit an old
+          // cancellation request from the family's previous subscription.
+          // Those stale fields made the dashboard show "Keep Subscription"
+          // immediately after a successful checkout.
+          if (!cancellationScheduled) {
+            patch['subscription.cancellationRequestedAt'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.cancellationRequestedBy'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.cancellationRequestId'] =
+              admin.firestore.FieldValue.delete();
+            patch['subscription.cancellationStatus'] =
+              admin.firestore.FieldValue.delete();
+          }
+
           const extraPriceId =
             process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
           if (extraPriceId && Array.isArray(data.items)) {
