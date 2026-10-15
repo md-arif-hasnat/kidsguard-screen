@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "app/build.gradle.kts"
+      - ".github/workflows/build-apk.yml"
 
 permissions:
   contents: write
@@ -82,14 +83,12 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64 repository secret." && exit 1)
           test -n "$ANDROID_KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD repository secret." && exit 1)
           test -n "$ANDROID_KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS repository secret." && exit 1)
           test -n "$ANDROID_KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD repository secret." && exit 1)
-          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || (echo "Missing FIREBASE_SERVICE_ACCOUNT_JSON repository secret." && exit 1)
           test -n "$YOUTUBE_API_KEY" || (echo "Missing YOUTUBE_API_KEY repository secret." && exit 1)
 
       - name: Prepare release signing key
@@ -173,5 +172,9 @@ jobs:
           APK_SIZE: ${{ steps.metadata.outputs.size }}
           RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
         run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON is not configured; skipping optional Firestore release sync."
+            exit 0
+          fi
           npm ci
           node scripts/publish-release.js
