@@ -3,7 +3,6 @@ package com.example.kidsguard.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -114,34 +113,19 @@ fun ParentSetupScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "OR",
-                style = MaterialTheme.typography.labelMedium
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            OutlinedButton(
-                onClick = { /* Scan QR Mock */ },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Scan QR Code")
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            TextButton(
-                onClick = {
-                    prefHelper.userRole = "PARENT"
-                    prefHelper.pairedChildId = "mock_child_001"
-                    prefHelper.childName = "Test Child"
-                    prefHelper.deviceName = "Android Emulator"
-                    onSetupComplete()
+            if (com.example.kidsguard.BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(24.dp))
+                TextButton(
+                    onClick = {
+                        prefHelper.userRole = "PARENT"
+                        prefHelper.pairedChildId = "mock_child_001"
+                        prefHelper.childName = "Test Child"
+                        prefHelper.deviceName = "Android Emulator"
+                        onSetupComplete()
+                    }
+                ) {
+                    Text("Use Mock Child for Testing", color = MaterialTheme.colorScheme.secondary)
                 }
-            ) {
-                Text("Use Mock Child for Testing", color = MaterialTheme.colorScheme.secondary)
             }
         }
     }

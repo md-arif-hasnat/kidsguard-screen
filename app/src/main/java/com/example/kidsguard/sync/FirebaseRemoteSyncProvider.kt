@@ -981,17 +981,27 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             awaitClose { registration.remove() }
         }
 
-    override fun updateWellbeingSettings(childId: String, settings: SyncWellbeingSettings) {
-        if (childId.isEmpty()) return
+    override suspend fun updateWellbeingSettings(
+        childId: String,
+        settings: SyncWellbeingSettings
+    ): Result<Unit> {
+        if (childId.isBlank()) {
+            return Result.failure(IllegalArgumentException("Child ID is required"))
+        }
 
-        db.collection(FirebaseConfig.COL_CHILDREN)
-            .document(childId)
-            .collection("settings")
-            .document("wellbeing")
-            .set(settings)
-            .addOnSuccessListener {
-                Log.d(TAG, "Wellbeing settings updated")
-            }
+        return try {
+            db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("settings")
+                .document("wellbeing")
+                .set(settings)
+                .await()
+            Log.d(TAG, "Wellbeing settings updated")
+            Result.success(Unit)
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to update wellbeing settings for $childId", error)
+            Result.failure(error)
+        }
     }
 
     override fun getAppUsageHistory(childId: String, date: String): Flow<List<SyncAppUsage>> =
@@ -1051,6 +1061,28 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
             awaitClose { registration.remove() }
         }
 
+    override suspend fun updateWebRules(
+        childId: String,
+        rules: com.example.kidsguard.web.WebRuleSet
+    ): Result<Unit> {
+        if (childId.isBlank()) {
+            return Result.failure(IllegalArgumentException("Child ID is required"))
+        }
+
+        return try {
+            db.collection(FirebaseConfig.COL_CHILDREN)
+                .document(childId)
+                .collection("webRules")
+                .document("current")
+                .set(rules)
+                .await()
+            Result.success(Unit)
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to update web rules for $childId", error)
+            Result.failure(error)
+        }
+    }
+
     override fun syncWebActivity(
         childId: String,
         activity: com.example.kidsguard.web.WebActivityEvent
@@ -1104,6 +1136,52 @@ class FirebaseRemoteSyncProvider(private val context: android.content.Context) :
 
             awaitClose { registration.remove() }
         }
+
+    override suspend fun resolveWebAccessRequest(
+        childId: String,
+        requestId: String,
+        status: String,
+        domain: String
+    ): Result<Unit> {
+        if (childId.isBlank() || requestId.isBlank()) {
+            return Result.failure(IllegalArgumentException("Child and request IDs are required"))
+        }
+        if (status != "APPROVED" && status != "DENIED") {
+            return Result.failure(IllegalArgumentException("Unsupported request status"))
+        }
+
+        return try {
+            val childRef = db.collection(FirebaseConfig.COL_CHILDREN).document(childId)
+            val requestRef = childRef.collection("accessRequests").document(requestId)
+            val rulesRef = childRef.collection("webRules").document("current")
+
+            db.runBatch { batch ->
+                batch.update(
+                    requestRef,
+                    mapOf(
+                        "status" to status,
+                        "resolvedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                )
+
+                if (status == "APPROVED" && domain.isNotBlank()) {
+                    batch.set(
+                        rulesRef,
+                        mapOf(
+                            "allowedDomains" to com.google.firebase.firestore.FieldValue.arrayUnion(domain),
+                            "blockedDomains" to com.google.firebase.firestore.FieldValue.arrayRemove(domain)
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    )
+                }
+            }.await()
+
+            Result.success(Unit)
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to resolve web request $requestId", error)
+            Result.failure(error)
+        }
+    }
 
     override fun listenToLockSchedule(childId: String): Flow<com.example.kidsguard.models.LockSchedule?> =
         callbackFlow {

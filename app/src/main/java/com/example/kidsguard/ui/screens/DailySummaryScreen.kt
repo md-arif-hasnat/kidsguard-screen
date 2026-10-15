@@ -114,9 +114,11 @@ fun DailySummaryScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("No summary available for today yet.", style = MaterialTheme.typography.bodyLarge)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { /* In developer menu we can force generate */ }) {
-                            Text("Go to Developer Menu")
-                        }
+                        Text(
+                            "The summary will appear after today's device data has synced.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

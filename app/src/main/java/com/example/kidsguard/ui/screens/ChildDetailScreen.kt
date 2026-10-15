@@ -28,6 +28,7 @@ fun ChildDetailScreen(
     syncProvider: RemoteSyncProvider,
     remoteCommandRepository: RemoteCommandRepository,
     onBack: () -> Unit,
+    onOpenScreenTime: () -> Unit,
     onOpenProtectionModes: () -> Unit,
     onOpenLocationHistory: () -> Unit,
     onOpenInternetProtection: () -> Unit
@@ -148,7 +149,7 @@ fun ChildDetailScreen(
                     icon = Icons.Default.PhonelinkLock,
                     title = "Screen Time",
                     subtitle = "App limits and usage reports",
-                    onClick = { /* TODO */ }
+                    onClick = onOpenScreenTime
                 )
 
                 ControlRow(

@@ -58,7 +58,12 @@ class ProtectionModeManager(context: Context, private val childId: String) {
             val schedule = mode.schedule
             if (schedule != null) {
                 val dayMatch = schedule.days.contains(currentDay)
-                val timeMatch = currentTime >= schedule.startTime && currentTime <= schedule.endTime
+                val timeMatch = if (schedule.startTime <= schedule.endTime) {
+                    currentTime >= schedule.startTime && currentTime <= schedule.endTime
+                } else {
+                    // Overnight windows such as 21:00-07:00 span midnight.
+                    currentTime >= schedule.startTime || currentTime <= schedule.endTime
+                }
                 scheduleMatch = dayMatch && timeMatch
             }
 

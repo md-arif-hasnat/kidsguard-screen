@@ -52,6 +52,7 @@ import com.example.kidsguard.ui.screens.RoleSelectionScreen
 import com.example.kidsguard.ui.screens.RouteDeviationsScreen
 import com.example.kidsguard.ui.screens.RouteHistoryScreen
 import com.example.kidsguard.ui.screens.RouteReplayScreen
+import com.example.kidsguard.ui.screens.ScreenTimeScreen
 import com.example.kidsguard.ui.screens.SafeZoneEditorScreen
 import com.example.kidsguard.ui.screens.SafeZoneListScreen
 import com.example.kidsguard.ui.screens.SettingsScreen
@@ -400,9 +401,20 @@ fun KidsGuardApp(
                         syncProvider = syncProvider,
                         remoteCommandRepository = remoteCommandRepository,
                         onBack = { onScreenChange(Screen.ParentDashboard) },
+                        onOpenScreenTime = { onScreenChange(Screen.ScreenTime) },
                         onOpenProtectionModes = { onScreenChange(Screen.ProtectionModes) },
                         onOpenLocationHistory = { onScreenChange(Screen.LocationHistory) },
                         onOpenInternetProtection = { onScreenChange(Screen.InternetProtection) }
+                    )
+                } ?: onScreenChange(Screen.ParentDashboard)
+            }
+
+            Screen.ScreenTime -> {
+                selectedChildId?.let { id ->
+                    ScreenTimeScreen(
+                        childId = id,
+                        syncProvider = syncProvider,
+                        onBack = { onScreenChange(Screen.ChildDetail) }
                     )
                 } ?: onScreenChange(Screen.ParentDashboard)
             }
