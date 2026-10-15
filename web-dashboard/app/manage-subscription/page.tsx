@@ -67,7 +67,10 @@ export default function ManageSubscriptionPage() {
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
-  const neverSubscribed = status === "NONE";
+  // New parent families are provisioned with PENDING before they ever open
+  // or complete Paddle checkout. Treat that as "not subscribed" instead of
+  // showing paid subscription controls.
+  const neverSubscribed = status === "NONE" || status === "PENDING";
   const subscribedAt = timestampMillis(subscription?.subscribedAt);
   const isTrial = status === "TRIAL" || status === "TRIALING";
   const calculatedTrialEnd =
