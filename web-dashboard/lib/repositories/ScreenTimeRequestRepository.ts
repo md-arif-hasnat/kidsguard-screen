@@ -1,6 +1,7 @@
 import { db } from "../firebase";
 import {
   collection,
+  deleteField,
   doc,
   limit,
   onSnapshot,
@@ -140,6 +141,7 @@ export class ScreenTimeRequestRepository {
         appName: request.appName || packageName,
         temporaryAccessUntil: now + minutes * 60_000,
         overrideSource: "PARENT_SCREEN_TIME_APPROVAL",
+        temporaryAccessCancelledAt: deleteField(),
         updatedAt: serverTimestamp(),
         updatedBy: parentUid,
         revision: Number(control.revision || 0) + 1,

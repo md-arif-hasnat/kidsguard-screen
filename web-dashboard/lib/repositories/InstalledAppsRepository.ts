@@ -33,6 +33,9 @@ export interface AppControl {
   appliedByDeviceId?: string;
   appliedVersion?: string;
   applyMessage?: string;
+  temporaryAccessUntil?: number;
+  overrideSource?: string;
+  temporaryAccessCancelledAt?: any;
 }
 
 export class InstalledAppsRepository {
@@ -76,7 +79,7 @@ export class InstalledAppsRepository {
     const docId = control.packageName.replace(/\./g, "_");
     const controlRef = doc(db, "children", childId, "appControls", docId);
 
-    const data = {
+    const data: Record<string, unknown> = {
       ...control,
       childId,
       updatedAt: serverTimestamp(),
@@ -88,6 +91,16 @@ export class InstalledAppsRepository {
       appliedVersion: deleteField(),
       applyMessage: deleteField()
     };
+
+    // A direct parent block must always take priority over a previously
+    // approved temporary-access window. Without clearing this timestamp the
+    // child keeps allowing the app until the original grant expires, even
+    // though the parent has just blocked it again.
+    if (control.blocked === true) {
+      data.temporaryAccessUntil = 0;
+      data.overrideSource = 'PARENT_MANUAL_BLOCK';
+      data.temporaryAccessCancelledAt = serverTimestamp();
+    }
 
     // If it's a new control, add createdAt
     await setDoc(controlRef, data, { merge: true });

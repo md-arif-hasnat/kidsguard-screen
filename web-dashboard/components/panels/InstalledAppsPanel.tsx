@@ -201,7 +201,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
     if (!profile?.uid) return;
     const newStatus = !app.control.blocked;
 
-    if (newStatus && !confirm(`Block ${app.appName}? It will be prevented from opening on the child's device.`)) {
+    if (newStatus && !confirm(`Block ${app.appName}? It will be prevented from opening immediately and any temporary access will be cancelled.`)) {
         return;
     }
 
