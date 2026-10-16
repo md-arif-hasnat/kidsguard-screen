@@ -7,6 +7,7 @@ import {
   Calendar,
   Clock,
   Loader2,
+  ChevronDown,
   ChevronRight,
   AlertCircle,
   Smartphone,
@@ -191,13 +192,16 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
       ) : (
         <div className="space-y-12">
           {groupedHistory.map(([dateStr, activities]) => (
-            <div key={dateStr} className="space-y-4">
-              <div className="flex items-center gap-4">
-                <h3 className="font-black text-slate-400 text-xs uppercase tracking-[0.2em]">{getDateLabel(dateStr)}</h3>
-                <div className="h-px bg-slate-100 flex-1" />
-              </div>
+            <details key={dateStr} className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="font-black text-slate-700 text-xs uppercase tracking-[0.2em]">{getDateLabel(dateStr)}</span>
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-600">{activities.length}</span>
+                </span>
+                <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-100 bg-slate-50/50 p-4 md:grid-cols-2 md:gap-6 md:p-6 lg:grid-cols-3">
                 {activities.map((activity) => (
                   <div
                     key={activity.id}
@@ -249,7 +253,7 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
           ))}
 
           {hasMore && (

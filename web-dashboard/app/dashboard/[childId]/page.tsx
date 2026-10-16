@@ -92,6 +92,7 @@ import SafeZonesPanel from '@/components/panels/SafeZonesPanel';
 import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 import YouTubeHistoryPanel from '@/components/panels/YouTubeHistoryPanel';
 import BrowserHistoryPanel from '@/components/panels/BrowserHistoryPanel';
+import CollapsiblePanel from '@/components/CollapsiblePanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -775,7 +776,13 @@ const handleSaveOfflineAlertSettings = async () => {
 
             <div className="space-y-8">
                 <div className="space-y-8">
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[350px] md:h-[450px] relative">
+                <CollapsiblePanel
+                    title="Live Location Map"
+                    description={`${displayData.currentZone} • ${deviceConnectionLabel}`}
+                    icon={MapPin}
+                    contentClassName="p-0"
+                >
+                <section className="relative h-[350px] overflow-hidden bg-white md:h-[450px]">
                     {displayData.isLoading && !showMocks ? (
                         <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
                             <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
@@ -815,10 +822,7 @@ const handleSaveOfflineAlertSettings = async () => {
                         </>
                     )}
                 </section>
-
-
-
-
+                </CollapsiblePanel>
                 </div>
 
                 <div className="space-y-8">
@@ -858,7 +862,17 @@ const handleSaveOfflineAlertSettings = async () => {
                     </div>
                 </details>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <CollapsiblePanel
+                  title="Offline Alert"
+                  description={
+                    offlineAlertSettings.enabled
+                      ? `Alert after ${offlineAlertSettings.thresholdMinutes} minutes`
+                      : "Disabled (Never)"
+                  }
+                  icon={CloudOff}
+                  contentClassName="p-0 [&>section>div:first-child]:hidden"
+                >
+                <section className="bg-white p-6">
                   <div className="mb-5 flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100">
                       <CloudOff
@@ -1029,6 +1043,7 @@ const handleSaveOfflineAlertSettings = async () => {
                     </p>
                   )}
                 </section>
+                </CollapsiblePanel>
 
                 {canManageWellbeing && (
                     <LockSchedulePanel
@@ -1083,7 +1098,14 @@ const handleSaveOfflineAlertSettings = async () => {
                         )}
                     </div>
                 </details>
-                <section className="bg-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary-100">
+                <CollapsiblePanel
+                    title="AI Daily Safety Summary"
+                    description={displayData.summary ? `Safety score: ${displayData.summary.score}` : "No summary generated yet"}
+                    icon={Brain}
+                    tone="primary"
+                    contentClassName="p-0 [&>section>div:first-child]:hidden"
+                >
+                <section className="bg-primary-600 p-6 text-white md:p-8">
                                                     <div className="flex items-center gap-2 mb-4">
                                                     <ShieldCheckIcon size={24} />
                                                     <h2 className="text-xl font-bold">AI Daily Safety Summary</h2>
@@ -1109,8 +1131,16 @@ const handleSaveOfflineAlertSettings = async () => {
                                                     </div>
                                                     )}
                                                 </section>
+                </CollapsiblePanel>
 
-                                                <section className="bg-rose-50 rounded-2xl p-6 md:p-8 border border-rose-100">
+                <CollapsiblePanel
+                    title="Danger Zone"
+                    description="Remove this child device from the family"
+                    icon={ShieldAlert}
+                    tone="danger"
+                    contentClassName="p-0 [&>section>h2:first-child]:hidden"
+                >
+                                                <section className="bg-rose-50 p-6 md:p-8">
                                                     <h2 className="text-xl font-black text-rose-800 mb-2">Danger Zone</h2>
                                                     <p className="text-rose-600 text-sm font-medium mb-6">
                                                         Remove this device from your family. Monitoring will stop immediately and the child app will return to setup.
@@ -1130,37 +1160,87 @@ const handleSaveOfflineAlertSettings = async () => {
                                                       </div>
                                                     )}
                                                 </section>
+                </CollapsiblePanel>
                 </div>
             </div>
         </>
       )}
 
       {activeTab === 'location' && (
-          <ChildLocationPanel childId={childId} onViewHistory={() => handleTabChange('history')} />
+          <CollapsiblePanel
+            title="Live Location & Recent History"
+            description="Map, device telemetry and recent location records"
+            icon={MapPin}
+            contentClassName="bg-slate-50/50"
+          >
+            <ChildLocationPanel childId={childId} onViewHistory={() => handleTabChange('history')} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'app-activity' && (
-          <AppActivityPanel childId={childId} />
+          <CollapsiblePanel
+            title="App Activity"
+            description="Screen-time totals and detailed app usage"
+            icon={BarChart3}
+            contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
+          >
+            <AppActivityPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'installed-apps' && (
-          <InstalledAppsPanel childId={childId} />
+          <CollapsiblePanel
+            title="Installed Applications"
+            description="Search apps and manage blocks, schedules and limits"
+            icon={AppWindow}
+            contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
+          >
+            <InstalledAppsPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'safe-zones' && (
-          <SafeZonesPanel childId={childId} />
+          <CollapsiblePanel
+            title="Safe Zones"
+            description={`${safeZones.length} configured zone${safeZones.length === 1 ? '' : 's'}`}
+            icon={Shield}
+            contentClassName="bg-slate-50/50"
+          >
+            <SafeZonesPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'history' && (
-          <ChildHistoryPanel childId={childId} />
+          <CollapsiblePanel
+            title="Route History"
+            description="Replay past routes, visits and movement records"
+            icon={History}
+            contentClassName="bg-slate-50/50"
+          >
+            <ChildHistoryPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'youtube-history' && (
-          <YouTubeHistoryPanel childId={childId} />
+          <CollapsiblePanel
+            title="YouTube History"
+            description="Watched videos grouped by date"
+            icon={Youtube}
+            contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
+          >
+            <YouTubeHistoryPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'browser-history' && (
-          <BrowserHistoryPanel childId={childId} />
+          <CollapsiblePanel
+            title="Browser History"
+            description="Visited websites grouped by date"
+            icon={GlobeIcon}
+            contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
+          >
+            <BrowserHistoryPanel childId={childId} />
+          </CollapsiblePanel>
       )}
 
       {activeTab === 'intelligence' && (
@@ -1178,12 +1258,38 @@ const handleSaveOfflineAlertSettings = async () => {
                   </div>
               </div>
 
-              {status && <AIInsightPanel status={status} />}
+              {status && (
+                <CollapsiblePanel
+                  title="AI Insights"
+                  description="Predictive battery, safety and usage observations"
+                  icon={Brain}
+                  contentClassName="bg-slate-50/50"
+                >
+                  <AIInsightPanel status={status} />
+                </CollapsiblePanel>
+              )}
 
-              {summary && <AIReportCard summary={summary} />}
+              {summary && (
+                <CollapsiblePanel
+                  title="Daily AI Report"
+                  description={`Safety score: ${summary.safetyScore}`}
+                  icon={ShieldCheckIcon}
+                  tone="primary"
+                  contentClassName="bg-slate-50/50"
+                >
+                  <AIReportCard summary={summary} />
+                </CollapsiblePanel>
+              )}
 
               {analytics ? (
-                  <DeviceCharts data={analytics} />
+                  <CollapsiblePanel
+                    title="Device Analytics"
+                    description="Battery and connectivity trends"
+                    icon={BarChart3}
+                    contentClassName="bg-slate-50/50"
+                  >
+                    <DeviceCharts data={analytics} />
+                  </CollapsiblePanel>
               ) : (
                   <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200">
                       <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
@@ -1218,22 +1324,42 @@ const handleSaveOfflineAlertSettings = async () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-12">
-                    <AppUsagePanel usage={appUsage} />
+                    <CollapsiblePanel
+                      title="Application Usage"
+                      description={`${appUsage.length} app${appUsage.length === 1 ? '' : 's'} recorded for this date`}
+                      icon={SmartphoneIcon}
+                      contentClassName="bg-slate-50/50"
+                    >
+                      <AppUsagePanel usage={appUsage} />
+                    </CollapsiblePanel>
 
                     <LockSchedulePanel childId={childId} canEdit={canManageWellbeing} />
                   </div>
 
-                  <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center">
-                    <Shield className="text-primary-500 mb-4" size={48} />
-                    <h3 className="font-bold text-slate-800">App limits and blocking</h3>
-                    <p className="text-sm text-slate-500 mt-1">Manage real per-app controls from the Installed Apps tab.</p>
-                    <button onClick={() => handleTabChange('installed-apps')} className="mt-5 bg-primary-600 text-white px-5 py-3 rounded-xl text-sm font-bold">
-                      Open Installed Apps
-                    </button>
-                  </div>
+                  <CollapsiblePanel
+                    title="App Limits & Blocking"
+                    description="Open per-app controls and schedules"
+                    icon={Shield}
+                    contentClassName="bg-slate-50/50"
+                  >
+                    <div className="flex flex-col items-center justify-center p-4 text-center">
+                      <Shield className="mb-4 text-primary-500" size={48} />
+                      <p className="text-sm text-slate-500">Manage real per-app controls from the Installed Apps tab.</p>
+                      <button onClick={() => handleTabChange('installed-apps')} className="mt-5 rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">
+                        Open Installed Apps
+                      </button>
+                    </div>
+                  </CollapsiblePanel>
               </div>
 
-              <RestrictionHistoryPanel childId={childId} />
+              <CollapsiblePanel
+                title="Restriction History"
+                description="Recent screen-time and app-rule enforcement"
+                icon={History}
+                contentClassName="p-0 [&>section]:border-0 [&>section]:shadow-none"
+              >
+                <RestrictionHistoryPanel childId={childId} />
+              </CollapsiblePanel>
           </div>
       )}
 
@@ -1258,18 +1384,25 @@ const handleSaveOfflineAlertSettings = async () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                   <div className="lg:col-span-2 space-y-12">
                     {canManageWeb ? (
-                        <WebProtectionControls
-                            rules={webRules || {
-                                blockedDomains: [],
-                                allowedDomains: [],
-                                blockedCategories: [],
-                                allowedCategories: [],
-                                safeSearchEnabled: true,
-                                youtubeRestrictedMode: true,
-                                adultContentBlockEnabled: true
-                            }}
-                            onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules, role)}
-                        />
+                        <CollapsiblePanel
+                          title="Protection Rules"
+                          description="Domains, categories and safe-search controls"
+                          icon={Shield}
+                          contentClassName="bg-slate-50/50"
+                        >
+                          <WebProtectionControls
+                              rules={webRules || {
+                                  blockedDomains: [],
+                                  allowedDomains: [],
+                                  blockedCategories: [],
+                                  allowedCategories: [],
+                                  safeSearchEnabled: true,
+                                  youtubeRestrictedMode: true,
+                                  adultContentBlockEnabled: true
+                              }}
+                              onUpdate={(rules) => WebProtectionRepository.updateWebRules(childId, rules, role)}
+                          />
+                        </CollapsiblePanel>
                     ) : (
                         <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex flex-col items-center justify-center text-center opacity-60 mb-12">
                             <Shield className="text-slate-300 mb-4" size={48} />
@@ -1277,14 +1410,28 @@ const handleSaveOfflineAlertSettings = async () => {
                             <p className="text-sm text-slate-500 mt-1 italic">Web protection rules can only be edited by Parents or Owners.</p>
                         </div>
                     )}
-                    <WebActivityPanel events={webActivity} />
+                    <CollapsiblePanel
+                      title="Web Activity"
+                      description={`${webActivity.length} recorded event${webActivity.length === 1 ? '' : 's'}`}
+                      icon={GlobeIcon}
+                      contentClassName="bg-slate-50/50"
+                    >
+                      <WebActivityPanel events={webActivity} />
+                    </CollapsiblePanel>
                   </div>
                   <div className="space-y-12">
                     {canManageWeb && (
+                      <CollapsiblePanel
+                        title="Website Access Requests"
+                        description={`${webRequests.length} request${webRequests.length === 1 ? '' : 's'}`}
+                        icon={ShieldAlert}
+                        contentClassName="bg-slate-50/50"
+                      >
                         <WebAccessRequestsPanel
                             requests={webRequests}
                             onHandle={(id, status, domain) => WebProtectionRepository.handleAccessRequest(childId, id, status, domain, role)}
                         />
+                      </CollapsiblePanel>
                     )}
                   </div>
               </div>
@@ -1295,7 +1442,14 @@ const handleSaveOfflineAlertSettings = async () => {
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-xl font-bold text-slate-900">Device Health \u0026 Diagnostics</h2>
               {status ? (
-                  <HealthCard status={status} />
+                  <CollapsiblePanel
+                    title="Health & Diagnostics"
+                    description="Permissions, battery, connectivity and protection status"
+                    icon={Smartphone}
+                    contentClassName="bg-slate-50/50"
+                  >
+                    <HealthCard status={status} />
+                  </CollapsiblePanel>
               ) : (
                   <p>Loading device details...</p>
               )}
@@ -1304,12 +1458,19 @@ const handleSaveOfflineAlertSettings = async () => {
 
       {activeTab === 'modes' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <ProtectionModePanel
-                  childId={childId}
-                  familyId={family?.familyId || ''}
-                  safeZones={safeZones}
-                  role={role}
-              />
+              <CollapsiblePanel
+                title="Protection Modes"
+                description="Automation modes for school, bedtime and other routines"
+                icon={Shield}
+                contentClassName="bg-slate-50/50"
+              >
+                <ProtectionModePanel
+                    childId={childId}
+                    familyId={family?.familyId || ''}
+                    safeZones={safeZones}
+                    role={role}
+                />
+              </CollapsiblePanel>
           </div>
       )}
 
