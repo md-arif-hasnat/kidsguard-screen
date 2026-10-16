@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run check:no-production-mocks",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "check:no-production-mocks": "node scripts/check-no-production-mocks.mjs"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.19.3",

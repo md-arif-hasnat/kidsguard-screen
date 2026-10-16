@@ -2,10 +2,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import LiveMap from '@/components/LiveMap';
-import { MapPin, Battery, Zap, CloudOff, Info, Clock, Gauge, Navigation, History, ChevronRight } from 'lucide-react';
-import { formatDuration, formatLastUsed, formatAddress } from '@/lib/utils/FormatUtils';
-import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
-import { MOCK_CHILDREN, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
+import { MapPin, Battery, Zap, Info, Clock, Gauge, Navigation, History, ChevronRight } from 'lucide-react';
+import { formatAddress } from '@/lib/utils/FormatUtils';
+import { isFirebaseConfigured } from '@/lib/firebase';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { LocationRepository, LocationPoint } from '@/lib/repositories/LocationRepository';
 import { SafeZoneRepository, SafeZone } from '@/lib/repositories/SafeZoneRepository';
@@ -13,6 +12,7 @@ import { DeviationRepository, RouteDeviation } from '@/lib/repositories/Deviatio
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { clsx } from 'clsx';
 import ChildAvatar from '@/components/ChildAvatar';
+import FirebaseConfigurationError from '@/components/FirebaseConfigurationError';
 
 interface ChildLocationPanelProps {
   childId: string;
@@ -20,7 +20,7 @@ interface ChildLocationPanelProps {
 }
 
 export default function ChildLocationPanel({ childId, onViewHistory }: ChildLocationPanelProps) {
-  const { profile } = useParentProfile();
+  const { profile, family } = useParentProfile();
   const [childStatus, setChildStatus] = useState<ChildStatus | null>(null);
   const [currentChildLocation, setCurrentChildLocation] = useState<LocationPoint | null>(null);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
@@ -31,6 +31,12 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
 
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const profileFamilyId =
+    profile?.activeFamilyId ||
+    profile?.ownedFamilyId ||
+    profile?.familyId ||
+    profile?.familyIds?.[0] ||
+    null;
 
   // Listen to status of child
   useEffect(() => {
@@ -49,8 +55,13 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
     });
     const unsubDeviations = DeviationRepository.listenToDeviations(childId, setDeviations);
 
-    const familyId = profile?.familyId || localStorage.getItem("kidsguard_family_id") || "mock_family_123";
-    const unsubZones = SafeZoneRepository.listenToSafeZones(familyId, setSafeZones);
+    const familyId =
+      family?.familyId ||
+      profileFamilyId ||
+      localStorage.getItem("kidsguard_family_id");
+    const unsubZones = familyId
+      ? SafeZoneRepository.listenToSafeZones(familyId, setSafeZones)
+      : () => {};
 
     return () => {
       unsubLocation();
@@ -58,7 +69,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
       unsubDeviations();
       unsubZones();
     };
-  }, [childId, profile?.familyId]);
+  }, [childId, family?.familyId, profileFamilyId]);
 
   const handleCardClick = (index: number) => {
     setHighlightedIndex(index);
@@ -73,49 +84,45 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
     }
   };
 
-  const mockActiveChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
-
   const displayLocation = currentChildLocation ? {
     lat: currentChildLocation.latitude,
     lng: currentChildLocation.longitude,
     accuracy: currentChildLocation.accuracy,
     speed: currentChildLocation.speed,
     timestamp: currentChildLocation.timestamp
-  } : (mockActiveChild ? { lat: mockActiveChild.lat, lng: mockActiveChild.lng, accuracy: 20, speed: 0 } : null);
+  } : null;
 
-  const displayZones = isFirebaseConfigured ? safeZones.map(z => ({
+  const displayZones = safeZones.map(z => ({
     id: z.id,
     name: z.name,
     lat: z.latitude,
     lng: z.longitude,
     radius: z.radiusMeters,
     type: z.type
-  })) : MOCK_SAFE_ZONES;
+  }));
 
-  const displayRoute = isFirebaseConfigured ? routeHistory.map(p => ({
+  const displayRoute = routeHistory.map(p => ({
     lat: p.latitude,
     lng: p.longitude
-  })) : MOCK_ROUTE_HISTORY;
+  }));
 
-  const displayDeviations = isFirebaseConfigured ? deviations.map(d => ({
+  const displayDeviations = deviations.map(d => ({
     id: d.id,
     lat: d.latitude,
     lng: d.longitude,
     message: d.message,
     time: new Date(d.timestamp).toLocaleTimeString(),
     severity: d.severity
-  })) : MOCK_DEVIATIONS;
+  }));
+
+  if (!isFirebaseConfigured) {
+    return <FirebaseConfigurationError compact />;
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <h2 className="text-xl font-bold text-slate-900">Live Map Center</h2>
-        {!isFirebaseConfigured && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 px-4 flex items-center gap-2">
-            <CloudOff size={16} className="text-yellow-600" />
-            <span className="text-yellow-700 text-[10px] font-bold uppercase tracking-wide">Mock Mode</span>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 md:gap-8">
@@ -124,7 +131,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
             <LiveMap
                 childLocation={displayLocation}
                 defaultRegion={profile?.region}
-                avatarId={childStatus?.avatarId || mockActiveChild?.avatarId}
+                avatarId={childStatus?.avatarId}
                 currentZoneName={childStatus?.currentZone}
                 safeZoneStatus={childStatus?.safeZoneStatus}
                 safeZones={displayZones}
@@ -140,19 +147,21 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
                 <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
                         <ChildAvatar
-                            name={childStatus?.childName || mockActiveChild?.name}
-                            avatarId={childStatus?.avatarId || mockActiveChild?.avatarId}
+                            name={childStatus?.childName || "Child"}
+                            avatarId={childStatus?.avatarId}
                             photoUrl={childStatus?.photoUrl}
                             size="lg"
                             className="border-2 border-primary-200"
                         />
                         <div>
-                            <h3 className="font-bold text-slate-900 text-sm md:text-base">{childStatus?.childName || mockActiveChild?.name || "Loading..."}</h3>
-                            <p className="text-[10px] text-slate-400 font-medium">{displayLocation?.timestamp ? new Date(displayLocation.timestamp).toLocaleTimeString() : "Updating..."}</p>
+                            <h3 className="font-bold text-slate-900 text-sm md:text-base">{childStatus?.childName || "Loading child..."}</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">{displayLocation?.timestamp ? new Date(displayLocation.timestamp).toLocaleTimeString() : "Waiting for location"}</p>
                         </div>
                     </div>
                     <button
                         onClick={() => setFollowChild(!followChild)}
+                        aria-label={followChild ? "Stop following live location" : "Follow live location"}
+                        aria-pressed={followChild}
                         className={clsx(
                             "p-2 rounded-lg transition-colors",
                             followChild ? "bg-primary-500 text-white" : "bg-slate-100 text-slate-500"
@@ -167,14 +176,14 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
                         <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase mb-1">Battery</p>
                         <div className="flex items-center gap-2">
                             <Battery size={14} className="text-primary-500" />
-                            <span className="text-xs md:text-sm font-bold">{childStatus?.batteryPercent || mockActiveChild?.battery || 0}%</span>
+                            <span className="text-xs md:text-sm font-bold">{childStatus ? `${childStatus.batteryPercent ?? 0}%` : "—"}</span>
                         </div>
                     </div>
                     <div className="bg-slate-50 p-2 md:p-3 rounded-xl border border-slate-100">
                         <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase mb-1">Zone</p>
                         <div className="flex items-center gap-2">
                             <MapPin size={14} className="text-green-500" />
-                            <span className="text-xs md:text-sm font-bold truncate">{childStatus?.currentZone || mockActiveChild?.currentZone || "Unknown"}</span>
+                            <span className="text-xs md:text-sm font-bold truncate">{childStatus?.currentZone || "Not reported"}</span>
                         </div>
                     </div>
                 </div>
@@ -229,6 +238,11 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {recentHistory.length === 0 && (
+                  <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-medium text-slate-500">
+                      No location history has been reported for this device yet.
+                  </div>
+              )}
               {recentHistory.map((point, idx) => (
                   <div
                     key={`card-${idx}-${point.timestamp}`}

@@ -4,7 +4,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import LiveMap from '@/components/LiveMap';
-import { MOCK_CHILDREN, MOCK_ACTIVITY, MOCK_SUMMARY, MOCK_SAFE_ZONES, MOCK_ROUTE_HISTORY, MOCK_DEVIATIONS } from '@/lib/mockData';
 import {
   Battery,
   MapPin,
@@ -48,7 +47,7 @@ import { AnalyticsRepository, DeviceAnalytics } from '@/lib/repositories/Analyti
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import AvatarPicker from '@/components/AvatarPicker';
-import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { FamilyData, FamilyRole } from '@/lib/repositories/FamilyRepository';
@@ -93,6 +92,7 @@ import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 import YouTubeHistoryPanel from '@/components/panels/YouTubeHistoryPanel';
 import BrowserHistoryPanel from '@/components/panels/BrowserHistoryPanel';
 import CollapsiblePanel from '@/components/CollapsiblePanel';
+import FirebaseConfigurationError from '@/components/FirebaseConfigurationError';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -139,7 +139,9 @@ export default function ChildDashboard() {
   };
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
+  const hasChildAccess = isChildAccessible(childId);
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [statusNow, setStatusNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -264,17 +266,21 @@ export default function ChildDashboard() {
     if (!isFirebaseConfigured || !childId) return;
 
     // Multi-tenant Guard
-    if (!profileLoading && !isChildAccessible(childId)) {
+    if (!profileLoading && !hasChildAccess) {
         console.warn(`SECURITY: Blocked access to child ${childId} for family ${family?.familyId}`);
         return;
     }
 
-    return ChildRepository.listenToChildStatus(childId, setStatus);
-  }, [childId, profileLoading, family?.familyId]);
+    setStatusLoaded(false);
+    return ChildRepository.listenToChildStatus(childId, (nextStatus) => {
+      setStatus(nextStatus);
+      setStatusLoaded(true);
+    });
+  }, [childId, profileLoading, family?.familyId, hasChildAccess]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !childId) return;
-    if (!profileLoading && !isChildAccessible(childId)) return;
+    if (!profileLoading && !hasChildAccess) return;
 
     const unsubscribers: Array<() => void> = [];
     const familyId = family?.familyId;
@@ -347,55 +353,38 @@ export default function ChildDashboard() {
     childId,
     selectedDate,
     family?.familyId,
-    profileLoading
+    profileLoading,
+    hasChildAccess
   ]);
 
   const canControl = RoleHelper.canSendRemoteCommands(role);
   const canManageWellbeing = RoleHelper.canManageChildren(role);
   const canManageWeb = RoleHelper.canManageWebProtection(role);
 
-  const mockChild = MOCK_CHILDREN.find(c => c.id === childId) || MOCK_CHILDREN[0];
-
-  const displayData = isFirebaseConfigured ? {
-    name: status?.childName || "Loading...",
-    battery: status?.batteryPercent || 0,
+  const displayData = {
+    name: status?.childName || (statusLoaded ? "Child device" : "Loading..."),
+    battery: status?.batteryPercent ?? 0,
     isCharging: status?.charging || false,
-    lastSeen: status?.lastSeen ? new Date(status.lastSeen).toLocaleTimeString() : "Updating...",
-    currentZone: status?.currentZone || "Updating...",
-    status: status?.kidGuardActive ? "LOCKED" : "UNLOCKED",
-    lat: location?.latitude || 0,
-    lng: location?.longitude || 0,
-    accuracy: location?.accuracy || 20,
+    lastSeen: status?.lastSeen ? new Date(status.lastSeen).toLocaleTimeString() : "Not reported",
+    currentZone: status?.currentZone || "Not reported",
+    status: status ? (status.kidGuardActive ? "LOCKED" : "UNLOCKED") : "UNKNOWN",
+    accuracy: location?.accuracy ?? null,
     activities: activities,
     summary: summary ? { score: summary.safetyScore, text: summary.summaryText } : null,
     avatarId: status?.avatarId,
-    isLoading: status === null
-  } : showMocks ? {
-    ...mockChild,
-    accuracy: 20,
-    activities: MOCK_ACTIVITY,
-    summary: MOCK_SUMMARY,
-    avatarId: (mockChild as any).avatarId,
-    isLoading: false
-  } : {
-    name: "Unknown",
-    battery: 0,
-    isCharging: false,
-    lastSeen: "N/A",
-    currentZone: "N/A",
-    status: "UNLOCKED",
-    lat: 0,
-    lng: 0,
-    accuracy: 0,
-    activities: [],
-    summary: null,
-    avatarId: "child_1",
-    isLoading: true
+    isLoading: !statusLoaded
   };
+
+  const currentMapLocation = location ? {
+    lat: location.latitude,
+    lng: location.longitude,
+    accuracy: location.accuracy,
+    timestamp: location.timestamp
+  } : null;
 
   const handleCommand = async (type: CommandType): Promise<boolean> => {
     if (!isFirebaseConfigured) {
-        alert("Firebase not configured. Commands disabled in mock mode.");
+        alert("The secure service is not configured. Commands are unavailable.");
         return false;
     }
     if (!profile || !family) return false;
@@ -467,28 +456,29 @@ const handleSaveOfflineAlertSettings = async () => {
   }
 };
 
-  const displayZones = isFirebaseConfigured ? safeZones.map(z => ({
+  const displayZones = safeZones.map(z => ({
     id: z.id,
     name: z.name,
     lat: z.latitude,
     lng: z.longitude,
     radius: z.radiusMeters,
     type: z.type
-  })) : MOCK_SAFE_ZONES;
+  }));
 
-  const displayRoute = isFirebaseConfigured ? routeHistory.map(p => ({
+  const displayRoute = routeHistory.map(p => ({
     lat: p.latitude,
-    lng: p.longitude
-  })) : MOCK_ROUTE_HISTORY;
+    lng: p.longitude,
+    timestamp: p.timestamp
+  }));
 
-  const displayDeviations = isFirebaseConfigured ? deviations.map(d => ({
+  const displayDeviations = deviations.map(d => ({
     id: d.id,
     lat: d.latitude,
     lng: d.longitude,
     message: d.message,
     time: new Date(d.timestamp).toLocaleTimeString(),
     severity: d.severity
-  })) : MOCK_DEVIATIONS;
+  }));
 
   const deviceLastSeenAgeMs = status?.lastSeen
     ? Math.max(0, statusNow - status.lastSeen)
@@ -498,9 +488,7 @@ const handleSaveOfflineAlertSettings = async () => {
     deviceLastSeenAgeMs !== null &&
     deviceLastSeenAgeMs > 30 * 60 * 1000;
   const deviceIsConnected = status?.online === true && !deviceIsStale;
-  const deviceConnectionLabel = !isFirebaseConfigured
-    ? 'Mock Online'
-    : deviceIsStale
+  const deviceConnectionLabel = deviceIsStale
       ? `Stale (${Math.round((deviceLastSeenAgeMs || 0) / 60000)}m)`
       : deviceIsConnected
         ? 'Connected'
@@ -516,7 +504,15 @@ const handleSaveOfflineAlertSettings = async () => {
       );
   }
 
-  if (isFirebaseConfigured && !isChildAccessible(childId)) {
+  if (!isFirebaseConfigured) {
+      return (
+          <DashboardLayout>
+              <FirebaseConfigurationError />
+          </DashboardLayout>
+      );
+  }
+
+  if (!hasChildAccess) {
       return (
           <DashboardLayout>
               <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -529,7 +525,7 @@ const handleSaveOfflineAlertSettings = async () => {
                       If this is your child, ensure they are paired with your Family ID.
                   </p>
                   <button
-                    onClick={() => window.location.href = '/'}
+                    onClick={() => router.push('/')}
                     className="mt-8 bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all"
                   >
                       Return to Overview
@@ -783,14 +779,14 @@ const handleSaveOfflineAlertSettings = async () => {
                     contentClassName="p-0"
                 >
                 <section className="relative h-[350px] overflow-hidden bg-white md:h-[450px]">
-                    {displayData.isLoading && !showMocks ? (
+                    {displayData.isLoading ? (
                         <div className="w-full h-full flex items-center justify-center bg-slate-50 animate-pulse">
                             <p className="text-slate-400 font-bold italic">Establishing secure connection...</p>
                         </div>
                     ) : (
                         <>
                         <LiveMap
-                            childLocation={{ lat: displayData.lat, lng: displayData.lng, accuracy: displayData.accuracy }}
+                            childLocation={currentMapLocation}
                             defaultRegion={profile?.region}
                             avatarId={displayData.avatarId}
                             currentZoneName={displayData.currentZone}
@@ -807,7 +803,7 @@ const handleSaveOfflineAlertSettings = async () => {
                                 "h-2 w-2 rounded-full",
                                 deviceIsStale
                                   ? "bg-amber-500"
-                                  : deviceIsConnected || !isFirebaseConfigured
+                                  : deviceIsConnected
                                     ? "animate-pulse bg-green-500"
                                     : "bg-red-500"
                             )} />
@@ -1061,8 +1057,12 @@ const handleSaveOfflineAlertSettings = async () => {
                         <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
                     </summary>
                     <div className="grid grid-cols-1 gap-4 border-t border-slate-100 p-5 sm:grid-cols-2 md:grid-cols-4 md:p-6">
-                        <TelemetryItem label="GPS Accuracy" value={`±${displayData.accuracy.toFixed(1)}m`} status={displayData.accuracy < 30 ? "healthy" : "warning"} />
-                        <TelemetryItem label="Move Speed" value={`${(location?.speed || 0).toFixed(1)} m/s`} status="healthy" />
+                        <TelemetryItem
+                          label="GPS Accuracy"
+                          value={displayData.accuracy === null ? "N/A" : `±${displayData.accuracy.toFixed(1)}m`}
+                          status={displayData.accuracy !== null && displayData.accuracy < 30 ? "healthy" : "warning"}
+                        />
+                        <TelemetryItem label="Move Speed" value={location ? `${location.speed.toFixed(1)} m/s` : "N/A"} status={location ? "healthy" : "warning"} />
                         <TelemetryItem label="Sync Delay" value={status?.lastSeen ? `${Math.round((statusNow - status.lastSeen) / 1000)}s` : "N/A"} status={status?.lastSeen && (statusNow - status.lastSeen < 60000) ? "healthy" : "warning"} />
                         <TelemetryItem label="App Version" value={status?.appVersion || "Unknown"} status="healthy" />
                     </div>

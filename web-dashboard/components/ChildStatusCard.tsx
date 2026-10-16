@@ -19,23 +19,12 @@ function cn(...inputs: any[]) {
 }
 
 interface ChildStatusCardProps {
-  child?: {
-    id: string;
-    name: string;
-    avatarId?: string;
-    battery: number;
-    isCharging: boolean;
-    online: boolean;
-    lastSeen: string;
-    currentZone: string;
-    status: string;
-    sos?: boolean;
-  };
-  childId?: string;
+  childId: string;
 }
 
-const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, childId }) => {
+const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ childId }) => {
   const [status, setStatus] = useState<ChildStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [sosEvents, setSosEvents] = useState<SosEvent[]>([]);
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -44,18 +33,16 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
   const { family, role } = useParentProfile();
 
   useEffect(() => {
-    if (childId) {
-      const unsubStatus = ChildRepository.listenToChildStatus(childId, (data) => {
-        setStatus(data);
-      });
-      const unsubSos = SosRepository.listenToSosEvents(childId, (events) => {
-        setSosEvents(events);
-      });
-      return () => {
-        unsubStatus();
-        unsubSos();
-      };
-    }
+    setStatusLoaded(false);
+    const unsubStatus = ChildRepository.listenToChildStatus(childId, (nextStatus) => {
+      setStatus(nextStatus);
+      setStatusLoaded(true);
+    });
+    const unsubSos = SosRepository.listenToSosEvents(childId, setSosEvents);
+    return () => {
+      unsubStatus();
+      unsubSos();
+    };
   }, [childId]);
 
   useEffect(() => {
@@ -80,20 +67,61 @@ const ChildStatusCard: React.FC<ChildStatusCardProps> = ({ child: mockChild, chi
 
   const isSosActive = sosEvents.some(e => e.status === "ACTIVE");
 
-  const displayChild = childId ? {
-    id: childId,
-    name: status?.childName || "Loading...",
-    avatarId: status?.avatarId,
-    battery: status?.batteryPercent || 0,
-    isCharging: status?.charging || false,
-    online: status?.online || false,
-    lastSeen: status?.lastSeen ? new Date(status.lastSeen).toLocaleTimeString() : "Updating...",
-    currentZone: status?.currentZone || "Unknown",
-    status: status?.kidGuardActive ? "LOCKED" : "UNLOCKED",
-    sos: isSosActive
-  } : mockChild;
+  if (!statusLoaded) {
+    return (
+      <div
+        className="min-h-[200px] animate-pulse rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        aria-label="Loading child device status"
+      >
+        <div className="mb-5 flex items-center gap-3">
+          <div className="h-14 w-14 rounded-2xl bg-slate-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-32 rounded bg-slate-100" />
+            <div className="h-3 w-20 rounded bg-slate-100" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          {[0, 1, 2, 3].map(item => (
+            <div key={item} className="h-5 rounded bg-slate-100" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  if (!displayChild) return null;
+  if (!status) {
+    return (
+      <Link href={`/dashboard/${childId}`}>
+        <div className="min-h-[200px] rounded-xl border border-amber-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-amber-50 p-3 text-amber-600">
+              <ShieldAlert size={26} aria-hidden="true" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900">Device status unavailable</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                This paired child has not reported live status yet. Open the
+                device dashboard for setup and connection details.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  const displayChild = {
+    id: childId,
+    name: status.childName || "Child",
+    avatarId: status.avatarId,
+    battery: status.batteryPercent ?? 0,
+    isCharging: status.charging || false,
+    online: status.online || false,
+    lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleTimeString() : "Not reported",
+    currentZone: status.currentZone || "Not reported",
+    status: status.kidGuardActive ? "LOCKED" : "UNLOCKED",
+    sos: isSosActive
+  };
 
   return (
     <>

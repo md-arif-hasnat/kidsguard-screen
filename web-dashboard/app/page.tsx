@@ -4,12 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
-import { MOCK_CHILDREN, MOCK_SOS, MOCK_ACTIVITY } from '@/lib/mockData';
-import { AlertTriangle, Plus, CloudOff, Info, CheckCircle2, AlertCircle, Loader2, Smartphone, MapPin, ShieldAlert } from 'lucide-react';
-import { isFirebaseConfigured, showMocks } from '@/lib/firebase';
-import { observeAuth } from '@/lib/auth';
-import { FamilyRepository, FamilyData, PARENTAL_CONSENT_VERSION } from '@/lib/repositories/FamilyRepository';
-import { User } from 'firebase/auth';
+import { AlertTriangle, Plus, Info, Loader2, Smartphone, MapPin, ShieldAlert } from 'lucide-react';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { FamilyRepository, PARENTAL_CONSENT_VERSION } from '@/lib/repositories/FamilyRepository';
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { ChildRepository, ChildStatus } from '@/lib/repositories/ChildRepository';
 import { ActivityRepository, ActivityEvent } from '@/lib/repositories/ActivityRepository';
@@ -17,8 +14,7 @@ import { useParentProfile, getDisplayName } from '@/lib/context/ParentProfileCon
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx } from 'clsx';
 import ChildAvatar from '@/components/ChildAvatar';
-
-import { ParentRepository } from '@/lib/repositories/ParentRepository';
+import FirebaseConfigurationError from '@/components/FirebaseConfigurationError';
 
 export default function Home() {
   const { profile, family: profileFamily, loading: contextLoading, role } = useParentProfile();
@@ -97,7 +93,7 @@ export default function Home() {
 
   // Handle SOS Geocoding
   useEffect(() => {
-    if (showMocks || !isFirebaseConfigured) return;
+    if (!isFirebaseConfigured) return;
 
     const eventsToGeocode = Object.values(childrenSos).flat()
         .filter(e => (e.status === "ACTIVE" || e.status === "TRIGGERED") && !e.address && e.latitude && e.longitude);
@@ -185,13 +181,10 @@ export default function Home() {
     }
   };
 
-  const activeSosEvents = showMocks
-    ? MOCK_SOS.filter(s => !s.resolved).map(s => ({
-        ...s,
-        name: s.childName,
-        childId: MOCK_CHILDREN[0].id // Link mock SOS to first mock child
-      }))
-    : Object.values(childrenSos).flat().filter(e => e.status === "ACTIVE" || e.status === "TRIGGERED").map(e => {
+  const activeSosEvents = Object.values(childrenSos)
+    .flat()
+    .filter(e => e.status === "ACTIVE" || e.status === "TRIGGERED")
+    .map(e => {
         let displayLocation = "Locating address...";
         if (e.address) {
             displayLocation = e.address;
@@ -204,18 +197,26 @@ export default function Home() {
             name: childrenStatus[e.childId]?.childName || "Unknown Child",
             location: displayLocation
         };
-      });
+    });
 
-  //const isLive = isFirebaseConfigured && !!user && !!family;
-  const isLive = isFirebaseConfigured && Boolean(profile) && Boolean(family);
-  const noChildrenPaired = isLive && family && family.childDeviceIds.length === 0;
+  const noChildrenPaired = Boolean(
+    profile && family && family.childDeviceIds.length === 0
+  );
 
+  const allActivities = Object.values(childrenActivities)
+    .flat()
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 10);
 
-  const allActivities = showMocks
-    ? MOCK_ACTIVITY
-    : Object.values(childrenActivities).flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+  if (!isFirebaseConfigured) {
+    return (
+      <DashboardLayout>
+        <FirebaseConfigurationError />
+      </DashboardLayout>
+    );
+  }
 
-  if (loading && isFirebaseConfigured) {
+  if (loading) {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
             <div className="flex flex-col items-center gap-6">
@@ -248,7 +249,6 @@ export default function Home() {
                 <DebugRow label="Family ID" value={family?.familyId || "None"} />
                 <DebugRow label="Child Device Count" value={family?.childDeviceIds.length.toString() || "0"} />
                 <DebugRow label="Stored Family ID" value={typeof window !== 'undefined' ? localStorage.getItem("kidsguard_family_id") || "None" : "N/A"} />
-                <DebugRow label="Mock Mode Active" value={showMocks ? "YES" : "NO"} />
                 <DebugRow label="Last Error" value={error || "None"} color={error ? "text-rose-400" : "text-slate-500"} />
             </div>
         </div>
@@ -264,11 +264,20 @@ export default function Home() {
         <p className="text-slate-500 mt-1">
           {family
             ? `Monitoring ${family.childDeviceIds.length} ${family.childDeviceIds.length === 1 ? 'child' : 'children'}`
-            : showMocks
-            ? `Monitoring ${MOCK_CHILDREN.length} children (Mock)`
-            : 'Searching for children...'}
+            : 'Family data is unavailable'}
         </p>
       </header>
+
+      {!family && (
+        <section className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <h2 className="font-black">Family record unavailable</h2>
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            We could not load a verified family record for this account. No
+            sample children are shown. Refresh the page or contact support if
+            the problem continues.
+          </p>
+        </section>
+      )}
 
       {(noChildrenPaired || showPairingForm) && (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center mb-8 shadow-sm relative">
@@ -393,15 +402,9 @@ export default function Home() {
 
       {!noChildrenPaired && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-            {family ? (
-            family.childDeviceIds.map((childId) => (
+            {family?.childDeviceIds.map((childId) => (
                 <ChildStatusCard key={childId} childId={childId} />
-            ))
-            ) : showMocks ? (
-            MOCK_CHILDREN.map((child) => (
-                <ChildStatusCard key={child.id} child={child} />
-            ))
-            ) : null}
+            ))}
 
             {RoleHelper.canInviteMembers(role) && (
                 <div

@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { AlertTriangle, MapPin, CloudOff, Loader2, ShieldAlert, Map as MapIcon, CheckCircle2 } from 'lucide-react';
-import { MOCK_SOS } from '@/lib/mockData';
+import { AlertTriangle, MapPin, Loader2, ShieldAlert, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { SosRepository, SosEvent } from '@/lib/repositories/SosRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { useSearchParams } from 'next/navigation';
+import FirebaseConfigurationError from '@/components/FirebaseConfigurationError';
 
 export default function SosPage() {
     return (
@@ -71,22 +71,6 @@ function SosPageContent() {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const targetEventId = searchParams.get('eventId') || searchParams.get('sosId') || searchParams.get('alertId');
-  const queryChildId = searchParams.get('childId');
-  const [childId, setChildId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (queryChildId) {
-        setChildId(queryChildId);
-        return;
-    }
-
-    const savedChildId = localStorage.getItem("kidsguard_selected_child");
-    setChildId(savedChildId);
-
-    if (family && !savedChildId && (family.childDeviceIds ?? []).length > 0) {
-        setChildId(family.childDeviceIds[0]);
-    }
-  }, [family, queryChildId]);
 
   // Listen to ALL children SOS events in the family
   useEffect(() => {
@@ -124,21 +108,8 @@ function SosPageContent() {
     }
   }, [targetEventId, sosEvents]);
 
-  // Display data logic (merge with mocks if not configured)
   const displaySos = useMemo(() => {
-    let list: SosEvent[] = isFirebaseConfigured ? [...sosEvents] : MOCK_SOS.map(m => ({
-        id: m.id,
-        childId: "child_001", // Default for mock
-        timestamp: Date.now(),
-        latitude: 51.5074,
-        longitude: -0.1278,
-        message: "Mock SOS",
-        status: m.resolved ? "RESOLVED" : "ACTIVE",
-        active: !m.resolved,
-        batteryPercent: 85,
-        address: m.location,
-        childName: m.childName // For fallback display
-    } as any));
+    let list: SosEvent[] = [...sosEvents];
 
     if (targetEventId) {
         list = [...list].sort((a, b) => {
@@ -241,6 +212,14 @@ function SosPageContent() {
     );
   }
 
+  if (!isFirebaseConfigured) {
+    return (
+      <DashboardLayout>
+        <FirebaseConfigurationError />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -248,19 +227,8 @@ function SosPageContent() {
           <AlertTriangle size={32} />
           SOS Alert Center
         </h1>
-        {isFirebaseConfigured && (
-          <span className="text-[10px] font-black text-red-400 bg-red-50 border border-red-100 px-3 py-1 rounded-full uppercase tracking-widest">Realtime Active</span>
-        )}
+        <span className="text-[10px] font-black text-red-400 bg-red-50 border border-red-100 px-3 py-1 rounded-full uppercase tracking-widest">Realtime Active</span>
       </div>
-
-      {!isFirebaseConfigured && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 flex items-center gap-3">
-          <CloudOff className="text-yellow-600" />
-          <p className="text-yellow-700 font-medium text-sm">
-            Firebase not configured. Using mock data.
-          </p>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-4 md:gap-6">
         {targetEventId && displaySos.length > 0 && !displaySos.find(s => s.id === targetEventId) && (
