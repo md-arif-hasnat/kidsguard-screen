@@ -20,6 +20,7 @@ export default function SettingsPage() {
     deviceStatus: true,
     pairing: true,
     appUsage: true,
+    requestAlerts: true,
     permissionChanges: true,
     syncErrors: true,
     appUpdates: true,
@@ -305,6 +306,12 @@ export default function SettingsPage() {
                 description="New installs, blocked attempts and usage-limit alerts."
                 checked={notifSettings.appUsage}
                 onChange={() => toggleNotif('appUsage')}
+            />
+            <NotificationToggle
+                label="Child Access Requests"
+                description="All app, YouTube, website and protected-setting requests. Enabled by default."
+                checked={notifSettings.requestAlerts}
+                onChange={() => toggleNotif('requestAlerts')}
             />
             <NotificationToggle
                 label="Permission Change Requests"

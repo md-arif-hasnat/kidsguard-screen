@@ -124,13 +124,13 @@ export default function PermissionChangeRequestsPanel({
       ref={panelRef}
       id="permission-approvals"
       className={
-        "bg-white rounded-[2rem] border p-6 md:p-8 shadow-sm scroll-mt-24 " +
+        "min-w-0 scroll-mt-24 rounded-2xl border bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8 " +
         (focusRequestId
           ? "border-amber-400 ring-4 ring-amber-100"
           : "border-slate-200")
       }
     >
-      <div className="flex items-start gap-4">
+      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
           <KeyRound size={26} />
         </div>
@@ -181,7 +181,7 @@ export default function PermissionChangeRequestsPanel({
                 </div>
               </div>
 
-              <div className="flex gap-2 mt-4 md:mt-0">
+              <div className="mt-4 grid grid-cols-2 gap-2 md:mt-0">
                 <button
                   type="button"
                   disabled={!canEdit || processingId === request.id}
@@ -219,7 +219,7 @@ export default function PermissionChangeRequestsPanel({
             {recent.map(request => (
               <div
                 key={request.id}
-                className="flex items-center justify-between text-sm py-2"
+                className="flex flex-col gap-1 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
               >
                 <span className="font-bold text-slate-700">
                   {request.permissionName}

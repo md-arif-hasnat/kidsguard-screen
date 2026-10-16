@@ -17,7 +17,7 @@ export default function AIInsightPanel({ status }: AIInsightPanelProps) {
 
   if (!predictions) {
     return (
-      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-center sm:p-6 md:p-8">
         <Brain className="mx-auto text-slate-300 mb-4" size={40} />
         <p className="text-slate-500 font-medium italic">Waiting for AI engine to process live data...</p>
       </div>
@@ -31,11 +31,11 @@ export default function AIInsightPanel({ status }: AIInsightPanelProps) {
     <div className="space-y-6">
       {/* Primary Battery Prediction Card */}
       <div className={cn(
-        "p-6 rounded-2xl border transition-all shadow-sm",
+        "rounded-2xl border p-4 shadow-sm transition-all sm:p-6",
         status.batteryPercent < 20 ? "bg-red-50 border-red-100" : "bg-white border-slate-200"
       )}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div className="mb-4 flex flex-col gap-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <div className={cn(
               "p-2 rounded-lg",
               status.batteryPercent < 20 ? "bg-red-500 text-white" : "bg-primary-500 text-white"

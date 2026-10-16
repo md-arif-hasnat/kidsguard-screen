@@ -21,6 +21,27 @@ export default function NotificationPrompt() {
         }
     }, []);
 
+    useEffect(() => {
+        return NotificationRepository.listenForForegroundMessages(payload => {
+            if (!("Notification" in window) || Notification.permission !== "granted") {
+                return;
+            }
+
+            const notification = new Notification(payload.title, {
+                body: payload.body,
+                icon: "/icon.png",
+                badge: "/symbol.png",
+                data: { url: payload.url }
+            });
+
+            notification.onclick = () => {
+                window.focus();
+                window.location.assign(payload.url);
+                notification.close();
+            };
+        });
+    }, []);
+
     const handleEnable = async () => {
         if (!profile) return;
         try {

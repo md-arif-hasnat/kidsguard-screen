@@ -133,7 +133,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
 
     return (
         <div className="space-y-8">
-            <header className="flex justify-between items-center">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                         <Shield className="text-primary-600" />
@@ -144,7 +144,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                 {!showForm && RoleHelper.canManageProtectionModes(role) && (
                     <button
                         onClick={() => setShowAddForm(true)}
-                        className="bg-primary-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-primary-700 transition-all flex items-center gap-2"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-primary-700 sm:w-auto"
                     >
                         <Plus size={20} />
                         New Mode
@@ -154,14 +154,14 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
 
             {showForm && (
                 <section className="bg-white rounded-[2.5rem] border-2 border-primary-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                    <div className="p-8 border-b border-slate-100 bg-primary-50/30 flex justify-between items-center">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-primary-50/30 p-4 sm:p-6 md:p-8">
                         <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
                             {editingMode ? <Edit2 size={18} className="text-primary-600" /> : <Plus size={18} className="text-primary-600" />}
                             {editingMode ? `Edit Mode: ${editingMode.name}` : 'Configure New Protection Mode'}
                         </h3>
                         <button onClick={resetForm} className="text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Cancel</button>
                     </div>
-                    <form onSubmit={handleSave} className="p-8 space-y-8">
+                    <form onSubmit={handleSave} className="space-y-6 p-4 sm:p-6 md:space-y-8 md:p-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <div>
@@ -225,7 +225,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4">
                                         <input
                                             type="time"
                                             value={startTime}
@@ -263,7 +263,7 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="bg-primary-600 hover:bg-primary-700 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-primary-100 transition-all flex items-center gap-2"
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-600 px-6 py-4 font-black text-white shadow-xl shadow-primary-100 transition-all hover:bg-primary-700 sm:w-auto sm:px-12"
                             >
                                 {saving ? <Loader2 className="animate-spin" /> : <ShieldCheck size={20} />}
                                 {editingMode ? 'Update Protection Mode' : 'Activate Mode'}
@@ -277,14 +277,14 @@ export default function ProtectionModePanel({ childId, familyId, safeZones, role
                 {modes.map((mode) => (
                     <div key={mode.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 group hover:shadow-md transition-all flex flex-col justify-between h-full">
                         <div>
-                            <div className="flex justify-between items-start mb-6">
+                            <div className="mb-6 flex items-start justify-between gap-3">
                                 <div className={cn(
                                     "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors",
                                     mode.enabled ? "bg-primary-50 text-primary-600" : "bg-slate-50 text-slate-400"
                                 )}>
                                     <Shield size={24} />
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex shrink-0 gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                                     {RoleHelper.canManageProtectionModes(role) && (
                                         <>
                                             <button onClick={() => handleEdit(mode)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={16} /></button>

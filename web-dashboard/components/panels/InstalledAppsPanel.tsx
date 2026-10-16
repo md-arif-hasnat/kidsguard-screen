@@ -261,7 +261,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
         </p>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 md:gap-6">
           <SummaryCard label="Total Apps" value={summary.total} icon={Package} color="text-primary-600" bgColor="bg-primary-50" />
           <SummaryCard label="Allowed" value={summary.allowed} icon={ShieldCheck} color="text-emerald-600" bgColor="bg-emerald-50" />
           <SummaryCard label="Blocked" value={summary.blocked} icon={ShieldOff} color="text-rose-600" bgColor="bg-rose-50" />
@@ -281,8 +281,8 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
                   />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-1 rounded-xl">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
                       <FilterBtn active={filterBy === 'all'} onClick={() => setFilterBy('all')} label="All" />
                       <FilterBtn active={filterBy === 'allowed'} onClick={() => setFilterBy('allowed')} label="Allowed" />
                       <FilterBtn active={filterBy === 'blocked'} onClick={() => setFilterBy('blocked')} label="Blocked" />
@@ -292,7 +292,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortOption)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 sm:w-auto"
                   >
                       <option value="newest">Newest First</option>
                       <option value="oldest">Oldest First</option>
@@ -323,13 +323,13 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
               key={app.packageName}
               ref={el => { appRefs.current[app.packageName] = el; }}
               className={clsx(
-                "group bg-white p-5 md:p-6 rounded-[2rem] border transition-all hover:shadow-lg relative overflow-hidden flex flex-col justify-between",
+                "group relative flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border bg-white p-4 transition-all hover:shadow-lg sm:p-5 md:rounded-[2rem] md:p-6",
                 highlightPkg === app.packageName ? "border-primary-500 ring-4 ring-primary-50 scale-[1.02] z-10" : "border-slate-100",
                 app.control.blocked && "bg-slate-50/50"
               )}
             >
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-4">
+              <div className="mb-6 flex min-w-0 items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <div className={clsx(
                         "w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 transition-colors border",
                         app.control.blocked ? "bg-slate-200 text-slate-400 border-slate-300" : "bg-primary-50 text-primary-600 border-primary-100"
@@ -356,7 +356,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
               )}
 
               <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <button
                         onClick={() => handleToggleBlock(app)}
                         disabled={isSaving === app.packageName}
@@ -372,7 +372,7 @@ export default function InstalledAppsPanel({ childId }: InstalledAppsPanelProps)
                       </button>
                       <button
                         onClick={() => setSelectedSosApp(app.packageName)}
-                        className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                        className="rounded-xl bg-slate-900 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-slate-800"
                       >
                         Details
                       </button>
@@ -515,16 +515,16 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
 
     return (
         <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-6 md:rounded-[2.5rem] md:p-10" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute right-6 top-6 p-2 bg-slate-50 text-slate-400 hover:text-slate-600 rounded-full transition-colors"><X size={24} /></button>
 
-                <header className="flex items-center gap-6 mb-10">
+                <header className="mb-8 flex min-w-0 items-center gap-3 pr-12 sm:gap-6 md:mb-10">
                     <div className="w-16 h-16 bg-primary-50 rounded-3xl flex items-center justify-center text-3xl font-black text-primary-600 border border-primary-100">
                         {app.appName[0].toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 truncate">{app.appName}</h2>
-                        <p className="text-sm font-bold text-slate-400 truncate">{app.packageName}</p>
+                        <h2 className="break-words text-xl font-black text-slate-900 sm:text-2xl md:text-3xl">{app.appName}</h2>
+                        <p className="break-all text-sm font-bold text-slate-400">{app.packageName}</p>
                     </div>
                 </header>
 
@@ -544,7 +544,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                         <ModalInfo label="Last Activity" value={app.usage ? formatLastUsed(app.usage.lastUsed) : "Never"} icon={Activity} />
                     </div>
 
-                    <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                    <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 sm:p-6">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Timer size={14} /> Usage Control
                         </h3>
@@ -576,7 +576,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                             </div>
 
                             {showCustomInput && (
-                                <div className="flex gap-2 animate-in slide-in-from-top-2">
+                                <div className="flex min-w-0 gap-2 animate-in slide-in-from-top-2">
                                     <input
                                         type="number"
                                         min="1"
@@ -584,7 +584,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                                         value={customLimit}
                                         onChange={e => setCustomLimit(e.target.value)}
                                         placeholder="Mins"
-                                        className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-primary-500"
+                                        className="min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-primary-500 sm:px-4"
                                     />
                                     <button
                                         onClick={() => onUpdateControl({ dailyLimitMinutes: parseInt(customLimit) })}
@@ -599,7 +599,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                     </div>
                 </div>
 
-                <div className="mb-10 rounded-3xl border border-indigo-100 bg-indigo-50/60 p-6">
+                <div className="mb-10 rounded-3xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4 mb-5">
                         <div>
                             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
@@ -617,7 +617,7 @@ function AppDetailsModal({ app, onClose, onUpdateControl, isSaving }: { app: any
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="mb-4 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                         <label className="text-[10px] font-black uppercase text-indigo-700">
                             Start
                             <input

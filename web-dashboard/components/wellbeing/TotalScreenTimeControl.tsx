@@ -99,15 +99,15 @@ export default function TotalScreenTimeControl({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-center min-h-64">
+      <div className="flex min-h-64 items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 md:rounded-[2rem] md:p-8">
         <Loader2 className="animate-spin text-primary-600" size={28} />
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-200 p-6 md:p-8 shadow-sm">
-      <div className="flex items-start gap-4">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-4">
         <div className="p-3 rounded-2xl bg-primary-50 text-primary-600">
           <Clock3 size={26} />
         </div>
@@ -127,7 +127,7 @@ export default function TotalScreenTimeControl({
           disabled={!canEdit || saving}
           onClick={() => setEnabled(value => !value)}
           className={
-            "relative w-12 h-7 rounded-full transition-colors " +
+            "relative col-span-2 h-7 w-12 justify-self-end rounded-full transition-colors sm:col-span-1 " +
             (enabled ? "bg-primary-600" : "bg-slate-200") +
             (!canEdit ? " opacity-50 cursor-not-allowed" : "")
           }

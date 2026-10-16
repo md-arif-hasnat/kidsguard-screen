@@ -195,7 +195,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="font-bold mb-4 flex items-center gap-2">
                 <Zap size={18} className="text-primary-500" />
                 Map Display
@@ -220,7 +220,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
 
       {/* Location History Section */}
       <section className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                   <History className="text-primary-600" size={24} />
                   Recent Location History
@@ -261,7 +261,7 @@ export default function ChildLocationPanel({ childId, onViewHistory }: ChildLoca
                           );
                       })()}
 
-                      <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="mb-4 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4">
                           <div>
                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Latitude</p>
                               <p className="text-xs font-bold text-slate-600">{point.latitude.toFixed(6)}</p>

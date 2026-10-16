@@ -201,8 +201,8 @@ export default function LockSchedulePanel({
   }
 
   return (
-    <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+    <details className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:rounded-[2rem]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
         <div>
           <h3 className="flex items-center gap-2 text-xl font-black text-slate-800">
             <Clock className="text-primary-600" />
@@ -215,7 +215,7 @@ export default function LockSchedulePanel({
         <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
       </summary>
 
-      <div className="border-t border-slate-100 p-6 md:p-8">
+      <div className="border-t border-slate-100 p-4 sm:p-6 md:p-8">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <p className="text-sm font-bold text-slate-600">
             Schedule control
@@ -250,7 +250,7 @@ export default function LockSchedulePanel({
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-5">
+        <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5">
           <div className="flex items-center gap-2 font-bold text-slate-700">
             <ShieldCheck size={18} className="text-primary-600" />
             Schedule protection
@@ -312,7 +312,7 @@ function ScheduleWindowEditor({
   onChange: (updates: Partial<LockScheduleWindow>) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h4 className="font-black text-slate-800 flex items-center gap-2">
@@ -332,7 +332,7 @@ function ScheduleWindowEditor({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4">
         <label>
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
             Lock at

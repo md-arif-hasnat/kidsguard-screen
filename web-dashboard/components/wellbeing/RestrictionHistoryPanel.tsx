@@ -67,7 +67,7 @@ export default function RestrictionHistoryPanel({
   }, [events, range]);
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-xl font-black text-slate-800">
@@ -78,7 +78,7 @@ export default function RestrictionHistoryPanel({
             App blocks and screen-time limits recorded by the child device.
           </p>
         </div>
-        <div className="flex rounded-xl bg-slate-100 p-1">
+        <div className="flex max-w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
           {(["today", "7days", "all"] as Range[]).map(option => (
             <button
               key={option}

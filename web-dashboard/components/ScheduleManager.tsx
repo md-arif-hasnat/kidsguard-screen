@@ -34,8 +34,8 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
             <Clock className="text-primary-600" />
@@ -45,7 +45,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-primary-700 transition-all flex items-center gap-2"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-primary-700 sm:w-auto"
         >
           <Plus size={20} />
           Add Requirement
@@ -53,7 +53,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
       </div>
 
       {showAdd && (
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-8 animate-in slide-in-from-top duration-300">
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-4 animate-in slide-in-from-top duration-300 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Safe Zone</label>
@@ -96,8 +96,8 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
 
       <div className="grid grid-cols-1 gap-4">
         {(schedules ?? []).length > 0 ? (schedules ?? []).map(s => (
-          <div key={s.id} className="flex items-center justify-between p-6 bg-white border border-slate-100 rounded-2xl hover:border-primary-200 transition-all group">
-            <div className="flex items-center gap-6">
+          <div key={s.id} className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-primary-200 sm:p-6">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-6">
               <div className="w-12 h-12 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
                 <Calendar size={24} />
               </div>
@@ -116,7 +116,7 @@ export default function ScheduleManager({ safeZones, onAdd, onDelete, schedules 
             </div>
             <button
               onClick={() => onDelete(s.id)}
-              className="p-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+              className="shrink-0 rounded-xl p-3 text-rose-500 transition-all hover:bg-rose-50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
             >
               <Trash2 size={20} />
             </button>

@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.repository.AuthRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +90,39 @@ fun ParentSettingsScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val parentUid = com.google.firebase.auth.FirebaseAuth
+        .getInstance()
+        .currentUser
+        ?.uid
+    var requestNotificationsEnabled by remember(parentUid) {
+        mutableStateOf(true)
+    }
+    var requestNotificationSettingLoading by remember(parentUid) {
+        mutableStateOf(parentUid != null)
+    }
+
+    LaunchedEffect(parentUid) {
+        if (parentUid == null) {
+            requestNotificationSettingLoading = false
+            return@LaunchedEffect
+        }
+
+        FirebaseFirestore.getInstance()
+            .collection("parents")
+            .document(parentUid)
+            .collection("notificationSettings")
+            .document("current")
+            .get()
+            .addOnSuccessListener { snapshot ->
+                requestNotificationsEnabled =
+                    snapshot.getBoolean("requestAlerts") ?: true
+                requestNotificationSettingLoading = false
+            }
+            .addOnFailureListener {
+                requestNotificationsEnabled = true
+                requestNotificationSettingLoading = false
+            }
+    }
 
     Scaffold(
         topBar = {
@@ -135,9 +171,36 @@ fun ParentSettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("Push Notifications") },
-                supportingContent = { Text("Alerts for SOS and Safe Zones") },
-                trailingContent = { Switch(checked = true, onCheckedChange = {}) }
+                headlineContent = { Text("Child Access Requests") },
+                supportingContent = {
+                    Text("App, YouTube, website and protected-setting request alerts")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = requestNotificationsEnabled,
+                        enabled = parentUid != null &&
+                            !requestNotificationSettingLoading,
+                        onCheckedChange = { enabled ->
+                            val uid = parentUid
+                            if (uid != null) {
+                                val previous = requestNotificationsEnabled
+                                requestNotificationsEnabled = enabled
+                                FirebaseFirestore.getInstance()
+                                    .collection("parents")
+                                    .document(uid)
+                                    .collection("notificationSettings")
+                                    .document("current")
+                                    .set(
+                                        mapOf("requestAlerts" to enabled),
+                                        SetOptions.merge()
+                                    )
+                                    .addOnFailureListener {
+                                        requestNotificationsEnabled = previous
+                                    }
+                            }
+                        }
+                    )
+                }
             )
 
             ListItem(

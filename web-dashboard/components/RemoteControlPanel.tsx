@@ -72,7 +72,7 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
     return (
         <div className="space-y-4">
             <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
                     <div>
                         <h3 className="flex items-center gap-2 text-xl font-black text-slate-800">
                             <Zap className="text-primary-600" />
@@ -85,9 +85,9 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                     <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
                 </summary>
 
-                <div className="border-t border-slate-100 p-6 md:p-8">
+                <div className="border-t border-slate-100 p-4 sm:p-6 md:p-8">
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4">
                             <CommandBtn
                                 icon={RefreshCw}
                                 label="Refresh GPS"
@@ -122,11 +122,11 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                             />
                         </div>
 
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6">
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-6">
                             <label className="mb-3 block text-xs font-black uppercase text-slate-400">
                                 Send Remote Message
                             </label>
-                            <div className="flex gap-2">
+                            <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                                 <input
                                     type="text"
                                     placeholder="Type a message..."
@@ -150,7 +150,7 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
             </details>
 
             <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
                     <div className="flex items-center gap-2">
                         <Clock className="text-primary-600" />
                         <h3 className="text-xl font-black text-slate-800">
@@ -163,7 +163,7 @@ export default function RemoteControlPanel({ childId }: RemoteControlPanelProps)
                     <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
                 </summary>
 
-                <div className="border-t border-slate-100 bg-slate-50 p-6 md:p-8">
+                <div className="border-t border-slate-100 bg-slate-50 p-4 sm:p-6 md:p-8">
                     <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold">
                         <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-600">Pending: queued</span>
                         <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-700">Delivered: child received</span>

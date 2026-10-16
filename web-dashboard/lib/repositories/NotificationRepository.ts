@@ -24,6 +24,7 @@ export interface NotificationSettings {
   deviceStatus: boolean;
   pairing: boolean;
   appUsage: boolean;
+  requestAlerts: boolean;
   permissionChanges: boolean;
   syncErrors: boolean;
   appUpdates: boolean;
@@ -37,6 +38,7 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   deviceStatus: true,
   pairing: true,
   appUsage: true,
+  requestAlerts: true,
   permissionChanges: true,
   syncErrors: true,
   appUpdates: true,
@@ -58,7 +60,7 @@ export interface NotificationHistoryItem {
   body: string;
   type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' |
     'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' |
-    'APP_ACCESS_REQUEST' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' |
+    'APP_ACCESS_REQUEST' | 'WEB_ACCESS_REQUEST' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' |
     'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'REMOTE_CONTROL_OVERRIDE' |
     'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
   childId?: string;

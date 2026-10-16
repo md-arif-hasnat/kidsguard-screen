@@ -54,17 +54,17 @@ export default function CollapsiblePanel({
     <details
       open={defaultOpen || undefined}
       className={clsx(
-        "group overflow-hidden rounded-[2rem] border shadow-sm",
+        "group min-w-0 overflow-hidden rounded-2xl border shadow-sm sm:rounded-[2rem]",
         colors.shell,
         className,
       )}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 outline-none transition-colors hover:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 md:p-6 [&::-webkit-details-marker]:hidden">
-        <div className="flex min-w-0 items-center gap-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 outline-none transition-colors hover:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 sm:p-5 md:p-6 [&::-webkit-details-marker]:hidden">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
           {Icon ? (
             <span
               className={clsx(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11",
                 colors.icon,
               )}
             >
@@ -73,13 +73,13 @@ export default function CollapsiblePanel({
           ) : null}
 
           <span className="min-w-0">
-            <span className={clsx("block font-black", colors.title)}>
+            <span className={clsx("block break-words font-black", colors.title)}>
               {title}
             </span>
             {description ? (
               <span
                 className={clsx(
-                  "mt-1 block text-sm font-medium",
+                  "mt-1 block break-words text-xs font-medium sm:text-sm",
                   colors.description,
                 )}
               >
@@ -89,7 +89,7 @@ export default function CollapsiblePanel({
           </span>
         </div>
 
-        <span className="flex shrink-0 items-center gap-3">
+        <span className="flex shrink-0 items-center gap-2 sm:gap-3">
           {badge}
           <ChevronDown
             size={20}
@@ -101,7 +101,7 @@ export default function CollapsiblePanel({
 
       <div
         className={clsx(
-          "border-t border-slate-100 p-5 md:p-6",
+          "min-w-0 border-t border-slate-100 p-4 sm:p-5 md:p-6",
           contentClassName,
         )}
       >

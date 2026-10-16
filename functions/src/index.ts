@@ -756,6 +756,37 @@ clickAction:
 });
 
 /**
+ * Sends a parent push notification when the child requests a blocked website.
+ * The notification opens the exact request in Internet Protection.
+ */
+export const onWebAccessRequestCreated = functions.firestore
+.document("children/{childId}/accessRequests/{requestId}")
+.onCreate(async (snapshot, context) => {
+const request = snapshot.data();
+const childId = String(context.params.childId || "");
+const requestId = String(context.params.requestId || "");
+
+if (!childId || !requestId || request?.status !== "PENDING") {
+return;
+}
+
+const childName = String(request?.childName || "Your child");
+const domain = String(request?.domain || request?.url || "a blocked website");
+
+await broadcastToParents(childId, {
+title: "Website access requested",
+body: `${childName} requested access to ${domain}.`,
+type: "WEB_ACCESS_REQUEST",
+childId,
+eventId: requestId,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}` +
+`?tab=internet&webRequest=${encodeURIComponent(requestId)}` +
+"#website-access-requests",
+});
+});
+
+/**
  * Confirms to parents that an applied Remote Control lock/unlock command took
  * priority over scheduled lock state on the child device.
  */
@@ -1337,7 +1368,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_ACCESS_REQUEST' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'REMOTE_CONTROL_OVERRIDE' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_ACCESS_REQUEST' | 'WEB_ACCESS_REQUEST' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'REMOTE_CONTROL_OVERRIDE' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1617,24 +1648,40 @@ export const checkOfflineChildren = functions.pubsub
  * Sends a notification to all parents linked to a child.
  */
 async function broadcastToParents(childId: string, payload: NotificationPayload) {
-    // 1. Find family
-    const familyQuery = await db.collection('families')
-        .where('childDeviceIds', 'array-contains', childId)
-        .limit(1)
-        .get();
+    // Resolve the canonical family from the child document first. This avoids
+    // dropping alerts when an older family document has a stale childDeviceIds
+    // array. Keep the indexed query as a compatibility fallback.
+    const childSnapshot = await db.collection('children').doc(childId).get();
+    const childFamilyId = String(
+      payload.familyId || childSnapshot.data()?.familyId || ""
+    ).trim();
 
-    if (familyQuery.empty) {
-        console.warn(`No family found for child ${childId}`);
-        return;
+    let familyDoc: admin.firestore.DocumentSnapshot | null = null;
+    if (childFamilyId) {
+      const directFamily = await db.collection('families').doc(childFamilyId).get();
+      if (directFamily.exists) familyDoc = directFamily;
     }
 
-    const familyDoc = familyQuery.docs[0];
+    if (!familyDoc) {
+      const familyQuery = await db.collection('families')
+          .where('childDeviceIds', 'array-contains', childId)
+          .limit(1)
+          .get();
+      familyDoc = familyQuery.empty ? null : familyQuery.docs[0];
+    }
+
+    if (!familyDoc) {
+      console.warn(`No family found for child ${childId}`);
+      return;
+    }
+
     const familyId = familyDoc.id;
     const family = familyDoc.data();
-    const members = family.members as any[] || [];
-    const parentUids = members
+    const members = (family?.members as any[] | undefined) || [];
+    const parentUids = Array.from(new Set(members
         .filter(m => normalizeFamilyRole(m.role) !== null)
-        .map(m => m.uid);
+        .map(m => String(m.uid || "").trim())
+        .filter(Boolean)));
 
     // 2. Notify each parent
     const promises = parentUids.map(uid => notifyParent(uid, { ...payload, familyId }));
@@ -1743,6 +1790,16 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
     const settings = settingsSnap.data();
 
+    const requestTypes = new Set([
+      'APP_ACCESS_REQUEST',
+      'WEB_ACCESS_REQUEST',
+      'PERMISSION_CHANGE_REQUEST'
+    ]);
+    if (settings?.requestAlerts === false && requestTypes.has(payload.type)) {
+      console.log(`Parent ${uid} has disabled child request notifications.`);
+      return;
+    }
+
     const typeMap: Record<string, string> = {
 
         'SAFE_ZONE': 'safeZone',
@@ -1758,7 +1815,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'TAMPER_ALERT': 'securityAlerts',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
-        'APP_ACCESS_REQUEST': 'appUsage',
+        // Access requests have their own opt-out. Missing settings remain
+        // enabled, so existing parents receive request alerts by default.
+        'APP_ACCESS_REQUEST': 'requestAlerts',
+        'WEB_ACCESS_REQUEST': 'requestAlerts',
         'APP_LIMIT_REACHED': 'appUsage',
         'BLOCKED_APP_ATTEMPT': 'appUsage',
         'REMOTE_CONTROL_OVERRIDE': 'deviceStatus',
@@ -1884,7 +1944,12 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
             }
         },
         android: {
-            priority: (payload.type === 'SOS') ? 'high' : 'normal',
+            priority: (
+              payload.type === 'SOS' ||
+              payload.type === 'APP_ACCESS_REQUEST' ||
+              payload.type === 'WEB_ACCESS_REQUEST' ||
+              payload.type === 'PERMISSION_CHANGE_REQUEST'
+            ) ? 'high' : 'normal',
             notification: {
                 clickAction: 'FLUTTER_NOTIFICATION_CLICK'
             }

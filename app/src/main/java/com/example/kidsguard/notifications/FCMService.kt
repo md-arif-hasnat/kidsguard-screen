@@ -38,11 +38,13 @@ class FCMService : FirebaseMessagingService() {
         Log.d("FCMService", "Message received: $title type=$type")
 
         // Android displays notification payloads itself while the app is in
-        // the background. When the parent app is foregrounded, render the
-        // new-install alert locally so it is not silently lost.
+        // the background. When the parent app is foregrounded, render
+        // actionable alerts locally so they are not silently lost.
         val prefs = PreferenceHelper(applicationContext)
         val foregroundTypes = setOf(
             "APP_INSTALLED",
+            "APP_ACCESS_REQUEST",
+            "WEB_ACCESS_REQUEST",
             "APP_LIMIT_REACHED",
             "BLOCKED_APP_ATTEMPT",
             "PERMISSION_CHANGE_REQUEST",
@@ -50,8 +52,12 @@ class FCMService : FirebaseMessagingService() {
             "APP_UPDATE"
         )
         if (prefs.userRole == "PARENT" && type in foregroundTypes) {
-            if (type == "PERMISSION_CHANGE_REQUEST") {
-                showPermissionRequestNotification(message, title, body)
+            if (
+                type == "PERMISSION_CHANGE_REQUEST" ||
+                type == "APP_ACCESS_REQUEST" ||
+                type == "WEB_ACCESS_REQUEST"
+            ) {
+                showActionRequestNotification(message, title, body, type)
             } else {
                 LocalNotificationEngine(applicationContext)
                     .sendSafetyAlert(title, body)
@@ -59,21 +65,35 @@ class FCMService : FirebaseMessagingService() {
         }
     }
 
-    private fun showPermissionRequestNotification(
+    private fun showActionRequestNotification(
         message: RemoteMessage,
         title: String,
-        body: String
+        body: String,
+        type: String
     ) {
         LocalNotificationEngine(applicationContext)
 
         val childId = message.data["childId"].orEmpty()
         val requestId = message.data["eventId"].orEmpty()
-        val targetUrl =
+        val targetUrl = if (type == "WEB_ACCESS_REQUEST") {
+            "https://kidsguard-screen.vercel.app/dashboard/" +
+                Uri.encode(childId) +
+                "?tab=internet&webRequest=" +
+                Uri.encode(requestId) +
+                "#website-access-requests"
+        } else if (type == "APP_ACCESS_REQUEST") {
+            "https://kidsguard-screen.vercel.app/dashboard/" +
+                Uri.encode(childId) +
+                "?tab=overview&screenTimeRequest=" +
+                Uri.encode(requestId) +
+                "#screen-time-requests"
+        } else {
             "https://kidsguard-screen.vercel.app/dashboard/" +
                 Uri.encode(childId) +
                 "?tab=overview&permissionRequest=" +
                 Uri.encode(requestId) +
                 "#permission-approvals"
+        }
 
         val browserIntent = Intent(
             Intent.ACTION_VIEW,

@@ -148,15 +148,15 @@ export default function BrowserHistoryPanel({ childId }: BrowserHistoryPanelProp
           <p className="text-slate-500 text-sm mt-1">Websites visited on the child&apos;s device.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input
               type="text"
               placeholder="Search websites..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 shadow-sm w-48 md:w-64"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-primary-500 sm:w-48 md:w-64"
             />
           </div>
 
@@ -211,7 +211,7 @@ export default function BrowserHistoryPanel({ childId }: BrowserHistoryPanelProp
                   <div
                     key={item.id}
                     onClick={() => setSelectedActivity(item)}
-                    className="group bg-white p-5 rounded-[2rem] border border-slate-100 hover:border-primary-200 hover:shadow-xl hover:shadow-primary-50/50 transition-all cursor-pointer relative overflow-hidden"
+                    className="group relative min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-primary-200 hover:shadow-xl hover:shadow-primary-50/50 sm:rounded-[2rem] sm:p-5"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600 group-hover:bg-primary-600 group-hover:text-white transition-colors">
@@ -304,7 +304,7 @@ function BrowserDetailsModal({ item, onClose, getBrowserName }: any) {
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-6 md:p-10 shadow-2xl animate-in zoom-in-95 duration-200"
+        className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-6 md:rounded-[2.5rem] md:p-10"
         onClick={e => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute right-6 top-6 p-2 bg-slate-50 text-slate-400 hover:text-slate-600 rounded-full transition-colors">

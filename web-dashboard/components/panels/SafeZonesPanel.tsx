@@ -226,14 +226,14 @@ export default function SafeZonesPanel({ childId }: SafeZonesPanelProps) {
 
         {showAddForm && (
             <div className="bg-white rounded-2xl border-2 border-primary-100 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 bg-primary-50/30 flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-primary-50/30 p-4 sm:p-6">
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
                     <Settings size={18} className="text-primary-600" />
                     {editingZone ? `Edit Zone` : `New Zone`}
                 </h2>
                 <button onClick={resetForm} className="text-xs font-bold text-slate-400 hover:text-slate-600">Cancel</button>
             </div>
-            <form onSubmit={handleAddOrUpdate} className="p-8 space-y-6">
+            <form onSubmit={handleAddOrUpdate} className="space-y-6 p-4 sm:p-6 md:p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700 ml-1">Zone Type</label>
@@ -323,14 +323,14 @@ export default function SafeZonesPanel({ childId }: SafeZonesPanelProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {safeZones.map((zone) => (
-            <div key={zone.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-all group">
+            <div key={zone.id} className="group flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-6">
                 <div>
                 <div className="flex justify-between items-start mb-4">
                     <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
                     {getIcon(zone.type)}
                     </div>
                     {canManageZones && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                         <button
                             onClick={() => handleEdit(zone)}
                             className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary-600 transition-colors"

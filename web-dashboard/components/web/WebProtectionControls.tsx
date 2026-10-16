@@ -23,10 +23,10 @@ export default function WebProtectionControls({ rules, onUpdate }: WebProtection
     };
 
     return (
-        <div className="space-y-8">
+        <div className="min-w-0 space-y-6 md:space-y-8">
             {/* Global Safe Settings */}
-            <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-                <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
+                <h3 className="mb-6 flex items-center gap-2 text-lg font-black text-slate-800 sm:text-xl md:mb-8">
                     <Shield className="text-primary-600" />
                     Global Search \u0026 Content Safety
                 </h3>
@@ -53,12 +53,12 @@ export default function WebProtectionControls({ rules, onUpdate }: WebProtection
             </section>
 
             {/* Category Blocking */}
-            <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-                <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
+                <h3 className="mb-6 flex items-center gap-2 text-lg font-black text-slate-800 sm:text-xl md:mb-8">
                     <Globe className="text-indigo-600" />
                     Content Category Filter
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 md:gap-4">
                     {Object.values(WebCategory).filter(c => c !== WebCategory.SAFE).map((cat) => (
                         <button
                             key={cat}
@@ -108,7 +108,7 @@ export default function WebProtectionControls({ rules, onUpdate }: WebProtection
 function ToggleCard({ icon: Icon, label, active, onChange }: any) {
     return (
         <div className={cn(
-            "p-6 rounded-2xl border transition-all flex flex-col justify-between h-full",
+            "flex h-full min-w-0 flex-col justify-between rounded-2xl border p-4 transition-all sm:p-6",
             active ? "bg-primary-50 border-primary-100" : "bg-slate-50 border-slate-100"
         )}>
             <div className="flex justify-between items-start mb-4">
@@ -126,16 +126,16 @@ function UrlList({ title, icon: Icon, domains, onAdd, onDelete, color }: any) {
     const [newUrl, setNewUrl] = React.useState('');
 
     return (
-        <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2 mb-6">
                 <Icon className={color} size={20} />
                 {title}
             </h3>
-            <div className="flex gap-2 mb-6">
+            <div className="mb-6 flex min-w-0 gap-2">
                 <input
                     type="text"
                     placeholder="example.com"
-                    className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-primary-300 transition-all"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-primary-300 sm:px-4"
                     value={newUrl}
                     onChange={e => setNewUrl(e.target.value)}
                 />
@@ -148,9 +148,9 @@ function UrlList({ title, icon: Icon, domains, onAdd, onDelete, color }: any) {
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {(domains ?? []).map((d: string) => (
-                    <div key={d} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-50 group">
-                        <span className="text-sm font-bold text-slate-600">{d}</span>
-                        <button onClick={() => onDelete(d)} className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                    <div key={d} className="group flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-50 bg-slate-50 p-3">
+                        <span className="min-w-0 break-all text-sm font-bold text-slate-600">{d}</span>
+                        <button aria-label={`Remove ${d}`} onClick={() => onDelete(d)} className="shrink-0 text-slate-400 transition-all hover:text-rose-500 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                             <Trash2 size={16} />
                         </button>
                     </div>

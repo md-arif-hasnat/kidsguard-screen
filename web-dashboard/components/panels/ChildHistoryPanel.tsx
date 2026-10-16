@@ -186,14 +186,14 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
           <p className="text-slate-500 text-sm mt-1">Review activity for {childStatus?.childName || "your child"}.</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex w-full items-center gap-3 md:w-auto">
+          <div className="relative min-w-0 flex-1 md:flex-none">
             <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
                         highlightedPointIndex={replayIndex}
                     />
 
-                    <div className="absolute bottom-4 left-4 right-4 md:bottom-6 md:left-1/2 md:transform md:-translate-x-1/2 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-slate-100 flex flex-col md:flex-row items-center gap-3 md:gap-6 z-10">
+                    <div className="absolute bottom-4 left-2 right-2 z-10 flex flex-col items-stretch gap-3 rounded-2xl border border-slate-100 bg-white/95 px-3 py-3 shadow-xl backdrop-blur-md sm:left-4 sm:right-4 sm:px-4 md:bottom-6 md:left-1/2 md:right-auto md:-translate-x-1/2 md:flex-row md:items-center md:gap-6">
                         {/* Replay Address Info */}
                         {routeHistory[replayIndex] && (
                             <div className="hidden md:block absolute -top-20 left-0 right-0 bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
@@ -262,7 +262,7 @@ export default function ChildHistoryPanel({ childId }: ChildHistoryPanelProps) {
                             </button>
                         </div>
 
-                        <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1 md:min-w-[150px]">
                             <input
                                 type="range"
                                 min="0"

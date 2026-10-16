@@ -138,8 +138,8 @@ export default function AppActivityPanel({ childId }: AppActivityPanelProps) {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
               <button
                 onClick={setToday}
                 className={clsx(
@@ -190,7 +190,7 @@ export default function AppActivityPanel({ childId }: AppActivityPanelProps) {
 
       {loading ? (
         <div className="space-y-8">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 sm:gap-4">
                 {[...Array(4)].map((_, i) => (
                     <div key={i} className="h-24 bg-white rounded-2xl border border-slate-100 animate-pulse" />
                 ))}
@@ -219,7 +219,7 @@ export default function AppActivityPanel({ childId }: AppActivityPanelProps) {
         </div>
       ) : (
         <div className="space-y-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 md:gap-6">
             <SummaryCard
               label="Total Screen Time"
               value={formatDuration(summary?.totalScreenTimeMs || 0)}
@@ -250,7 +250,7 @@ export default function AppActivityPanel({ childId }: AppActivityPanelProps) {
             />
           </div>
 
-          <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Usage Breakdown</h3>
               <div className="flex h-10 w-full rounded-2xl overflow-hidden bg-slate-100 mb-8 border-4 border-white shadow-inner">
                   {usage.slice(0, 8).map((app, i) => {
@@ -329,8 +329,8 @@ function AppUsageRow({ app, maxTimeMs, totalTimeMs }: { app: AppUsageItem, maxTi
   const relativeToMax = (app.totalTimeMs / maxTimeMs) * 100;
 
   return (
-    <div className="group bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-primary-100 transition-all">
-      <div className="flex items-start gap-4">
+    <div className="group min-w-0 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100 hover:shadow-md md:p-6">
+      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <div className="w-12 h-12 md:w-14 md:h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-xl font-black text-slate-300 border border-slate-100 shrink-0 group-hover:bg-primary-50 group-hover:text-primary-300 transition-colors">
           {app.appName[0].toUpperCase()}
         </div>

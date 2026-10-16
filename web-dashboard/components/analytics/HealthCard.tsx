@@ -53,7 +53,7 @@ export default function HealthCard({ status }: HealthCardProps) {
     const lastSuccessfulSync = Number(status.lastSuccessfulDataSyncAt || 0);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
             {status.syncHealthy === false && (
                 <div className="md:col-span-2 lg:col-span-3 rounded-3xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
                     <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
@@ -75,7 +75,7 @@ export default function HealthCard({ status }: HealthCardProps) {
                     </div>
                 </div>
             )}
-            <div className="md:col-span-2 lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:col-span-2 lg:col-span-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="flex items-center gap-2 font-bold text-slate-900">
                         {missingPermissionCount > 0 ? (
@@ -100,7 +100,7 @@ export default function HealthCard({ status }: HealthCardProps) {
                             : 'All required access active'}
                     </span>
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="mt-5 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-4">
                     {permissions.map(([label, granted]) => (
                         <PermissionBadge
                             key={label}

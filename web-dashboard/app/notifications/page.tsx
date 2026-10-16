@@ -93,6 +93,7 @@ export default function NotificationsPage() {
         return <Zap className="text-purple-500" />;
 
       case "APP_ACCESS_REQUEST":
+      case "WEB_ACCESS_REQUEST":
         return <AlertTriangle className="text-orange-500" />;
 
       case "REMOTE_CONTROL_OVERRIDE":
@@ -199,6 +200,23 @@ export default function NotificationsPage() {
       )}?tab=overview&screenTimeRequest=${encodeURIComponent(
         requestId
       )}#screen-time-requests`;
+    }
+
+    if (
+      type === "WEB_ACCESS_REQUEST" &&
+      childId
+    ) {
+      const requestId =
+        (notification as any).eventId ||
+        (notification as any).requestId ||
+        (notification as any).data?.eventId ||
+        "";
+
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}?tab=internet&webRequest=${encodeURIComponent(
+        requestId
+      )}#website-access-requests`;
     }
 
     if (

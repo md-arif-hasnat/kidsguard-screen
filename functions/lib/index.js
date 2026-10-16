@@ -33,7 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
+exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onWebAccessRequestCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
+exports.paddleBillingWebhook = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -464,6 +465,28 @@ exports.onAppAccessRequestCreated = functions.firestore
         clickAction: `/dashboard/${encodeURIComponent(childId)}` +
             `?tab=overview&screenTimeRequest=${encodeURIComponent(requestId)}` +
             "#screen-time-requests",
+    });
+});
+exports.onWebAccessRequestCreated = functions.firestore
+    .document("children/{childId}/accessRequests/{requestId}")
+    .onCreate(async (snapshot, context) => {
+    const request = snapshot.data();
+    const childId = String(context.params.childId || "");
+    const requestId = String(context.params.requestId || "");
+    if (!childId || !requestId || request?.status !== "PENDING") {
+        return;
+    }
+    const childName = String(request?.childName || "Your child");
+    const domain = String(request?.domain || request?.url || "a blocked website");
+    await broadcastToParents(childId, {
+        title: "Website access requested",
+        body: `${childName} requested access to ${domain}.`,
+        type: "WEB_ACCESS_REQUEST",
+        childId,
+        eventId: requestId,
+        clickAction: `/dashboard/${encodeURIComponent(childId)}` +
+            `?tab=internet&webRequest=${encodeURIComponent(requestId)}` +
+            "#website-access-requests",
     });
 });
 exports.onRemoteControlOverrideCreated = functions.firestore
@@ -1059,21 +1082,32 @@ exports.checkOfflineChildren = functions.pubsub
     return null;
 });
 async function broadcastToParents(childId, payload) {
-    const familyQuery = await db.collection('families')
-        .where('childDeviceIds', 'array-contains', childId)
-        .limit(1)
-        .get();
-    if (familyQuery.empty) {
+    const childSnapshot = await db.collection('children').doc(childId).get();
+    const childFamilyId = String(payload.familyId || childSnapshot.data()?.familyId || "").trim();
+    let familyDoc = null;
+    if (childFamilyId) {
+        const directFamily = await db.collection('families').doc(childFamilyId).get();
+        if (directFamily.exists)
+            familyDoc = directFamily;
+    }
+    if (!familyDoc) {
+        const familyQuery = await db.collection('families')
+            .where('childDeviceIds', 'array-contains', childId)
+            .limit(1)
+            .get();
+        familyDoc = familyQuery.empty ? null : familyQuery.docs[0];
+    }
+    if (!familyDoc) {
         console.warn(`No family found for child ${childId}`);
         return;
     }
-    const familyDoc = familyQuery.docs[0];
     const familyId = familyDoc.id;
     const family = familyDoc.data();
-    const members = family.members || [];
-    const parentUids = members
+    const members = family?.members || [];
+    const parentUids = Array.from(new Set(members
         .filter(m => normalizeFamilyRole(m.role) !== null)
-        .map(m => m.uid);
+        .map(m => String(m.uid || "").trim())
+        .filter(Boolean)));
     const promises = parentUids.map(uid => notifyParent(uid, { ...payload, familyId }));
     await Promise.all(promises);
 }
@@ -1153,6 +1187,15 @@ exports.onPermissionAlertCreated = functions.firestore
 async function notifyParent(uid, payload) {
     const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
     const settings = settingsSnap.data();
+    const requestTypes = new Set([
+        'APP_ACCESS_REQUEST',
+        'WEB_ACCESS_REQUEST',
+        'PERMISSION_CHANGE_REQUEST'
+    ]);
+    if (settings?.requestAlerts === false && requestTypes.has(payload.type)) {
+        console.log(`Parent ${uid} has disabled child request notifications.`);
+        return;
+    }
     const typeMap = {
         'SAFE_ZONE': 'safeZone',
         'SOS': 'sos',
@@ -1167,7 +1210,8 @@ async function notifyParent(uid, payload) {
         'TAMPER_ALERT': 'securityAlerts',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
-        'APP_ACCESS_REQUEST': 'appUsage',
+        'APP_ACCESS_REQUEST': 'requestAlerts',
+        'WEB_ACCESS_REQUEST': 'requestAlerts',
         'APP_LIMIT_REACHED': 'appUsage',
         'BLOCKED_APP_ATTEMPT': 'appUsage',
         'REMOTE_CONTROL_OVERRIDE': 'deviceStatus',
@@ -1269,7 +1313,10 @@ async function notifyParent(uid, payload) {
             }
         },
         android: {
-            priority: (payload.type === 'SOS') ? 'high' : 'normal',
+            priority: (payload.type === 'SOS' ||
+                payload.type === 'APP_ACCESS_REQUEST' ||
+                payload.type === 'WEB_ACCESS_REQUEST' ||
+                payload.type === 'PERMISSION_CHANGE_REQUEST') ? 'high' : 'normal',
             notification: {
                 clickAction: 'FLUTTER_NOTIFICATION_CLICK'
             }

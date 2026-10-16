@@ -30,7 +30,7 @@ export default function ScreenTimeStats({
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
                 {['Today', 'Yesterday', '7-Day Average'].map((label) => (
                     <div
                         key={label}
@@ -56,7 +56,7 @@ export default function ScreenTimeStats({
               : `${diff > 0 ? '+' : '-'}${Math.round(Math.abs(diff) / 60000)}m vs yesterday`;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
             <StatCard
                 label="Today's Screen Time"
                 value={hasData ? formatTime(todayMs) : 'No data'}
@@ -98,7 +98,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, subValue, icon: Icon, color, trend }: StatCardProps) {
     return (
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-between h-full">
+        <div className="flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:rounded-[2rem] md:p-8">
             <div className="flex justify-between items-start mb-6">
                 <div className={cn("p-3 rounded-2xl text-white shadow-lg", color)}>
                     <Icon size={24} />

@@ -472,6 +472,39 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: android.content.Intent) {
         val notificationType = intent.getStringExtra("type")
         if (
+            (
+                notificationType == "APP_ACCESS_REQUEST" ||
+                notificationType == "WEB_ACCESS_REQUEST"
+            ) &&
+            prefHelper.userRole == "PARENT"
+        ) {
+            val childId = intent.getStringExtra("childId").orEmpty()
+            val requestId = intent.getStringExtra("eventId").orEmpty()
+            val targetUrl = if (notificationType == "WEB_ACCESS_REQUEST") {
+                "https://kidsguard-screen.vercel.app/dashboard/" +
+                    android.net.Uri.encode(childId) +
+                    "?tab=internet&webRequest=" +
+                    android.net.Uri.encode(requestId) +
+                    "#website-access-requests"
+            } else {
+                "https://kidsguard-screen.vercel.app/dashboard/" +
+                    android.net.Uri.encode(childId) +
+                    "?tab=overview&screenTimeRequest=" +
+                    android.net.Uri.encode(requestId) +
+                    "#screen-time-requests"
+            }
+
+            startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(targetUrl)
+                )
+            )
+            intent.removeExtra("type")
+            return
+        }
+
+        if (
             notificationType == "PERMISSION_CHANGE_REQUEST" &&
             prefHelper.userRole == "PARENT"
         ) {
