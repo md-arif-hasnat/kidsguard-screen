@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Key, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { Shield, Key, AlertCircle, Loader2, ArrowRight, Chrome } from 'lucide-react';
 import { loginWithEmail, loginWithGoogle, observeAuth } from '@/lib/auth';
 import { PlatformAdminRepository } from '@/lib/repositories/PlatformAdminRepository';
 
@@ -139,7 +139,7 @@ export default function InternalLogin() {
                 disabled={loading}
                 className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-3"
             >
-                <img src="/google-icon.png" alt="G" className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                <Chrome size={20} aria-hidden="true" />
                 Sign in with Google
             </button>
           </div>

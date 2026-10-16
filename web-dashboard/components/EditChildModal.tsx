@@ -7,6 +7,7 @@ import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import AvatarPicker from './AvatarPicker';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import RemoteImage from './RemoteImage';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -83,11 +84,13 @@ export default function EditChildModal({ childId, initialName, initialAvatarId, 
 
           <div className="flex flex-col items-center">
              <div className="relative group">
-                <div className="w-28 h-28 rounded-3xl bg-primary-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
-                    <img
+                <div className="relative w-28 h-28 rounded-3xl bg-primary-50 border-4 border-white shadow-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
+                    <RemoteImage
                         src={`https://api.dicebear.com/7.x/bottts/svg?seed=${avatarId}`}
                         alt="Avatar"
-                        className="w-full h-full object-contain"
+                        fill
+                        sizes="112px"
+                        className="object-contain"
                     />
                 </div>
                 <button

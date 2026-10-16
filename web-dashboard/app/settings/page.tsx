@@ -10,6 +10,7 @@ import { useParentProfile, getAvatarUrl, getDisplayName } from '@/lib/context/Pa
 import { User } from 'firebase/auth';
 import AvatarPicker from '@/components/AvatarPicker';
 import { clsx } from 'clsx';
+import RemoteImage from '@/components/RemoteImage';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
@@ -170,9 +171,9 @@ export default function SettingsPage() {
           <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50">
              <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
                 <div className="relative group">
-                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
+                  <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
                     {avatarUrl ? (
-                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                        <RemoteImage src={avatarUrl} alt="Profile" fill sizes="96px" className="object-cover" />
                     ) : (
                         <UserIcon size={32} />
                     )}

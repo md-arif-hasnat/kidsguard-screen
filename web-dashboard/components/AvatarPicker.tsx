@@ -4,6 +4,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import RemoteImage from './RemoteImage';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -44,10 +45,12 @@ const AvatarPicker: React.FC<AvatarPickerProps> = ({ type, currentAvatarId, onSe
                   currentAvatarId === id ? "border-primary-500 bg-primary-50 shadow-lg shadow-primary-100 scale-105" : "border-transparent hover:border-slate-200 hover:bg-slate-50"
                 )}
               >
-                <img
+                <RemoteImage
                   src={`https://api.dicebear.com/7.x/${style}/svg?seed=${id}`}
                   alt={id}
-                  className="w-full h-full object-contain"
+                  fill
+                  sizes="(min-width: 768px) 80px, 64px"
+                  className="object-contain"
                 />
                 {currentAvatarId === id && (
                   <div className="absolute top-1 right-1 bg-primary-500 text-white rounded-full p-0.5 shadow-sm">

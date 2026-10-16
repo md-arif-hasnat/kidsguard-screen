@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import {
   Shield,
   Download,
@@ -17,6 +18,7 @@ import {
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { ConfigRepository, UpdateConfig, AppRelease } from '@/lib/repositories/ConfigRepository';
 import { clsx } from 'clsx';
+import RemoteImage from '@/components/RemoteImage';
 
 export default function DownloadPage() {
   const [config, setConfig] = useState<UpdateConfig | null>(null);
@@ -76,7 +78,7 @@ export default function DownloadPage() {
       {/* Navbar */}
       <nav className="h-20 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center px-6 md:px-12 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <img src="/navbar-logo.png" alt="KidsGuard" className="h-8 w-auto" />
+          <Image src="/navbar-logo.png" alt="KidsGuard" width={74} height={32} className="h-8 w-auto" priority />
           <div className="hidden">
             <span className="text-xl font-black text-slate-900 dark:text-white tracking-tighter block leading-none">KidsGuard</span>
             <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Protect • Guide • Grow</span>
@@ -145,9 +147,11 @@ export default function DownloadPage() {
                 <div className="relative inline-block group">
                     <div className="absolute -inset-4 bg-primary-500/5 rounded-3xl blur-xl group-hover:bg-primary-500/10 transition-all duration-500" />
                     <div className="relative bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm">
-                        <img
+                        <RemoteImage
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}`}
                             alt="Download QR"
+                            width={192}
+                            height={192}
                             className="w-48 h-48"
                         />
                     </div>

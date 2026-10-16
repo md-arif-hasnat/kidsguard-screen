@@ -10,15 +10,17 @@ import ChildHistoryPanel from '@/components/panels/ChildHistoryPanel';
 export default function HistoryPage() {
   const { family, profile } = useParentProfile();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const childIdsKey = (family?.childDeviceIds ?? []).join("\u0000");
 
   useEffect(() => {
+    const childIds = childIdsKey ? childIdsKey.split("\u0000") : [];
     const savedChildId = localStorage.getItem("kidsguard_selected_child");
-    if (savedChildId) setSelectedChildId(savedChildId);
-
-    if (family && !selectedChildId && (family.childDeviceIds ?? []).length > 0) {
-        setSelectedChildId(family.childDeviceIds[0]);
-    }
-  }, [family]);
+    setSelectedChildId(
+      savedChildId && childIds.includes(savedChildId)
+        ? savedChildId
+        : childIds[0] ?? null
+    );
+  }, [childIdsKey]);
 
   return (
     <DashboardLayout>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Share, Download, X, PlusSquare, MoreVertical, Smartphone, Shield } from 'lucide-react';
 import { AuditRepository, AuditAction, AuditSeverity } from '@/lib/repositories/AuditRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
@@ -10,21 +11,11 @@ export default function PWAInstallBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other' | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const profileUid = profile?.uid;
+  const profileEmail = profile?.email;
+  const familyId = family?.familyId;
 
   useEffect(() => {
-    window.addEventListener('appinstalled', () => {
-        if (profile && family) {
-            AuditRepository.log({
-                actorUid: profile.uid,
-                actorEmail: profile.email || "user",
-                familyId: family.familyId,
-                action: AuditAction.PWA_INSTALLED,
-                targetType: 'SYSTEM',
-                severity: AuditSeverity.INFO
-            });
-        }
-    });
-
     // 1. Detect platform
     const ua = window.navigator.userAgent.toLowerCase();
     const isIOS = /iphone|ipad|ipod/.test(ua);
@@ -54,6 +45,23 @@ export default function PWAInstallBanner() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleInstalled = () => {
+      if (!profileUid || !familyId) return;
+      void AuditRepository.log({
+        actorUid: profileUid,
+        actorEmail: profileEmail || "user",
+        familyId,
+        action: AuditAction.PWA_INSTALLED,
+        targetType: 'SYSTEM',
+        severity: AuditSeverity.INFO
+      });
+    };
+
+    window.addEventListener('appinstalled', handleInstalled);
+    return () => window.removeEventListener('appinstalled', handleInstalled);
+  }, [familyId, profileEmail, profileUid]);
+
   const handleDismiss = () => {
     localStorage.setItem('kidsguard_pwa_install_banner_dismissed', Date.now().toString());
     setShowBanner(false);
@@ -66,7 +74,7 @@ export default function PWAInstallBanner() {
       <div className="bg-slate-900 text-white p-3 md:p-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] animate-in slide-in-from-top duration-500 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
-            <img src="/app-icon.png" alt="Icon" className="w-full h-full object-cover" />
+            <Image src="/icon.png" alt="KidsGuard app icon" width={40} height={40} className="h-full w-full object-cover" />
           </div>
           <div>
             <p className="text-sm font-black tracking-tight leading-none">KidsGuard for Mobile</p>

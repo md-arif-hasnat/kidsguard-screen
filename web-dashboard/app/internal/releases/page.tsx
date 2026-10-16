@@ -93,11 +93,9 @@ export default function ReleaseManager() {
       console.log("RELEASE_DEBUG: starting data load");
 
       timeoutId = setTimeout(() => {
-        if (loading) {
-            console.warn("RELEASE_DEBUG: loading timeout reached");
-            setLoading(false);
-            setError("Connection timeout. Please refresh the page.");
-        }
+        console.warn("RELEASE_DEBUG: loading timeout reached");
+        setLoading(false);
+        setError("Connection timeout. Please refresh the page.");
       }, 10000);
 
       try {

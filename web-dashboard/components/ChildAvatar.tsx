@@ -1,6 +1,7 @@
 import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import RemoteImage from './RemoteImage';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -26,17 +27,19 @@ const ChildAvatar: React.FC<ChildAvatarProps> = ({ name, avatarId, photoUrl, cla
 
   return (
     <div className={cn(
-      "rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden border-2 border-primary-200 shrink-0",
+      "relative rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold overflow-hidden border-2 border-primary-200 shrink-0",
       sizeClasses[size],
       className
     )}>
       {photoUrl ? (
-        <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
+        <RemoteImage src={photoUrl} alt={name || "Child profile"} fill sizes="48px" className="object-cover" />
       ) : avatarId ? (
-        <img
+        <RemoteImage
           src={`https://api.dicebear.com/7.x/bottts/svg?seed=${avatarId}`}
           alt="avatar"
-          className="w-full h-full object-cover"
+          fill
+          sizes="48px"
+          className="object-cover"
         />
       ) : (
         fallback

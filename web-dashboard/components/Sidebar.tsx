@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -45,14 +46,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { role } = useParentProfile();
 
   useEffect(() => {
+    let unsubscribeCount = () => {};
     const unsubAuth = observeAuth((authUser) => {
+      unsubscribeCount();
       setUser(authUser);
       if (authUser) {
-        const unsubCount = NotificationRepository.listenToUnreadCount(authUser.uid, setUnreadCount);
-        return () => unsubCount();
+        unsubscribeCount = NotificationRepository.listenToUnreadCount(
+          authUser.uid,
+          setUnreadCount
+        );
+      } else {
+        setUnreadCount(0);
       }
     });
-    return () => unsubAuth();
+    return () => {
+      unsubscribeCount();
+      unsubAuth();
+    };
   }, []);
 
   useEffect(() => {
@@ -112,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         isMobile ? "px-6 py-4 h-20" : "mb-10 px-2"
       )}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => { router.push('/'); if (onClose) onClose(); }}>
-          <img src="/sidebar-logo.png" alt="KidsGuard" className="h-10 w-auto" />
+          <Image src="/sidebar-logo.png" alt="KidsGuard" width={94} height={40} className="h-10 w-auto" priority />
         </div>
         {isMobile && (
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white transition-colors">

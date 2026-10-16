@@ -27,6 +27,7 @@ import { FamilyRepository, FamilyRole, FamilyInvite, EmergencyContact } from '@/
 import { RoleHelper } from '@/lib/utils/RoleHelper';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import RemoteImage from '@/components/RemoteImage';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -204,8 +205,14 @@ finally {
                   {(family?.members ?? []).map((member) => (
                     <div key={member.uid} className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-black overflow-hidden border-2 border-primary-200">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.uid}`} alt="avatar" />
+                        <div className="relative w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-black overflow-hidden border-2 border-primary-200">
+                          <RemoteImage
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.uid}`}
+                            alt={`${member.displayName || "Family member"} avatar`}
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                          />
                         </div>
                         <div>
                           <p className="font-bold text-slate-800">{member.displayName || "Family Member"}</p>

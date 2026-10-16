@@ -24,6 +24,7 @@ import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { formatLastUsed, formatDurationSeconds } from '@/lib/utils/FormatUtils';
 import { clsx } from 'clsx';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import RemoteImage from '@/components/RemoteImage';
 
 interface YouTubeHistoryPanelProps {
   childId: string;
@@ -211,12 +212,14 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
                     <div className="mb-4 flex min-w-0 items-start gap-3">
 
                       {/* Thumbnail */}
-                      <div className="h-14 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-16 sm:w-28">
+                      <div className="relative h-14 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-16 sm:w-28">
                         {activity.thumbnailUrl ? (
-                          <img
+                          <RemoteImage
                             src={activity.thumbnailUrl}
                             alt={activity.videoTitle || "YouTube thumbnail"}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="(min-width: 640px) 112px, 96px"
+                            className="object-cover"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-red-600">
@@ -338,7 +341,7 @@ function ActivityDetailsModal({ activity, onClose }: any) {
         <header className="flex flex-col gap-6 mb-10">
           <div className="w-full aspect-video bg-slate-100 rounded-3xl overflow-hidden border border-slate-100 relative group">
             {derivedThumbnail ? (
-              <img src={derivedThumbnail} alt={activity.videoTitle} className="w-full h-full object-cover" />
+              <RemoteImage src={derivedThumbnail} alt={activity.videoTitle} fill sizes="(min-width: 768px) 640px, 100vw" className="object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-red-600 bg-red-50">
                 <Youtube size={64} />

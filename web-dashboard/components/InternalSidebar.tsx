@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -69,7 +70,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-6 flex shrink-0 flex-col px-2">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => { router.push('/internal'); if (onClose) onClose(); }}>
-          <img src="/sidebar-logo.png" alt="KidsGuard" className="h-10 w-auto brightness-0 invert" />
+          <Image src="/sidebar-logo.png" alt="KidsGuard" width={94} height={40} className="h-10 w-auto brightness-0 invert" priority />
           <div>
             <h1 className="text-xl font-black tracking-tighter text-white uppercase">Internal</h1>
             <p className="text-[7px] font-black text-rose-400 uppercase tracking-[0.2em] -mt-0.5">Platform Admin</p>

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import {
   Shield,
   Lock,
@@ -98,7 +99,7 @@ export default function Login() {
   }, []);
 
   // Consolidated redirect function
-  const safeRedirect = () => {
+  const safeRedirect = useCallback(() => {
     if (redirectingRef.current) return;
 
     redirectingRef.current = true;
@@ -113,7 +114,7 @@ export default function Login() {
     );
 
     router.replace(returnPath || "/");
-  };
+  }, [router]);
 const getFriendlyAuthError = (err: any): string => {
   switch (err?.code) {
     case "auth/invalid-credential":
@@ -157,7 +158,7 @@ const getFriendlyAuthError = (err: any): string => {
       });
 
       return () => unsub();
-  }, [router, loading]);
+  }, [loading, safeRedirect]);
 
   const handlePostLogin = async (
     user: any,
@@ -520,7 +521,7 @@ const getFriendlyAuthError = (err: any): string => {
         {loading && (
             <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
                 <div className="mb-6">
-                    <img src="/loading-logo.png" alt="Loading..." className="h-20 w-auto animate-pulse" />
+                    <Image src="/loading-logo.png" alt="Loading..." width={80} height={80} className="h-20 w-auto animate-pulse" priority />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 mb-2">Secure Authentication</h2>
                 <p className="text-slate-500 font-medium italic animate-pulse">{loadingMessage}</p>
@@ -532,7 +533,7 @@ const getFriendlyAuthError = (err: any): string => {
 
         <div className="flex flex-col items-center mb-8">
           <div className="mb-4">
-            <img src="/navbar-logo.png" alt="KidsGuard Logo" className="h-16 w-auto" />
+            <Image src="/navbar-logo.png" alt="KidsGuard Logo" width={148} height={64} className="h-16 w-auto" priority />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
             KidsGuard

@@ -15,6 +15,7 @@ import {
 } from "@/lib/context/ParentProfileContext";
 import Link from "next/link";
 import LegalFooter from "./LegalFooter";
+import RemoteImage from "./RemoteImage";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -255,16 +256,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             >
               <div
                 className="
-                  flex h-9 w-9 items-center justify-center
+                  relative flex h-9 w-9 items-center justify-center
                   overflow-hidden rounded-xl
                   bg-[#e8f2ff] font-bold text-[#0071e3]
                 "
               >
                 {avatarUrl ? (
-                  <img
+                  <RemoteImage
                     src={avatarUrl}
                     alt="avatar"
-                    className="h-full w-full object-cover"
+                    fill
+                    sizes="36px"
+                    className="object-cover"
                   />
                 ) : (
                   displayName.charAt(0).toUpperCase()

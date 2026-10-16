@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import ChildStatusCard from '@/components/ChildStatusCard';
@@ -220,7 +221,7 @@ export default function Home() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
             <div className="flex flex-col items-center gap-6">
-                <img src="/loading-logo.png" alt="KidsGuard" className="h-24 w-auto animate-pulse" />
+                <Image src="/loading-logo.png" alt="KidsGuard" width={96} height={96} className="h-24 w-auto animate-pulse" priority />
                 <p className="font-black uppercase tracking-[0.3em] text-primary-500 animate-pulse">Syncing Family Vault</p>
             </div>
         </div>
