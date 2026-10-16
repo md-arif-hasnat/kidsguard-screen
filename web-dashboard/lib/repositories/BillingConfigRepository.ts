@@ -8,7 +8,7 @@ export interface BillingConfig {
   extraChildPriceCents: number;
   trialDays: number;
   currency: "EUR";
-  billingInterval: "MONTHLY";
+  billingInterval: "MONTHLY" | "YEARLY";
   enabled: boolean;
 }
 

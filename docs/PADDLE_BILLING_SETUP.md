@@ -6,19 +6,23 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
 
 1. Create and verify a Paddle seller account using the exact United Foreign Trade business details.
 2. Ask Paddle to approve the KidsGuard domain and parental-safety software use case.
-3. Create a recurring Family Plan price in EUR:
-   - EUR 2.99 per month
-   - seven-day trial
-   - two child devices included
-4. Create a recurring extra-child add-on:
+3. Create two recurring Family Plan prices in EUR:
+   - EUR 3.49 per month with a seven-day trial
+   - EUR 35.99 per year with a seven-day trial
+   - two child devices included in either interval
+4. Create two recurring extra-child add-on prices under the same product:
    - EUR 1.99 per month for each additional child slot
-   - same monthly billing interval as the Family Plan
+   - EUR 19.99 per year for each additional child slot
+   - no trial on either add-on; Paddle prorates the first charge
+   - each add-on interval must match the selected Family Plan interval
 5. Start in Paddle Sandbox.
 6. In Vercel, add:
    - `NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox`
    - `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=<sandbox client token>`
-   - `NEXT_PUBLIC_PADDLE_PRICE_ID=<sandbox recurring price id>`
-   - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID=<sandbox add-on price id>`
+   - `NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID=<sandbox monthly price id>`
+   - `NEXT_PUBLIC_PADDLE_YEARLY_PRICE_ID=<sandbox yearly price id>`
+   - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID=<sandbox monthly add-on price id>`
+   - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID=<sandbox yearly add-on price id>`
 7. Redeploy the web dashboard.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
@@ -33,7 +37,16 @@ The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`
    firebase functions:secrets:set PADDLE_WEBHOOK_SECRET
    ```
 
-2. Add the Functions runtime parameter `PADDLE_EXTRA_CHILD_PRICE_ID` using the exact Paddle recurring add-on price ID. Until it is present, the webhook intentionally does not change `extraChildSlots`.
+2. Add both Functions runtime parameters using the exact Paddle recurring add-on price IDs:
+
+   ```text
+   PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID=<sandbox monthly add-on price id>
+   PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID=<sandbox yearly add-on price id>
+   ```
+
+   The legacy `PADDLE_EXTRA_CHILD_PRICE_ID` remains supported as the monthly
+   add-on only. Until the price for the subscription's interval is present,
+   KidsGuard intentionally refuses the billing change.
 3. Store a Paddle API key that has subscription read/write permission:
 
    ```powershell

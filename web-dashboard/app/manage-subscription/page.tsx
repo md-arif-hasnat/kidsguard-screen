@@ -17,6 +17,11 @@ import {
   FamilyRepository,
   FamilyRole,
 } from "@/lib/repositories/FamilyRepository";
+import {
+  MONTHLY_PRICE_CENTS,
+  YEARLY_PRICE_CENTS,
+  formatEuroCents,
+} from "@/lib/billing/pricing";
 
 function formatDate(value: any): string {
   if (!value) return "the end of the current billing period";
@@ -118,6 +123,17 @@ export default function ManageSubscriptionPage() {
     subscription?.nextBilledAt ||
       subscription?.currentPeriodEndsAt
   );
+  const billingInterval =
+    subscription?.billingInterval === "YEARLY" ? "YEARLY" : "MONTHLY";
+  const billingPeriodLabel =
+    billingInterval === "YEARLY" ? "yearly" : "monthly";
+  const billedPriceCents =
+    typeof subscription?.basePriceCents === "number"
+      ? subscription.basePriceCents
+      : billingInterval === "YEARLY"
+        ? YEARLY_PRICE_CENTS
+        : MONTHLY_PRICE_CENTS;
+  const billedPriceLabel = formatEuroCents(billedPriceCents);
 
   const keepSubscription = async () => {
     setWorking(true);
@@ -252,8 +268,8 @@ export default function ManageSubscriptionPage() {
               </h2>
               <p className="mt-2 text-sm leading-6 text-emerald-700">
                 {isTrial
-                  ? `€0 due today. Your first €2.99 monthly charge is scheduled for ${firstChargeAt}.`
-                  : `Your KidsGuard subscription is active. Your next €2.99 monthly charge is scheduled for ${nextChargeAt}.`}
+                  ? `€0 due today. Your first ${billedPriceLabel} ${billingPeriodLabel} charge is scheduled for ${firstChargeAt}.`
+                  : `Your KidsGuard subscription is active. Your next ${billedPriceLabel} ${billingPeriodLabel} charge is scheduled for ${nextChargeAt}.`}
               </p>
               <Link
                 href="/cancel-subscription"
