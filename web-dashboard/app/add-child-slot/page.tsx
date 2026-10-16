@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  EXTRA_CHILD_MONTHLY_PRICE_CENTS,
+  EXTRA_CHILD_YEARLY_PRICE_CENTS,
+  formatEuroCents,
+} from "@/lib/billing/pricing";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { FamilyRepository, FamilyRole } from "@/lib/repositories/FamilyRepository";
 
@@ -21,9 +26,24 @@ export default function AddChildSlotPage() {
   const allowed = included + extra;
   const childCount = family?.childDeviceIds?.length || 0;
   const canRemove = extra > 0 && childCount <= allowed - 1;
-  const providerReady = Boolean(
-    process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID
-  );
+  const billingInterval =
+    String(subscription?.billingInterval || "MONTHLY").toUpperCase() ===
+    "YEARLY"
+      ? "YEARLY"
+      : "MONTHLY";
+  const isYearly = billingInterval === "YEARLY";
+  const extraChildPriceCents = isYearly
+    ? EXTRA_CHILD_YEARLY_PRICE_CENTS
+    : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
+  const extraChildPriceLabel = `${formatEuroCents(extraChildPriceCents)}/${
+    isYearly ? "year" : "month"
+  }`;
+  const providerReady = isYearly
+    ? Boolean(process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID)
+    : Boolean(
+        process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID ||
+          process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID
+      );
 
   useEffect(() => {
     if (!loading && role !== FamilyRole.OWNER) router.replace("/");
@@ -97,11 +117,12 @@ export default function AddChildSlotPage() {
             Recurring add-on
           </p>
           <h2 className="mt-2 text-3xl font-black text-blue-950">
-            €1.99/month
+            {extraChildPriceLabel}
           </h2>
           <p className="mt-2 text-sm leading-6 text-blue-800">
             Each paid add-on permits one additional connected child. It renews
-            with the main monthly subscription until removed or cancelled.
+            with the main {isYearly ? "yearly" : "monthly"} subscription until
+            removed or cancelled.
           </p>
         </section>
 
@@ -169,7 +190,7 @@ export default function AddChildSlotPage() {
             ? "Processing Secure Payment…"
             : success
               ? "Slot Activation Pending"
-              : "Buy Extra Slot · €1.99/month"}
+              : `Buy Extra Slot · ${extraChildPriceLabel}`}
         </button>
 
         {extra > 0 && (
