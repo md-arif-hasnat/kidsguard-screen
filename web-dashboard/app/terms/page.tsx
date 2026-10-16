@@ -15,7 +15,7 @@ export default function TermsOfServicePage() {
         </h1>
 
         <p className="mt-2 text-sm text-slate-400">
-          Last updated: August 11, 2026
+          Last updated: October 16, 2026
         </p>
 
         <section className="mt-8 space-y-4">
@@ -113,10 +113,11 @@ export default function TermsOfServicePage() {
           </p>
 
           <p className="mt-3">
-            The planned base subscription is EUR 2.99 per month and includes
-            up to two child-device slots. Additional child-device capacity may
-            be offered for an additional recurring price displayed before
-            purchase.
+            The base subscription is EUR 3.49 per month or EUR 35.99 per year
+            and includes up to two child-device slots. The yearly plan saves
+            approximately 14% compared with twelve monthly payments.
+            Additional child-device capacity may be offered for an additional
+            recurring price displayed before purchase.
           </p>
 
           <p className="mt-3">
