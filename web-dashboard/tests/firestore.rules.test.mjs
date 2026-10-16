@@ -796,6 +796,179 @@ test(
 );
 
 test(
+  "child can acknowledge but cannot rewrite a remote command",
+  async () => {
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+    const commandRef = doc(
+      ownerDb,
+      "children",
+      "child-1",
+      "remoteCommands",
+      "secured-command"
+    );
+
+    await assertSucceeds(setDoc(commandRef, {
+      commandId: "secured-command",
+      childId: "child-1",
+      commandType: "LOCK_DEVICE",
+      payload: null,
+      status: "PENDING",
+      createdByParentId: "owner-uid"
+    }));
+
+    const childCommandRef = doc(
+      childDb,
+      "children",
+      "child-1",
+      "remoteCommands",
+      "secured-command"
+    );
+
+    await assertFails(updateDoc(childCommandRef, {
+      commandType: "UNLOCK_DEVICE"
+    }));
+
+    await assertSucceeds(updateDoc(childCommandRef, {
+      status: "DELIVERED",
+      receivedAt: Date.now(),
+      resultMessage: "Delivered to child device"
+    }));
+
+    await assertSucceeds(updateDoc(childCommandRef, {
+      status: "APPLIED",
+      executedAt: Date.now(),
+      resultMessage: "Command applied"
+    }));
+  }
+);
+
+test(
+  "child cannot create or change parent protection modes",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const modePath = [
+      "children",
+      "child-1",
+      "protectionModes",
+      "secured-mode"
+    ];
+
+    await assertFails(setDoc(doc(childDb, ...modePath), {
+      id: "secured-mode",
+      name: "Bedtime",
+      type: "SLEEP",
+      enabled: false
+    }));
+
+    await assertSucceeds(setDoc(doc(ownerDb, ...modePath), {
+      id: "secured-mode",
+      name: "Bedtime",
+      type: "SLEEP",
+      enabled: true
+    }));
+
+    await assertFails(updateDoc(doc(childDb, ...modePath), {
+      enabled: false
+    }));
+  }
+);
+
+test(
+  "child cannot self-approve a website access request",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const path = [
+      "children",
+      "child-1",
+      "accessRequests",
+      "web-request-secured"
+    ];
+
+    await assertSucceeds(setDoc(doc(childDb, ...path), {
+      requestId: "web-request-secured",
+      childId: "child-1",
+      domain: "example.com",
+      timestamp: Date.now(),
+      status: "PENDING"
+    }));
+
+    await assertFails(updateDoc(doc(childDb, ...path), {
+      status: "APPROVED"
+    }));
+
+    await assertSucceeds(updateDoc(doc(ownerDb, ...path), {
+      status: "APPROVED",
+      resolvedAt: serverTimestamp()
+    }));
+  }
+);
+
+test(
+  "child cannot self-approve a screen-time request",
+  async () => {
+    const childDb = verifiedDb(
+      "child-auth-uid",
+      "child@example.com"
+    );
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const path = [
+      "children",
+      "child-1",
+      "appAccessRequests",
+      "time-request-secured"
+    ];
+
+    await assertSucceeds(setDoc(doc(childDb, ...path), {
+      requestId: "time-request-secured",
+      childId: "child-1",
+      familyId: "family-1",
+      packageName: "com.example.video",
+      appName: "Example Video",
+      reason: "LIMIT_REACHED",
+      status: "PENDING",
+      requestedAt: serverTimestamp()
+    }));
+
+    await assertFails(updateDoc(doc(childDb, ...path), {
+      status: "APPROVED",
+      grantedMinutes: 1440
+    }));
+
+    await assertSucceeds(updateDoc(doc(ownerDb, ...path), {
+      status: "APPROVED",
+      grantedMinutes: 30,
+      accessUntil: Date.now() + 30 * 60 * 1000,
+      reviewedBy: "owner-uid",
+      reviewedAt: serverTimestamp()
+    }));
+  }
+);
+
+test(
   "owner can invite a manager but manager cannot invite members",
   async () => {
     const ownerDb = verifiedDb(
@@ -831,6 +1004,48 @@ test(
         role: "VIEWER"
       }
     ));
+  }
+);
+
+test(
+  "owner can revoke but cannot rewrite or accept an invitation",
+  async () => {
+    const ownerDb = verifiedDb(
+      "owner-uid",
+      "owner@example.com"
+    );
+    const inviteRef = doc(
+      ownerDb,
+      "familyInvitations",
+      "secured-invite"
+    );
+    const expiry = new Date(Date.now() + 60 * 60 * 1000);
+
+    await assertSucceeds(setDoc(inviteRef, {
+      id: "secured-invite",
+      familyId: "family-1",
+      familyName: "Family One",
+      invitedBy: "owner-uid",
+      invitedByName: "Owner",
+      status: "PENDING",
+      email: "invitee@example.com",
+      invitedAt: serverTimestamp(),
+      expiresAt: expiry,
+      role: "VIEWER",
+      tokenHash: "test-token"
+    }));
+
+    await assertFails(updateDoc(inviteRef, {
+      email: "attacker@example.com"
+    }));
+
+    await assertFails(updateDoc(inviteRef, {
+      status: "ACCEPTED"
+    }));
+
+    await assertSucceeds(updateDoc(inviteRef, {
+      status: "REVOKED"
+    }));
   }
 );
 

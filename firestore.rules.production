@@ -459,7 +459,36 @@ service cloud.firestore {
                                 allow create, delete: if isParentForChild(childId);
 
                                 allow update: if isParentForChild(childId) ||
-                                  isChildIdentity(childId);
+                                  (
+                                    isChildIdentity(childId) &&
+                                    request.resource.data
+                                      .diff(resource.data)
+                                      .affectedKeys()
+                                      .hasOnly([
+                                        'status',
+                                        'receivedAt',
+                                        'executedAt',
+                                        'resultMessage'
+                                      ]) &&
+                                    (
+                                      (
+                                        resource.data.status == 'PENDING' &&
+                                        request.resource.data.status in [
+                                          'DELIVERED',
+                                          'EXPIRED',
+                                          'FAILED'
+                                        ]
+                                      ) ||
+                                      (
+                                        resource.data.status == 'DELIVERED' &&
+                                        request.resource.data.status in [
+                                          'APPLIED',
+                                          'EXPIRED',
+                                          'FAILED'
+                                        ]
+                                      )
+                                    )
+                                  );
                               }
                                     match /installedApps/{appId} {
                                       allow read: if canReadChild(childId);
@@ -554,27 +583,84 @@ service cloud.firestore {
                                           match /protectionModes/{modeId} {
                                             allow read: if canReadChild(childId);
 
-                                            allow write: if isParentForChild(childId) ||
-                                              isChildIdentity(childId);
+                                            // The child consumes these rules but must never be
+                                            // able to weaken or delete a parent policy.
+                                            allow create, update, delete:
+                                              if isParentForChild(childId);
                                           }
 
                                           match /accessRequests/{requestId} {
                                             allow read: if canReadChild(childId);
 
-                                            allow create: if isChildIdentity(childId);
+                                            allow create: if isChildIdentity(childId) &&
+                                              request.resource.data.requestId == requestId &&
+                                              request.resource.data.childId == childId &&
+                                              request.resource.data.domain is string &&
+                                              request.resource.data.domain.size() > 0 &&
+                                              request.resource.data.domain.size() <= 253 &&
+                                              request.resource.data.status == 'PENDING';
 
-                                            allow update: if isParentForChild(childId) ||
-                                              isChildIdentity(childId);
+                                            allow update: if isParentForChild(childId) &&
+                                              resource.data.status == 'PENDING' &&
+                                              request.resource.data.status in [
+                                                'APPROVED',
+                                                'DENIED'
+                                              ] &&
+                                              request.resource.data
+                                                .diff(resource.data)
+                                                .affectedKeys()
+                                                .hasOnly([
+                                                  'status',
+                                                  'resolvedAt'
+                                                ]);
 
                                             allow delete: if isParentForChild(childId);
                                           }
                       match /appAccessRequests/{requestId} {
                         allow read: if canReadChild(childId);
 
-                        allow create: if isChildIdentity(childId);
+                        allow create: if isChildIdentity(childId) &&
+                          request.resource.data.requestId == requestId &&
+                          request.resource.data.childId == childId &&
+                          request.resource.data.familyId ==
+                            get(
+                              /databases/$(database)/documents/children/$(childId)
+                            ).data.familyId &&
+                          request.resource.data.packageName is string &&
+                          request.resource.data.packageName.size() > 0 &&
+                          request.resource.data.packageName.size() <= 255 &&
+                          request.resource.data.appName is string &&
+                          request.resource.data.appName.size() <= 200 &&
+                          request.resource.data.reason is string &&
+                          request.resource.data.reason.size() <= 80 &&
+                          request.resource.data.status == 'PENDING';
 
-                        allow update: if isParentForChild(childId) ||
-                          isChildIdentity(childId);
+                        allow update: if isParentForChild(childId) &&
+                          resource.data.status == 'PENDING' &&
+                          request.resource.data.status in [
+                            'APPROVED',
+                            'DENIED'
+                          ] &&
+                          request.resource.data.reviewedBy ==
+                            request.auth.uid &&
+                          request.resource.data
+                            .diff(resource.data)
+                            .affectedKeys()
+                            .hasOnly([
+                              'status',
+                              'grantedMinutes',
+                              'accessUntil',
+                              'reviewedBy',
+                              'reviewedAt'
+                            ]) &&
+                          (
+                            request.resource.data.status == 'DENIED' ||
+                            (
+                              request.resource.data.grantedMinutes is int &&
+                              request.resource.data.grantedMinutes >= 1 &&
+                              request.resource.data.grantedMinutes <= 1440
+                            )
+                          );
 
                         allow delete: if isParentForChild(childId);
                       }
@@ -684,11 +770,18 @@ service cloud.firestore {
                                           )
                                         );
 
-                                      // Family Owner may revoke/update an invitation.
-                                      // Acceptance is handled only by Admin Cloud Function.
+                                      // The owner may revoke a pending invitation only.
+                                      // Acceptance and membership changes are handled by
+                                      // the trusted Admin Cloud Function.
                                       allow update: if isFamilyOwner(
-                                        resource.data.familyId
-                                      );
+                                          resource.data.familyId
+                                        ) &&
+                                        resource.data.status == 'PENDING' &&
+                                        request.resource.data.status == 'REVOKED' &&
+                                        request.resource.data
+                                          .diff(resource.data)
+                                          .affectedKeys()
+                                          .hasOnly(['status']);
 
                                       allow delete: if false;
                                     }
