@@ -4161,7 +4161,7 @@ export const ensureParentFamily =
           extraChildSlots: 0,
           billingInterval: 'MONTHLY',
           currency: 'EUR',
-          basePriceCents: 299,
+          basePriceCents: 349,
           extraChildPriceCents: 199
         },
         settings: {
@@ -7199,6 +7199,45 @@ export const paddleBillingWebhook = functions
           patch['subscription.status'] =
             paddleStatus(data.status);
 
+          const extraPriceId =
+            process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+          const subscriptionItems = Array.isArray(data.items)
+            ? data.items
+            : [];
+          const basePlanItem = subscriptionItems.find((item: any) => {
+            const itemPriceId = item?.price?.id || item?.price_id;
+            return !extraPriceId || itemPriceId !== extraPriceId;
+          });
+          const providerInterval =
+            data.billing_cycle?.interval ||
+            basePlanItem?.price?.billing_cycle?.interval;
+          const requestedInterval = customData.billingInterval;
+          const normalizedInterval =
+            String(providerInterval || requestedInterval || '')
+              .toLowerCase();
+          if (normalizedInterval === 'year' || normalizedInterval === 'yearly') {
+            patch['subscription.billingInterval'] = 'YEARLY';
+          } else if (
+            normalizedInterval === 'month' ||
+            normalizedInterval === 'monthly'
+          ) {
+            patch['subscription.billingInterval'] = 'MONTHLY';
+          }
+
+          const providerAmount = Number(
+            basePlanItem?.price?.unit_price?.amount
+          );
+          if (Number.isInteger(providerAmount) && providerAmount > 0) {
+            patch['subscription.basePriceCents'] = providerAmount;
+          }
+          const providerCurrency =
+            basePlanItem?.price?.unit_price?.currency_code ||
+            data.currency_code;
+          if (typeof providerCurrency === 'string' && providerCurrency) {
+            patch['subscription.currency'] =
+              providerCurrency.toUpperCase();
+          }
+
           if (!subscription.subscribedAt) {
             const subscribedAt =
               paddleDateMillis(data.started_at) ||
@@ -7268,8 +7307,6 @@ export const paddleBillingWebhook = functions
               admin.firestore.FieldValue.delete();
           }
 
-          const extraPriceId =
-            process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
           if (extraPriceId && Array.isArray(data.items)) {
             const paidExtraSlots = data.items.reduce(
               (total: number, item: any) => {
