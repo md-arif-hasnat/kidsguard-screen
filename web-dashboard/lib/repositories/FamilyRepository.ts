@@ -80,7 +80,7 @@ export interface FamilySubscription {
   status: "PENDING" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
   baseChildSlots: number;
   extraChildSlots: number;
-  billingInterval?: "MONTHLY";
+  billingInterval?: "MONTHLY" | "YEARLY";
   currency?: "EUR";
   basePriceCents?: number;
   extraChildPriceCents?: number;
@@ -400,7 +400,7 @@ export class FamilyRepository {
           extraChildSlots: 0,
           billingInterval: "MONTHLY",
           currency: "EUR",
-          basePriceCents: 299,
+          basePriceCents: 349,
           extraChildPriceCents: 199
       },
       settings: {
