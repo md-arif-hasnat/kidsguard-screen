@@ -156,6 +156,14 @@ class WellbeingManager(
 
         val control = appControlRepository.getControl(packageName)
         if (control != null) {
+            if (control.temporaryAccessUntil > System.currentTimeMillis()) {
+                Log.i(
+                    "AppAccessGrant",
+                    "Allowing $packageName until ${control.temporaryAccessUntil}"
+                )
+                return AppBlockReason.NONE
+            }
+
             if (control.blocked) {
 
                 Log.e("APP_BLOCK_TRACE", "Block confirmed package=$packageName")
@@ -304,12 +312,31 @@ class WellbeingManager(
         Log.i("RequestAccess", "Requesting access for $packageName ($reason)")
 
         val requestId = UUID.randomUUID().toString()
+        val usage = tracker.getDailyUsage()
+        val appUsageMinutes = usage
+            .find { it.packageName == packageName }
+            ?.totalTimeVisibleMs
+            ?.let { (it + 59_999L) / 60_000L }
+            ?: 0L
+        val totalUsageMinutes = usage
+            .asSequence()
+            .filter { it.category != AppCategory.SYSTEM }
+            .filterNot { isEmergencyApp(it.packageName) }
+            .sumOf { it.totalTimeVisibleMs }
+            .let { (it + 59_999L) / 60_000L }
+        val currentControl = appControlRepository.getControl(packageName)
         val request = mapOf(
+            "requestId" to requestId,
             "childId" to childId,
             "childName" to prefHelper.childName,
+            "familyId" to (prefHelper.familyId ?: ""),
             "packageName" to packageName,
             "appName" to appName,
             "reason" to reason,
+            "appUsageMinutes" to appUsageMinutes,
+            "totalUsageMinutes" to totalUsageMinutes,
+            "currentDailyLimitMinutes" to currentControl?.dailyLimitMinutes,
+            "currentTotalLimitMinutes" to _settings.value.dailyTotalLimitMinutes,
             "status" to "PENDING",
             "requestedAt" to FieldValue.serverTimestamp()
         )
@@ -319,22 +346,12 @@ class WellbeingManager(
             .collection("appAccessRequests")
             .document(requestId)
             .set(request)
-
-        val notification = mapOf(
-            "type" to "APP_ACCESS_REQUEST",
-            "childId" to childId,
-            "childName" to prefHelper.childName,
-            "appName" to appName,
-            "packageName" to packageName,
-            "reason" to reason,
-            "createdAt" to FieldValue.serverTimestamp(),
-            "read" to false,
-            "familyId" to (prefHelper.familyId ?: ""),
-            "clickAction" to "/children/$childId/installed-apps?pkg=$packageName"
-        )
-
-        db.collection(FirebaseConfig.COL_NOTIFICATIONS)
-            .add(notification)
+            .addOnSuccessListener {
+                Log.i(TAG, "Screen-time request uploaded: $requestId")
+            }
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Screen-time request upload failed: $requestId", error)
+            }
     }
 
     private fun isInsideBlockedSchedule(packageName: String, settings: WellbeingSettings): Boolean {

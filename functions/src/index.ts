@@ -722,6 +722,70 @@ clickAction:
 });
 
 /**
+ * Sends a parent push notification when the child asks for additional
+ * screen time. Resolution is handled from the child's Overview page.
+ */
+export const onAppAccessRequestCreated = functions.firestore
+.document("children/{childId}/appAccessRequests/{requestId}")
+.onCreate(async (snapshot, context) => {
+const request = snapshot.data();
+const childId = String(context.params.childId || "");
+const requestId = String(context.params.requestId || "");
+
+if (!childId || !requestId || request?.status !== "PENDING") {
+return;
+}
+
+const childName = String(request?.childName || "Your child");
+const appName = String(
+request?.appName || request?.packageName || "an app"
+);
+
+await broadcastToParents(childId, {
+title: "More screen time requested",
+body: `${childName} requested more time for ${appName}.`,
+type: "APP_ACCESS_REQUEST",
+childId,
+packageName: String(request?.packageName || ""),
+eventId: requestId,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}` +
+`?tab=overview&screenTimeRequest=${encodeURIComponent(requestId)}` +
+"#screen-time-requests",
+});
+});
+
+/**
+ * Confirms to parents that an applied Remote Control lock/unlock command took
+ * priority over scheduled lock state on the child device.
+ */
+export const onRemoteControlOverrideCreated = functions.firestore
+.document("children/{childId}/remoteControlOverrides/{eventId}")
+.onCreate(async (snapshot, context) => {
+const event = snapshot.data();
+const childId = String(context.params.childId || "");
+const eventId = String(context.params.eventId || "");
+
+if (!childId || !eventId || event?.status !== "APPLIED") {
+return;
+}
+
+await broadcastToParents(childId, {
+title: String(event?.title || "Remote control priority applied"),
+body: String(
+event?.message ||
+"The Remote Control command took priority over scheduled settings."
+),
+type: "REMOTE_CONTROL_OVERRIDE",
+childId,
+eventId,
+clickAction:
+`/dashboard/${encodeURIComponent(childId)}` +
+"?tab=overview#remote-control-override",
+});
+});
+
+/**
  * A blocked-app window can emit many Accessibility events. Android writes a
  * deterministic per-day document, and this onCreate trigger therefore sends
  * at most one parent alert for the same child/app/reason/day.
@@ -1273,7 +1337,7 @@ interface NotificationPayload {
     title: string;
     body: string;
     //type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'TAMPER_ALERT';
-    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
+    type: 'SAFE_ZONE' | 'SOS' | 'SOS_RESOLVED' | 'BATTERY' | 'DEVICE' | 'DEVICE_OFFLINE' | 'DEVICE_BACK_ONLINE' | 'PAIRING' | 'APP_INSTALLED' | 'APP_ACCESS_REQUEST' | 'APP_LIMIT_REACHED' | 'BLOCKED_APP_ATTEMPT' | 'TAMPER_ALERT' | 'PERMISSION_CHANGE_REQUEST' | 'REMOTE_CONTROL_OVERRIDE' | 'SYNC_ERROR' | 'APP_UPDATE' | 'SUPPORT_REPLY' | 'WEEKLY_REPORT';
     childId: string;
     clickAction: string;
     packageName?: string;
@@ -1694,8 +1758,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         'TAMPER_ALERT': 'securityAlerts',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
+        'APP_ACCESS_REQUEST': 'appUsage',
         'APP_LIMIT_REACHED': 'appUsage',
         'BLOCKED_APP_ATTEMPT': 'appUsage',
+        'REMOTE_CONTROL_OVERRIDE': 'deviceStatus',
         'WEEKLY_REPORT': 'appUsage'
     };
 

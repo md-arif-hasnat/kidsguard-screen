@@ -56,6 +56,8 @@ import { RoleHelper } from '@/lib/utils/RoleHelper';
 
 import HealthCard from '@/components/analytics/HealthCard';
 import PermissionChangeRequestsPanel from '@/components/health/PermissionChangeRequestsPanel';
+import ScreenTimeRequestsPanel from '@/components/wellbeing/ScreenTimeRequestsPanel';
+import RemoteControlOverrideCard from '@/components/RemoteControlOverrideCard';
 import DeviceCharts from '@/components/analytics/DeviceCharts';
 import AIInsightPanel from '@/components/AIInsightPanel';
 import AIReportCard from '@/components/AIReportCard';
@@ -243,7 +245,7 @@ export default function ChildDashboard() {
 
   useEffect(() => {
     if (
-      activeTab !== 'wellbeing' ||
+      activeTab !== 'overview' ||
       !childId ||
       !isFirebaseConfigured
     ) {
@@ -666,7 +668,15 @@ const handleSaveOfflineAlertSettings = async () => {
 
       {activeTab === 'overview' && (
         <>
-            <div className="mb-8">
+            <div className="mb-8 space-y-4">
+                <RemoteControlOverrideCard childId={childId} />
+
+                <ScreenTimeRequestsPanel
+                    childId={childId}
+                    canEdit={canManageWellbeing}
+                    focusRequestId={searchParams.get('screenTimeRequest')}
+                />
+
                 <PermissionChangeRequestsPanel
                     childId={childId}
                     canEdit={canManageWellbeing}
@@ -813,6 +823,40 @@ const handleSaveOfflineAlertSettings = async () => {
 
                 <div className="space-y-8">
                 {canControl && <RemoteControlPanel childId={childId} />}
+
+                <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
+                                <ClockIcon size={22} />
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="font-black text-slate-900">
+                                    Daily Total Screen Time
+                                </h2>
+                                <p className="mt-1 truncate text-sm font-medium text-slate-500">
+                                    Today: {screenTimeSummary
+                                      ? `${Math.floor(screenTimeSummary.todayMs / 3_600_000)}h ${Math.floor((screenTimeSummary.todayMs % 3_600_000) / 60_000)}m`
+                                      : 'Loading usage...'}
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronDown className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-6 border-t border-slate-100 bg-slate-50 p-5 md:p-8">
+                        <ScreenTimeStats
+                            todayMs={screenTimeSummary?.todayMs || 0}
+                            yesterdayMs={screenTimeSummary?.yesterdayMs || 0}
+                            avg7DayMs={screenTimeSummary?.avg7DayMs || 0}
+                            recordedDays={screenTimeSummary?.recordedDays || 0}
+                            loading={screenTimeSummary === null}
+                        />
+                        <TotalScreenTimeControl
+                            childId={childId}
+                            canEdit={canManageWellbeing}
+                        />
+                    </div>
+                </details>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="mb-5 flex items-start gap-3">
@@ -1171,19 +1215,6 @@ const handleSaveOfflineAlertSettings = async () => {
               </div>
 
               <UsageDataStatusBanner status={status} />
-
-              <ScreenTimeStats
-                  todayMs={screenTimeSummary?.todayMs || 0}
-                  yesterdayMs={screenTimeSummary?.yesterdayMs || 0}
-                  avg7DayMs={screenTimeSummary?.avg7DayMs || 0}
-                  recordedDays={screenTimeSummary?.recordedDays || 0}
-                  loading={screenTimeSummary === null}
-              />
-
-              <TotalScreenTimeControl
-                  childId={childId}
-                  canEdit={canManageWellbeing}
-              />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-12">

@@ -222,6 +222,7 @@ data class SyncAppControl(
     var scheduleEndMinutes: Int = 0,
     var scheduleDays: List<Int> = emptyList(),
     var scheduleTimezone: String = "",
+    var temporaryAccessUntil: Long = 0,
     var updatedAt: Timestamp? = null,
     var revision: Long = 0,
     var applyStatus: String = "PENDING",

@@ -1,5 +1,14 @@
 import { db } from "../firebase";
-import { doc, onSnapshot, collection, query, orderBy, setDoc, updateDoc } from "firebase/firestore";
+import {
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    runTransaction,
+    serverTimestamp,
+    setDoc
+} from "firebase/firestore";
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 import { FamilyRole } from "./FamilyRepository";
 import { RoleHelper } from "../utils/RoleHelper";
@@ -47,6 +56,15 @@ export interface WebAccessRequest {
     domain: string;
     timestamp: number;
     status: "PENDING" | "APPROVED" | "DENIED";
+}
+
+function normalizeDomain(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .split(/[/?#]/)[0]
+        .replace(/^www\./, "");
 }
 
 export class WebProtectionRepository {
@@ -102,14 +120,60 @@ export class WebProtectionRepository {
     static async handleAccessRequest(childId: string, requestId: string, status: "APPROVED" | "DENIED", domain?: string, callerRole?: FamilyRole) {
         if (callerRole && !RoleHelper.canManageWebProtection(callerRole)) throw new PermissionError();
         if (!db || !childId) return;
-        const reqRef = doc(db, "children", childId, "accessRequests", requestId);
-        await updateDoc(reqRef, { status });
 
-        if (status === "APPROVED" && domain) {
-            // Add to allowed domains
-            const rulesRef = doc(db, "children", childId, "webRules", "current");
-            // This is simplified, in real app we'd fetch current rules first or use arrayUnion
-            // But here we'll assume we want to update it.
+        const database = db;
+        const reqRef = doc(database, "children", childId, "accessRequests", requestId);
+        const rulesRef = doc(database, "children", childId, "webRules", "current");
+        const normalizedDomain = domain ? normalizeDomain(domain) : "";
+
+        if (status === "APPROVED" && !normalizedDomain) {
+            throw new Error("The requested domain is invalid.");
         }
+
+        await runTransaction(database, async transaction => {
+            let blockedDomains: string[] = [];
+            let allowedDomains: string[] = [];
+
+            if (status === "APPROVED") {
+                const rulesSnapshot = await transaction.get(rulesRef);
+                const rules = rulesSnapshot.data() || {};
+                blockedDomains = Array.isArray(rules.blockedDomains)
+                    ? rules.blockedDomains.map(String)
+                    : [];
+                allowedDomains = Array.isArray(rules.allowedDomains)
+                    ? rules.allowedDomains.map(String)
+                    : [];
+            }
+
+            transaction.update(reqRef, {
+                status,
+                resolvedAt: serverTimestamp()
+            });
+
+            if (status === "APPROVED") {
+                const filteredBlockedDomains = blockedDomains.filter(entry => {
+                    const blocked = normalizeDomain(entry);
+                    return !(
+                        blocked === normalizedDomain ||
+                        normalizedDomain.endsWith(`.${blocked}`) ||
+                        blocked.endsWith(`.${normalizedDomain}`)
+                    );
+                });
+                const nextAllowedDomains = Array.from(new Set([
+                    ...allowedDomains.map(normalizeDomain).filter(Boolean),
+                    normalizedDomain
+                ]));
+
+                transaction.set(
+                    rulesRef,
+                    {
+                        allowedDomains: nextAllowedDomains,
+                        blockedDomains: filteredBlockedDomains,
+                        updatedAt: serverTimestamp()
+                    },
+                    { merge: true }
+                );
+            }
+        });
     }
 }

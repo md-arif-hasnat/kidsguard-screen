@@ -95,6 +95,9 @@ export default function NotificationsPage() {
       case "APP_ACCESS_REQUEST":
         return <AlertTriangle className="text-orange-500" />;
 
+      case "REMOTE_CONTROL_OVERRIDE":
+        return <ShieldCheck className="text-primary-600" />;
+
       case "TAMPER_ALERT":
       case "LOCATION_PERMISSION_DISABLED":
       case "BACKGROUND_LOCATION_DISABLED":
@@ -185,16 +188,26 @@ export default function NotificationsPage() {
       type === "APP_ACCESS_REQUEST" &&
       childId
     ) {
-      const packageName =
-        (notification as any).packageName ||
-        (notification as any).data?.packageName ||
+      const requestId =
+        (notification as any).eventId ||
+        (notification as any).requestId ||
+        (notification as any).data?.eventId ||
         "";
 
       return `/dashboard/${encodeURIComponent(
         childId
-      )}?tab=installed-apps&pkg=${encodeURIComponent(
-        packageName
-      )}`;
+      )}?tab=overview&screenTimeRequest=${encodeURIComponent(
+        requestId
+      )}#screen-time-requests`;
+    }
+
+    if (
+      type === "REMOTE_CONTROL_OVERRIDE" &&
+      childId
+    ) {
+      return `/dashboard/${encodeURIComponent(
+        childId
+      )}?tab=overview#remote-control-override`;
     }
 
     if (

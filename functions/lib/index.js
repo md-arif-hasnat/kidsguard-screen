@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
+exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -441,6 +441,49 @@ exports.onPermissionChangeRequestCreated = functions.firestore
         clickAction: `/dashboard/${encodeURIComponent(childId)}` +
             `?tab=overview&permissionRequest=${encodeURIComponent(requestId)}` +
             "#permission-approvals",
+    });
+});
+exports.onAppAccessRequestCreated = functions.firestore
+    .document("children/{childId}/appAccessRequests/{requestId}")
+    .onCreate(async (snapshot, context) => {
+    const request = snapshot.data();
+    const childId = String(context.params.childId || "");
+    const requestId = String(context.params.requestId || "");
+    if (!childId || !requestId || request?.status !== "PENDING") {
+        return;
+    }
+    const childName = String(request?.childName || "Your child");
+    const appName = String(request?.appName || request?.packageName || "an app");
+    await broadcastToParents(childId, {
+        title: "More screen time requested",
+        body: `${childName} requested more time for ${appName}.`,
+        type: "APP_ACCESS_REQUEST",
+        childId,
+        packageName: String(request?.packageName || ""),
+        eventId: requestId,
+        clickAction: `/dashboard/${encodeURIComponent(childId)}` +
+            `?tab=overview&screenTimeRequest=${encodeURIComponent(requestId)}` +
+            "#screen-time-requests",
+    });
+});
+exports.onRemoteControlOverrideCreated = functions.firestore
+    .document("children/{childId}/remoteControlOverrides/{eventId}")
+    .onCreate(async (snapshot, context) => {
+    const event = snapshot.data();
+    const childId = String(context.params.childId || "");
+    const eventId = String(context.params.eventId || "");
+    if (!childId || !eventId || event?.status !== "APPLIED") {
+        return;
+    }
+    await broadcastToParents(childId, {
+        title: String(event?.title || "Remote control priority applied"),
+        body: String(event?.message ||
+            "The Remote Control command took priority over scheduled settings."),
+        type: "REMOTE_CONTROL_OVERRIDE",
+        childId,
+        eventId,
+        clickAction: `/dashboard/${encodeURIComponent(childId)}` +
+            "?tab=overview#remote-control-override",
     });
 });
 exports.onAppRestrictionEventCreated = functions.firestore
@@ -1124,8 +1167,10 @@ async function notifyParent(uid, payload) {
         'TAMPER_ALERT': 'securityAlerts',
         'PAIRING': 'pairing',
         'APP_INSTALLED': 'appUsage',
+        'APP_ACCESS_REQUEST': 'appUsage',
         'APP_LIMIT_REACHED': 'appUsage',
         'BLOCKED_APP_ATTEMPT': 'appUsage',
+        'REMOTE_CONTROL_OVERRIDE': 'deviceStatus',
         'WEEKLY_REPORT': 'appUsage'
     };
     const settingKey = typeMap[payload.type];
@@ -4716,6 +4761,16 @@ exports.paddleBillingWebhook = functions
                 }
                 else if (!cancellationScheduled) {
                     patch['subscription.cancellationEffectiveAt'] =
+                        admin.firestore.FieldValue.delete();
+                }
+                if (!cancellationScheduled) {
+                    patch['subscription.cancellationRequestedAt'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.cancellationRequestedBy'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.cancellationRequestId'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.cancellationStatus'] =
                         admin.firestore.FieldValue.delete();
                 }
                 const extraPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;

@@ -437,6 +437,14 @@ service cloud.firestore {
                         allow delete: if isParentForChild(childId);
                       }
 
+                      match /remoteControlOverrides/{eventId} {
+                        allow read: if canReadChild(childId);
+
+                        allow create: if isChildIdentity(childId);
+
+                        allow update, delete: if isParentForChild(childId);
+                      }
+
                       match /analytics/{analyticsId} {
                         allow read: if canReadChild(childId);
 

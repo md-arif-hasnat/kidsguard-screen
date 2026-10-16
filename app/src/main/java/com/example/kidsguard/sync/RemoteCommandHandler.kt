@@ -8,6 +8,8 @@ import com.example.kidsguard.models.ActivityEvent
 import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.tracking.BackgroundTrackingManager
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -30,6 +32,7 @@ class RemoteCommandHandler(
     private val lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager? = null
 ) {
     private val TAG = "RemoteCommandHandler"
+    private val db = FirebaseFirestore.getInstance()
 
     private val _lastCommandReceived = MutableStateFlow("None")
     val lastCommandReceived: StateFlow<String> = _lastCommandReceived
@@ -57,6 +60,7 @@ class RemoteCommandHandler(
         try {
             when (command.commandType) {
                 CommandType.LOCK_NOW, CommandType.LOCK_DEVICE -> {
+                    val previousReason = prefHelper.lockReason
                     if (lockScheduleManager != null) {
                         lockScheduleManager.handleManualLock()
                     } else {
@@ -66,9 +70,11 @@ class RemoteCommandHandler(
                     }
                     onLockRequested()
                     logActivity("REMOTE_LOCK", "Remote Lock Executed", "Parent locked the device")
+                    recordRemotePriority(command, "LOCK", previousReason.name)
                     showToast("Remote LOCK executed")
                 }
                 CommandType.UNLOCK_NOW, CommandType.UNLOCK_DEVICE -> {
+                    val previousReason = prefHelper.lockReason
                     if (lockScheduleManager != null) {
                         lockScheduleManager.handleManualUnlock()
                     } else {
@@ -78,6 +84,7 @@ class RemoteCommandHandler(
                     }
                     onUnlockRequested()
                     logActivity("REMOTE_UNLOCK", "Remote Unlock Executed", "Parent unlocked the device")
+                    recordRemotePriority(command, "UNLOCK", previousReason.name)
                     showToast("Remote UNLOCK executed")
                 }
                 CommandType.START_TRACKING -> {
@@ -142,6 +149,46 @@ class RemoteCommandHandler(
             title = title,
             description = desc
         ))
+    }
+
+    private fun recordRemotePriority(
+        command: SyncRemoteCommand,
+        action: String,
+        previousLockReason: String
+    ) {
+        val childId = command.childId.ifBlank { prefHelper.childId }
+        if (childId.isBlank()) return
+
+        val message = if (action == "UNLOCK") {
+            "Remote Unlock took priority over active scheduled lock settings."
+        } else {
+            "Remote Lock took priority over scheduled device settings."
+        }
+
+        db.collection(FirebaseConfig.COL_CHILDREN)
+            .document(childId)
+            .collection("remoteControlOverrides")
+            .document(command.commandId)
+            .set(
+                mapOf(
+                    "eventId" to command.commandId,
+                    "commandId" to command.commandId,
+                    "childId" to childId,
+                    "familyId" to (prefHelper.familyId ?: ""),
+                    "commandType" to command.commandType.name,
+                    "action" to action,
+                    "previousLockReason" to previousLockReason,
+                    "priority" to "REMOTE_CONTROL",
+                    "status" to "APPLIED",
+                    "title" to "Remote control priority applied",
+                    "message" to message,
+                    "acknowledged" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Failed to record remote priority event", error)
+            }
     }
 
     private fun getExpiryForType(type: CommandType): Long {
