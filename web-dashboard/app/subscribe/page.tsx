@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
@@ -9,6 +9,14 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { auth } from "@/lib/firebase";
 import { FamilyRole } from "@/lib/repositories/FamilyRepository";
+import {
+  BillingInterval,
+  MONTHLY_PRICE_CENTS,
+  YEARLY_PRICE_CENTS,
+  YEARLY_SAVINGS_CENTS,
+  YEARLY_SAVINGS_PERCENT,
+  formatEuroCents,
+} from "@/lib/billing/pricing";
 
 declare global {
   interface Window {
@@ -32,7 +40,12 @@ declare global {
 }
 
 const clientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "";
-const priceId = process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "";
+const monthlyPriceId =
+  process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID ||
+  process.env.NEXT_PUBLIC_PADDLE_PRICE_ID ||
+  "";
+const yearlyPriceId =
+  process.env.NEXT_PUBLIC_PADDLE_YEARLY_PRICE_ID || "";
 const environment =
   process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
     ? "production"
@@ -42,6 +55,8 @@ export default function SubscribePage() {
   const router = useRouter();
   const { profile, family, loading, role } = useParentProfile();
   const [sdkReady, setSdkReady] = useState(false);
+  const [billingInterval, setBillingInterval] =
+    useState<BillingInterval>("MONTHLY");
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [earlyStartAccepted, setEarlyStartAccepted] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -53,10 +68,18 @@ export default function SubscribePage() {
     }
   }, [loading, role, router]);
 
-  const configured = useMemo(
-    () => Boolean(clientToken && priceId),
-    []
+  const selectedPriceId =
+    billingInterval === "YEARLY" ? yearlyPriceId : monthlyPriceId;
+  const selectedPriceCents =
+    billingInterval === "YEARLY"
+      ? YEARLY_PRICE_CENTS
+      : MONTHLY_PRICE_CENTS;
+  const selectedPeriodLabel =
+    billingInterval === "YEARLY" ? "year" : "month";
+  const sdkConfigured = Boolean(
+    clientToken && (monthlyPriceId || yearlyPriceId)
   );
+  const checkoutConfigured = Boolean(clientToken && selectedPriceId);
   const parentUid =
     profile?.uid || auth?.currentUser?.uid || "";
   const familyId =
@@ -68,7 +91,7 @@ export default function SubscribePage() {
     "";
 
   const initializePaddle = () => {
-    if (!configured || !window.Paddle) return;
+    if (!sdkConfigured || !window.Paddle) return;
 
     try {
       if (environment === "sandbox") {
@@ -108,11 +131,12 @@ export default function SubscribePage() {
 
     try {
       window.Paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
+        items: [{ priceId: selectedPriceId, quantity: 1 }],
         customData: {
           parentUid,
           familyId,
           product: "kidsguard_family",
+          billingInterval,
         },
         settings: {
           successUrl: `${window.location.origin}/manage-subscription?checkout=success`,
@@ -141,7 +165,7 @@ export default function SubscribePage() {
 
   return (
     <DashboardLayout>
-      {configured && (
+      {sdkConfigured && (
         <Script
           src="https://cdn.paddle.com/paddle/v2/paddle.js"
           strategy="afterInteractive"
@@ -173,8 +197,66 @@ export default function SubscribePage() {
               Family plan
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-900">
-              7-day trial, then €2.99/month
+              7-day trial, then {formatEuroCents(selectedPriceCents)}/
+              {selectedPeriodLabel}
             </h2>
+            <div
+              className="mt-5 grid gap-3 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label="Billing frequency"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={billingInterval === "MONTHLY"}
+                onClick={() => {
+                  setBillingInterval("MONTHLY");
+                  setError(null);
+                }}
+                className={`rounded-xl border-2 p-4 text-left transition ${
+                  billingInterval === "MONTHLY"
+                    ? "border-blue-600 bg-blue-50 ring-2 ring-blue-100"
+                    : "border-slate-200 bg-white hover:border-blue-300"
+                }`}
+              >
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+                  Monthly
+                </span>
+                <span className="mt-1 block text-2xl font-black text-slate-950">
+                  €3.49
+                  <span className="text-sm font-bold text-slate-500">/month</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={billingInterval === "YEARLY"}
+                onClick={() => {
+                  setBillingInterval("YEARLY");
+                  setError(null);
+                }}
+                className={`relative rounded-xl border-2 p-4 text-left transition ${
+                  billingInterval === "YEARLY"
+                    ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-100"
+                    : "border-slate-200 bg-white hover:border-emerald-300"
+                }`}
+              >
+                <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white">
+                  Save {YEARLY_SAVINGS_PERCENT}%
+                </span>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+                  Yearly
+                </span>
+                <span className="mt-1 block text-2xl font-black text-slate-950">
+                  €35.99
+                  <span className="text-sm font-bold text-slate-500">/year</span>
+                </span>
+                <span className="mt-1 block text-xs font-bold text-emerald-700">
+                  Save {formatEuroCents(YEARLY_SAVINGS_CENTS)} per year
+                </span>
+              </button>
+            </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-xs font-black uppercase tracking-wider text-emerald-700">
@@ -189,19 +271,21 @@ export default function SubscribePage() {
                   After 7 days
                 </p>
                 <p className="mt-1 text-2xl font-black text-blue-950">
-                  €2.99/month
+                  {formatEuroCents(selectedPriceCents)}/{selectedPeriodLabel}
                 </p>
               </div>
             </div>
             <ul className="mt-4 space-y-2 text-sm text-slate-600">
               <li>• Includes up to two child devices</li>
-              <li>• Recurs monthly until cancelled</li>
+              <li>
+                • Recurs {billingInterval === "YEARLY" ? "yearly" : "monthly"} until cancelled
+              </li>
               <li>• Taxes and final total shown in secure checkout</li>
               <li>• Manage or cancel online at any time</li>
             </ul>
           </section>
 
-          {!configured ? (
+          {!checkoutConfigured ? (
             <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-5">
               <AlertCircle className="h-7 w-7 text-amber-600" />
               <h2 className="mt-3 font-black text-amber-900">
@@ -210,7 +294,8 @@ export default function SubscribePage() {
               <p className="mt-2 text-sm leading-6 text-amber-800">
                 No payment can be collected yet. The operator must finish
                 Paddle account verification and add the approved client token
-                and recurring price ID to the production environment.
+                and the selected {selectedPeriodLabel}ly recurring price ID
+                to the production environment.
               </p>
             </div>
           ) : (
@@ -234,7 +319,7 @@ export default function SubscribePage() {
                     <Link className="font-bold text-blue-600 underline" href="/privacy">
                       Privacy Policy
                     </Link>{" "}
-                    and recurring monthly billing shown at checkout.
+                    and recurring {selectedPeriodLabel}ly billing shown at checkout.
                   </span>
                 </label>
 
@@ -266,6 +351,7 @@ export default function SubscribePage() {
               <button
                 onClick={openCheckout}
                 disabled={
+                  !checkoutConfigured ||
                   !sdkReady ||
                   !legalAccepted ||
                   !earlyStartAccepted ||
