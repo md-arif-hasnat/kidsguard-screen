@@ -7,6 +7,8 @@ import AdminPushPrompt from './AdminPushPrompt';
 import { Menu, Search } from 'lucide-react';
 import { useInternalAdmin, InternalAdminProvider } from '@/lib/context/InternalAdminContext';
 import { useRouter, usePathname } from 'next/navigation';
+import LanguageSwitcher from './LanguageSwitcher';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface InternalLayoutProps {
   children: React.ReactNode;
@@ -17,6 +19,7 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
   const { admin, loading, isAdmin } = useInternalAdmin();
   const router = useRouter();
   const pathname = usePathname();
+  const { direction, t } = useLanguage();
 
   // Route Guard
   React.useEffect(() => {
@@ -30,7 +33,7 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
             <div className="w-12 h-12 border-4 border-rose-500/20 border-t-rose-500 rounded-full animate-spin mb-4" />
-            <p className="text-xs font-black uppercase tracking-[0.3em] text-rose-500 animate-pulse">Platform Security Check</p>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-rose-500 animate-pulse">{t('platformSecurityCheck')}</p>
         </div>
     );
   }
@@ -48,12 +51,13 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
       <InternalSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <AdminPushPrompt />
 
-      <div className="flex-1 flex flex-col lg:ml-64 w-full">
+      <div className={`flex-1 flex flex-col w-full ${direction === 'rtl' ? 'lg:mr-64' : 'lg:ml-64'}`}>
         {/* Top Header */}
         <header className="h-20 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <button
                 onClick={() => setIsSidebarOpen(true)}
+                aria-label={t('openMenu')}
                 className="lg:hidden p-2 text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"
             >
                 <Menu size={24} />
@@ -62,17 +66,18 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
                 <Search size={18} className="text-slate-500" />
                 <input
                 type="text"
-                placeholder="Search resources..."
+                placeholder={t('searchResources')}
                 className="bg-transparent border-none outline-none text-sm font-medium w-full text-slate-300 placeholder:text-slate-600"
                 />
             </div>
           </div>
 
           <div className="flex items-center gap-3 md:gap-6">
+            <LanguageSwitcher theme="dark" />
             <AdminNotificationCenter />
             <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20 rounded-full">
                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Internal Session</span>
+                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t('internalSession')}</span>
             </div>
 
             <div className="flex items-center gap-3 p-1.5 md:pr-4 bg-slate-800/50 rounded-xl border border-slate-800">

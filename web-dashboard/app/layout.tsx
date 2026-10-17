@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ParentProfileProvider } from "@/lib/context/ParentProfileContext";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -72,7 +73,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
         <ParentProfileProvider>
+          <LanguageProvider>
             {children}
+          </LanguageProvider>
         </ParentProfileProvider>
       </body>
     </html>
