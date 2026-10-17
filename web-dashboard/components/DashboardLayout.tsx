@@ -18,6 +18,7 @@ import LegalFooter from "./LegalFooter";
 import RemoteImage from "./RemoteImage";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import LocalizedDashboardContent from "./LocalizedDashboardContent";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -248,7 +249,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <PWAUpdateBanner />
 
           <main className="min-h-full bg-[#f5f5f7] p-4 md:p-8">
-            {children}
+            <LocalizedDashboardContent>{children}</LocalizedDashboardContent>
           </main>
           <LegalFooter />
         </div>
