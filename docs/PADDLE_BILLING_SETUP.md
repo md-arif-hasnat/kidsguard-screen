@@ -33,8 +33,7 @@ Family Plan and add-on as separate line items in one Paddle checkout. Paddle
 creates one subscription and bills their combined total in one transaction at
 the end of the shared trial. If a slot is added later while the subscription is
 already active, Paddle creates an immediate prorated charge; all later renewals
-combine the plan and add-on on the same transaction and invoice. A slot added
-during the free trial joins the first combined charge without proration.
+combine the plan and add-on on the same transaction and invoice.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
 

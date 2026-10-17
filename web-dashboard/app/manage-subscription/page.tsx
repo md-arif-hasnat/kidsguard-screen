@@ -141,12 +141,19 @@ export default function ManageSubscriptionPage() {
     0,
     Number(subscription?.extraChildSlots || 0)
   );
-  const extraChildUnitPriceCents =
-    typeof subscription?.extraChildPriceCents === "number" &&
-    subscription.extraChildPriceCents > 0
+  const storedExtraChildPriceCents =
+    typeof subscription?.extraChildPriceCents === "number"
       ? subscription.extraChildPriceCents
-      : billingInterval === "YEARLY"
-        ? EXTRA_CHILD_YEARLY_PRICE_CENTS
+      : 0;
+  // Older family documents store the monthly 199-cent default even after a
+  // parent selects yearly billing. Ignore that legacy value for yearly plans.
+  const extraChildUnitPriceCents =
+    billingInterval === "YEARLY"
+      ? storedExtraChildPriceCents >= 1000
+        ? storedExtraChildPriceCents
+        : EXTRA_CHILD_YEARLY_PRICE_CENTS
+      : storedExtraChildPriceCents > 0 && storedExtraChildPriceCents < 1000
+        ? storedExtraChildPriceCents
         : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
   const extraChildTotalCents =
     extraChildSlots * extraChildUnitPriceCents;
