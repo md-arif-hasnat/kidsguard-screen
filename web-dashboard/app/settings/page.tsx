@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Home, Camera, Globe, Smartphone } from 'lucide-react';
+import { User as UserIcon, Bell, Loader2, Save, CheckCircle, AlertCircle, Phone, Mail, Fingerprint, Camera, Globe, Smartphone, Languages } from 'lucide-react';
 import { observeAuth } from '@/lib/auth';
 import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { NotificationRepository, NotificationSettings } from '@/lib/repositories/NotificationRepository';
@@ -11,9 +11,13 @@ import { User } from 'firebase/auth';
 import AvatarPicker from '@/components/AvatarPicker';
 import { clsx } from 'clsx';
 import RemoteImage from '@/components/RemoteImage';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { translateUiText } from '@/lib/i18n/uiTranslations';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
+  const { preference, locale, t } = useLanguage();
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
     safeZone: true,
     sos: true,
@@ -83,9 +87,9 @@ export default function SettingsPage() {
         NotificationRepository.updateNotificationSettings(profile.uid, notifSettings)
       ]);
 
-      setStatus({ type: 'success', message: 'Profile and notification settings updated successfully!' });
+      setStatus({ type: 'success', message: t('profileSaved') });
     } catch (err: any) {
-      setStatus({ type: 'error', message: err.message || 'Failed to update settings' });
+      setStatus({ type: 'error', message: err.message || t('saveFailed') });
     } finally {
       setSaving(false);
     }
@@ -106,12 +110,12 @@ export default function SettingsPage() {
       );
       setStatus({
         type: 'success',
-        message: 'Notification preferences updated successfully!'
+        message: t('notificationSaved')
       });
     } catch (err: any) {
       setStatus({
         type: 'error',
-        message: err.message || 'Failed to update notification preferences'
+        message: err.message || t('notificationSaveFailed')
       });
     } finally {
       setSaving(false);
@@ -123,9 +127,9 @@ export default function SettingsPage() {
     try {
       await ParentRepository.updateProfile(profile.uid, { avatarId });
       setShowAvatarPicker(false);
-      setStatus({ type: 'success', message: 'Avatar updated successfully!' });
+      setStatus({ type: 'success', message: t('avatarSaved') });
     } catch (err: any) {
-      setStatus({ type: 'error', message: 'Failed to update avatar' });
+      setStatus({ type: 'error', message: t('avatarSaveFailed') });
     }
   };
 
@@ -144,7 +148,7 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Account Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{t('accountSettings')}</h1>
       </div>
 
       {showAvatarPicker && (
@@ -179,6 +183,8 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <button
+                    type="button"
+                    aria-label={t('changeAvatar')}
                     onClick={() => setShowAvatarPicker(true)}
                     className="absolute -bottom-1 -right-1 bg-primary-600 text-white p-1.5 md:p-2 rounded-full shadow-lg border-2 border-white hover:bg-primary-700 transition-colors"
                   >
@@ -186,8 +192,8 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 <div className="text-center md:text-left">
-                   <h2 className="text-xl md:text-2xl font-bold text-slate-900">{profile?.displayName || "Parent Account"}</h2>
-                   <p className="text-slate-500 font-medium text-sm">Logged in via {profile?.provider || "Firebase"}</p>
+                   <h2 className="text-xl md:text-2xl font-bold text-slate-900">{profile?.displayName || t('parentAccount')}</h2>
+                   <p className="text-slate-500 font-medium text-sm">{t('loggedInVia', { provider: profile?.provider || 'Firebase' })}</p>
                 </div>
              </div>
           </div>
@@ -195,60 +201,60 @@ export default function SettingsPage() {
           <form onSubmit={handleSave} className="p-6 md:p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Full Name</label>
+                <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('fullName')}</label>
                 <div className="relative">
-                  <UserIcon className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <UserIcon className="absolute start-3 top-3 text-slate-400" size={18} />
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
-                    placeholder="Enter your name"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
+                    placeholder={t('enterName')}
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Phone Number</label>
+                <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('phoneNumber')}</label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <Phone className="absolute start-3 top-3 text-slate-400" size={18} />
                   <input
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
                     placeholder="+1234567890"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5 opacity-70">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Email Address</label>
+                <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('emailAddress')}</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <Mail className="absolute start-3 top-3 text-slate-400" size={18} />
                   <input
                     type="email"
                     disabled
                     value={profile?.email || ""}
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 outline-none font-medium cursor-not-allowed text-sm"
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 outline-none font-medium cursor-not-allowed text-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Default Region</label>
+                <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('defaultRegion')}</label>
                 <div className="relative">
-                  <Globe className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <Globe className="absolute start-3 top-3 text-slate-400" size={18} />
                   <select
                     value={region}
                     onChange={(e) => setRegion(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none text-sm"
                   >
-                    <option value="DE">Germany</option>
-                    <option value="BD">Bangladesh</option>
-                    <option value="US">United States</option>
-                    <option value="Global">Global View</option>
+                    <option value="DE">{t('germany')}</option>
+                    <option value="BD">{t('bangladesh')}</option>
+                    <option value="US">{t('unitedStates')}</option>
+                    <option value="Global">{t('globalView')}</option>
                   </select>
                 </div>
               </div>
@@ -265,82 +271,84 @@ export default function SettingsPage() {
                   className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-primary-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                >
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                  Save Changes
+                  {saving ? t('saving') : t('saveChanges')}
                </button>
             </div>
           </form>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-900">
+            <Languages size={20} className="text-primary-500" />
+            <h2 className="font-bold text-lg">{t('displayLanguage')}</h2>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">{t('languageHelp')}</p>
+          <div className="mt-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            <LanguageSwitcher showLabel className="w-full sm:w-auto" />
+            {preference === 'auto' ? <p className="text-xs font-semibold text-primary-700">{t('autoActive', { language: t(locale === 'en' ? 'english' : locale === 'de' ? 'german' : locale === 'es' ? 'spanish' : 'arabic') })}</p> : null}
+          </div>
+          <p className="mt-3 text-xs text-slate-400">{t('languageFallback')}</p>
         </section>
 
         {/* Notifications Section */}
         <section className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-6 text-slate-900">
             <Bell size={20} className="text-primary-500" />
-            <h2 className="font-bold text-lg">Notifications</h2>
+            <h2 className="font-bold text-lg">{t('notifications')}</h2>
           </div>
           <div className="space-y-3">
             <NotificationToggle
-                label="Safe Zone Alerts"
-                description="Arrived/Left Home, School, etc."
+                label={t('safeZoneAlerts')} description={t('safeZoneHelp')}
                 checked={notifSettings.safeZone}
                 onChange={() => toggleNotif('safeZone')}
             />
             <NotificationToggle
-                label="SOS Alerts"
-                description="Critical emergency signals."
+                label={t('sosAlerts')} description={t('sosHelp')}
                 checked={notifSettings.sos}
                 onChange={() => toggleNotif('sos')}
             />
             <NotificationToggle
-                label="Battery Alerts"
-                description="Low battery warnings."
+                label={t('batteryAlerts')} description={t('batteryHelp')}
                 checked={notifSettings.battery}
                 onChange={() => toggleNotif('battery')}
             />
             <NotificationToggle
-                label="Device Status Alerts"
-                description="Offline and back-online notifications."
+                label={t('deviceAlerts')} description={t('deviceHelp')}
                 checked={notifSettings.deviceStatus}
                 onChange={() => toggleNotif('deviceStatus')}
             />
             <NotificationToggle
-                label="App Activity Alerts"
-                description="New installs, blocked attempts and usage-limit alerts."
+                label={t('appAlerts')} description={t('appHelp')}
                 checked={notifSettings.appUsage}
                 onChange={() => toggleNotif('appUsage')}
             />
             <NotificationToggle
-                label="Child Access Requests"
-                description="All app, YouTube, website and protected-setting requests. Enabled by default."
+                label={t('requestAlerts')} description={t('requestHelp')}
                 checked={notifSettings.requestAlerts}
                 onChange={() => toggleNotif('requestAlerts')}
             />
             <NotificationToggle
-                label="Permission Change Requests"
-                description="Child requests to change protected permissions."
+                label={t('permissionAlerts')} description={t('permissionHelp')}
                 checked={notifSettings.permissionChanges}
                 onChange={() => toggleNotif('permissionChanges')}
             />
             <NotificationToggle
-                label="Protection Alerts"
-                description="Tamper and protection-disable attempts."
+                label={t('protectionAlerts')} description={t('protectionHelp')}
                 checked={notifSettings.securityAlerts}
                 onChange={() => toggleNotif('securityAlerts')}
             />
             <NotificationToggle
-                label="Sync Problem Alerts"
-                description="Repeated child data-sync failures."
+                label={t('syncAlerts')} description={t('syncHelp')}
                 checked={notifSettings.syncErrors}
                 onChange={() => toggleNotif('syncErrors')}
             />
             <NotificationToggle
-                label="App Update Alerts"
-                description="New optional or mandatory KidsGuard releases."
+                label={t('updateAlerts')} description={t('updateHelp')}
                 checked={notifSettings.appUpdates}
                 onChange={() => toggleNotif('appUpdates')}
             />
             <NotificationToggle
-                label="Pairing Alerts"
-                description="New child and family connection events."
+                label={t('pairingAlerts')} description={t('pairingHelp')}
                 checked={notifSettings.pairing}
                 onChange={() => toggleNotif('pairing')}
             />
@@ -352,7 +360,7 @@ export default function SettingsPage() {
                 className="mt-4 w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
             >
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                Save Notification Preferences
+                {saving ? t('saving') : t('saveNotifications')}
             </button>
 
             <div className="mt-8 pt-6 border-t border-slate-100">
@@ -360,13 +368,37 @@ export default function SettingsPage() {
                     type="button"
                     onClick={async () => {
                         if (!profile) return;
-                        await NotificationRepository.registerDevice(profile.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
-                        alert("Device registration requested.");
+                        const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+                        const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+                          (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+                        if (isIos && !standalone) {
+                          window.dispatchEvent(new Event('kidsguard:show-install-instructions'));
+                          return;
+                        }
+
+                        const success = await NotificationRepository.registerDevice(
+                          profile.uid,
+                          window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser",
+                          locale
+                        );
+                        if (success) {
+                          alert(translateUiText('Notifications are enabled on this device.', locale));
+                        } else {
+                          window.dispatchEvent(new Event('kidsguard:show-notification-help'));
+                        }
                     }}
                     className="w-full sm:w-auto text-primary-600 font-bold hover:underline flex items-center justify-center gap-2 text-sm"
                 >
                     <Smartphone size={16} />
-                    Enable Push on this Device
+                    {t('enablePush')}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event('kidsguard:show-notification-help'))}
+                    className="mt-3 w-full sm:w-auto sm:ms-5 text-slate-600 font-bold hover:text-primary-600 hover:underline inline-flex items-center justify-center gap-2 text-sm"
+                >
+                    <Bell size={16} />
+                    How to enable notifications
                 </button>
             </div>
           </div>

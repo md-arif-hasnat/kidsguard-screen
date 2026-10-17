@@ -27,6 +27,7 @@ import { signOut, observeAuth } from '@/lib/auth';
 import { NotificationRepository, NotificationHistoryItem } from '@/lib/repositories/NotificationRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
 import { RoleHelper } from '@/lib/utils/RoleHelper';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -44,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
   const [user, setUser] = useState<any>(null);
   const { role } = useParentProfile();
+  const { direction, t } = useLanguage();
 
   useEffect(() => {
     let unsubscribeCount = () => {};
@@ -98,14 +100,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     badge?: number;
     notificationType?: NotificationHistoryItem['type'];
   }> = [
-    { name: 'Family Overview', href: '/', icon: Users },
-    { name: 'Weekly Reports', href: '/reports', icon: BarChart3 },
-    { name: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
-    { name: 'SOS Center', href: '/sos', icon: AlertTriangle },
-    { name: 'Family', href: '/settings/family', icon: Users },
-    { name: 'Security', href: '/settings/security', icon: Shield },
-    { name: 'Support \u0026 Beta', href: '/support', icon: ShieldAlert },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: t('familyOverview'), href: '/', icon: Users },
+    { name: t('weeklyReports'), href: '/reports', icon: BarChart3 },
+    { name: t('notifications'), href: '/notifications', icon: Bell, badge: unreadCount },
+    { name: t('sosCenter'), href: '/sos', icon: AlertTriangle },
+    { name: t('family'), href: '/settings/family', icon: Users },
+    { name: t('security'), href: '/settings/security', icon: Shield },
+    { name: t('support'), href: '/support', icon: ShieldAlert },
+    { name: t('settings'), href: '/settings', icon: Settings },
   ];
 
   const handleSignOut = async () => {
@@ -180,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-400 hover:text-white transition-colors"
         >
           <LogOut size={20} />
-          <span className="font-medium text-sm">Sign Out</span>
+          <span className="font-medium text-sm">{t('signOut')}</span>
         </button>
       </div>
     </div>
@@ -189,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white p-4 hidden lg:flex flex-col z-50">
+      <aside className={`fixed top-0 h-screen w-64 bg-slate-900 text-white p-4 hidden lg:flex flex-col z-50 ${direction === 'rtl' ? 'right-0' : 'left-0'}`}>
         {SidebarContent(false)}
       </aside>
 
@@ -203,8 +205,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       {/* Mobile Sidebar Drawer */}
       <aside className={cn(
-        "fixed left-0 top-0 h-[100dvh] w-[min(85vw,320px)] bg-slate-900 text-white flex flex-col z-[1020] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
-        isOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed top-0 h-[100dvh] w-[min(85vw,320px)] bg-slate-900 text-white flex flex-col z-[1020] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
+        direction === 'rtl' ? 'right-0' : 'left-0',
+        isOpen ? "translate-x-0" : direction === 'rtl' ? "translate-x-full" : "-translate-x-full"
       )}>
         {SidebarContent(true)}
       </aside>

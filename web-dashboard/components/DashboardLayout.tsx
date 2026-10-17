@@ -5,7 +5,7 @@ import Sidebar from "./Sidebar";
 import PWAInstallBanner from "./PWAInstallBanner";
 import PWAUpdateBanner from "./PWAUpdateBanner";
 import NotificationPrompt from "./NotificationPrompt";
-import { Bell, Search, Menu, ArrowLeft, Languages } from "lucide-react";
+import { Bell, Search, Menu, ArrowLeft, ArrowRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationRepository } from "@/lib/repositories/NotificationRepository";
 import {
@@ -16,33 +16,13 @@ import {
 import Link from "next/link";
 import LegalFooter from "./LegalFooter";
 import RemoteImage from "./RemoteImage";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import LocalizedDashboardContent from "./LocalizedDashboardContent";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
-
-type LanguageCode = "en" | "de";
-
-const LANGUAGE_STORAGE_KEY = "kidsguard-dashboard-language";
-
-const translations = {
-  en: {
-    search: "Search...",
-    notifications: "Notifications",
-    settings: "Settings",
-    openMenu: "Open menu",
-    language: "Language",
-    account: "ACCOUNT",
-  },
-  de: {
-    search: "Suchen...",
-    notifications: "Benachrichtigungen",
-    settings: "Einstellungen",
-    openMenu: "Menü öffnen",
-    language: "Sprache",
-    account: "KONTO",
-  },
-} as const;
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       const router = useRouter();
@@ -53,34 +33,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         pathname !== "/dashboard";
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [language, setLanguage] = useState<LanguageCode>("en");
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-
   const { profile, family, role } = useParentProfile();
-  const text = translations[language];
+  const { direction, t } = useLanguage();
 
   useEffect(() => {
     // Night mode পুরোপুরি বন্ধ রাখবে
     document.documentElement.classList.remove("dark");
     document.documentElement.style.colorScheme = "light";
 
-    const savedLanguage = window.localStorage.getItem(
-      LANGUAGE_STORAGE_KEY
-    ) as LanguageCode | null;
-
-    if (savedLanguage === "en" || savedLanguage === "de") {
-      setLanguage(savedLanguage);
-    }
-
-    setSettingsLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (!settingsLoaded) return;
-
-    document.documentElement.lang = language;
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-  }, [language, settingsLoaded]);
 
   useEffect(() => {
     if (!profile?.uid) {
@@ -111,12 +72,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const displayName = getDisplayName(profile, profile?.email);
   const avatarUrl = getAvatarUrl(profile);
 
-  const handleLanguageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    setLanguage(event.target.value as LanguageCode);
-  };
-
   return (
     <div className="flex min-h-screen overflow-x-clip bg-[#f5f5f7] text-[#1d1d1f]">
       <Sidebar
@@ -124,7 +79,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col lg:ml-64">
+      <div className={`flex min-w-0 flex-1 flex-col ${direction === "rtl" ? "lg:mr-64" : "lg:ml-64"}`}>
         <header
           className="
             fixed left-0 right-0 top-0 z-[1000]
@@ -142,8 +97,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <button
                 type="button"
                 onClick={() => router.back()}
-                aria-label="Go back"
-                title="Back"
+                aria-label={t("back")}
+                title={t("back")}
                 className="
                   flex h-11 w-11 shrink-0
                   items-center justify-center
@@ -155,7 +110,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   active:scale-95
                 "
               >
-                <ArrowLeft size={21} />
+                {direction === "rtl" ? <ArrowRight size={21} /> : <ArrowLeft size={21} />}
               </button>
             )}
           
@@ -171,7 +126,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
               <input
                 type="text"
-                placeholder={text.search}
+                placeholder={t("search")}
                 className="
                   min-w-0 flex-1 border-none bg-transparent
                   text-sm font-medium text-[#1d1d1f]
@@ -184,38 +139,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <div className="flex flex-1 items-center justify-end gap-2 md:gap-3">
 
 
-            <div
-              className="
-                flex h-11 items-center gap-2
-                rounded-2xl border border-[#e5e5e7]
-                bg-[#f5f5f7] px-3
-              "
-            >
-              <Languages size={17} className="text-[#6e6e73]" />
-
-              <label htmlFor="dashboard-language" className="sr-only">
-                {text.language}
-              </label>
-
-              <select
-                id="dashboard-language"
-                value={language}
-                onChange={handleLanguageChange}
-                className="
-                  cursor-pointer border-none
-                  bg-transparent text-xs font-bold
-                  text-[#1d1d1f] outline-none
-                "
-              >
-                <option value="en">🇬🇧 EN</option>
-                <option value="de">🇩🇪 DE</option>
-              </select>
-            </div>
+            <LanguageSwitcher />
 
             <Link
               href="/notifications"
-              aria-label={text.notifications}
-              title={text.notifications}
+              aria-label={t("notifications")}
+              title={t("notifications")}
               className="
                 relative flex h-11 w-11
                 items-center justify-center
@@ -244,8 +173,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
             <Link
               href="/settings"
-              aria-label={text.settings}
-              title={text.settings}
+              aria-label={t("settings")}
+              title={t("settings")}
               className="
                 flex items-center gap-3 rounded-2xl
                 border border-[#e5e5e7]
@@ -285,7 +214,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     tracking-wider text-[#0071e3]
                   "
                 >
-                  {role} {text.account}
+                  {role} {t("account")}
                 </p>
               </div>
             </Link>
@@ -293,8 +222,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              aria-label={text.openMenu}
-              title={text.openMenu}
+              aria-label={t("openMenu")}
+              title={t("openMenu")}
               className="
                 flex h-11 w-11 items-center justify-center
                 rounded-2xl border border-[#e5e5e7]
@@ -320,7 +249,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <PWAUpdateBanner />
 
           <main className="min-h-full bg-[#f5f5f7] p-4 md:p-8">
-            {children}
+            <LocalizedDashboardContent>{children}</LocalizedDashboardContent>
           </main>
           <LegalFooter />
         </div>

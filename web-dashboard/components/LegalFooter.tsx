@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { FamilyRole } from "@/lib/repositories/FamilyRepository";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface LegalFooterProps {
   dark?: boolean;
@@ -10,6 +11,7 @@ interface LegalFooterProps {
 
 export default function LegalFooter({ dark = false }: LegalFooterProps) {
   const { role } = useParentProfile();
+  const { t } = useLanguage();
   const canManageSubscription = role === FamilyRole.OWNER;
   const linkClass = dark
     ? "text-slate-400 transition-colors hover:text-white hover:underline"
@@ -24,28 +26,28 @@ export default function LegalFooter({ dark = false }: LegalFooterProps) {
       }
     >
       <nav
-        aria-label="Legal information"
+        aria-label={t("legalInformation")}
         className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-semibold"
       >
         <Link href="/impressum" className={linkClass}>
-          Impressum
+          {t("impressum")}
         </Link>
         <Link href="/privacy" className={linkClass}>
-          Privacy Policy
+          {t("privacyPolicy")}
         </Link>
         <Link href="/child-privacy" className={linkClass}>
-          Privacy for Children
+          {t("childPrivacy")}
         </Link>
         <Link href="/terms" className={linkClass}>
-          Terms of Service
+          {t("terms")}
         </Link>
         {canManageSubscription && (
           <Link href="/manage-subscription" className={linkClass}>
-            Manage Subscription
+            {t("manageSubscription")}
           </Link>
         )}
         <Link href="/delete-account" className={linkClass}>
-          Delete Account
+          {t("deleteAccount")}
         </Link>
       </nav>
       <p
@@ -55,7 +57,7 @@ export default function LegalFooter({ dark = false }: LegalFooterProps) {
             : "mt-3 text-center text-[10px] text-slate-400"
         }
       >
-        © 2026 KidsGuard · Operated by United Foreign Trade, Bangladesh
+        {t("operator")}
       </p>
     </footer>
   );

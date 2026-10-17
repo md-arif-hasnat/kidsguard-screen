@@ -36,8 +36,11 @@ import { ParentRepository } from '@/lib/repositories/ParentRepository';
 import { FamilyRepository } from '@/lib/repositories/FamilyRepository';
 import { ConfirmationResult } from 'firebase/auth';
 import { serverTimestamp } from 'firebase/firestore';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export default function Login() {
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -513,8 +516,9 @@ const getFriendlyAuthError = (err: any): string => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-500">
+    <div className="relative min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 pt-20 transition-colors duration-500">
       <div id="recaptcha-container"></div>
+      <LanguageSwitcher theme="dark" className="absolute top-4 right-4" />
 
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 md:p-10 relative overflow-hidden">
         {/* Loading Overlay - Fixed and Stable */}
@@ -523,7 +527,7 @@ const getFriendlyAuthError = (err: any): string => {
                 <div className="mb-6">
                     <Image src="/loading-logo.png" alt="Loading..." width={80} height={80} className="h-20 w-auto animate-pulse" priority />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 mb-2">Secure Authentication</h2>
+                <h2 className="text-xl font-black text-slate-900 mb-2">{t('secureAuthentication')}</h2>
                 <p className="text-slate-500 font-medium italic animate-pulse">{loadingMessage}</p>
                 <div className="mt-8 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                     <div className="h-full bg-primary-600 animate-progress" style={{ width: '40%' }} />
@@ -550,7 +554,7 @@ const getFriendlyAuthError = (err: any): string => {
             />
             <div>
               <p className="font-black text-sm uppercase tracking-tight">
-                Login Successful
+                {t('loginSuccessful')}
               </p>
               <p className="font-bold text-sm mt-1">
                 {authSuccess}
@@ -568,7 +572,7 @@ const getFriendlyAuthError = (err: any): string => {
                 <AlertCircle size={20} className="shrink-0 mt-0.5 text-rose-500" />
                 <div className="space-y-3">
                     <p className="font-black text-sm uppercase tracking-tight">
-                        {error === "FORMAT_ERROR" ? "Invalid phone number format" : "Security Alert"}
+                        {error === "FORMAT_ERROR" ? "Invalid phone number format" : t('securityAlert')}
                     </p>
                     {error === "FORMAT_ERROR" ? (
                         <div className="space-y-4">
@@ -604,27 +608,27 @@ const getFriendlyAuthError = (err: any): string => {
         {showForgotPassword ? (
           <form className="space-y-6" onSubmit={handleForgotPasswordSubmit}>
             <div className="text-center mb-6">
-               <h2 className="text-xl font-bold text-slate-900">Reset Password</h2>
-               <p className="text-sm text-slate-500 mt-1 italic">Enter your email to receive a reset link.</p>
+               <h2 className="text-xl font-bold text-slate-900">{t('resetPassword')}</h2>
+               <p className="text-sm text-slate-500 mt-1 italic">{t('resetHelp')}</p>
             </div>
 
             {resetSuccess ? (
               <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-6 rounded-2xl text-center animate-in zoom-in-95 duration-300">
                   <CheckCircle2 className="mx-auto mb-4" size={40} />
-                  <p className="font-bold">Password reset link sent.</p>
-                  <p className="text-xs mt-2 italic">Please check your inbox (and spam folder).</p>
+                  <p className="font-bold">{t('resetSent')}</p>
+                  <p className="text-xs mt-2 italic">{t('checkInbox')}</p>
                   <button
                     type="button"
                     onClick={() => { setShowForgotPassword(false); setResetSuccess(false); }}
                     className="mt-6 text-primary-600 font-bold uppercase tracking-widest text-[10px] hover:underline"
                   >
-                    Back to Login
+                    {t('backToLogin')}
                   </button>
               </div>
             ) : (
               <>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Email Address</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase mx-1 tracking-widest">{t('emailAddress')}</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3.5 text-slate-400" size={20} />
                     <input
@@ -644,7 +648,7 @@ const getFriendlyAuthError = (err: any): string => {
                   disabled={loading || (isSignUp && !acceptedLegalTerms)}
                   className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Send Reset Link"}
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : t('sendReset')}
                 </button>
 
                 <button
@@ -653,7 +657,7 @@ const getFriendlyAuthError = (err: any): string => {
                   onClick={() => setShowForgotPassword(false)}
                   className="w-full text-slate-400 font-bold hover:text-slate-600 text-[10px] uppercase tracking-widest"
                 >
-                  Back to Login
+                  {t('backToLogin')}
                 </button>
               </>
             )}
@@ -662,7 +666,7 @@ const getFriendlyAuthError = (err: any): string => {
           <>
             <form className="space-y-4" onSubmit={handleEmailSubmit}>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Email Address</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase mx-1 tracking-widest">{t('emailAddress')}</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3.5 text-slate-400" size={20} />
                   <input
@@ -678,7 +682,7 @@ const getFriendlyAuthError = (err: any): string => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Password</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase mx-1 tracking-widest">{t('password')}</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3.5 text-slate-400" size={20} />
                   <input
@@ -697,8 +701,8 @@ const getFriendlyAuthError = (err: any): string => {
                     disabled={loading}
                     aria-label={
                       showPassword
-                        ? "Hide password"
-                        : "Show password"
+                        ? t('password')
+                        : t('password')
                     }
                     className="absolute right-3 top-3.5 text-slate-400 transition-colors hover:text-primary-600 disabled:opacity-50"
                   >
@@ -713,7 +717,7 @@ const getFriendlyAuthError = (err: any): string => {
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-500">
-                        Password Strength
+                        {t('passwordStrength')}
                       </span>
 
                       <span
@@ -727,7 +731,7 @@ const getFriendlyAuthError = (err: any): string => {
                             "text-emerald-600"
                         )}
                       >
-                        {passwordStrength}
+                        {passwordStrength === 'Weak' ? t('weak') : passwordStrength === 'Medium' ? t('medium') : t('strong')}
                       </span>
                     </div>
 
@@ -801,7 +805,7 @@ const getFriendlyAuthError = (err: any): string => {
                       onClick={() => { setShowForgotPassword(true); setError(null); }}
                       className="text-[10px] font-bold text-primary-600 hover:underline uppercase tracking-widest mt-1"
                     >
-                      Forgot password?
+                      {t('forgotPassword')}
                     </button>
                   </div>
                 )}
@@ -817,23 +821,23 @@ const getFriendlyAuthError = (err: any): string => {
                                             />
 
                                             <span className="text-xs leading-relaxed text-slate-600">
-                                              I confirm that I am at least 18 years old and agree to the{" "}
+                                              {t('ageConsent')}{" "}
                                               <a
                                                 href="/terms"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="font-bold text-primary-600 hover:underline"
                                               >
-                                                Terms of Service
+                                                {t('terms')}
                                               </a>{" "}
-                                              and{" "}
+                                              {t('and')}{" "}
                                               <a
                                                 href="/privacy"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="font-bold text-primary-600 hover:underline"
                                               >
-                                                Privacy Policy
+                                                {t('privacyPolicy')}
                                               </a>
                                               .
                                             </span>
@@ -848,13 +852,13 @@ const getFriendlyAuthError = (err: any): string => {
                 }
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
               >
-                {isSignUp ? "Create Account" : "Sign In"}
+                {isSignUp ? t('createAccount') : t('signIn')}
               </button>
             </form>
 
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-              <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest"><span className="bg-white px-4 text-slate-400">Security Gateway</span></div>
+              <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest"><span className="bg-white px-4 text-slate-400">{t('securityGateway')}</span></div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
@@ -875,14 +879,14 @@ const getFriendlyAuthError = (err: any): string => {
             </div>
 
             <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              A verified email address is required for every parent account.
+              {t('verifiedEmail')}
             </p>
           </>
         ) : (
           <form className="space-y-6" onSubmit={showOtpInput ? handleOtpSubmit : handlePhoneSubmit}>
              {!showOtpInput ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Phone Number</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase mx-1 tracking-widest">{t('phoneNumber')}</label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3.5 text-slate-400" size={20} />
                     <input
@@ -898,7 +902,7 @@ const getFriendlyAuthError = (err: any): string => {
                 </div>
              ) : (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest text-center block">One-Time Password</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase mx-1 tracking-widest text-center block">{t('oneTimePassword')}</label>
                   <input
                     type="text"
                     required
@@ -917,7 +921,7 @@ const getFriendlyAuthError = (err: any): string => {
               disabled={loading}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-200 transition-all transform active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
             >
-              {showOtpInput ? "Verify \u0026 Unlock" : "Send Access Code"}
+              {showOtpInput ? t('verifyUnlock') : t('sendAccessCode')}
             </button>
 
             <button
@@ -926,7 +930,7 @@ const getFriendlyAuthError = (err: any): string => {
               onClick={() => { setShowPhoneLogin(false); setShowOtpInput(false); }}
               className="w-full text-primary-600 font-bold hover:underline text-sm uppercase tracking-widest text-xs"
             >
-              Back to Email Login
+              {t('backToEmail')}
             </button>
           </form>
         )}
@@ -938,7 +942,7 @@ const getFriendlyAuthError = (err: any): string => {
                   onClick={() => setIsSignUp(!isSignUp)}
                   className="text-primary-600 font-bold hover:underline text-sm transition-opacity disabled:opacity-50"
               >
-                  {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+                  {isSignUp ? t('haveAccount') : t('noAccount')}
               </button>
           </div>
         )}
@@ -950,7 +954,7 @@ const getFriendlyAuthError = (err: any): string => {
             href="/privacy"
             className="transition-colors hover:text-slate-300 hover:underline"
           >
-            Privacy Policy
+            {t('privacyPolicy')}
           </a>
 
           <span aria-hidden="true">•</span>
@@ -959,7 +963,7 @@ const getFriendlyAuthError = (err: any): string => {
             href="/terms"
             className="transition-colors hover:text-slate-300 hover:underline"
           >
-            Terms of Service
+            {t('terms')}
           </a>
 
           <span aria-hidden="true">•</span>
@@ -968,7 +972,7 @@ const getFriendlyAuthError = (err: any): string => {
             href="/impressum"
             className="transition-colors hover:text-slate-300 hover:underline"
           >
-            Impressum
+            {t('impressum')}
           </a>
         </div>
 

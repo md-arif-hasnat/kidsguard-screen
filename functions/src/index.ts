@@ -4,6 +4,10 @@ import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { defineSecret, defineString } from 'firebase-functions/params';
+import {
+  localizeNotificationCopy,
+  resolveNotificationLocale,
+} from './notificationI18n';
 
 admin.initializeApp();
 
@@ -1896,9 +1900,14 @@ export const onTamperAlertCreated = functions.firestore
  * Sends a notification to a specific parent if their settings allow it.
  */
 async function notifyParent(uid: string, payload: NotificationPayload) {
-    // 1. Check settings
-    const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
+    // 1. Check settings and resolve the parent's current dashboard language.
+    const [settingsSnap, parentSnap] = await Promise.all([
+      db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get(),
+      db.collection('parents').doc(uid).get(),
+    ]);
     const settings = settingsSnap.data();
+    const locale = resolveNotificationLocale(parentSnap.data());
+    const localizedCopy = localizeNotificationCopy(payload, locale);
 
     const requestTypes = new Set([
       'APP_ACCESS_REQUEST',
@@ -1954,9 +1963,10 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         childId: payload.childId,
         eventId: payload.eventId || '',
         type: payload.type,
-        title: payload.title,
-        body: payload.body,
-        message: payload.body,
+        title: localizedCopy.title,
+        body: localizedCopy.body,
+        message: localizedCopy.body,
+        locale,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         clickAction: payload.clickAction,
@@ -2014,8 +2024,8 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     const webPayload: admin.messaging.MulticastMessage = {
       tokens: webTokens,
       notification: {
-        title: payload.title,
-        body: payload.body,
+        title: localizedCopy.title,
+        body: localizedCopy.body,
       },
       data: {
         type: payload.type,
@@ -2023,8 +2033,8 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         eventId: payload.eventId || "",
         clickAction: payload.clickAction,
         packageName: payload.packageName || "",
-        title: payload.title,
-        body: payload.body,
+        title: localizedCopy.title,
+        body: localizedCopy.body,
       },
       webpush: {
         fcmOptions: {
@@ -2036,8 +2046,8 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     const messagingPayload: admin.messaging.MulticastMessage = {
       tokens: nativeTokens,
         notification: {
-            title: payload.title,
-            body: payload.body,
+            title: localizedCopy.title,
+            body: localizedCopy.body,
         },
         data: {
         type: payload.type,
@@ -2045,8 +2055,8 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         eventId: payload.eventId || "",
         clickAction: payload.clickAction,
         packageName: payload.packageName || "",
-        title: payload.title,
-        body: payload.body,
+        title: localizedCopy.title,
+        body: localizedCopy.body,
         },
         webpush: {
             fcmOptions: {

@@ -21,6 +21,7 @@ import {
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { signOut } from '@/lib/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -34,6 +35,7 @@ interface InternalSidebarProps {
 const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const { direction, t } = useLanguage();
   const [notificationCounts, setNotificationCounts] = React.useState<Record<string, number>>({});
 
   React.useEffect(() => {
@@ -46,16 +48,16 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   }, []);
 
   const internalItems = [
-    { name: 'System Health', href: '/internal/health', icon: HeartPulse },
-    { name: 'System Analytics', href: '/internal/analytics', icon: BarChart3 },
-    { name: 'App Releases', href: '/internal/releases', icon: Zap, notificationType: 'RELEASE' },
-    { name: 'Customers', href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
-    { name: 'Families', href: '/internal/families', icon: Home },
-    { name: 'Devices', href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
-    { name: 'Support Inbox', href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT' },
-    { name: 'Issues', href: '/internal/issues', icon: AlertCircle, notificationType: 'ISSUE' },
-    { name: 'Audit Logs', href: '/internal/audit', icon: ClipboardList },
-    { name: 'Settings', href: '/internal/settings', icon: Settings },
+    { name: t('systemHealth'), href: '/internal/health', icon: HeartPulse },
+    { name: t('systemAnalytics'), href: '/internal/analytics', icon: BarChart3 },
+    { name: t('appReleases'), href: '/internal/releases', icon: Zap, notificationType: 'RELEASE' },
+    { name: t('customers'), href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
+    { name: t('families'), href: '/internal/families', icon: Home },
+    { name: t('devices'), href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
+    { name: t('supportInbox'), href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT' },
+    { name: t('issues'), href: '/internal/issues', icon: AlertCircle, notificationType: 'ISSUE' },
+    { name: t('auditLogs'), href: '/internal/audit', icon: ClipboardList },
+    { name: t('settings'), href: '/internal/settings', icon: Settings },
   ];
 
   const highestUnread = Math.max(0, ...Object.values(notificationCounts));
@@ -133,7 +135,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
           className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-400 hover:text-white transition-colors"
         >
           <LogOut size={20} />
-          <span className="font-medium text-sm">Admin Exit</span>
+          <span className="font-medium text-sm">{t('adminExit')}</span>
         </button>
       </div>
     </div>
@@ -141,7 +143,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
 
   return (
     <>
-      <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-950 text-white p-4 hidden lg:flex flex-col z-50 border-r border-slate-900">
+      <aside className={`fixed top-0 h-screen w-64 bg-slate-950 text-white p-4 hidden lg:flex flex-col z-50 border-slate-900 ${direction === 'rtl' ? 'right-0 border-l' : 'left-0 border-r'}`}>
         {SidebarContent}
       </aside>
 
@@ -153,8 +155,9 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 h-screen w-72 bg-slate-950 text-white p-6 flex flex-col z-[70] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl",
-        isOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed top-0 h-screen w-72 bg-slate-950 text-white p-6 flex flex-col z-[70] lg:hidden transition-transform duration-300 ease-in-out shadow-2xl",
+        direction === 'rtl' ? 'right-0' : 'left-0',
+        isOpen ? "translate-x-0" : direction === 'rtl' ? "translate-x-full" : "-translate-x-full"
       )}>
         {SidebarContent}
       </aside>
