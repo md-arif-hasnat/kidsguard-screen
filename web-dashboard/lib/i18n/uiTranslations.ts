@@ -62,6 +62,7 @@ const phrases: Record<string, Translation> = {
   "Never": ["Nie", "Nunca", "أبدًا"],
   "Today": ["Heute", "Hoy", "اليوم"],
   "Yesterday": ["Gestern", "Ayer", "أمس"],
+  "Just now": ["Gerade eben", "Ahora mismo", "الآن"],
   "Start": ["Start", "Inicio", "البداية"],
   "End": ["Ende", "Fin", "النهاية"],
   "Status": ["Status", "Estado", "الحالة"],
@@ -437,6 +438,51 @@ const phrases: Record<string, Translation> = {
   "KidsGuard for Mobile": ["KidsGuard für Mobilgeräte", "KidsGuard para móvil", "KidsGuard للهاتف"],
   "Follow these steps to add KidsGuard to your home screen.": ["Folgen Sie diesen Schritten, um KidsGuard zum Startbildschirm hinzuzufügen.", "Sigue estos pasos para añadir KidsGuard a la pantalla de inicio.", "اتبع هذه الخطوات لإضافة KidsGuard إلى الشاشة الرئيسية."],
   "Install": ["Installieren", "Instalar", "تثبيت"],
+  "How to enable notifications": ["Benachrichtigungen aktivieren", "Cómo activar las notificaciones", "كيفية تفعيل الإشعارات"],
+  "Notifications are enabled on this device.": ["Benachrichtigungen sind auf diesem Gerät aktiviert.", "Las notificaciones están activadas en este dispositivo.", "تم تفعيل الإشعارات على هذا الجهاز."],
+  "Notifications could not be enabled. Follow the steps below and try again.": ["Benachrichtigungen konnten nicht aktiviert werden. Folgen Sie den Schritten unten und versuchen Sie es erneut.", "No se pudieron activar las notificaciones. Sigue los pasos e inténtalo de nuevo.", "تعذر تفعيل الإشعارات. اتبع الخطوات أدناه ثم حاول مرة أخرى."],
+  "On iPhone or iPad, add KidsGuard to the Home Screen before enabling notifications.": ["Fügen Sie KidsGuard auf dem iPhone oder iPad zuerst zum Home-Bildschirm hinzu, bevor Sie Benachrichtigungen aktivieren.", "En iPhone o iPad, añade KidsGuard a la pantalla de inicio antes de activar las notificaciones.", "على iPhone أو iPad، أضف KidsGuard إلى الشاشة الرئيسية قبل تفعيل الإشعارات."],
+  "Open the Home Screen guide": ["Anleitung für den Home-Bildschirm öffnen", "Abrir la guía de la pantalla de inicio", "فتح دليل الشاشة الرئيسية"],
+  "Open KidsGuard from your Home Screen.": ["Öffnen Sie KidsGuard über Ihren Home-Bildschirm.", "Abre KidsGuard desde la pantalla de inicio.", "افتح KidsGuard من الشاشة الرئيسية."],
+  "Tap Enable Notifications, then choose Allow.": ["Tippen Sie auf „Benachrichtigungen aktivieren“ und wählen Sie anschließend „Erlauben“.", "Toca Activar notificaciones y elige Permitir.", "اضغط على تفعيل الإشعارات ثم اختر سماح."],
+  "If permission was blocked, open iPhone Settings → Notifications → KidsGuard and turn on Allow Notifications.": ["Falls die Berechtigung blockiert wurde, öffnen Sie iPhone-Einstellungen → Mitteilungen → KidsGuard und aktivieren Sie „Mitteilungen erlauben“.", "Si bloqueaste el permiso, abre Ajustes del iPhone → Notificaciones → KidsGuard y activa Permitir notificaciones.", "إذا تم حظر الإذن، افتح إعدادات iPhone ← الإشعارات ← KidsGuard ثم فعّل السماح بالإشعارات."],
+  "Tap Enable Notifications and choose Allow in the browser prompt.": ["Tippen Sie auf „Benachrichtigungen aktivieren“ und wählen Sie im Browser „Zulassen“.", "Toca Activar notificaciones y elige Permitir en el aviso del navegador.", "اضغط على تفعيل الإشعارات واختر سماح في رسالة المتصفح."],
+  "If permission was blocked, open your browser's site settings, select Notifications, and allow this site.": ["Falls die Berechtigung blockiert wurde, öffnen Sie die Website-Einstellungen Ihres Browsers, wählen Sie Benachrichtigungen und erlauben Sie diese Website.", "Si bloqueaste el permiso, abre la configuración del sitio en el navegador, selecciona Notificaciones y permite este sitio.", "إذا تم حظر الإذن، افتح إعدادات الموقع في المتصفح واختر الإشعارات ثم اسمح لهذا الموقع."],
+  "Notifications need a supported browser and a secure connection.": ["Benachrichtigungen benötigen einen unterstützten Browser und eine sichere Verbindung.", "Las notificaciones requieren un navegador compatible y una conexión segura.", "تحتاج الإشعارات إلى متصفح مدعوم واتصال آمن."],
+  "Enable Notifications": ["Benachrichtigungen aktivieren", "Activar notificaciones", "تفعيل الإشعارات"],
+  "Try Again": ["Erneut versuchen", "Intentar de nuevo", "المحاولة مرة أخرى"],
+  "Tap the Share button at the bottom of Safari.": ["Tippen Sie unten in Safari auf „Teilen“.", "Toca el botón Compartir en la parte inferior de Safari.", "اضغط على زر المشاركة أسفل Safari."],
+  "Scroll down and tap Add to Home Screen.": ["Scrollen Sie nach unten und tippen Sie auf „Zum Home-Bildschirm“.", "Desplázate hacia abajo y toca Añadir a pantalla de inicio.", "مرّر لأسفل واضغط على إضافة إلى الشاشة الرئيسية."],
+  "Tap Add in the top-right corner.": ["Tippen Sie oben rechts auf „Hinzufügen“.", "Toca Añadir en la esquina superior derecha.", "اضغط على إضافة في الزاوية العلوية."],
+  "Open KidsGuard from the new Home Screen icon, then enable notifications.": ["Öffnen Sie KidsGuard über das neue Symbol auf dem Home-Bildschirm und aktivieren Sie anschließend Benachrichtigungen.", "Abre KidsGuard desde el nuevo icono de la pantalla de inicio y activa las notificaciones.", "افتح KidsGuard من الأيقونة الجديدة على الشاشة الرئيسية ثم فعّل الإشعارات."],
+  "Tap the Menu ⋮ icon in Chrome.": ["Tippen Sie in Chrome auf das Menü ⋮.", "Toca el icono Menú ⋮ en Chrome.", "اضغط على رمز القائمة ⋮ في Chrome."],
+  "Tap Add to Home Screen or Install App.": ["Tippen Sie auf „Zum Startbildschirm hinzufügen“ oder „App installieren“.", "Toca Añadir a pantalla de inicio o Instalar aplicación.", "اضغط على إضافة إلى الشاشة الرئيسية أو تثبيت التطبيق."],
+  "Confirm the installation.": ["Bestätigen Sie die Installation.", "Confirma la instalación.", "أكد التثبيت."],
+  "New app installed": ["Neue App installiert", "Nueva aplicación instalada", "تم تثبيت تطبيق جديد"],
+  "Permission change requested": ["Änderung einer Berechtigung angefragt", "Solicitud de cambio de permiso", "طُلب تغيير إذن"],
+  "More screen time requested": ["Mehr Bildschirmzeit angefragt", "Solicitud de más tiempo de pantalla", "طُلب وقت شاشة إضافي"],
+  "Website access requested": ["Website-Zugriff angefragt", "Solicitud de acceso a un sitio web", "طُلب الوصول إلى موقع ويب"],
+  "Remote control priority applied": ["Fernsteuerung hat Vorrang", "Se aplicó la prioridad del control remoto", "تم تطبيق أولوية التحكم عن بُعد"],
+  "Daily screen time finished": ["Tägliche Bildschirmzeit beendet", "Tiempo de pantalla diario finalizado", "انتهى وقت الشاشة اليومي"],
+  "App time limit reached": ["App-Zeitlimit erreicht", "Se alcanzó el límite de la aplicación", "تم بلوغ حد وقت التطبيق"],
+  "Blocked app attempt": ["Versuch, eine gesperrte App zu öffnen", "Intento de abrir una aplicación bloqueada", "محاولة فتح تطبيق محظور"],
+  "SOS Resolved": ["SOS-Alarm gelöst", "SOS resuelto", "تم حل حالة الطوارئ"],
+  "Emergency situation has been marked as resolved.": ["Die Notsituation wurde als gelöst markiert.", "La situación de emergencia se marcó como resuelta.", "تم تحديد حالة الطوارئ على أنها محلولة."],
+  "Connection to the child device was lost.": ["Die Verbindung zum Kindergerät wurde unterbrochen.", "Se perdió la conexión con el dispositivo del menor.", "انقطع الاتصال بجهاز الطفل."],
+  "Device has reconnected to the network.": ["Das Gerät ist wieder mit dem Netzwerk verbunden.", "El dispositivo volvió a conectarse a la red.", "أعاد الجهاز الاتصال بالشبكة."],
+  "The Remote Control command took priority over scheduled settings.": ["Der Fernsteuerungsbefehl hatte Vorrang vor den geplanten Einstellungen.", "La orden del control remoto tuvo prioridad sobre los ajustes programados.", "أخذ أمر التحكم عن بُعد الأولوية على الإعدادات المجدولة."],
+  "The daily total screen-time limit was reached. Non-essential apps are now blocked.": ["Das tägliche Gesamtlimit der Bildschirmzeit wurde erreicht. Nicht notwendige Apps sind jetzt gesperrt.", "Se alcanzó el límite total diario de pantalla. Las aplicaciones no esenciales están bloqueadas.", "تم بلوغ الحد اليومي الإجمالي لوقت الشاشة. التطبيقات غير الأساسية محظورة الآن."],
+  "Someone tried to disable or remove KidsGuard protection.": ["Jemand hat versucht, den KidsGuard-Schutz zu deaktivieren oder zu entfernen.", "Alguien intentó desactivar o eliminar la protección de KidsGuard.", "حاول شخص تعطيل حماية KidsGuard أو إزالتها."],
+  "KidsGuard Device Admin protection was disabled.": ["Der KidsGuard-Geräteadministratorschutz wurde deaktiviert.", "Se desactivó la protección de administrador del dispositivo de KidsGuard.", "تم تعطيل حماية مسؤول الجهاز في KidsGuard."],
+  "A mandatory child-app update has been published. Open Downloads to install it.": ["Ein erforderliches Update der Kinder-App wurde veröffentlicht. Öffnen Sie Downloads, um es zu installieren.", "Se publicó una actualización obligatoria de la aplicación infantil. Abre Descargas para instalarla.", "تم نشر تحديث إلزامي لتطبيق الطفل. افتح التنزيلات لتثبيته."],
+  "A new child-app version is ready. Open Downloads to view the release notes.": ["Eine neue Version der Kinder-App ist bereit. Öffnen Sie Downloads, um die Versionshinweise anzuzeigen.", "Hay una nueva versión de la aplicación infantil. Abre Descargas para ver las notas de la versión.", "إصدار جديد من تطبيق الطفل جاهز. افتح التنزيلات لعرض ملاحظات الإصدار."],
+  "Security Alert": ["Sicherheitswarnung", "Alerta de seguridad", "تنبيه أمني"],
+  "Permission Alert": ["Berechtigungswarnung", "Alerta de permiso", "تنبيه إذن"],
+  "A required permission was disabled.": ["Eine erforderliche Berechtigung wurde deaktiviert.", "Se desactivó un permiso obligatorio.", "تم تعطيل إذن مطلوب."],
+  "Your weekly safety report is ready": ["Ihr wöchentlicher Sicherheitsbericht ist bereit", "Tu informe semanal de seguridad está listo", "تقرير الأمان الأسبوعي جاهز"],
+  "New support reply": ["Neue Support-Antwort", "Nueva respuesta de soporte", "رد جديد من الدعم"],
+  "🤝 Invitation Accepted": ["🤝 Einladung angenommen", "🤝 Invitación aceptada", "🤝 تم قبول الدعوة"],
+  "📱 New Child Paired": ["📱 Neues Kindergerät gekoppelt", "📱 Nuevo dispositivo infantil vinculado", "📱 تم إقران جهاز طفل جديد"],
   "App Update Available": ["App-Update verfügbar", "Actualización disponible", "يتوفر تحديث للتطبيق"],
   "Update Now": ["Jetzt aktualisieren", "Actualizar ahora", "التحديث الآن"],
   "Enable push notifications to receive instant SOS and safety alerts.": ["Aktivieren Sie Push-Benachrichtigungen für sofortige SOS- und Sicherheitswarnungen.", "Activa las notificaciones para recibir alertas SOS y de seguridad al instante.", "فعّل الإشعارات لتلقي تنبيهات الطوارئ والأمان فورًا."],
@@ -673,6 +719,182 @@ const templates: Array<{
   pattern: RegExp;
   render: Record<Exclude<Locale, "en">, (...values: string[]) => string>;
 }> = [
+  {
+    pattern: /^(.+?) installed (.+)\.?$/,
+    render: {
+      de: (child, app) => `${child} hat ${app} installiert.`,
+      es: (child, app) => `${child} instaló ${app}.`,
+      ar: (child, app) => `قام ${child} بتثبيت ${app}.`,
+    },
+  },
+  {
+    pattern: /^(.+?) requested more time for (.+?)\.$/,
+    render: {
+      de: (child, app) => `${child} hat mehr Zeit für ${app} angefragt.`,
+      es: (child, app) => `${child} solicitó más tiempo para ${app}.`,
+      ar: (child, app) => `طلب ${child} وقتًا إضافيًا لاستخدام ${app}.`,
+    },
+  },
+  {
+    pattern: /^(.+?) requested access to (.+?)\.$/,
+    render: {
+      de: (child, domain) => `${child} hat Zugriff auf ${domain} angefragt.`,
+      es: (child, domain) => `${child} solicitó acceso a ${domain}.`,
+      ar: (child, domain) => `طلب ${child} الوصول إلى ${domain}.`,
+    },
+  },
+  {
+    pattern: /^(.+?) reached today's time limit and was blocked\.$/,
+    render: {
+      de: app => `${app} hat das heutige Zeitlimit erreicht und wurde gesperrt.`,
+      es: app => `${app} alcanzó el límite de hoy y se bloqueó.`,
+      ar: app => `بلغ ${app} الحد الزمني لليوم وتم حظره.`,
+    },
+  },
+  {
+    pattern: /^(.+?) was opened on the child device and KidsGuard blocked it\.$/,
+    render: {
+      de: app => `${app} wurde auf dem Kindergerät geöffnet und von KidsGuard gesperrt.`,
+      es: app => `${app} se abrió en el dispositivo del menor y KidsGuard la bloqueó.`,
+      ar: app => `تم فتح ${app} على جهاز الطفل وقام KidsGuard بحظره.`,
+    },
+  },
+  {
+    pattern: /^Arrived at (.+)$/,
+    render: {
+      de: zone => `Ankunft bei ${zone}`,
+      es: zone => `Llegó a ${zone}`,
+      ar: zone => `وصل إلى ${zone}`,
+    },
+  },
+  {
+    pattern: /^Entered (.+)$/,
+    render: {
+      de: zone => `${zone} betreten`,
+      es: zone => `Entró en ${zone}`,
+      ar: zone => `دخل ${zone}`,
+    },
+  },
+  {
+    pattern: /^Left (.+)$/,
+    render: {
+      de: zone => `${zone} verlassen`,
+      es: zone => `Salió de ${zone}`,
+      ar: zone => `غادر ${zone}`,
+    },
+  },
+  {
+    pattern: /^Emergency SOS from (.+)$/,
+    render: {
+      de: child => `Notfall-SOS von ${child}`,
+      es: child => `SOS de emergencia de ${child}`,
+      ar: child => `نداء طوارئ من ${child}`,
+    },
+  },
+  {
+    pattern: /^(.+?) may need help\. Current location received\.$/,
+    render: {
+      de: child => `${child} benötigt möglicherweise Hilfe. Der aktuelle Standort wurde empfangen.`,
+      es: child => `${child} puede necesitar ayuda. Se recibió la ubicación actual.`,
+      ar: child => `قد يحتاج ${child} إلى المساعدة. تم استلام الموقع الحالي.`,
+    },
+  },
+  {
+    pattern: /^🪫 Critical Battery: (.+)$/,
+    render: {
+      de: child => `🪫 Kritischer Akkustand: ${child}`,
+      es: child => `🪫 Batería crítica: ${child}`,
+      ar: child => `🪫 بطارية حرجة: ${child}`,
+    },
+  },
+  {
+    pattern: /^(.+?)'s device is at (\d+)%\. Charge immediately\.$/,
+    render: {
+      de: (child, percent) => `Der Akku von ${child}s Gerät liegt bei ${percent} %. Bitte sofort aufladen.`,
+      es: (child, percent) => `El dispositivo de ${child} tiene un ${percent} % de batería. Cárgalo inmediatamente.`,
+      ar: (child, percent) => `بطارية جهاز ${child} عند ${percent}٪. اشحنه فورًا.`,
+    },
+  },
+  {
+    pattern: /^(.+?)'s device is at (\d+)%\.$/,
+    render: {
+      de: (child, percent) => `Der Akku von ${child}s Gerät liegt bei ${percent} %.`,
+      es: (child, percent) => `El dispositivo de ${child} tiene un ${percent} % de batería.`,
+      ar: (child, percent) => `بطارية جهاز ${child} عند ${percent}٪.`,
+    },
+  },
+  {
+    pattern: /^🔋 Low Battery: (.+)$/,
+    render: {
+      de: child => `🔋 Niedriger Akkustand: ${child}`,
+      es: child => `🔋 Batería baja: ${child}`,
+      ar: child => `🔋 البطارية منخفضة: ${child}`,
+    },
+  },
+  {
+    pattern: /^☁️ (.+?) is Offline$/,
+    render: {
+      de: child => `☁️ ${child} ist offline`,
+      es: child => `☁️ ${child} está sin conexión`,
+      ar: child => `☁️ جهاز ${child} غير متصل`,
+    },
+  },
+  {
+    pattern: /^🌐 (.+?) is Online$/,
+    render: {
+      de: child => `🌐 ${child} ist online`,
+      es: child => `🌐 ${child} está en línea`,
+      ar: child => `🌐 جهاز ${child} متصل`,
+    },
+  },
+  {
+    pattern: /^KidsGuard v(.+?) update required$/,
+    render: {
+      de: version => `Update auf KidsGuard v${version} erforderlich`,
+      es: version => `Se requiere actualizar a KidsGuard v${version}`,
+      ar: version => `يلزم تحديث KidsGuard إلى الإصدار v${version}`,
+    },
+  },
+  {
+    pattern: /^KidsGuard v(.+?) is available$/,
+    render: {
+      de: version => `KidsGuard v${version} ist verfügbar`,
+      es: version => `KidsGuard v${version} está disponible`,
+      ar: version => `يتوفر KidsGuard v${version}`,
+    },
+  },
+  {
+    pattern: /^(.+?): Uninstall Attempt$/,
+    render: {
+      de: child => `${child}: Deinstallationsversuch`,
+      es: child => `${child}: intento de desinstalación`,
+      ar: child => `${child}: محاولة إلغاء التثبيت`,
+    },
+  },
+  {
+    pattern: /^(.+?): Accessibility Disabled$/,
+    render: {
+      de: child => `${child}: Bedienungshilfe deaktiviert`,
+      es: child => `${child}: accesibilidad desactivada`,
+      ar: child => `${child}: تم تعطيل إمكانية الوصول`,
+    },
+  },
+  {
+    pattern: /^(.+?): Device Admin Disabled$/,
+    render: {
+      de: child => `${child}: Geräteadministrator deaktiviert`,
+      es: child => `${child}: administrador del dispositivo desactivado`,
+      ar: child => `${child}: تم تعطيل مسؤول الجهاز`,
+    },
+  },
+  {
+    pattern: /^([+-]?\d+)% screen-time change · (\d+) safety alerts$/,
+    render: {
+      de: (percent, count) => `${percent} % Änderung der Bildschirmzeit · ${count} Sicherheitswarnungen`,
+      es: (percent, count) => `${percent} % de cambio en tiempo de pantalla · ${count} alertas de seguridad`,
+      ar: (percent, count) => `تغيّر وقت الشاشة بنسبة ${percent}٪ · ${count} تنبيه أمان`,
+    },
+  },
   {
     pattern: /^(\d+) minutes?$/i,
     render: {

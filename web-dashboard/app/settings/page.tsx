@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import RemoteImage from '@/components/RemoteImage';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { translateUiText } from '@/lib/i18n/uiTranslations';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
@@ -367,13 +368,37 @@ export default function SettingsPage() {
                     type="button"
                     onClick={async () => {
                         if (!profile) return;
-                        await NotificationRepository.registerDevice(profile.uid, window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser");
-                        alert(t('deviceRegistration'));
+                        const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+                        const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+                          (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+                        if (isIos && !standalone) {
+                          window.dispatchEvent(new Event('kidsguard:show-install-instructions'));
+                          return;
+                        }
+
+                        const success = await NotificationRepository.registerDevice(
+                          profile.uid,
+                          window.navigator.userAgent.split(') ')[0].split(' (')[1] || "Web Browser",
+                          locale
+                        );
+                        if (success) {
+                          alert(translateUiText('Notifications are enabled on this device.', locale));
+                        } else {
+                          window.dispatchEvent(new Event('kidsguard:show-notification-help'));
+                        }
                     }}
                     className="w-full sm:w-auto text-primary-600 font-bold hover:underline flex items-center justify-center gap-2 text-sm"
                 >
                     <Smartphone size={16} />
                     {t('enablePush')}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event('kidsguard:show-notification-help'))}
+                    className="mt-3 w-full sm:w-auto sm:ms-5 text-slate-600 font-bold hover:text-primary-600 hover:underline inline-flex items-center justify-center gap-2 text-sm"
+                >
+                    <Bell size={16} />
+                    How to enable notifications
                 </button>
             </div>
           </div>

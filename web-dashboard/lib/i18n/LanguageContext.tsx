@@ -54,7 +54,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, value);
     window.localStorage.removeItem(LEGACY_KEY);
     if (profile?.uid) {
-      void ParentRepository.updateProfile(profile.uid, { preferredLanguage: value }).catch((error) =>
+      const resolvedLanguage = value === "auto" ? detectLocale() : value;
+      void ParentRepository.updateProfile(profile.uid, { preferredLanguage: value, resolvedLanguage }).catch((error) =>
         console.warn("Could not sync language preference:", error)
       );
     }
@@ -75,6 +76,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const locale = preference === "auto" ? deviceLocale : preference;
   const direction: "ltr" | "rtl" = locale === "ar" ? "rtl" : "ltr";
+
+  useEffect(() => {
+    if (!ready || !profile?.uid || profile.resolvedLanguage === locale) return;
+    void ParentRepository.updateProfile(profile.uid, { resolvedLanguage: locale }).catch((error) =>
+      console.warn("Could not sync resolved notification language:", error)
+    );
+  }, [locale, profile?.resolvedLanguage, profile?.uid, ready]);
 
   useEffect(() => {
     if (!ready) return;

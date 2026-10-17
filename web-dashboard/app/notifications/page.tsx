@@ -20,10 +20,13 @@ import {
 } from "@/lib/repositories/NotificationRepository";
 import { clsx } from "clsx";
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { translateUiText } from "@/lib/i18n/uiTranslations";
 
 const PAGE_SIZE = 20;
 
 export default function NotificationsPage() {
+  const { locale } = useLanguage();
   const [user, setUser] = useState<any>(null);
 
   const [notifications, setNotifications] = useState<
@@ -257,10 +260,11 @@ export default function NotificationsPage() {
   const getCreatedTime = (
     notification: NotificationHistoryItem
   ) => {
+    const languageTag = locale === "de" ? "de-DE" : locale === "es" ? "es-ES" : locale === "ar" ? "ar" : "en-GB";
     const createdAt = notification.createdAt as any;
 
     if (!createdAt) {
-      return "Just now";
+      return translateUiText("Just now", locale);
     }
 
     if (
@@ -268,7 +272,7 @@ export default function NotificationsPage() {
     ) {
       return new Date(
         createdAt.seconds * 1000
-      ).toLocaleTimeString();
+      ).toLocaleTimeString(languageTag);
     }
 
     if (
@@ -276,16 +280,16 @@ export default function NotificationsPage() {
     ) {
       return createdAt
         .toDate()
-        .toLocaleTimeString();
+        .toLocaleTimeString(languageTag);
     }
 
     const parsedDate = new Date(createdAt);
 
     if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.toLocaleTimeString();
+      return parsedDate.toLocaleTimeString(languageTag);
     }
 
-    return "Just now";
+    return translateUiText("Just now", locale);
   };
 
   if (loading) {
@@ -366,7 +370,7 @@ export default function NotificationsPage() {
                           "text-primary-900"
                       )}
                     >
-                      {item.title}
+                      {translateUiText(item.title, locale)}
                     </h3>
 
                     <span className="whitespace-nowrap text-[10px] font-bold uppercase text-slate-400">
@@ -375,7 +379,7 @@ export default function NotificationsPage() {
                   </div>
 
                   <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 md:text-sm">
-                    {item.body}
+                    {translateUiText(item.body, locale)}
                   </p>
 
                   <div className="mt-3 flex items-center gap-4">

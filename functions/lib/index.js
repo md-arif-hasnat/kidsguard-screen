@@ -40,6 +40,7 @@ const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const crypto_1 = require("crypto");
 const params_1 = require("firebase-functions/params");
+const notificationI18n_1 = require("./notificationI18n");
 admin.initializeApp();
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
@@ -1267,8 +1268,13 @@ exports.onPermissionAlertCreated = functions.firestore
     return null;
 });
 async function notifyParent(uid, payload) {
-    const settingsSnap = await db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get();
+    const [settingsSnap, parentSnap] = await Promise.all([
+        db.collection('parents').doc(uid).collection('notificationSettings').doc('current').get(),
+        db.collection('parents').doc(uid).get(),
+    ]);
     const settings = settingsSnap.data();
+    const locale = (0, notificationI18n_1.resolveNotificationLocale)(parentSnap.data());
+    const localizedCopy = (0, notificationI18n_1.localizeNotificationCopy)(payload, locale);
     const requestTypes = new Set([
         'APP_ACCESS_REQUEST',
         'WEB_ACCESS_REQUEST',
@@ -1313,9 +1319,10 @@ async function notifyParent(uid, payload) {
         childId: payload.childId,
         eventId: payload.eventId || '',
         type: payload.type,
-        title: payload.title,
-        body: payload.body,
-        message: payload.body,
+        title: localizedCopy.title,
+        body: localizedCopy.body,
+        message: localizedCopy.body,
+        locale,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         clickAction: payload.clickAction,
@@ -1356,8 +1363,8 @@ async function notifyParent(uid, payload) {
     const webPayload = {
         tokens: webTokens,
         notification: {
-            title: payload.title,
-            body: payload.body,
+            title: localizedCopy.title,
+            body: localizedCopy.body,
         },
         data: {
             type: payload.type,
@@ -1365,8 +1372,8 @@ async function notifyParent(uid, payload) {
             eventId: payload.eventId || "",
             clickAction: payload.clickAction,
             packageName: payload.packageName || "",
-            title: payload.title,
-            body: payload.body,
+            title: localizedCopy.title,
+            body: localizedCopy.body,
         },
         webpush: {
             fcmOptions: {
@@ -1377,8 +1384,8 @@ async function notifyParent(uid, payload) {
     const messagingPayload = {
         tokens: nativeTokens,
         notification: {
-            title: payload.title,
-            body: payload.body,
+            title: localizedCopy.title,
+            body: localizedCopy.body,
         },
         data: {
             type: payload.type,
@@ -1386,8 +1393,8 @@ async function notifyParent(uid, payload) {
             eventId: payload.eventId || "",
             clickAction: payload.clickAction,
             packageName: payload.packageName || "",
-            title: payload.title,
-            body: payload.body,
+            title: localizedCopy.title,
+            body: localizedCopy.body,
         },
         webpush: {
             fcmOptions: {

@@ -2,29 +2,41 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Share, Download, X, PlusSquare, MoreVertical, Smartphone, Shield } from 'lucide-react';
+import { Share, Download, X, PlusSquare, MoreVertical } from 'lucide-react';
 import { AuditRepository, AuditAction, AuditSeverity } from '@/lib/repositories/AuditRepository';
 import { useParentProfile } from '@/lib/context/ParentProfileContext';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { translateUiText } from '@/lib/i18n/uiTranslations';
+
+function detectPlatform(): 'ios' | 'android' | 'other' {
+  const ua = window.navigator.userAgent.toLowerCase();
+  if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+  if (/android/.test(ua)) return 'android';
+  return 'other';
+}
+
+function isStandalone(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
 
 export default function PWAInstallBanner() {
   const { profile, family } = useParentProfile();
+  const { locale } = useLanguage();
   const [showBanner, setShowBanner] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other' | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const profileUid = profile?.uid;
   const profileEmail = profile?.email;
   const familyId = family?.familyId;
+  const tr = (source: string) => translateUiText(source, locale);
 
   useEffect(() => {
     // 1. Detect platform
-    const ua = window.navigator.userAgent.toLowerCase();
-    const isIOS = /iphone|ipad|ipod/.test(ua);
-    const isAndroid = /android/.test(ua);
+    const detectedPlatform = detectPlatform();
 
     // 2. Detect if already in standalone mode
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-
-    if (isStandalone) return;
+    if (isStandalone()) return;
 
     // 3. Check dismiss status
     const dismissedAt = localStorage.getItem('kidsguard_pwa_install_banner_dismissed');
@@ -36,13 +48,22 @@ export default function PWAInstallBanner() {
     }
 
     // 4. Show only on mobile
-    if (isIOS) {
-        setPlatform('ios');
-        setShowBanner(true);
-    } else if (isAndroid) {
-        setPlatform('android');
+    if (detectedPlatform === 'ios' || detectedPlatform === 'android') {
+        setPlatform(detectedPlatform);
         setShowBanner(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const openInstallGuide = () => {
+      if (isStandalone()) return;
+      setPlatform(detectPlatform());
+      setShowBanner(true);
+      setShowInstructions(true);
+    };
+
+    window.addEventListener('kidsguard:show-install-instructions', openInstallGuide);
+    return () => window.removeEventListener('kidsguard:show-install-instructions', openInstallGuide);
   }, []);
 
   useEffect(() => {
@@ -74,11 +95,11 @@ export default function PWAInstallBanner() {
       <div className="bg-slate-900 text-white p-3 md:p-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] animate-in slide-in-from-top duration-500 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
-            <Image src="/icon.png" alt="KidsGuard app icon" width={40} height={40} className="h-full w-full object-cover" />
+            <Image src="/icon.png" alt={tr("KidsGuard app icon")} width={40} height={40} className="h-full w-full object-cover" />
           </div>
           <div>
-            <p className="text-sm font-black tracking-tight leading-none">KidsGuard for Mobile</p>
-            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mt-1">Protect • Guide • Grow</p>
+            <p className="text-sm font-black tracking-tight leading-none">{tr("KidsGuard for Mobile")}</p>
+            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mt-1">{tr("Protect • Guide • Grow")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -98,9 +119,9 @@ export default function PWAInstallBanner() {
                 }}
                 className="bg-white text-primary-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary-50 transition-colors"
             >
-                Install
+                {tr("Install")}
             </button>
-            <button onClick={handleDismiss} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+            <button type="button" aria-label={tr("Close")} onClick={handleDismiss} className="p-1 hover:bg-white/10 rounded-full transition-colors">
                 <X size={20} />
             </button>
         </div>
@@ -108,26 +129,32 @@ export default function PWAInstallBanner() {
 
       {showInstructions && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl relative">
-                <button onClick={() => setShowInstructions(false)} className="absolute top-6 right-6 text-slate-400">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pwa-install-title"
+              className="relative max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-[2.5rem] bg-white p-8 shadow-2xl"
+            >
+                <button type="button" aria-label={tr("Close")} onClick={() => setShowInstructions(false)} className="absolute top-6 right-6 text-slate-400">
                     <X size={24} />
                 </button>
 
-                <h2 className="text-2xl font-black text-slate-900 mb-2">Install KidsGuard</h2>
-                <p className="text-slate-500 text-sm mb-8 font-medium">Follow these steps to add KidsGuard to your home screen.</p>
+                <h2 id="pwa-install-title" className="text-2xl font-black text-slate-900 mb-2">{tr("Install KidsGuard")}</h2>
+                <p className="text-slate-500 text-sm mb-8 font-medium">{tr("Follow these steps to add KidsGuard to your home screen.")}</p>
 
                 <div className="space-y-6">
                     {platform === 'ios' ? (
                         <>
-                            <Step number={1} text="Tap the Share button at the bottom of Safari" icon={<Share size={18} className="text-blue-500" />} />
-                            <Step number={2} text="Scroll down and tap 'Add to Home Screen'" icon={<PlusSquare size={18} />} />
-                            <Step number={3} text="Tap 'Add' in the top right corner" />
+                            <Step number={1} text={tr("Tap the Share button at the bottom of Safari.")} icon={<Share size={18} className="text-blue-500" />} />
+                            <Step number={2} text={tr("Scroll down and tap Add to Home Screen.")} icon={<PlusSquare size={18} />} />
+                            <Step number={3} text={tr("Tap Add in the top-right corner.")} />
+                            <Step number={4} text={tr("Open KidsGuard from the new Home Screen icon, then enable notifications.")} />
                         </>
                     ) : (
                         <>
-                            <Step number={1} text="Tap the Menu ⋮ icon in Chrome" icon={<MoreVertical size={18} />} />
-                            <Step number={2} text="Tap 'Add to Home Screen' or 'Install App'" icon={<Download size={18} />} />
-                            <Step number={3} text="Confirm the installation" />
+                            <Step number={1} text={tr("Tap the Menu ⋮ icon in Chrome.")} icon={<MoreVertical size={18} />} />
+                            <Step number={2} text={tr("Tap Add to Home Screen or Install App.")} icon={<Download size={18} />} />
+                            <Step number={3} text={tr("Confirm the installation.")} />
                         </>
                     )}
                 </div>
@@ -136,7 +163,7 @@ export default function PWAInstallBanner() {
                     onClick={() => setShowInstructions(false)}
                     className="w-full mt-10 bg-slate-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl"
                 >
-                    Got it
+                    {tr("Got it")}
                 </button>
             </div>
         </div>

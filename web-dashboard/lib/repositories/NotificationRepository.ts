@@ -89,7 +89,11 @@ export class NotificationRepository {
     await setDoc(ref, settings, { merge: true });
   }
 
-  static async registerDevice(uid: string, deviceName: string): Promise<boolean> {
+  static async registerDevice(
+    uid: string,
+    deviceName: string,
+    locale?: 'en' | 'de' | 'es' | 'ar'
+  ): Promise<boolean> {
     if (!db || !messaging || typeof window === "undefined") return false;
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return false;
 
@@ -115,17 +119,21 @@ export class NotificationRepository {
         .slice(0, 50);
       const deviceRef = doc(db, "users", uid, "notificationTokens", deviceId);
       const now = serverTimestamp();
+      const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+      const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
       await setDoc(deviceRef, {
         token,
-        platform: "ios-pwa",
+        platform: isIos && standalone ? "ios-pwa" : "web",
         deviceName,
+        locale: locale || null,
         enabled: true,
         createdAt: now,
         updatedAt: now
       }, { merge: true });
 
-      console.log("Web FCM token registered (ios-pwa).");
+      console.log("Web FCM token registered.");
       return true;
     } catch (error) {
       console.error("Error registering device for FCM:", error);
@@ -134,7 +142,7 @@ export class NotificationRepository {
   }
 
   static listenForForegroundMessages(
-    onNotification: (payload: { title: string; body: string; url: string }) => void
+    onNotification: (payload: { title: string; body: string; url: string; type: string }) => void
   ): () => void {
     if (!messaging) return () => {};
 
@@ -143,7 +151,8 @@ export class NotificationRepository {
       onNotification({
         title: payload.notification?.title || data.title || "KidsGuard Admin",
         body: payload.notification?.body || data.body || "A new alert needs attention.",
-        url: data.clickAction || data.url || "/internal"
+        url: data.clickAction || data.url || "/internal",
+        type: data.type || "DEVICE"
       });
     });
   }
