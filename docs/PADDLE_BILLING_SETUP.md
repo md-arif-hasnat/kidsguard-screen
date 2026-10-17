@@ -10,11 +10,14 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
    - EUR 3.49 per month with a seven-day trial
    - EUR 35.99 per year with a seven-day trial
    - two child devices included in either interval
-4. Create two recurring extra-child add-on prices under the same product:
+4. Under the separate `KidsGuard Extra Child Slot` product, create two
+   recurring add-on prices:
    - EUR 1.99 per month for each additional child slot
    - EUR 19.99 per year for each additional child slot
-   - no trial on either add-on; Paddle prorates the first charge
+   - the same seven-day free trial as the matching Family Plan price
    - each add-on interval must match the selected Family Plan interval
+   - use clear customer-facing price names so the Family Plan and extra-child
+     line appear separately on Paddle checkout and invoices
 5. Start in Paddle Sandbox.
 6. In Vercel, add:
    - `NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox`
@@ -24,6 +27,14 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
    - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID=<sandbox monthly add-on price id>`
    - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID=<sandbox yearly add-on price id>`
 7. Redeploy the web dashboard.
+
+When a parent selects extra slots during the first checkout, KidsGuard sends the
+Family Plan and add-on as separate line items in one Paddle checkout. Paddle
+creates one subscription and bills their combined total in one transaction at
+the end of the shared trial. If a slot is added later while the subscription is
+already active, Paddle creates an immediate prorated charge; all later renewals
+combine the plan and add-on on the same transaction and invoice. A slot added
+during the free trial joins the first combined charge without proration.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
 

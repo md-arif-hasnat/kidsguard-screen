@@ -4,13 +4,23 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  CreditCard,
+  Loader2,
+  Minus,
+  Plus,
+  ShieldCheck,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { auth } from "@/lib/firebase";
 import { FamilyRole } from "@/lib/repositories/FamilyRepository";
 import {
   BillingInterval,
+  EXTRA_CHILD_MONTHLY_PRICE_CENTS,
+  EXTRA_CHILD_YEARLY_PRICE_CENTS,
   MONTHLY_PRICE_CENTS,
   YEARLY_PRICE_CENTS,
   YEARLY_SAVINGS_CENTS,
@@ -46,6 +56,13 @@ const monthlyPriceId =
   "";
 const yearlyPriceId =
   process.env.NEXT_PUBLIC_PADDLE_YEARLY_PRICE_ID || "";
+const extraChildMonthlyPriceId =
+  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID ||
+  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID ||
+  "";
+const extraChildYearlyPriceId =
+  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID || "";
+const MAX_EXTRA_CHILD_SLOTS = 8;
 const environment =
   process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
     ? "production"
@@ -57,6 +74,7 @@ export default function SubscribePage() {
   const [sdkReady, setSdkReady] = useState(false);
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("MONTHLY");
+  const [extraChildSlots, setExtraChildSlots] = useState(0);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [earlyStartAccepted, setEarlyStartAccepted] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -70,16 +88,30 @@ export default function SubscribePage() {
 
   const selectedPriceId =
     billingInterval === "YEARLY" ? yearlyPriceId : monthlyPriceId;
+  const selectedExtraChildPriceId =
+    billingInterval === "YEARLY"
+      ? extraChildYearlyPriceId
+      : extraChildMonthlyPriceId;
   const selectedPriceCents =
     billingInterval === "YEARLY"
       ? YEARLY_PRICE_CENTS
       : MONTHLY_PRICE_CENTS;
   const selectedPeriodLabel =
     billingInterval === "YEARLY" ? "year" : "month";
+  const selectedExtraChildPriceCents =
+    billingInterval === "YEARLY"
+      ? EXTRA_CHILD_YEARLY_PRICE_CENTS
+      : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
+  const recurringTotalCents =
+    selectedPriceCents + extraChildSlots * selectedExtraChildPriceCents;
   const sdkConfigured = Boolean(
     clientToken && (monthlyPriceId || yearlyPriceId)
   );
-  const checkoutConfigured = Boolean(clientToken && selectedPriceId);
+  const checkoutConfigured = Boolean(
+    clientToken &&
+      selectedPriceId &&
+      (extraChildSlots === 0 || selectedExtraChildPriceId)
+  );
   const parentUid =
     profile?.uid || auth?.currentUser?.uid || "";
   const familyId =
@@ -130,13 +162,24 @@ export default function SubscribePage() {
     setError(null);
 
     try {
+      const checkoutItems = [
+        { priceId: selectedPriceId, quantity: 1 },
+      ];
+      if (extraChildSlots > 0) {
+        checkoutItems.push({
+          priceId: selectedExtraChildPriceId,
+          quantity: extraChildSlots,
+        });
+      }
+
       window.Paddle.Checkout.open({
-        items: [{ priceId: selectedPriceId, quantity: 1 }],
+        items: checkoutItems,
         customData: {
           parentUid,
           familyId,
           product: "kidsguard_family",
           billingInterval,
+          extraChildSlots: String(extraChildSlots),
         },
         settings: {
           successUrl: `${window.location.origin}/manage-subscription?checkout=success`,
@@ -197,7 +240,7 @@ export default function SubscribePage() {
               Family plan
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-900">
-              7-day trial, then {formatEuroCents(selectedPriceCents)}/
+              7-day trial, then {formatEuroCents(recurringTotalCents)}/
               {selectedPeriodLabel}
             </h2>
             <div
@@ -257,6 +300,78 @@ export default function SubscribePage() {
                 </span>
               </button>
             </div>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-black text-slate-900">
+                    Extra child slots
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Two child devices are included. Add more to the same
+                    subscription and invoice.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 self-start rounded-xl border border-slate-200 bg-slate-50 p-2 sm:self-auto">
+                  <button
+                    type="button"
+                    aria-label="Remove one extra child slot"
+                    disabled={extraChildSlots === 0}
+                    onClick={() =>
+                      setExtraChildSlots((current) => Math.max(0, current - 1))
+                    }
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span
+                    className="min-w-8 text-center text-xl font-black text-slate-950"
+                    aria-live="polite"
+                  >
+                    {extraChildSlots}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Add one extra child slot"
+                    disabled={extraChildSlots >= MAX_EXTRA_CHILD_SLOTS}
+                    onClick={() =>
+                      setExtraChildSlots((current) =>
+                        Math.min(MAX_EXTRA_CHILD_SLOTS, current + 1)
+                      )
+                    }
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+                <div className="flex items-center justify-between gap-4 text-slate-600">
+                  <span>KidsGuard Family Plan</span>
+                  <span className="font-bold text-slate-900">
+                    {formatEuroCents(selectedPriceCents)}
+                  </span>
+                </div>
+                {extraChildSlots > 0 && (
+                  <div className="flex items-center justify-between gap-4 text-slate-600">
+                    <span>
+                      Extra child slot × {extraChildSlots}
+                    </span>
+                    <span className="font-bold text-slate-900">
+                      {formatEuroCents(
+                        selectedExtraChildPriceCents * extraChildSlots
+                      )}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 font-black text-slate-950">
+                  <span>Recurring total</span>
+                  <span>
+                    {formatEuroCents(recurringTotalCents)}/{selectedPeriodLabel}
+                  </span>
+                </div>
+              </div>
+            </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-xs font-black uppercase tracking-wider text-emerald-700">
@@ -271,7 +386,7 @@ export default function SubscribePage() {
                   After 7 days
                 </p>
                 <p className="mt-1 text-2xl font-black text-blue-950">
-                  {formatEuroCents(selectedPriceCents)}/{selectedPeriodLabel}
+                  {formatEuroCents(recurringTotalCents)}/{selectedPeriodLabel}
                 </p>
               </div>
             </div>
@@ -294,8 +409,9 @@ export default function SubscribePage() {
               <p className="mt-2 text-sm leading-6 text-amber-800">
                 No payment can be collected yet. The operator must finish
                 Paddle account verification and add the approved client token
-                and the selected {selectedPeriodLabel}ly recurring price ID
-                to the production environment.
+                and the selected {selectedPeriodLabel}ly recurring price IDs
+                to the production environment. Extra-child prices are required
+                only when extra slots are selected.
               </p>
             </div>
           ) : (

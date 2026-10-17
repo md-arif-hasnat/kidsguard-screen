@@ -18,6 +18,8 @@ import {
   FamilyRole,
 } from "@/lib/repositories/FamilyRepository";
 import {
+  EXTRA_CHILD_MONTHLY_PRICE_CENTS,
+  EXTRA_CHILD_YEARLY_PRICE_CENTS,
   MONTHLY_PRICE_CENTS,
   YEARLY_PRICE_CENTS,
   formatEuroCents,
@@ -134,6 +136,22 @@ export default function ManageSubscriptionPage() {
         ? YEARLY_PRICE_CENTS
         : MONTHLY_PRICE_CENTS;
   const billedPriceLabel = formatEuroCents(billedPriceCents);
+  const baseChildSlots = Math.max(2, Number(subscription?.baseChildSlots || 2));
+  const extraChildSlots = Math.max(
+    0,
+    Number(subscription?.extraChildSlots || 0)
+  );
+  const extraChildUnitPriceCents =
+    typeof subscription?.extraChildPriceCents === "number" &&
+    subscription.extraChildPriceCents > 0
+      ? subscription.extraChildPriceCents
+      : billingInterval === "YEARLY"
+        ? EXTRA_CHILD_YEARLY_PRICE_CENTS
+        : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
+  const extraChildTotalCents =
+    extraChildSlots * extraChildUnitPriceCents;
+  const recurringTotalCents = billedPriceCents + extraChildTotalCents;
+  const recurringTotalLabel = formatEuroCents(recurringTotalCents);
 
   const keepSubscription = async () => {
     setWorking(true);
@@ -268,8 +286,8 @@ export default function ManageSubscriptionPage() {
               </h2>
               <p className="mt-2 text-sm leading-6 text-emerald-700">
                 {isTrial
-                  ? `€0 due today. Your first ${billedPriceLabel} ${billingPeriodLabel} charge is scheduled for ${firstChargeAt}.`
-                  : `Your KidsGuard subscription is active. Your next ${billedPriceLabel} ${billingPeriodLabel} charge is scheduled for ${nextChargeAt}.`}
+                  ? `€0 due today. Your first ${recurringTotalLabel} ${billingPeriodLabel} charge is scheduled for ${firstChargeAt}.`
+                  : `Your KidsGuard subscription is active. Your next ${recurringTotalLabel} ${billingPeriodLabel} charge is scheduled for ${nextChargeAt}.`}
               </p>
               <Link
                 href="/cancel-subscription"
@@ -277,6 +295,45 @@ export default function ManageSubscriptionPage() {
               >
                 Cancel Subscription
               </Link>
+            </section>
+          )}
+
+          {!neverSubscribed && (
+            <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
+              <h2 className="font-black text-slate-900">
+                Recurring billing breakdown
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Paddle bills these items together on one subscription invoice.
+              </p>
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-slate-600">
+                    Family Plan · {baseChildSlots} children included
+                  </span>
+                  <span className="font-bold text-slate-900">
+                    {billedPriceLabel}/{billingInterval === "YEARLY" ? "year" : "month"}
+                  </span>
+                </div>
+                {extraChildSlots > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-slate-600">
+                      Extra child slot × {extraChildSlots}
+                    </span>
+                    <span className="font-bold text-slate-900">
+                      {formatEuroCents(extraChildTotalCents)}/
+                      {billingInterval === "YEARLY" ? "year" : "month"}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-3 font-black text-slate-950">
+                  <span>Total recurring charge</span>
+                  <span>
+                    {recurringTotalLabel}/
+                    {billingInterval === "YEARLY" ? "year" : "month"}
+                  </span>
+                </div>
+              </div>
             </section>
           )}
 
