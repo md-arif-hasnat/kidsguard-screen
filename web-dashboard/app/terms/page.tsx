@@ -117,9 +117,10 @@ export default function TermsOfServicePage() {
             and includes up to two child-device slots. The yearly plan saves
             approximately 14% compared with twelve monthly payments.
             Additional child-device capacity may be offered for an additional
-            recurring price displayed before purchase. When purchased with the
-            base plan, add-ons are separately itemized but billed together on
-            the same recurring subscription invoice.
+            recurring price displayed before purchase. Other optional recurring
+            add-ons may also be offered. When purchased with the base plan,
+            add-ons are separately itemized but billed together on the same
+            recurring subscription invoice.
           </p>
 
           <p className="mt-3">

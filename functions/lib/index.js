@@ -46,6 +46,7 @@ const bucket = admin.storage().bucket();
 const storageBucket = admin.storage().bucket();
 const paddleWebhookSecret = (0, params_1.defineSecret)('PADDLE_WEBHOOK_SECRET');
 const paddleApiKey = (0, params_1.defineSecret)('PADDLE_API_KEY');
+const paddleRecurringAddOnsJson = (0, params_1.defineString)('PADDLE_RECURRING_ADDONS_JSON', { default: '[]' });
 function paddleApiBaseUrl(apiKey) {
     return apiKey.includes('_sdbx_')
         ? 'https://sandbox-api.paddle.com'
@@ -78,6 +79,87 @@ async function callPaddleSubscriptionApi(subscriptionId, action) {
         throw new functions.https.HttpsError('unavailable', 'Paddle could not update the subscription. Please try again.');
     }
     return payload?.data || {};
+}
+function getPaddleExtraChildPriceId(billingInterval) {
+    const interval = String(billingInterval || 'MONTHLY').toUpperCase();
+    const monthlyPriceId = process.env.PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID ||
+        process.env.PADDLE_EXTRA_CHILD_PRICE_ID ||
+        '';
+    const yearlyPriceId = process.env.PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID ||
+        '';
+    return interval === 'YEARLY' ? yearlyPriceId : monthlyPriceId;
+}
+function getPaddleExtraChildPriceIds() {
+    return new Set([
+        process.env.PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID,
+        process.env.PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID,
+        process.env.PADDLE_EXTRA_CHILD_PRICE_ID
+    ].filter((priceId) => Boolean(priceId)));
+}
+function getPaddleRecurringAddOnDefinitions() {
+    const definitions = [{
+            key: 'extra_child_slot',
+            name: 'Extra child slot',
+            monthlyPriceId: process.env.PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID ||
+                process.env.PADDLE_EXTRA_CHILD_PRICE_ID ||
+                '',
+            yearlyPriceId: process.env.PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID || ''
+        }];
+    const raw = paddleRecurringAddOnsJson.value().trim();
+    if (raw) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                for (const value of parsed) {
+                    if (!value || typeof value !== 'object')
+                        continue;
+                    const item = value;
+                    const key = typeof item.key === 'string' &&
+                        /^[a-z0-9_]{2,50}$/.test(item.key)
+                        ? item.key
+                        : '';
+                    const name = typeof item.name === 'string'
+                        ? item.name.trim().slice(0, 80)
+                        : '';
+                    const monthlyPriceId = typeof item.monthlyPriceId === 'string'
+                        ? item.monthlyPriceId.trim()
+                        : '';
+                    const yearlyPriceId = typeof item.yearlyPriceId === 'string'
+                        ? item.yearlyPriceId.trim()
+                        : '';
+                    if (!key ||
+                        key === 'extra_child_slot' ||
+                        !name ||
+                        (!monthlyPriceId && !yearlyPriceId)) {
+                        continue;
+                    }
+                    definitions.push({
+                        key,
+                        name,
+                        monthlyPriceId,
+                        yearlyPriceId
+                    });
+                }
+            }
+        }
+        catch (error) {
+            console.error('Invalid PADDLE_RECURRING_ADDONS_JSON:', error);
+        }
+    }
+    return definitions.filter((definition, index, all) => all.findIndex((candidate) => candidate.key === definition.key) === index);
+}
+function getPaddleRecurringAddOnByPriceId() {
+    const byPriceId = new Map();
+    for (const definition of getPaddleRecurringAddOnDefinitions()) {
+        for (const priceId of [
+            definition.monthlyPriceId,
+            definition.yearlyPriceId
+        ]) {
+            if (priceId)
+                byPriceId.set(priceId, definition);
+        }
+    }
+    return byPriceId;
 }
 async function getPaddleSubscription(subscriptionId) {
     const apiKey = paddleApiKey.value().trim();
@@ -2702,7 +2784,7 @@ exports.ensureParentFamily = functions.https.onCall(async (_data, context) => {
                 extraChildSlots: 0,
                 billingInterval: 'MONTHLY',
                 currency: 'EUR',
-                basePriceCents: 299,
+                basePriceCents: 349,
                 extraChildPriceCents: 199
             },
             settings: {
@@ -2761,11 +2843,11 @@ exports.purchaseExtraChildSlot = functions
         throw new functions.https.HttpsError('failed-precondition', 'Keep the subscription active before adding a child slot.');
     }
     const subscriptionId = subscription.paddleSubscriptionId;
-    const extraChildPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+    const extraChildPriceId = getPaddleExtraChildPriceId(subscription.billingInterval);
     if (typeof subscriptionId !== 'string' ||
         !subscriptionId ||
         !extraChildPriceId) {
-        throw new functions.https.HttpsError('failed-precondition', 'Extra-child billing is not configured for this subscription.');
+        throw new functions.https.HttpsError('failed-precondition', 'Extra-child billing is not configured for this subscription interval.');
     }
     const maxSlots = Number.isInteger(subscription.maxChildSlots)
         ? Math.max(2, subscription.maxChildSlots)
@@ -2855,9 +2937,9 @@ exports.removeExtraChildSlot = functions
         throw new functions.https.HttpsError('failed-precondition', 'Remove an unused child device before reducing the paid slot count.');
     }
     const subscriptionId = subscription.paddleSubscriptionId;
-    const extraChildPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
+    const extraChildPriceId = getPaddleExtraChildPriceId(subscription.billingInterval);
     if (typeof subscriptionId !== 'string' || !subscriptionId || !extraChildPriceId) {
-        throw new functions.https.HttpsError('failed-precondition', 'Extra-child billing is not configured for this subscription.');
+        throw new functions.https.HttpsError('failed-precondition', 'Extra-child billing is not configured for this subscription interval.');
     }
     await db.runTransaction(async (transaction) => {
         const latestSnapshot = await transaction.get(familyRef);
@@ -4771,6 +4853,38 @@ exports.paddleBillingWebhook = functions
             if (eventType.startsWith('subscription.')) {
                 patch['subscription.status'] =
                     paddleStatus(data.status);
+                const recurringAddOnByPriceId = getPaddleRecurringAddOnByPriceId();
+                const extraPriceIds = getPaddleExtraChildPriceIds();
+                const subscriptionItems = Array.isArray(data.items)
+                    ? data.items
+                    : [];
+                const basePlanItem = subscriptionItems.find((item) => {
+                    const itemPriceId = item?.price?.id || item?.price_id;
+                    return typeof itemPriceId !== 'string' ||
+                        !recurringAddOnByPriceId.has(itemPriceId);
+                });
+                const providerInterval = data.billing_cycle?.interval ||
+                    basePlanItem?.price?.billing_cycle?.interval;
+                const requestedInterval = customData.billingInterval;
+                const normalizedInterval = String(providerInterval || requestedInterval || '')
+                    .toLowerCase();
+                if (normalizedInterval === 'year' || normalizedInterval === 'yearly') {
+                    patch['subscription.billingInterval'] = 'YEARLY';
+                }
+                else if (normalizedInterval === 'month' ||
+                    normalizedInterval === 'monthly') {
+                    patch['subscription.billingInterval'] = 'MONTHLY';
+                }
+                const providerAmount = Number(basePlanItem?.price?.unit_price?.amount);
+                if (Number.isInteger(providerAmount) && providerAmount > 0) {
+                    patch['subscription.basePriceCents'] = providerAmount;
+                }
+                const providerCurrency = basePlanItem?.price?.unit_price?.currency_code ||
+                    data.currency_code;
+                if (typeof providerCurrency === 'string' && providerCurrency) {
+                    patch['subscription.currency'] =
+                        providerCurrency.toUpperCase();
+                }
                 if (!subscription.subscribedAt) {
                     const subscribedAt = paddleDateMillis(data.started_at) ||
                         paddleDateMillis(data.created_at) ||
@@ -4820,12 +4934,45 @@ exports.paddleBillingWebhook = functions
                     patch['subscription.cancellationStatus'] =
                         admin.firestore.FieldValue.delete();
                 }
-                const extraPriceId = process.env.PADDLE_EXTRA_CHILD_PRICE_ID;
-                if (extraPriceId && Array.isArray(data.items)) {
+                if (Array.isArray(data.items)) {
+                    const recurringAddOns = data.items.flatMap((item) => {
+                        const itemPriceId = item?.price?.id || item?.price_id;
+                        if (typeof itemPriceId !== 'string')
+                            return [];
+                        const definition = recurringAddOnByPriceId.get(itemPriceId);
+                        if (!definition)
+                            return [];
+                        const quantity = Number(item?.quantity || 0);
+                        const unitPriceCents = Number(item?.price?.unit_price?.amount || 0);
+                        if (!Number.isInteger(quantity) ||
+                            quantity <= 0 ||
+                            !Number.isInteger(unitPriceCents) ||
+                            unitPriceCents <= 0) {
+                            return [];
+                        }
+                        const itemInterval = String(item?.price?.billing_cycle?.interval ||
+                            providerInterval ||
+                            '').toLowerCase();
+                        return [{
+                                key: definition.key,
+                                name: definition.name,
+                                priceId: itemPriceId,
+                                quantity,
+                                unitPriceCents,
+                                currency: String(item?.price?.unit_price?.currency_code ||
+                                    data.currency_code ||
+                                    'EUR').toUpperCase(),
+                                billingInterval: itemInterval === 'year' || itemInterval === 'yearly'
+                                    ? 'YEARLY'
+                                    : 'MONTHLY'
+                            }];
+                    });
+                    patch['subscription.recurringAddOns'] = recurringAddOns;
                     const paidExtraSlots = data.items.reduce((total, item) => {
                         const itemPriceId = item?.price?.id ||
                             item?.price_id;
-                        if (itemPriceId !== extraPriceId) {
+                        if (typeof itemPriceId !== 'string' ||
+                            !extraPriceIds.has(itemPriceId)) {
                             return total;
                         }
                         const quantity = Number(item?.quantity || 0);
@@ -4844,6 +4991,11 @@ exports.paddleBillingWebhook = functions
                         admin.firestore.FieldValue.delete();
                     patch['subscription.extraChildPurchaseStatus'] =
                         'CONFIRMED';
+                    const extraChildItem = recurringAddOns.find((item) => item.key === 'extra_child_slot');
+                    if (extraChildItem) {
+                        patch['subscription.extraChildPriceCents'] =
+                            extraChildItem.unitPriceCents;
+                    }
                 }
             }
             transaction.update(familyRef, patch);

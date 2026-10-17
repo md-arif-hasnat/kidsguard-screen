@@ -18,13 +18,14 @@ import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { auth } from "@/lib/firebase";
 import { FamilyRole } from "@/lib/repositories/FamilyRepository";
 import {
+  RECURRING_ADD_ONS,
   BillingInterval,
-  EXTRA_CHILD_MONTHLY_PRICE_CENTS,
-  EXTRA_CHILD_YEARLY_PRICE_CENTS,
   MONTHLY_PRICE_CENTS,
   YEARLY_PRICE_CENTS,
   YEARLY_SAVINGS_CENTS,
   YEARLY_SAVINGS_PERCENT,
+  addOnPriceCents,
+  addOnPriceId,
   formatEuroCents,
 } from "@/lib/billing/pricing";
 
@@ -56,13 +57,6 @@ const monthlyPriceId =
   "";
 const yearlyPriceId =
   process.env.NEXT_PUBLIC_PADDLE_YEARLY_PRICE_ID || "";
-const extraChildMonthlyPriceId =
-  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID ||
-  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_PRICE_ID ||
-  "";
-const extraChildYearlyPriceId =
-  process.env.NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID || "";
-const MAX_EXTRA_CHILD_SLOTS = 8;
 const environment =
   process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
     ? "production"
@@ -74,7 +68,9 @@ export default function SubscribePage() {
   const [sdkReady, setSdkReady] = useState(false);
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("MONTHLY");
-  const [extraChildSlots, setExtraChildSlots] = useState(0);
+  const [addOnQuantities, setAddOnQuantities] = useState<
+    Record<string, number>
+  >({});
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [earlyStartAccepted, setEarlyStartAccepted] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -88,30 +84,33 @@ export default function SubscribePage() {
 
   const selectedPriceId =
     billingInterval === "YEARLY" ? yearlyPriceId : monthlyPriceId;
-  const selectedExtraChildPriceId =
-    billingInterval === "YEARLY"
-      ? extraChildYearlyPriceId
-      : extraChildMonthlyPriceId;
   const selectedPriceCents =
     billingInterval === "YEARLY"
       ? YEARLY_PRICE_CENTS
       : MONTHLY_PRICE_CENTS;
   const selectedPeriodLabel =
     billingInterval === "YEARLY" ? "year" : "month";
-  const selectedExtraChildPriceCents =
-    billingInterval === "YEARLY"
-      ? EXTRA_CHILD_YEARLY_PRICE_CENTS
-      : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
+  const selectedAddOns = RECURRING_ADD_ONS.map((addOn) => ({
+    ...addOn,
+    quantity: Math.max(0, addOnQuantities[addOn.key] || 0),
+    priceId: addOnPriceId(addOn, billingInterval),
+    priceCents: addOnPriceCents(addOn, billingInterval),
+  })).filter((addOn) => addOn.quantity > 0);
   const recurringTotalCents =
-    selectedPriceCents + extraChildSlots * selectedExtraChildPriceCents;
+    selectedPriceCents +
+    selectedAddOns.reduce(
+      (total, addOn) => total + addOn.quantity * addOn.priceCents,
+      0
+    );
   const sdkConfigured = Boolean(
     clientToken && (monthlyPriceId || yearlyPriceId)
   );
   const checkoutConfigured = Boolean(
     clientToken &&
       selectedPriceId &&
-      (extraChildSlots === 0 || selectedExtraChildPriceId)
+      selectedAddOns.every((addOn) => addOn.priceId && addOn.priceCents > 0)
   );
+  const extraChildSlots = addOnQuantities.extra_child_slot || 0;
   const parentUid =
     profile?.uid || auth?.currentUser?.uid || "";
   const familyId =
@@ -165,10 +164,10 @@ export default function SubscribePage() {
       const checkoutItems = [
         { priceId: selectedPriceId, quantity: 1 },
       ];
-      if (extraChildSlots > 0) {
+      for (const addOn of selectedAddOns) {
         checkoutItems.push({
-          priceId: selectedExtraChildPriceId,
-          quantity: extraChildSlots,
+          priceId: addOn.priceId,
+          quantity: addOn.quantity,
         });
       }
 
@@ -300,70 +299,103 @@ export default function SubscribePage() {
                 </span>
               </button>
             </div>
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-black text-slate-900">
-                    Extra child slots
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Two child devices are included. Add more to the same
-                    subscription and invoice.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 self-start rounded-xl border border-slate-200 bg-slate-50 p-2 sm:self-auto">
-                  <button
-                    type="button"
-                    aria-label="Remove one extra child slot"
-                    disabled={extraChildSlots === 0}
-                    onClick={() =>
-                      setExtraChildSlots((current) => Math.max(0, current - 1))
-                    }
-                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <span
-                    className="min-w-8 text-center text-xl font-black text-slate-950"
-                    aria-live="polite"
-                  >
-                    {extraChildSlots}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Add one extra child slot"
-                    disabled={extraChildSlots >= MAX_EXTRA_CHILD_SLOTS}
-                    onClick={() =>
-                      setExtraChildSlots((current) =>
-                        Math.min(MAX_EXTRA_CHILD_SLOTS, current + 1)
-                      )
-                    }
-                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+            <div className="mt-5 space-y-3">
+              {RECURRING_ADD_ONS.map((addOn) => {
+                const quantity = addOnQuantities[addOn.key] || 0;
+                const unitPriceCents = addOnPriceCents(
+                  addOn,
+                  billingInterval
+                );
+                const intervalAvailable = Boolean(
+                  addOnPriceId(addOn, billingInterval) && unitPriceCents > 0
+                );
 
-              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+                return (
+                  <div
+                    key={addOn.key}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-black text-slate-900">
+                          {addOn.name}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {addOn.description}
+                        </p>
+                        <p className="mt-2 text-sm font-black text-blue-700">
+                          {unitPriceCents > 0
+                            ? `${formatEuroCents(unitPriceCents)}/${selectedPeriodLabel}`
+                            : `Not available for the selected ${selectedPeriodLabel}ly plan`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 self-start rounded-xl border border-slate-200 bg-slate-50 p-2 sm:self-auto">
+                        <button
+                          type="button"
+                          aria-label={`Remove one ${addOn.name}`}
+                          disabled={quantity === 0}
+                          onClick={() =>
+                            setAddOnQuantities((current) => ({
+                              ...current,
+                              [addOn.key]: Math.max(
+                                0,
+                                (current[addOn.key] || 0) - 1
+                              ),
+                            }))
+                          }
+                          className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span
+                          className="min-w-8 text-center text-xl font-black text-slate-950"
+                          aria-live="polite"
+                        >
+                          {quantity}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Add one ${addOn.name}`}
+                          disabled={
+                            !intervalAvailable || quantity >= addOn.maxQuantity
+                          }
+                          onClick={() =>
+                            setAddOnQuantities((current) => ({
+                              ...current,
+                              [addOn.key]: Math.min(
+                                addOn.maxQuantity,
+                                (current[addOn.key] || 0) + 1
+                              ),
+                            }))
+                          }
+                          className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm sm:p-5">
                 <div className="flex items-center justify-between gap-4 text-slate-600">
                   <span>KidsGuard Family Plan</span>
                   <span className="font-bold text-slate-900">
                     {formatEuroCents(selectedPriceCents)}
                   </span>
                 </div>
-                {extraChildSlots > 0 && (
-                  <div className="flex items-center justify-between gap-4 text-slate-600">
-                    <span>
-                      Extra child slot × {extraChildSlots}
-                    </span>
+                {selectedAddOns.map((addOn) => (
+                  <div
+                    key={addOn.key}
+                    className="flex items-center justify-between gap-4 text-slate-600"
+                  >
+                    <span>{addOn.name} × {addOn.quantity}</span>
                     <span className="font-bold text-slate-900">
-                      {formatEuroCents(
-                        selectedExtraChildPriceCents * extraChildSlots
-                      )}
+                      {formatEuroCents(addOn.priceCents * addOn.quantity)}
                     </span>
                   </div>
-                )}
+                ))}
                 <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 font-black text-slate-950">
                   <span>Recurring total</span>
                   <span>

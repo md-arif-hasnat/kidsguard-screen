@@ -84,6 +84,15 @@ export interface FamilySubscription {
   currency?: "EUR";
   basePriceCents?: number;
   extraChildPriceCents?: number;
+  recurringAddOns?: Array<{
+    key: string;
+    name: string;
+    priceId: string;
+    quantity: number;
+    unitPriceCents: number;
+    currency: string;
+    billingInterval: "MONTHLY" | "YEARLY";
+  }>;
   subscribedAt?: any;
   trialStartsAt?: any;
   trialEndsAt?: any;

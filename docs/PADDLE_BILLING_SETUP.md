@@ -26,6 +26,7 @@ KidsGuard uses Paddle Billing as the planned Merchant of Record checkout.
    - `NEXT_PUBLIC_PADDLE_YEARLY_PRICE_ID=<sandbox yearly price id>`
    - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_MONTHLY_PRICE_ID=<sandbox monthly add-on price id>`
    - `NEXT_PUBLIC_PADDLE_EXTRA_CHILD_YEARLY_PRICE_ID=<sandbox yearly add-on price id>`
+   - `NEXT_PUBLIC_PADDLE_RECURRING_ADDONS_JSON=[]`
 7. Redeploy the web dashboard.
 
 When a parent selects extra slots during the first checkout, KidsGuard sends the
@@ -34,6 +35,45 @@ creates one subscription and bills their combined total in one transaction at
 the end of the shared trial. If a slot is added later while the subscription is
 already active, Paddle creates an immediate prorated charge; all later renewals
 combine the plan and add-on on the same transaction and invoice.
+
+## Adding another recurring product later
+
+The checkout and subscription dashboard use a shared recurring add-on catalog.
+This means a future optional subscription can join the same Paddle subscription,
+invoice and renewal instead of creating a second subscription. Create matching
+monthly and yearly prices in Paddle, then add the same catalog entry to Vercel
+and Firebase Functions:
+
+```json
+[
+  {
+    "key": "premium_reports",
+    "name": "Premium Reports",
+    "description": "Advanced recurring family reports.",
+    "monthlyPriceId": "pri_monthly_id",
+    "yearlyPriceId": "pri_yearly_id",
+    "monthlyPriceCents": 99,
+    "yearlyPriceCents": 999,
+    "maxQuantity": 1
+  }
+]
+```
+
+- Vercel variable: `NEXT_PUBLIC_PADDLE_RECURRING_ADDONS_JSON`
+- Firebase parameter: `PADDLE_RECURRING_ADDONS_JSON`
+- Use the exact same `key`, `name`, monthly price ID and yearly price ID in
+  both values. The Firebase parser ignores the display-only fields but accepts
+  the same JSON so one value can safely be copied to both environments.
+- Every recurring item in one Paddle subscription must use the same billing
+  interval. If the Family Plan has a seven-day trial, give an add-on selected
+  during first checkout the matching trial so the first combined payment is
+  collected once after seven days.
+- Adding an item to an already-active subscription may create one immediate
+  prorated transaction. The next renewals are combined into one invoice and
+  one charge.
+- A new add-on's product-specific entitlement still needs its own application
+  rule. The generic catalog handles checkout, invoice grouping, webhook
+  recognition and billing display.
 
 The browser token and price ID are intentionally public Paddle identifiers. Never put a Paddle API key or webhook secret in a `NEXT_PUBLIC_*` variable.
 
@@ -57,6 +97,8 @@ The backend endpoint `paddleBillingWebhook` verifies Paddle's `Paddle-Signature`
    The legacy `PADDLE_EXTRA_CHILD_PRICE_ID` remains supported as the monthly
    add-on only. Until the price for the subscription's interval is present,
    KidsGuard intentionally refuses the billing change.
+   When other add-ons are introduced, set `PADDLE_RECURRING_ADDONS_JSON` to
+   the matching catalog JSON before deploying `paddleBillingWebhook`.
 3. Store a Paddle API key that has subscription read/write permission:
 
    ```powershell

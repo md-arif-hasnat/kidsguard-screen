@@ -155,9 +155,36 @@ export default function ManageSubscriptionPage() {
       : storedExtraChildPriceCents > 0 && storedExtraChildPriceCents < 1000
         ? storedExtraChildPriceCents
         : EXTRA_CHILD_MONTHLY_PRICE_CENTS;
-  const extraChildTotalCents =
-    extraChildSlots * extraChildUnitPriceCents;
-  const recurringTotalCents = billedPriceCents + extraChildTotalCents;
+  const providerAddOns = Array.isArray(subscription?.recurringAddOns)
+    ? subscription.recurringAddOns.filter(
+        (item) =>
+          item &&
+          typeof item.key === "string" &&
+          typeof item.name === "string" &&
+          Number.isInteger(item.quantity) &&
+          item.quantity > 0 &&
+          Number.isInteger(item.unitPriceCents) &&
+          item.unitPriceCents > 0
+      )
+    : [];
+  const recurringAddOns = providerAddOns.length > 0
+    ? providerAddOns
+    : extraChildSlots > 0
+      ? [{
+          key: "extra_child_slot",
+          name: "Extra child slot",
+          priceId: "",
+          quantity: extraChildSlots,
+          unitPriceCents: extraChildUnitPriceCents,
+          currency: "EUR",
+          billingInterval,
+        }]
+      : [];
+  const addOnTotalCents = recurringAddOns.reduce(
+    (total, item) => total + item.quantity * item.unitPriceCents,
+    0
+  );
+  const recurringTotalCents = billedPriceCents + addOnTotalCents;
   const recurringTotalLabel = formatEuroCents(recurringTotalCents);
 
   const keepSubscription = async () => {
@@ -322,17 +349,22 @@ export default function ManageSubscriptionPage() {
                     {billedPriceLabel}/{billingInterval === "YEARLY" ? "year" : "month"}
                   </span>
                 </div>
-                {extraChildSlots > 0 && (
-                  <div className="flex items-center justify-between gap-4">
+                {recurringAddOns.map((item) => (
+                  <div
+                    key={`${item.key}-${item.priceId}`}
+                    className="flex items-center justify-between gap-4"
+                  >
                     <span className="text-slate-600">
-                      Extra child slot × {extraChildSlots}
+                      {item.name} × {item.quantity}
                     </span>
                     <span className="font-bold text-slate-900">
-                      {formatEuroCents(extraChildTotalCents)}/
+                      {formatEuroCents(
+                        item.unitPriceCents * item.quantity
+                      )}/
                       {billingInterval === "YEARLY" ? "year" : "month"}
                     </span>
                   </div>
-                )}
+                ))}
                 <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-3 font-black text-slate-950">
                   <span>Total recurring charge</span>
                   <span>
