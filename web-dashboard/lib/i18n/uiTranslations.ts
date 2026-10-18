@@ -1,4 +1,5 @@
 import type { Locale } from "./LanguageContext";
+import { translateTurkishUiText } from "./turkishTranslations";
 
 type Translation = readonly [german: string, spanish: string, arabic: string];
 
@@ -709,7 +710,9 @@ const phrases: Record<string, Translation> = {
   "Waiting for usage permission status": ["Warten auf den Status der Nutzungsberechtigung", "Esperando el estado del permiso de uso", "بانتظار حالة إذن الاستخدام"],
 };
 
-const localeIndex: Record<Exclude<Locale, "en">, 0 | 1 | 2> = {
+type ExistingTranslatedLocale = Exclude<Locale, "en" | "tr">;
+
+const localeIndex: Record<ExistingTranslatedLocale, 0 | 1 | 2> = {
   de: 0,
   es: 1,
   ar: 2,
@@ -717,7 +720,7 @@ const localeIndex: Record<Exclude<Locale, "en">, 0 | 1 | 2> = {
 
 const templates: Array<{
   pattern: RegExp;
-  render: Record<Exclude<Locale, "en">, (...values: string[]) => string>;
+  render: Record<ExistingTranslatedLocale, (...values: string[]) => string>;
 }> = [
   {
     pattern: /^(.+?) installed (.+)\.?$/,
@@ -963,6 +966,7 @@ const templates: Array<{
 
 export function translateUiText(source: string, locale: Locale): string {
   if (locale === "en" || !source.trim()) return source;
+  if (locale === "tr") return translateTurkishUiText(source);
 
   const leading = source.match(/^\s*/)?.[0] ?? "";
   const trailing = source.match(/\s*$/)?.[0] ?? "";

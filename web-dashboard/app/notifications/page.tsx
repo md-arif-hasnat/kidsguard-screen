@@ -260,7 +260,7 @@ export default function NotificationsPage() {
   const getCreatedTime = (
     notification: NotificationHistoryItem
   ) => {
-    const languageTag = locale === "de" ? "de-DE" : locale === "es" ? "es-ES" : locale === "ar" ? "ar" : "en-GB";
+    const languageTag = locale === "de" ? "de-DE" : locale === "es" ? "es-ES" : locale === "ar" ? "ar" : locale === "tr" ? "tr-TR" : "en-GB";
     const createdAt = notification.createdAt as any;
 
     if (!createdAt) {

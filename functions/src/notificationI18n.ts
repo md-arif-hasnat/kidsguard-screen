@@ -1,4 +1,6 @@
-export type NotificationLocale = "en" | "de" | "es" | "ar";
+import {translateTurkishNotification} from "./notificationTurkish";
+
+export type NotificationLocale = "en" | "de" | "es" | "ar" | "tr";
 
 type NotificationCopy = {
   type?: string;
@@ -155,6 +157,8 @@ function pick(locale: NotificationLocale, values: Localized): string {
 }
 
 function dynamic(source: string, locale: NotificationLocale): string {
+  if (locale === "tr") return translateTurkishNotification(source);
+
   const rules: Array<{
     pattern: RegExp;
     render: (parts: string[]) => Localized;
@@ -525,11 +529,11 @@ function dynamic(source: string, locale: NotificationLocale): string {
 
 export function resolveNotificationLocale(parent: Record<string, unknown> | undefined): NotificationLocale {
   const preferred = String(parent?.preferredLanguage || "").toLowerCase();
-  if (preferred === "de" || preferred === "es" || preferred === "ar" || preferred === "en") {
+  if (preferred === "de" || preferred === "es" || preferred === "ar" || preferred === "tr" || preferred === "en") {
     return preferred;
   }
   const resolved = String(parent?.resolvedLanguage || "").toLowerCase();
-  if (resolved === "de" || resolved === "es" || resolved === "ar" || resolved === "en") {
+  if (resolved === "de" || resolved === "es" || resolved === "ar" || resolved === "tr" || resolved === "en") {
     return resolved;
   }
   return "en";
