@@ -520,7 +520,7 @@ const getFriendlyAuthError = (err: any): string => {
       <div id="recaptcha-container"></div>
 
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 md:p-10 relative overflow-hidden">
-        <LanguageSwitcher className="absolute end-5 top-5 z-40 md:end-6 md:top-6" />
+        <LanguageSwitcher menuAlign="right" className="absolute right-5 top-5 z-40 md:right-6 md:top-6" />
 
         {/* Loading Overlay - Fixed and Stable */}
         {loading && (
