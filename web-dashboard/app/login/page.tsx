@@ -112,10 +112,12 @@ export default function Login() {
   );
 
   useEffect(() => {
-    const redirectPath =
-      new URLSearchParams(
-        window.location.search
-      ).get("redirect");
+    const searchParams = new URLSearchParams(
+      window.location.search
+    );
+    const redirectPath = searchParams.get("redirect");
+    const verificationRequired =
+      searchParams.get("verificationRequired") === "1";
 
     const isSafeInternalPath =
       redirectPath?.startsWith("/") &&
@@ -125,6 +127,21 @@ export default function Login() {
       sessionStorage.setItem(
         "kidsguard_return_after_login",
         redirectPath
+      );
+    }
+
+    if (verificationRequired) {
+      setError(null);
+      setAuthSuccess(null);
+      setShowEmailVerificationNotice(true);
+
+      // Consume the one-time redirect signal without another page reload.
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("verificationRequired");
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
       );
     }
   }, []);

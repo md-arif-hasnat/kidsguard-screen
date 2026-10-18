@@ -37,8 +37,13 @@ export const ParentProfileProvider: React.FC<{ children: React.ReactNode }> = ({
             setProfile(null);
             setFamily(null);
             setLoading(false);
+            const isLoginPage = window.location.pathname === '/login';
             void signOut().finally(() => {
-                window.location.replace('/login?verificationRequired=1');
+                // The login page owns the inline verification notice. Reloading
+                // it here resets that notice immediately after it appears.
+                if (!isLoginPage) {
+                    window.location.replace('/login?verificationRequired=1');
+                }
             });
             return;
         }
