@@ -56,6 +56,8 @@ export default function Login() {
   const [loadingMessage, setLoadingMessage] = useState('Signing in...');
   const [error, setError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
+  const [showEmailVerificationNotice, setShowEmailVerificationNotice] =
+    useState(false);
   const passwordChecks = {
     minLength: password.length >= 8,
     uppercase: /[A-Z]/.test(password),
@@ -150,9 +152,9 @@ const getFriendlyAuthError = (err: any): string => {
           if (user && !loading && !authFlowInProgressRef.current) {
               if (!user.emailVerified) {
                   void signOut();
-                  setError(
-                      "Please verify your email before accessing the dashboard."
-                  );
+                  setError(null);
+                  setAuthSuccess(null);
+                  setShowEmailVerificationNotice(true);
                   return;
               }
 
@@ -173,16 +175,20 @@ const getFriendlyAuthError = (err: any): string => {
     try {
         if (!user.emailVerified) {
           if (!isNewAccount && provider === "password") {
-            await sendVerificationEmail(user);
+            try {
+              await sendVerificationEmail(user);
+            } catch (verificationError) {
+              console.warn(
+                "Could not resend the verification email:",
+                verificationError
+              );
+            }
           }
           await signOut();
           authFlowInProgressRef.current = false;
           setError(null);
-          setAuthSuccess(
-            isNewAccount
-              ? "Account created successfully! Please check your email and verify your account."
-              : "Your email is not verified. A new verification link has been sent."
-          );
+          setAuthSuccess(null);
+          setShowEmailVerificationNotice(true);
           setLoading(false);
           return;
         }
@@ -248,6 +254,7 @@ const getFriendlyAuthError = (err: any): string => {
       }
 
       setError(null);
+      setShowEmailVerificationNotice(false);
       setAuthSuccess("Login successful! Redirecting to your dashboard...");
       setLoading(false);
 
@@ -280,6 +287,7 @@ const getFriendlyAuthError = (err: any): string => {
     setLoading(true);
     setError(null);
     setAuthSuccess(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage(isSignUp ? "Creating your account..." : "Authenticating...");
 
     try {
@@ -325,6 +333,7 @@ const getFriendlyAuthError = (err: any): string => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Connecting to Google...");
     try {
       const user = await loginWithGoogle();
@@ -366,6 +375,7 @@ const getFriendlyAuthError = (err: any): string => {
   const handleAppleLogin = async () => {
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Connecting to Apple...");
     try {
       const user = await loginWithApple();
@@ -407,6 +417,7 @@ const getFriendlyAuthError = (err: any): string => {
   const handleGuestLogin = async () => {
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Entering guest mode...");
     try {
       const user = await signIn();
@@ -437,6 +448,7 @@ const getFriendlyAuthError = (err: any): string => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Sending verification code...");
 
     const finalPhone = normalizePhoneNumber(phoneNumber);
@@ -475,6 +487,7 @@ const getFriendlyAuthError = (err: any): string => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Verifying code...");
     try {
       if (confirmationResultRef.current) {
@@ -493,6 +506,7 @@ const getFriendlyAuthError = (err: any): string => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setShowEmailVerificationNotice(false);
     setLoadingMessage("Sending reset link...");
     try {
       await resetPassword(email);
@@ -558,6 +572,27 @@ const getFriendlyAuthError = (err: any): string => {
               </p>
               <p className="font-bold text-sm mt-1">
                 {authSuccess}
+              </p>
+            </div>
+          </div>
+        )}
+        {showEmailVerificationNotice && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm animate-in slide-in-from-top-2 duration-300"
+          >
+            <Mail
+              size={20}
+              aria-hidden="true"
+              className="mt-0.5 shrink-0 text-amber-600"
+            />
+            <div>
+              <p className="text-sm font-black uppercase tracking-tight">
+                {t('confirmEmailTitle')}
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-relaxed">
+                {t('confirmEmailMessage')}
               </p>
             </div>
           </div>
@@ -802,7 +837,12 @@ const getFriendlyAuthError = (err: any): string => {
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={() => { setShowForgotPassword(true); setError(null); }}
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setError(null);
+                        setAuthSuccess(null);
+                        setShowEmailVerificationNotice(false);
+                      }}
                       className="text-[10px] font-bold text-primary-600 hover:underline uppercase tracking-widest mt-1"
                     >
                       {t('forgotPassword')}
@@ -939,7 +979,12 @@ const getFriendlyAuthError = (err: any): string => {
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
               <button
                   disabled={loading}
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    setIsSignUp((current) => !current);
+                    setError(null);
+                    setAuthSuccess(null);
+                    setShowEmailVerificationNotice(false);
+                  }}
                   className="text-primary-600 font-bold hover:underline text-sm transition-opacity disabled:opacity-50"
               >
                   {isSignUp ? t('haveAccount') : t('noAccount')}
