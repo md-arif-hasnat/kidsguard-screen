@@ -600,7 +600,7 @@ const getFriendlyAuthError = (err: any): string => {
             </div>
           </div>
         )}
-        {(showEmailVerificationNotice || !isSignUp) && (
+        {showEmailVerificationNotice && (
           <div
             role="alert"
             aria-live="polite"
