@@ -5,6 +5,7 @@ export const en = {
   german: "German",
   spanish: "Spanish",
   arabic: "Arabic",
+  turkish: "Turkish",
   autoActive: "Auto selected: {language}",
   languageHelp: "Auto follows your browser or device language. You can override it at any time.",
   languageFallback: "Unsupported device languages safely fall back to English.",
@@ -123,7 +124,7 @@ type Messages = Record<MessageKey, string>;
 
 export const de: Messages = {
   ...en,
-  language: "Sprache", auto: "Automatisch (Gerätesprache)", english: "Englisch", german: "Deutsch", spanish: "Spanisch", arabic: "Arabisch",
+  language: "Sprache", auto: "Automatisch (Gerätesprache)", english: "Englisch", german: "Deutsch", spanish: "Spanisch", arabic: "Arabisch", turkish: "Türkisch",
   autoActive: "Automatisch ausgewählt: {language}", languageHelp: "Automatisch folgt der Browser- oder Gerätesprache. Sie können die Auswahl jederzeit ändern.", languageFallback: "Nicht unterstützte Gerätesprachen verwenden sicher Englisch.",
   search: "Suchen...", notifications: "Benachrichtigungen", settings: "Einstellungen", openMenu: "Menü öffnen", back: "Zurück", account: "KONTO",
   familyOverview: "Familienübersicht", weeklyReports: "Wochenberichte", sosCenter: "SOS-Zentrale", family: "Familie", security: "Sicherheit", support: "Support & Beta", signOut: "Abmelden",
@@ -137,7 +138,7 @@ export const de: Messages = {
 
 export const es: Messages = {
   ...en,
-  language: "Idioma", auto: "Automático (idioma del dispositivo)", english: "Inglés", german: "Alemán", spanish: "Español", arabic: "Árabe",
+  language: "Idioma", auto: "Automático (idioma del dispositivo)", english: "Inglés", german: "Alemán", spanish: "Español", arabic: "Árabe", turkish: "Turco",
   autoActive: "Selección automática: {language}", languageHelp: "El modo automático sigue el idioma del navegador o dispositivo. Puedes cambiarlo en cualquier momento.", languageFallback: "Los idiomas no disponibles usan inglés de forma segura.",
   search: "Buscar...", notifications: "Notificaciones", settings: "Ajustes", openMenu: "Abrir menú", back: "Atrás", account: "CUENTA",
   familyOverview: "Resumen familiar", weeklyReports: "Informes semanales", sosCenter: "Centro SOS", family: "Familia", security: "Seguridad", support: "Soporte y beta", signOut: "Cerrar sesión",
@@ -151,7 +152,7 @@ export const es: Messages = {
 
 export const ar: Messages = {
   ...en,
-  language: "اللغة", auto: "تلقائي (لغة الجهاز)", english: "الإنجليزية", german: "الألمانية", spanish: "الإسبانية", arabic: "العربية",
+  language: "اللغة", auto: "تلقائي (لغة الجهاز)", english: "الإنجليزية", german: "الألمانية", spanish: "الإسبانية", arabic: "العربية", turkish: "التركية",
   autoActive: "اللغة المحددة تلقائيًا: {language}", languageHelp: "يتبع الوضع التلقائي لغة المتصفح أو الجهاز. يمكنك تغييرها في أي وقت.", languageFallback: "تستخدم اللغات غير المدعومة الإنجليزية بأمان.",
   search: "بحث...", notifications: "الإشعارات", settings: "الإعدادات", openMenu: "فتح القائمة", back: "رجوع", account: "الحساب",
   familyOverview: "نظرة عامة على العائلة", weeklyReports: "التقارير الأسبوعية", sosCenter: "مركز الطوارئ", family: "العائلة", security: "الأمان", support: "الدعم والنسخة التجريبية", signOut: "تسجيل الخروج",
@@ -161,4 +162,18 @@ export const ar: Messages = {
   safeZoneAlerts: "تنبيهات المناطق الآمنة", safeZoneHelp: "الوصول إلى المنزل أو المدرسة ومغادرتها، إلخ.", sosAlerts: "تنبيهات الطوارئ", sosHelp: "إشارات الطوارئ الحرجة.", batteryAlerts: "تنبيهات البطارية", batteryHelp: "تحذيرات انخفاض البطارية.", deviceAlerts: "تنبيهات حالة الجهاز", deviceHelp: "إشعارات انقطاع الاتصال وعودته.", appAlerts: "تنبيهات نشاط التطبيقات", appHelp: "التثبيتات الجديدة ومحاولات الحظر وحدود الاستخدام.", requestAlerts: "طلبات وصول الطفل", requestHelp: "جميع طلبات التطبيقات وYouTube والمواقع والإعدادات المحمية. مفعّلة افتراضيًا.", permissionAlerts: "طلبات تغيير الأذونات", permissionHelp: "طلبات الطفل لتغيير الأذونات المحمية.", protectionAlerts: "تنبيهات الحماية", protectionHelp: "محاولات العبث بالحماية أو تعطيلها.", syncAlerts: "تنبيهات المزامنة", syncHelp: "تكرار فشل مزامنة البيانات.", updateAlerts: "تنبيهات تحديث التطبيق", updateHelp: "إصدارات KidsGuard الجديدة الاختيارية أو الإلزامية.", pairingAlerts: "تنبيهات الربط", pairingHelp: "أحداث ربط أطفال وعائلات جديدة.", saveNotifications: "حفظ تفضيلات الإشعارات", enablePush: "تفعيل الإشعارات على هذا الجهاز", deviceRegistration: "تم طلب تسجيل الجهاز.",
   secureAuthentication: "مصادقة آمنة", loginSuccessful: "تم تسجيل الدخول بنجاح", securityAlert: "تنبيه أمني", resetPassword: "إعادة تعيين كلمة المرور", resetHelp: "أدخل بريدك الإلكتروني لاستلام رابط إعادة التعيين.", resetSent: "تم إرسال رابط إعادة تعيين كلمة المرور.", checkInbox: "تحقق من بريدك الوارد ومجلد الرسائل غير المرغوب فيها.", sendReset: "إرسال رابط إعادة التعيين", backToLogin: "العودة إلى تسجيل الدخول", password: "كلمة المرور", passwordStrength: "قوة كلمة المرور", weak: "ضعيفة", medium: "متوسطة", strong: "قوية", forgotPassword: "هل نسيت كلمة المرور؟", createAccount: "إنشاء حساب", signIn: "تسجيل الدخول", securityGateway: "بوابة الأمان", verifiedEmail: "يلزم بريد إلكتروني موثّق لكل حساب والدين.", oneTimePassword: "كلمة مرور لمرة واحدة", verifyUnlock: "تحقق وافتح", sendAccessCode: "إرسال رمز الوصول", backToEmail: "العودة إلى تسجيل الدخول بالبريد", haveAccount: "لديك حساب بالفعل؟ سجّل الدخول", noAccount: "ليس لديك حساب؟ أنشئ حسابًا", ageConsent: "أؤكد أن عمري 18 عامًا على الأقل وأوافق على", and: "و",
   privacyPolicy: "سياسة الخصوصية", childPrivacy: "خصوصية الأطفال", terms: "شروط الخدمة", manageSubscription: "إدارة الاشتراك", deleteAccount: "حذف الحساب", legalInformation: "معلومات قانونية", operator: "© 2026 KidsGuard · تديره United Foreign Trade، بنغلاديش",
+};
+
+export const tr: Messages = {
+  ...en,
+  language: "Dil", auto: "Otomatik (cihaz dili)", english: "İngilizce", german: "Almanca", spanish: "İspanyolca", arabic: "Arapça", turkish: "Türkçe",
+  autoActive: "Otomatik seçildi: {language}", languageHelp: "Otomatik mod, tarayıcı veya cihaz dilinizi kullanır. İstediğiniz zaman değiştirebilirsiniz.", languageFallback: "Desteklenmeyen cihaz dilleri güvenli şekilde İngilizceye döner.",
+  search: "Ara...", notifications: "Bildirimler", settings: "Ayarlar", openMenu: "Menüyü aç", back: "Geri", account: "HESAP",
+  familyOverview: "Aile Genel Bakışı", weeklyReports: "Haftalık Raporlar", sosCenter: "SOS Merkezi", family: "Aile", security: "Güvenlik", support: "Destek ve Beta", signOut: "Çıkış Yap",
+  systemHealth: "Sistem Durumu", systemAnalytics: "Sistem Analizi", appReleases: "Uygulama Sürümleri", customers: "Müşteriler", families: "Aileler", devices: "Cihazlar", supportInbox: "Destek Gelen Kutusu", issues: "Sorunlar", auditLogs: "Denetim Kayıtları", adminExit: "Yönetimden Çık", platformSecurityCheck: "Platform Güvenlik Kontrolü", internalSession: "Dahili Oturum", searchResources: "Kaynaklarda ara...",
+  accountSettings: "Hesap Ayarları", displayLanguage: "Görüntüleme Dili", parentAccount: "Ebeveyn Hesabı", loggedInVia: "{provider} ile giriş yapıldı", fullName: "Ad Soyad", enterName: "Adınızı girin", phoneNumber: "Telefon Numarası", emailAddress: "E-posta Adresi", defaultRegion: "Varsayılan Bölge", germany: "Almanya", bangladesh: "Bangladeş", unitedStates: "Amerika Birleşik Devletleri", globalView: "Genel Görünüm", saveChanges: "Değişiklikleri Kaydet", saving: "Kaydediliyor...",
+  profileSaved: "Profil ve bildirim ayarları başarıyla güncellendi!", saveFailed: "Ayarlar güncellenemedi", notificationSaved: "Bildirim tercihleri başarıyla güncellendi!", notificationSaveFailed: "Bildirim tercihleri güncellenemedi", avatarSaved: "Avatar başarıyla güncellendi!", avatarSaveFailed: "Avatar güncellenemedi", changeAvatar: "Avatarı değiştir",
+  safeZoneAlerts: "Güvenli Bölge Uyarıları", safeZoneHelp: "Ev, okul vb. yerlere varış ve ayrılışlar.", sosAlerts: "SOS Uyarıları", sosHelp: "Kritik acil durum sinyalleri.", batteryAlerts: "Pil Uyarıları", batteryHelp: "Düşük pil uyarıları.", deviceAlerts: "Cihaz Durumu Uyarıları", deviceHelp: "Çevrimdışı ve yeniden çevrimiçi bildirimleri.", appAlerts: "Uygulama Etkinliği Uyarıları", appHelp: "Yeni yüklemeler, engellenen girişimler ve kullanım sınırı uyarıları.", requestAlerts: "Çocuk Erişim İstekleri", requestHelp: "Tüm uygulama, YouTube, web sitesi ve korumalı ayar istekleri. Varsayılan olarak etkindir.", permissionAlerts: "İzin Değişikliği İstekleri", permissionHelp: "Çocuğun korumalı izinleri değiştirme istekleri.", protectionAlerts: "Koruma Uyarıları", protectionHelp: "Kurcalama ve korumayı devre dışı bırakma girişimleri.", syncAlerts: "Senkronizasyon Sorunu Uyarıları", syncHelp: "Tekrarlanan çocuk cihazı veri senkronizasyonu hataları.", updateAlerts: "Uygulama Güncelleme Uyarıları", updateHelp: "Yeni isteğe bağlı veya zorunlu KidsGuard sürümleri.", pairingAlerts: "Eşleştirme Uyarıları", pairingHelp: "Yeni çocuk ve aile bağlantı olayları.", saveNotifications: "Bildirim Tercihlerini Kaydet", enablePush: "Bu Cihazda Anlık Bildirimleri Etkinleştir", deviceRegistration: "Cihaz kaydı istendi.",
+  secureAuthentication: "Güvenli Kimlik Doğrulama", loginSuccessful: "Giriş Başarılı", securityAlert: "Güvenlik Uyarısı", resetPassword: "Şifreyi Sıfırla", resetHelp: "Sıfırlama bağlantısı almak için e-postanızı girin.", resetSent: "Şifre sıfırlama bağlantısı gönderildi.", checkInbox: "Lütfen gelen kutunuzu ve spam klasörünü kontrol edin.", sendReset: "Sıfırlama Bağlantısı Gönder", backToLogin: "Girişe Dön", password: "Şifre", passwordStrength: "Şifre Gücü", weak: "Zayıf", medium: "Orta", strong: "Güçlü", forgotPassword: "Şifrenizi mi unuttunuz?", createAccount: "Hesap Oluştur", signIn: "Giriş Yap", securityGateway: "Güvenlik Geçidi", verifiedEmail: "Her ebeveyn hesabı için doğrulanmış bir e-posta adresi gereklidir.", oneTimePassword: "Tek Kullanımlık Şifre", verifyUnlock: "Doğrula ve Kilidi Aç", sendAccessCode: "Erişim Kodu Gönder", backToEmail: "E-posta Girişine Dön", haveAccount: "Zaten hesabınız var mı? Giriş Yapın", noAccount: "Hesabınız yok mu? Kaydolun", ageConsent: "En az 18 yaşında olduğumu ve şunları kabul ettiğimi onaylıyorum:", and: "ve",
+  privacyPolicy: "Gizlilik Politikası", childPrivacy: "Çocuklar için Gizlilik", terms: "Hizmet Şartları", impressum: "Yasal Bildirim", manageSubscription: "Aboneliği Yönet", deleteAccount: "Hesabı Sil", legalInformation: "Yasal bilgiler", operator: "© 2026 KidsGuard · United Foreign Trade, Bangladeş tarafından işletilmektedir",
 };

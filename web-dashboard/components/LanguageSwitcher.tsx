@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { LanguagePreference, useLanguage } from "@/lib/i18n/LanguageContext";
 
-type LanguageLabelKey = "auto" | "english" | "german" | "spanish" | "arabic";
+type LanguageLabelKey = "auto" | "english" | "german" | "spanish" | "arabic" | "turkish";
 
 const LANGUAGE_OPTIONS: Array<{
   value: LanguagePreference;
@@ -16,6 +16,7 @@ const LANGUAGE_OPTIONS: Array<{
   { value: "de", flag: "🇩🇪", labelKey: "german" },
   { value: "es", flag: "🇪🇸", labelKey: "spanish" },
   { value: "ar", flag: "🇸🇦", labelKey: "arabic" },
+  { value: "tr", flag: "🇹🇷", labelKey: "turkish" },
 ];
 
 export default function LanguageSwitcher({

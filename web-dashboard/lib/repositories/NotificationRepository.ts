@@ -92,7 +92,7 @@ export class NotificationRepository {
   static async registerDevice(
     uid: string,
     deviceName: string,
-    locale?: 'en' | 'de' | 'es' | 'ar'
+    locale?: 'en' | 'de' | 'es' | 'ar' | 'tr'
   ): Promise<boolean> {
     if (!db || !messaging || typeof window === "undefined") return false;
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return false;

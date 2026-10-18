@@ -15,8 +15,8 @@ export interface ParentProfile {
   ownedFamilyId?: string | null;
   role?: string; // Optional cached role
   region?: 'DE' | 'BD' | 'US' | 'Global';
-  preferredLanguage?: 'auto' | 'en' | 'de' | 'es' | 'ar';
-  resolvedLanguage?: 'en' | 'de' | 'es' | 'ar';
+  preferredLanguage?: 'auto' | 'en' | 'de' | 'es' | 'ar' | 'tr';
+  resolvedLanguage?: 'en' | 'de' | 'es' | 'ar' | 'tr';
   lastActiveDate?: string; // Phase AQ (YYYY-MM-DD)
   createdAt: any;
   lastLoginAt: any;

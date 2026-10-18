@@ -3,24 +3,24 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { ParentRepository } from "@/lib/repositories/ParentRepository";
-import { ar, de, en, es, MessageKey } from "./messages";
+import { ar, de, en, es, MessageKey, tr } from "./messages";
 
-export type Locale = "en" | "de" | "es" | "ar";
+export type Locale = "en" | "de" | "es" | "ar" | "tr";
 export type LanguagePreference = "auto" | Locale;
 
 const STORAGE_KEY = "kidsguard-language-preference";
 const LEGACY_KEY = "kidsguard-dashboard-language";
-const dictionaries = { en, de, es, ar };
+const dictionaries = { en, de, es, ar, tr };
 
 export const isLanguagePreference = (value: unknown): value is LanguagePreference =>
-  value === "auto" || value === "en" || value === "de" || value === "es" || value === "ar";
+  value === "auto" || value === "en" || value === "de" || value === "es" || value === "ar" || value === "tr";
 
 const detectLocale = (): Locale => {
   if (typeof navigator === "undefined") return "en";
   const candidates = navigator.languages?.length ? navigator.languages : [navigator.language];
   for (const candidate of candidates) {
     const language = candidate?.toLowerCase().split("-")[0];
-    if (language === "de" || language === "es" || language === "ar" || language === "en") return language;
+    if (language === "de" || language === "es" || language === "ar" || language === "tr" || language === "en") return language;
   }
   return "en";
 };
