@@ -20,9 +20,11 @@ const LANGUAGE_OPTIONS: Array<{
 
 export default function LanguageSwitcher({
   theme = "light",
+  menuAlign = "end",
   className = "",
 }: {
   theme?: "light" | "dark";
+  menuAlign?: "end" | "right";
   className?: string;
 }) {
   const { preference, setPreference, t } = useLanguage();
@@ -81,7 +83,7 @@ export default function LanguageSwitcher({
         <div
           role="menu"
           aria-label={t("language")}
-          className={`absolute end-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
+          className={`absolute top-full z-50 mt-2 w-60 overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${menuAlign === "right" ? "right-0" : "end-0"} ${
             dark
               ? "border-slate-700 bg-slate-950/95 text-slate-100 shadow-black/40"
               : "border-slate-200 bg-white/95 text-slate-900 shadow-slate-900/15"
