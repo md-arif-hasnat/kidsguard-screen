@@ -85,6 +85,32 @@ export default function Login() {
   const redirectingRef = useRef(false);
   const authFlowInProgressRef = useRef(false);
 
+  const showUnverifiedEmailNotice = useCallback(
+    async (user: any, resendVerification: boolean) => {
+      // Render the explanation immediately. Resending the verification email
+      // and signing out must not delay (or swallow) this UI feedback.
+      setError(null);
+      setAuthSuccess(null);
+      setShowEmailVerificationNotice(true);
+      setLoading(false);
+
+      if (resendVerification) {
+        try {
+          await sendVerificationEmail(user);
+        } catch (verificationError) {
+          console.warn(
+            "Could not resend the verification email:",
+            verificationError
+          );
+        }
+      }
+
+      await signOut();
+      authFlowInProgressRef.current = false;
+    },
+    []
+  );
+
   useEffect(() => {
     const redirectPath =
       new URLSearchParams(
@@ -151,10 +177,8 @@ const getFriendlyAuthError = (err: any): string => {
       const unsub = observeAuth((user) => {
           if (user && !loading && !authFlowInProgressRef.current) {
               if (!user.emailVerified) {
-                  void signOut();
-                  setError(null);
-                  setAuthSuccess(null);
-                  setShowEmailVerificationNotice(true);
+                  authFlowInProgressRef.current = true;
+                  void showUnverifiedEmailNotice(user, false);
                   return;
               }
 
@@ -163,7 +187,7 @@ const getFriendlyAuthError = (err: any): string => {
       });
 
       return () => unsub();
-  }, [loading, safeRedirect]);
+  }, [loading, safeRedirect, showUnverifiedEmailNotice]);
 
   const handlePostLogin = async (
     user: any,
@@ -174,22 +198,10 @@ const getFriendlyAuthError = (err: any): string => {
     setLoadingMessage("Setting up your family vault...");
     try {
         if (!user.emailVerified) {
-          if (!isNewAccount && provider === "password") {
-            try {
-              await sendVerificationEmail(user);
-            } catch (verificationError) {
-              console.warn(
-                "Could not resend the verification email:",
-                verificationError
-              );
-            }
-          }
-          await signOut();
-          authFlowInProgressRef.current = false;
-          setError(null);
-          setAuthSuccess(null);
-          setShowEmailVerificationNotice(true);
-          setLoading(false);
+          await showUnverifiedEmailNotice(
+            user,
+            !isNewAccount && provider === "password"
+          );
           return;
         }
         try {
@@ -300,23 +312,7 @@ const getFriendlyAuthError = (err: any): string => {
         // authenticated by Firebase immediately, but must verify their email
         // before the parent profile and family vault are created.
         if (!user.emailVerified) {
-          if (!isSignUp) {
-            try {
-              await sendVerificationEmail(user);
-            } catch (verificationError) {
-              console.warn(
-                "Could not resend the verification email:",
-                verificationError
-              );
-            }
-          }
-
-          await signOut();
-          authFlowInProgressRef.current = false;
-          setError(null);
-          setAuthSuccess(null);
-          setShowEmailVerificationNotice(true);
-          setLoading(false);
+          await showUnverifiedEmailNotice(user, !isSignUp);
           return;
         }
 
