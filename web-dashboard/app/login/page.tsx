@@ -296,6 +296,30 @@ const getFriendlyAuthError = (err: any): string => {
         : await loginWithEmail(email, password);
 
       if (user) {
+        // Stop before any Firestore profile work. New password accounts are
+        // authenticated by Firebase immediately, but must verify their email
+        // before the parent profile and family vault are created.
+        if (!user.emailVerified) {
+          if (!isSignUp) {
+            try {
+              await sendVerificationEmail(user);
+            } catch (verificationError) {
+              console.warn(
+                "Could not resend the verification email:",
+                verificationError
+              );
+            }
+          }
+
+          await signOut();
+          authFlowInProgressRef.current = false;
+          setError(null);
+          setAuthSuccess(null);
+          setShowEmailVerificationNotice(true);
+          setLoading(false);
+          return;
+        }
+
         if (isSignUp) {
           await ParentRepository.updateProfile(user.uid, {
             uid: user.uid,
