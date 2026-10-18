@@ -520,8 +520,6 @@ const getFriendlyAuthError = (err: any): string => {
       <div id="recaptcha-container"></div>
 
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 md:p-10 relative overflow-hidden">
-        <LanguageSwitcher menuAlign="right" className="absolute right-5 top-5 z-40 md:right-6 md:top-6" />
-
         {/* Loading Overlay - Fixed and Stable */}
         {loading && (
             <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
@@ -537,8 +535,9 @@ const getFriendlyAuthError = (err: any): string => {
         )}
 
         <div className="flex flex-col items-center mb-8">
-          <div className="mb-4">
+          <div className="mb-4 flex items-center justify-center gap-3">
             <Image src="/navbar-logo.png" alt="KidsGuard Logo" width={148} height={64} className="h-16 w-auto" priority />
+            <LanguageSwitcher menuAlign="right" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
             KidsGuard
