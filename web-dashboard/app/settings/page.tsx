@@ -284,7 +284,7 @@ export default function SettingsPage() {
           </div>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">{t('languageHelp')}</p>
           <div className="mt-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <LanguageSwitcher showLabel className="w-full sm:w-auto" />
+            <LanguageSwitcher />
             {preference === 'auto' ? <p className="text-xs font-semibold text-primary-700">{t('autoActive', { language: t(locale === 'en' ? 'english' : locale === 'de' ? 'german' : locale === 'es' ? 'spanish' : 'arabic') })}</p> : null}
           </div>
           <p className="mt-3 text-xs text-slate-400">{t('languageFallback')}</p>
