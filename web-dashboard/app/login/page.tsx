@@ -516,11 +516,12 @@ const getFriendlyAuthError = (err: any): string => {
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 pt-20 transition-colors duration-500">
+    <div className="relative min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 py-8 transition-colors duration-500">
       <div id="recaptcha-container"></div>
-      <LanguageSwitcher theme="dark" className="absolute top-4 right-4" />
 
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 md:p-10 relative overflow-hidden">
+        <LanguageSwitcher className="absolute end-5 top-5 z-40 md:end-6 md:top-6" />
+
         {/* Loading Overlay - Fixed and Stable */}
         {loading && (
             <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
