@@ -215,6 +215,24 @@ service cloud.firestore {
       allow create, update, delete: if isPlatformAdmin();
     }
 
+    match /promoCodes/{code} {
+      // Coupon details and redemption controls are exposed to customers only
+      // through authenticated Cloud Functions. Admins may list them for the
+      // internal management page, but all writes remain server-authoritative.
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /promoRedemptions/{redemptionId} {
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /promoEmailHistory/{messageId} {
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /paddleWebhookEvents/{eventId} {
       // Webhook receipts are written only through the Admin SDK after
       // Paddle signature verification. Clients can never forge or alter them.

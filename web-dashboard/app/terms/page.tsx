@@ -113,9 +113,12 @@ export default function TermsOfServicePage() {
           </p>
 
           <p className="mt-3">
-            The base subscription is EUR 3.49 per month or EUR 35.99 per year
-            and includes up to two child-device slots. The yearly plan saves
-            approximately 14% compared with twelve monthly payments.
+            The standard monthly reference price is EUR 18.99. The currently
+            displayed promotional price is EUR 3.49 per month (approximately
+            82% lower) or EUR 35.99 per year (approximately 84% lower than
+            twelve standard-price months), and includes up to two child-device
+            slots. Only a genuine, currently displayed checkout price is
+            charged.
             Additional child-device capacity may be offered for an additional
             recurring price displayed before purchase. Other optional recurring
             add-ons may also be offered. When purchased with the base plan,
@@ -128,6 +131,15 @@ export default function TermsOfServicePage() {
             capacity, and renewal terms shown at checkout form part of your
             purchase agreement and take priority if they differ from a
             promotional or informational page.
+          </p>
+
+          <p className="mt-3">
+            Coupon codes may provide time-limited free access, revocable free
+            access, or a percentage discount. Each code may have an expiry,
+            usage limit, account limit, or renewal limit. Deactivated or
+            removed free-access codes no longer grant access. Percentage
+            discounts are applied and itemized by the payment provider at
+            checkout.
           </p>
         </section>
 

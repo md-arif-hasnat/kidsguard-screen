@@ -33,8 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onWebAccessRequestCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
-exports.paddleBillingWebhook = void 0;
+exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredPromoAccess = exports.sendPromoCodeEmail = exports.redeemPromoCode = exports.setPromoCodeStatus = exports.createPromoCode = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onWebAccessRequestCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
+exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -48,6 +48,70 @@ const storageBucket = admin.storage().bucket();
 const paddleWebhookSecret = (0, params_1.defineSecret)('PADDLE_WEBHOOK_SECRET');
 const paddleApiKey = (0, params_1.defineSecret)('PADDLE_API_KEY');
 const paddleRecurringAddOnsJson = (0, params_1.defineString)('PADDLE_RECURRING_ADDONS_JSON', { default: '[]' });
+const PLATFORM_ADMIN_ROLES = new Set([
+    'SUPER_ADMIN',
+    'PLATFORM_ADMIN',
+    'DEV_ADMIN'
+]);
+async function requirePlatformAdmin(context) {
+    if (!context.auth || context.auth.token.email_verified !== true) {
+        throw new functions.https.HttpsError('unauthenticated', 'Verified administrator sign-in required.');
+    }
+    const adminSnapshot = await db
+        .collection('platformAdmins')
+        .doc(context.auth.uid)
+        .get();
+    const adminData = adminSnapshot.data();
+    if (!adminSnapshot.exists ||
+        adminData?.active !== true ||
+        !PLATFORM_ADMIN_ROLES.has(String(adminData?.role || ''))) {
+        throw new functions.https.HttpsError('permission-denied', 'Active platform administrator access required.');
+    }
+    return {
+        uid: context.auth.uid,
+        email: typeof context.auth.token.email === 'string'
+            ? context.auth.token.email
+            : null
+    };
+}
+function normalizePromoCode(value) {
+    return String(value || '').trim().toUpperCase();
+}
+function promoTimestampMillis(value) {
+    if (typeof value === 'number' && Number.isFinite(value))
+        return value;
+    if (typeof value?.toMillis === 'function')
+        return value.toMillis();
+    if (typeof value?.seconds === 'number')
+        return value.seconds * 1000;
+    const parsed = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : null;
+}
+function promoCodeError(code, message) {
+    throw new functions.https.HttpsError(code, message);
+}
+async function callPaddleDiscountApi(method, path, body) {
+    const apiKey = paddleApiKey.value().trim();
+    if (!apiKey) {
+        return promoCodeError('failed-precondition', 'Paddle billing is not configured.');
+    }
+    const response = await fetch(`${paddleApiBaseUrl(apiKey)}${path}`, {
+        method,
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.data) {
+        const detail = payload?.error?.detail ||
+            `Paddle returned HTTP ${response.status}.`;
+        console.error('Paddle discount request failed:', detail);
+        return promoCodeError(response.status === 409 ? 'already-exists' : 'unavailable', `Paddle could not save this percentage coupon: ${detail}`);
+    }
+    return payload.data;
+}
 function paddleApiBaseUrl(apiKey) {
     return apiKey.includes('_sdbx_')
         ? 'https://sandbox-api.paddle.com'
@@ -3262,6 +3326,464 @@ exports.reconcileExpiredSubscriptionCancellations = functions.pubsub
     console.log(`Reconciled ${updated} expired subscription cancellations.`);
     return null;
 });
+async function revokePromoAccessForCode(code, actorUid, reason) {
+    let revoked = 0;
+    while (true) {
+        const redemptions = await db
+            .collection('promoRedemptions')
+            .where('code', '==', code)
+            .where('status', '==', 'ACTIVE')
+            .limit(225)
+            .get();
+        if (redemptions.empty)
+            break;
+        const familySnapshots = await Promise.all(redemptions.docs.map((redemption) => {
+            const familyId = String(redemption.data().familyId || '');
+            return familyId
+                ? db.collection('families').doc(familyId).get()
+                : Promise.resolve(null);
+        }));
+        const batch = db.batch();
+        redemptions.docs.forEach((redemption, index) => {
+            batch.update(redemption.ref, {
+                status: 'REVOKED',
+                revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+                revokedBy: actorUid,
+                revokeReason: reason
+            });
+            const familySnapshot = familySnapshots[index];
+            const subscription = familySnapshot?.data()?.subscription || {};
+            if (familySnapshot?.exists &&
+                subscription.provider === 'PROMO' &&
+                normalizePromoCode(subscription.promoCode) === code) {
+                batch.update(familySnapshot.ref, {
+                    'subscription.status': 'CANCELED',
+                    'subscription.promoCodeStatus': 'REVOKED',
+                    'subscription.promoRevokedAt': admin.firestore.FieldValue.serverTimestamp(),
+                    'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+                });
+                revoked += 1;
+            }
+        });
+        await batch.commit();
+        if (redemptions.size < 225)
+            break;
+    }
+    return revoked;
+}
+exports.createPromoCode = functions
+    .runWith({ secrets: [paddleApiKey] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const code = normalizePromoCode(data?.code);
+    const type = String(data?.type || '');
+    const description = String(data?.description || '').trim().slice(0, 180);
+    if (!/^[A-Z0-9]{4,32}$/.test(code)) {
+        return promoCodeError('invalid-argument', 'Coupon code must contain 4-32 letters or numbers only.');
+    }
+    if (!['FREE_LIMITED', 'FREE_FOREVER', 'PERCENTAGE'].includes(type)) {
+        return promoCodeError('invalid-argument', 'Select a valid coupon type.');
+    }
+    const accessDays = Number(data?.accessDays || 0);
+    if (type === 'FREE_LIMITED' &&
+        (!Number.isInteger(accessDays) || accessDays < 1 || accessDays > 3650)) {
+        return promoCodeError('invalid-argument', 'Limited free access must be between 1 and 3650 days.');
+    }
+    const percentage = Number(data?.percentage || 0);
+    if (type === 'PERCENTAGE' &&
+        (!Number.isFinite(percentage) || percentage < 1 || percentage > 99)) {
+        return promoCodeError('invalid-argument', 'Percentage discount must be between 1% and 99%.');
+    }
+    const usageLimitValue = Number(data?.usageLimit || 0);
+    const usageLimit = usageLimitValue > 0
+        ? Math.floor(usageLimitValue)
+        : null;
+    if (usageLimit !== null && (usageLimit < 1 || usageLimit > 100000)) {
+        return promoCodeError('invalid-argument', 'Usage limit must be between 1 and 100000.');
+    }
+    const expiresAtMs = promoTimestampMillis(data?.expiresAt);
+    if (expiresAtMs !== null && expiresAtMs <= Date.now()) {
+        return promoCodeError('invalid-argument', 'Coupon redemption expiry must be in the future.');
+    }
+    const promoRef = db.collection('promoCodes').doc(code);
+    const existing = await promoRef.get();
+    if (existing.exists) {
+        return promoCodeError('already-exists', 'This coupon code already exists.');
+    }
+    let paddleDiscountId = null;
+    let recurringIntervals = null;
+    if (type === 'PERCENTAGE') {
+        const requestedIntervals = Number(data?.recurringIntervals || 0);
+        recurringIntervals = Number.isInteger(requestedIntervals) &&
+            requestedIntervals > 0
+            ? Math.min(requestedIntervals, 120)
+            : null;
+        const paddleDiscount = await callPaddleDiscountApi('POST', '/discounts', {
+            description: description || `KidsGuard promotion ${code}`,
+            type: 'percentage',
+            amount: String(percentage),
+            code,
+            enabled_for_checkout: true,
+            recur: true,
+            maximum_recurring_intervals: recurringIntervals,
+            usage_limit: usageLimit,
+            expires_at: expiresAtMs === null
+                ? null
+                : new Date(expiresAtMs).toISOString(),
+            custom_data: {
+                source: 'kidsguard_admin',
+                createdBy: operator.uid
+            }
+        });
+        paddleDiscountId = String(paddleDiscount.id || '');
+        if (!paddleDiscountId) {
+            return promoCodeError('unavailable', 'Paddle did not return a discount ID.');
+        }
+    }
+    await promoRef.create({
+        code,
+        type,
+        status: 'ACTIVE',
+        description: description || null,
+        percentage: type === 'PERCENTAGE' ? percentage : null,
+        accessDays: type === 'FREE_LIMITED' ? accessDays : null,
+        expiresAt: expiresAtMs === null
+            ? null
+            : admin.firestore.Timestamp.fromMillis(expiresAtMs),
+        usageLimit,
+        redemptionCount: 0,
+        paddleDiscountId,
+        recurringIntervals,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: operator.uid,
+        createdByEmail: operator.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: operator.uid
+    });
+    await db.collection('auditLogs').add({
+        actorUid: operator.uid,
+        actorEmail: operator.email,
+        action: 'PROMO_CODE_CREATED',
+        targetType: 'PROMO_CODE',
+        targetId: code,
+        severity: 'NOTICE',
+        metadata: { type, percentage, accessDays, usageLimit, expiresAtMs },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, code, paddleDiscountId };
+});
+exports.setPromoCodeStatus = functions
+    .runWith({ secrets: [paddleApiKey], timeoutSeconds: 120 })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const code = normalizePromoCode(data?.code);
+    const requestedStatus = String(data?.status || '').toUpperCase();
+    if (!/^[A-Z0-9]{4,32}$/.test(code)) {
+        return promoCodeError('invalid-argument', 'A valid coupon code is required.');
+    }
+    if (!['ACTIVE', 'INACTIVE', 'DELETED'].includes(requestedStatus)) {
+        return promoCodeError('invalid-argument', 'Select a valid coupon status.');
+    }
+    const promoRef = db.collection('promoCodes').doc(code);
+    const promoSnapshot = await promoRef.get();
+    if (!promoSnapshot.exists) {
+        return promoCodeError('not-found', 'Coupon code not found.');
+    }
+    const promo = promoSnapshot.data();
+    if (promo.status === 'DELETED' && requestedStatus === 'ACTIVE') {
+        return promoCodeError('failed-precondition', 'Removed coupon codes cannot be restored. Create a new code instead.');
+    }
+    if (promo.type === 'PERCENTAGE' && promo.paddleDiscountId) {
+        const paddlePatch = requestedStatus === 'DELETED'
+            ? { status: 'archived' }
+            : {
+                status: 'active',
+                enabled_for_checkout: requestedStatus === 'ACTIVE'
+            };
+        await callPaddleDiscountApi('PATCH', `/discounts/${encodeURIComponent(promo.paddleDiscountId)}`, paddlePatch);
+    }
+    let revokedAccessCount = 0;
+    if (promo.type !== 'PERCENTAGE' &&
+        requestedStatus !== 'ACTIVE' &&
+        promo.status === 'ACTIVE') {
+        revokedAccessCount = await revokePromoAccessForCode(code, operator.uid, requestedStatus === 'DELETED' ? 'DELETED' : 'DEACTIVATED');
+    }
+    await promoRef.update({
+        status: requestedStatus,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: operator.uid,
+        ...(requestedStatus === 'DELETED'
+            ? {
+                deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                deletedBy: operator.uid
+            }
+            : {}),
+        ...(requestedStatus === 'ACTIVE'
+            ? {
+                deletedAt: admin.firestore.FieldValue.delete(),
+                deletedBy: admin.firestore.FieldValue.delete()
+            }
+            : {})
+    });
+    await db.collection('auditLogs').add({
+        actorUid: operator.uid,
+        actorEmail: operator.email,
+        action: `PROMO_CODE_${requestedStatus}`,
+        targetType: 'PROMO_CODE',
+        targetId: code,
+        severity: requestedStatus === 'ACTIVE' ? 'NOTICE' : 'WARNING',
+        metadata: { revokedAccessCount },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, code, status: requestedStatus, revokedAccessCount };
+});
+exports.redeemPromoCode = functions.https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.email_verified !== true) {
+        return promoCodeError('unauthenticated', 'Sign in with a verified Parent account to use a coupon.');
+    }
+    const uid = context.auth.uid;
+    const code = normalizePromoCode(data?.code);
+    if (!/^[A-Z0-9]{4,32}$/.test(code)) {
+        return promoCodeError('invalid-argument', 'Enter a valid coupon code.');
+    }
+    const parentSnapshot = await db.collection('parents').doc(uid).get();
+    const parentData = parentSnapshot.data() || {};
+    const familyId = String(parentData.familyId ||
+        parentData.activeFamilyId ||
+        parentData.ownedFamilyId ||
+        '');
+    if (!familyId) {
+        return promoCodeError('failed-precondition', 'Your family account is not ready for coupon redemption.');
+    }
+    const promoRef = db.collection('promoCodes').doc(code);
+    const familyRef = db.collection('families').doc(familyId);
+    const redemptionRef = db.collection('promoRedemptions').doc(`${code}_${uid}`);
+    const result = await db.runTransaction(async (transaction) => {
+        const [promoSnapshot, familySnapshot, redemptionSnapshot] = await Promise.all([
+            transaction.get(promoRef),
+            transaction.get(familyRef),
+            transaction.get(redemptionRef)
+        ]);
+        if (!promoSnapshot.exists) {
+            return promoCodeError('not-found', 'Coupon code not found.');
+        }
+        if (!familySnapshot.exists || familySnapshot.data()?.ownerId !== uid) {
+            return promoCodeError('permission-denied', 'Only the Family Owner can redeem a coupon.');
+        }
+        const promo = promoSnapshot.data();
+        if (promo.status !== 'ACTIVE') {
+            return promoCodeError('failed-precondition', 'This coupon is not active.');
+        }
+        const expiresAtMs = promoTimestampMillis(promo.expiresAt);
+        if (expiresAtMs !== null && expiresAtMs <= Date.now()) {
+            return promoCodeError('failed-precondition', 'This coupon has expired.');
+        }
+        const usageLimit = Number(promo.usageLimit || 0);
+        const redemptionCount = Number(promo.redemptionCount || 0);
+        if (usageLimit > 0 && redemptionCount >= usageLimit) {
+            return promoCodeError('resource-exhausted', 'This coupon has reached its usage limit.');
+        }
+        if (redemptionSnapshot.exists) {
+            return promoCodeError('already-exists', 'This coupon has already been used by your account.');
+        }
+        if (promo.type === 'PERCENTAGE') {
+            if (!promo.paddleDiscountId || !promo.percentage) {
+                return promoCodeError('failed-precondition', 'This percentage coupon is not connected to Paddle.');
+            }
+            return {
+                kind: 'PERCENTAGE',
+                code,
+                percentage: promo.percentage,
+                paddleDiscountId: promo.paddleDiscountId,
+                recurringIntervals: typeof promo.recurringIntervals === 'number'
+                    ? promo.recurringIntervals
+                    : null
+            };
+        }
+        const familyData = familySnapshot.data() || {};
+        const currentSubscription = familyData.subscription || {};
+        const currentStatus = String(currentSubscription.status || '').toUpperCase();
+        if (currentSubscription.provider === 'PADDLE' &&
+            ['ACTIVE', 'TRIAL', 'TRIALING', 'PAST_DUE'].includes(currentStatus)) {
+            return promoCodeError('failed-precondition', 'This family already has a Paddle subscription.');
+        }
+        const redeemedAt = Date.now();
+        const accessEndsAt = promo.type === 'FREE_LIMITED'
+            ? redeemedAt + Number(promo.accessDays || 0) * 24 * 60 * 60 * 1000
+            : null;
+        if (promo.type === 'FREE_LIMITED' && !promo.accessDays) {
+            return promoCodeError('failed-precondition', 'This free-access coupon is missing its duration.');
+        }
+        transaction.update(promoRef, {
+            redemptionCount: admin.firestore.FieldValue.increment(1),
+            lastRedeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        transaction.create(redemptionRef, {
+            redemptionId: redemptionRef.id,
+            code,
+            type: promo.type,
+            status: 'ACTIVE',
+            parentUid: uid,
+            parentEmail: typeof context.auth?.token.email === 'string'
+                ? context.auth.token.email
+                : null,
+            familyId,
+            redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+            accessEndsAt
+        });
+        transaction.update(familyRef, {
+            'subscription.status': 'ACTIVE',
+            'subscription.provider': 'PROMO',
+            'subscription.baseChildSlots': 2,
+            'subscription.extraChildSlots': 0,
+            'subscription.basePriceCents': 0,
+            'subscription.currency': 'EUR',
+            'subscription.subscribedAt': redeemedAt,
+            'subscription.promoCode': code,
+            'subscription.promoCodeType': promo.type,
+            'subscription.promoCodeStatus': 'ACTIVE',
+            'subscription.promoAccessStartsAt': redeemedAt,
+            'subscription.promoAccessEndsAt': accessEndsAt,
+            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+            'subscription.paddleSubscriptionId': admin.firestore.FieldValue.delete(),
+            'subscription.paddleCustomerId': admin.firestore.FieldValue.delete(),
+            'subscription.cancelAtPeriodEnd': false,
+            'subscription.cancellationEffectiveAt': admin.firestore.FieldValue.delete(),
+            'subscription.cancellationStatus': admin.firestore.FieldValue.delete()
+        });
+        return {
+            kind: 'FREE',
+            code,
+            type: promo.type,
+            accessEndsAt
+        };
+    });
+    if (result.kind === 'FREE') {
+        await db.collection('auditLogs').add({
+            actorUid: uid,
+            actorEmail: context.auth.token.email || null,
+            familyId,
+            action: 'PROMO_CODE_REDEEMED',
+            targetType: 'PROMO_CODE',
+            targetId: code,
+            severity: 'NOTICE',
+            metadata: { type: result.type, accessEndsAt: result.accessEndsAt },
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    }
+    return { success: true, ...result };
+});
+exports.sendPromoCodeEmail = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const code = normalizePromoCode(data?.code);
+    const recipient = String(data?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+        return promoCodeError('invalid-argument', 'Enter a valid customer email.');
+    }
+    const promoSnapshot = await db.collection('promoCodes').doc(code).get();
+    if (!promoSnapshot.exists) {
+        return promoCodeError('not-found', 'Coupon code not found.');
+    }
+    const promo = promoSnapshot.data();
+    if (promo.status !== 'ACTIVE') {
+        return promoCodeError('failed-precondition', 'Activate this coupon before sending it.');
+    }
+    const offer = promo.type === 'PERCENTAGE'
+        ? `${promo.percentage}% off your KidsGuard subscription`
+        : promo.type === 'FREE_LIMITED'
+            ? `${promo.accessDays} days of KidsGuard access at no charge`
+            : 'KidsGuard access at no charge until the promotion is deactivated';
+    const expiresAtMs = promoTimestampMillis(promo.expiresAt);
+    const expiryCopy = expiresAtMs === null
+        ? 'This code has no redemption deadline while it remains active.'
+        : `Redeem before ${new Intl.DateTimeFormat('en-GB', {
+            dateStyle: 'long',
+            timeStyle: 'short',
+            timeZone: 'Europe/Berlin'
+        }).format(new Date(expiresAtMs))}.`;
+    const redemptionUrl = `https://kidsguard-screen.vercel.app/subscribe?coupon=${encodeURIComponent(code)}`;
+    const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const from = process.env.RESEND_FROM_EMAIL ||
+        'KidsGuard <onboarding@resend.dev>';
+    const response = await resend.emails.send({
+        from,
+        to: [recipient],
+        subject: `Your KidsGuard offer: ${offer}`,
+        html: `
+        <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#0f172a">
+          <div style="font-size:12px;font-weight:800;letter-spacing:.16em;color:#2563eb;text-transform:uppercase">KidsGuard promotion</div>
+          <h1 style="font-size:28px;margin:12px 0 8px">${adminNotificationEscape(offer)}</h1>
+          <p style="color:#475569;line-height:1.7">Use the personal promotional code below on the KidsGuard subscription page.</p>
+          <div style="margin:24px 0;padding:18px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;text-align:center">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;font-weight:700">Coupon code</div>
+            <div style="font-size:28px;letter-spacing:.12em;font-weight:900;color:#1d4ed8">${adminNotificationEscape(code)}</div>
+          </div>
+          <p style="color:#475569">${adminNotificationEscape(expiryCopy)}</p>
+          <a href="${adminNotificationEscape(redemptionUrl)}" style="display:inline-block;margin-top:12px;padding:14px 22px;border-radius:10px;background:#2563eb;color:white;text-decoration:none;font-weight:800">Redeem offer</a>
+          <p style="margin-top:28px;color:#94a3b8;font-size:12px;line-height:1.6">
+            One redemption per Parent account. Terms and availability may apply.<br>
+            KidsGuard · Operated by United Foreign Trade, Bangladesh.<br>
+            To stop promotional emails, reply “Unsubscribe” or contact
+            <a href="mailto:arifhasnat07@gmail.com" style="color:#64748b">arifhasnat07@gmail.com</a>.
+          </p>
+        </div>`
+    });
+    if (response.error) {
+        return promoCodeError('unavailable', `Promotional email could not be sent: ${response.error.message}`);
+    }
+    await db.collection('promoEmailHistory').add({
+        code,
+        recipient,
+        providerEmailId: response.data?.id || null,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        sentBy: operator.uid,
+        sentByEmail: operator.email
+    });
+    return { success: true };
+});
+exports.reconcileExpiredPromoAccess = functions.pubsub
+    .schedule('every 15 minutes')
+    .timeZone('Europe/Berlin')
+    .onRun(async () => {
+    const expiredFamilies = await db
+        .collection('families')
+        .where('subscription.promoAccessEndsAt', '<=', Date.now())
+        .limit(225)
+        .get();
+    if (expiredFamilies.empty)
+        return null;
+    const batch = db.batch();
+    let updated = 0;
+    for (const familyDocument of expiredFamilies.docs) {
+        const subscription = familyDocument.data().subscription || {};
+        if (subscription.provider !== 'PROMO' ||
+            subscription.status !== 'ACTIVE') {
+            continue;
+        }
+        batch.update(familyDocument.ref, {
+            'subscription.status': 'EXPIRED',
+            'subscription.promoCodeStatus': 'EXPIRED',
+            'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+        });
+        const code = normalizePromoCode(subscription.promoCode);
+        const ownerId = String(familyDocument.data().ownerId || '');
+        if (code && ownerId) {
+            batch.set(db.collection('promoRedemptions').doc(`${code}_${ownerId}`), {
+                status: 'EXPIRED',
+                expiredAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+        updated += 1;
+    }
+    if (updated > 0)
+        await batch.commit();
+    console.log(`Reconciled ${updated} expired promotional access grants.`);
+    return null;
+});
 exports.cleanupExpiredFamilyExports = (0, scheduler_1.onSchedule)({
     schedule: "every 15 minutes",
     timeZone: "Europe/Berlin",
@@ -4804,6 +5326,7 @@ exports.paddleBillingWebhook = functions
     const parentUid = typeof customData.parentUid === 'string'
         ? customData.parentUid.trim()
         : '';
+    const promoCode = normalizePromoCode(customData.promoCode);
     if (!eventId || !eventType) {
         res.status(400).send('Missing event identity');
         return;
@@ -4819,11 +5342,21 @@ exports.paddleBillingWebhook = functions
     const familyRef = db
         .collection('families')
         .doc(familyId);
+    const promoRef = promoCode
+        ? db.collection('promoCodes').doc(promoCode)
+        : null;
+    const promoRedemptionRef = promoCode && parentUid
+        ? db.collection('promoRedemptions').doc(`${promoCode}_${parentUid}`)
+        : null;
     try {
         const result = await db.runTransaction(async (transaction) => {
-            const [eventSnapshot, familySnapshot] = await Promise.all([
+            const [eventSnapshot, familySnapshot, promoSnapshot, promoRedemptionSnapshot] = await Promise.all([
                 transaction.get(eventRef),
-                transaction.get(familyRef)
+                transaction.get(familyRef),
+                promoRef ? transaction.get(promoRef) : Promise.resolve(null),
+                promoRedemptionRef
+                    ? transaction.get(promoRedemptionRef)
+                    : Promise.resolve(null)
             ]);
             if (eventSnapshot.exists) {
                 return 'duplicate';
@@ -4840,6 +5373,9 @@ exports.paddleBillingWebhook = functions
             const subscription = familyData.subscription || {};
             const patch = {
                 'subscription.provider': 'PADDLE',
+                'subscription.promoAccessEndsAt': admin.firestore.FieldValue.delete(),
+                'subscription.promoAccessStartsAt': admin.firestore.FieldValue.delete(),
+                'subscription.promoRevokedAt': admin.firestore.FieldValue.delete(),
                 'subscription.lastPaddleEventId': eventId,
                 'subscription.lastPaddleEventType': eventType,
                 'subscription.lastProviderSyncAt': admin.firestore.FieldValue.serverTimestamp()
@@ -5003,6 +5539,46 @@ exports.paddleBillingWebhook = functions
                         patch['subscription.extraChildPriceCents'] =
                             extraChildItem.unitPriceCents;
                     }
+                }
+                const promoData = promoSnapshot?.data();
+                if (eventType === 'subscription.created' &&
+                    promoCode &&
+                    parentUid &&
+                    promoRef &&
+                    promoRedemptionRef &&
+                    promoData?.type === 'PERCENTAGE') {
+                    patch['subscription.promoCode'] = promoCode;
+                    patch['subscription.promoCodeType'] = 'PERCENTAGE';
+                    patch['subscription.promoCodeStatus'] = 'REDEEMED';
+                    patch['subscription.promoDiscountPercentage'] =
+                        Number(promoData.percentage || 0);
+                    if (!promoRedemptionSnapshot?.exists) {
+                        transaction.set(promoRedemptionRef, {
+                            redemptionId: promoRedemptionRef.id,
+                            code: promoCode,
+                            type: 'PERCENTAGE',
+                            status: 'REDEEMED',
+                            parentUid,
+                            familyId,
+                            paddleSubscriptionId: typeof data.id === 'string' ? data.id : null,
+                            redeemedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        transaction.update(promoRef, {
+                            redemptionCount: admin.firestore.FieldValue.increment(1),
+                            lastRedeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
+                }
+                else if (!promoCode) {
+                    patch['subscription.promoCode'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.promoCodeType'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.promoCodeStatus'] =
+                        admin.firestore.FieldValue.delete();
+                    patch['subscription.promoDiscountPercentage'] =
+                        admin.firestore.FieldValue.delete();
                 }
             }
             transaction.update(familyRef, patch);

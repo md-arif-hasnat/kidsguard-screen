@@ -6,21 +6,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  BadgePercent,
   CheckCircle2,
   CreditCard,
   Loader2,
   Minus,
   Plus,
   ShieldCheck,
+  TicketCheck,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useParentProfile } from "@/lib/context/ParentProfileContext";
 import { auth } from "@/lib/firebase";
 import { FamilyRole } from "@/lib/repositories/FamilyRepository";
 import {
+  PromoCodeRepository,
+  PromoRedemptionResult,
+} from "@/lib/repositories/PromoCodeRepository";
+import {
   RECURRING_ADD_ONS,
   BillingInterval,
   MONTHLY_PRICE_CENTS,
+  MONTHLY_SAVINGS_PERCENT,
+  STANDARD_MONTHLY_PRICE_CENTS,
+  STANDARD_YEARLY_PRICE_CENTS,
   YEARLY_PRICE_CENTS,
   YEARLY_SAVINGS_CENTS,
   YEARLY_SAVINGS_PERCENT,
@@ -38,11 +47,14 @@ declare global {
         open: (options: {
           items: Array<{ priceId: string; quantity: number }>;
           customData: Record<string, string>;
+          discountId?: string;
           settings: {
             successUrl: string;
             displayMode: "overlay";
             theme: "light";
             locale: string;
+            showAddDiscounts?: boolean;
+            allowDiscountRemoval?: boolean;
           };
         }) => void;
       };
@@ -74,6 +86,12 @@ export default function SubscribePage() {
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [earlyStartAccepted, setEarlyStartAccepted] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<
+    Extract<PromoRedemptionResult, { kind: "PERCENTAGE" }> | null
+  >(null);
+  const [couponMessage, setCouponMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +99,11 @@ export default function SubscribePage() {
       router.replace("/");
     }
   }, [loading, role, router]);
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("coupon");
+    if (code) setCouponCode(code.toUpperCase());
+  }, []);
 
   const selectedPriceId =
     billingInterval === "YEARLY" ? yearlyPriceId : monthlyPriceId;
@@ -102,6 +125,11 @@ export default function SubscribePage() {
       (total, addOn) => total + addOn.quantity * addOn.priceCents,
       0
     );
+  const discountedRecurringTotalCents = appliedCoupon
+    ? Math.round(
+        recurringTotalCents * (100 - appliedCoupon.percentage) / 100
+      )
+    : recurringTotalCents;
   const sdkConfigured = Boolean(
     clientToken && (monthlyPriceId || yearlyPriceId)
   );
@@ -120,6 +148,54 @@ export default function SubscribePage() {
     profile?.familyId ||
     profile?.familyIds?.[0] ||
     "";
+
+  const applyCoupon = async () => {
+    const normalized = couponCode.trim().toUpperCase();
+    if (!normalized) {
+      setError("Enter a coupon code.");
+      return;
+    }
+
+    setApplyingCoupon(true);
+    setError(null);
+    setCouponMessage(null);
+    try {
+      const result = await PromoCodeRepository.redeem(normalized);
+      if (result.kind === "FREE") {
+        setCouponMessage(
+          result.accessEndsAt
+            ? `Free access activated until ${new Intl.DateTimeFormat("en", {
+                dateStyle: "long",
+                timeStyle: "short",
+              }).format(new Date(result.accessEndsAt))}.`
+            : "Free access activated. It remains available while this promotion is active."
+        );
+        window.setTimeout(
+          () => router.push("/manage-subscription?coupon=success"),
+          900
+        );
+        return;
+      }
+
+      setAppliedCoupon(result);
+      setCouponMessage(
+        `${result.percentage}% discount applied${
+          result.recurringIntervals
+            ? ` for ${result.recurringIntervals} billing ${result.recurringIntervals === 1 ? "cycle" : "cycles"}`
+            : " to every renewal"
+        }.`
+      );
+    } catch (couponError) {
+      setAppliedCoupon(null);
+      setError(
+        couponError instanceof Error
+          ? couponError.message
+          : "Coupon could not be applied."
+      );
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
 
   const initializePaddle = () => {
     if (!sdkConfigured || !window.Paddle) return;
@@ -179,12 +255,16 @@ export default function SubscribePage() {
           product: "kidsguard_family",
           billingInterval,
           extraChildSlots: String(extraChildSlots),
+          promoCode: appliedCoupon?.code || "",
         },
+        discountId: appliedCoupon?.paddleDiscountId,
         settings: {
           successUrl: `${window.location.origin}/manage-subscription?checkout=success`,
           displayMode: "overlay",
           theme: "light",
           locale: "en",
+          showAddDiscounts: false,
+          allowDiscountRemoval: false,
         },
       });
     } catch (checkoutError) {
@@ -239,7 +319,7 @@ export default function SubscribePage() {
               Family plan
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-900">
-              7-day trial, then {formatEuroCents(recurringTotalCents)}/
+              7-day trial, then {formatEuroCents(discountedRecurringTotalCents)}/
               {selectedPeriodLabel}
             </h2>
             <div
@@ -255,17 +335,23 @@ export default function SubscribePage() {
                   setBillingInterval("MONTHLY");
                   setError(null);
                 }}
-                className={`rounded-xl border-2 p-4 text-left transition ${
+                className={`relative rounded-xl border-2 p-4 text-left transition ${
                   billingInterval === "MONTHLY"
                     ? "border-blue-600 bg-blue-50 ring-2 ring-blue-100"
                     : "border-slate-200 bg-white hover:border-blue-300"
                 }`}
               >
+                <span className="absolute right-3 top-3 rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">
+                  Save {MONTHLY_SAVINGS_PERCENT}%
+                </span>
                 <span className="text-xs font-black uppercase tracking-wider text-slate-500">
                   Monthly
                 </span>
+                <span className="mt-2 block text-sm font-bold text-slate-400 line-through">
+                  {formatEuroCents(STANDARD_MONTHLY_PRICE_CENTS)}
+                </span>
                 <span className="mt-1 block text-2xl font-black text-slate-950">
-                  €3.49
+                  {formatEuroCents(MONTHLY_PRICE_CENTS)}
                   <span className="text-sm font-bold text-slate-500">/month</span>
                 </span>
               </button>
@@ -290,8 +376,11 @@ export default function SubscribePage() {
                 <span className="text-xs font-black uppercase tracking-wider text-slate-500">
                   Yearly
                 </span>
+                <span className="mt-2 block text-sm font-bold text-slate-400 line-through">
+                  {formatEuroCents(STANDARD_YEARLY_PRICE_CENTS)}
+                </span>
                 <span className="mt-1 block text-2xl font-black text-slate-950">
-                  €35.99
+                  {formatEuroCents(YEARLY_PRICE_CENTS)}
                   <span className="text-sm font-bold text-slate-500">/year</span>
                 </span>
                 <span className="mt-1 block text-xs font-bold text-emerald-700">
@@ -396,13 +485,91 @@ export default function SubscribePage() {
                     </span>
                   </div>
                 ))}
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between gap-4 text-emerald-700">
+                    <span className="font-bold">
+                      Coupon {appliedCoupon.code} ({appliedCoupon.percentage}%)
+                    </span>
+                    <span className="font-black">
+                      −{formatEuroCents(
+                        recurringTotalCents - discountedRecurringTotalCents
+                      )}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 font-black text-slate-950">
                   <span>Recurring total</span>
                   <span>
-                    {formatEuroCents(recurringTotalCents)}/{selectedPeriodLabel}
+                    {formatEuroCents(discountedRecurringTotalCents)}/{selectedPeriodLabel}
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-white p-2 text-indigo-600 shadow-sm">
+                  <BadgePercent className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-black text-indigo-950">Have a coupon?</p>
+                  <p className="mt-1 text-xs leading-5 text-indigo-700">
+                    Use a promotional discount or activate an admin-issued free access code.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={couponCode}
+                  onChange={(event) => {
+                    const nextCode = event.target.value
+                      .replace(/[^a-zA-Z0-9]/g, "")
+                      .toUpperCase();
+                    setCouponCode(nextCode);
+                    if (nextCode !== appliedCoupon?.code) {
+                      setAppliedCoupon(null);
+                      setCouponMessage(null);
+                    }
+                    setError(null);
+                  }}
+                  minLength={4}
+                  maxLength={32}
+                  placeholder="ENTER CODE"
+                  aria-label="Coupon code"
+                  className="min-w-0 flex-1 rounded-xl border border-indigo-200 bg-white px-4 py-3 font-black uppercase tracking-wider text-slate-950 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                />
+                <button
+                  type="button"
+                  onClick={applyCoupon}
+                  disabled={applyingCoupon || couponCode.trim().length < 4}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-black text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {applyingCoupon ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <TicketCheck className="h-5 w-5" />
+                  )}
+                  Apply
+                </button>
+              </div>
+              {couponMessage ? (
+                <p
+                  role="status"
+                  className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-700"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  {couponMessage}
+                </p>
+              ) : null}
+              {error ? (
+                <p
+                  role="alert"
+                  className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-bold text-rose-700"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {error}
+                </p>
+              ) : null}
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -418,7 +585,7 @@ export default function SubscribePage() {
                   After 7 days
                 </p>
                 <p className="mt-1 text-2xl font-black text-blue-950">
-                  {formatEuroCents(recurringTotalCents)}/{selectedPeriodLabel}
+                  {formatEuroCents(discountedRecurringTotalCents)}/{selectedPeriodLabel}
                 </p>
               </div>
             </div>
@@ -488,13 +655,6 @@ export default function SubscribePage() {
                   </span>
                 </label>
               </div>
-
-              {error && (
-                <div className="mt-5 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
-                  <AlertCircle className="h-5 w-5 shrink-0" />
-                  {error}
-                </div>
-              )}
 
               <button
                 onClick={openCheckout}

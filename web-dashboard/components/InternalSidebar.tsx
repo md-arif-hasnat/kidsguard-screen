@@ -14,6 +14,7 @@ import {
   AlertCircle,
   HeartPulse,
   ClipboardList,
+  TicketPercent,
   Settings,
   LogOut,
   X
@@ -52,6 +53,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
     { name: t('systemAnalytics'), href: '/internal/analytics', icon: BarChart3 },
     { name: t('appReleases'), href: '/internal/releases', icon: Zap, notificationType: 'RELEASE' },
     { name: t('customers'), href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
+    { name: t('promotions'), href: '/internal/promotions', icon: TicketPercent },
     { name: t('families'), href: '/internal/families', icon: Home },
     { name: t('devices'), href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
     { name: t('supportInbox'), href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT' },

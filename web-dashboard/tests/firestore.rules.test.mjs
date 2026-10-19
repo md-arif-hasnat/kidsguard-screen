@@ -507,6 +507,42 @@ test(
 );
 
 test(
+  "coupon catalog is admin-readable and server-write-only",
+  async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const database = context.firestore();
+      await setDoc(doc(database, "promoCodes", "WELCOME20"), {
+        code: "WELCOME20",
+        type: "PERCENTAGE",
+        status: "ACTIVE",
+        percentage: 20,
+        redemptionCount: 0
+      });
+      await setDoc(doc(database, "promoRedemptions", "WELCOME20_owner-uid"), {
+        code: "WELCOME20",
+        parentUid: "owner-uid",
+        familyId: "family-1",
+        status: "REDEEMED"
+      });
+    });
+
+    const adminDb = verifiedDb("admin-uid", "admin@example.com");
+    const ownerDb = verifiedDb("owner-uid", "owner@example.com");
+
+    await assertSucceeds(getDocs(collection(adminDb, "promoCodes")));
+    await assertSucceeds(getDocs(collection(adminDb, "promoRedemptions")));
+    await assertFails(getDoc(doc(ownerDb, "promoCodes", "WELCOME20")));
+    await assertFails(
+      setDoc(doc(adminDb, "promoCodes", "FORGED"), {
+        code: "FORGED",
+        type: "FREE_FOREVER",
+        status: "ACTIVE"
+      })
+    );
+  }
+);
+
+test(
   "family cannot read another family's child data matrix",
   async () => {
     const ownerDb = verifiedDb(

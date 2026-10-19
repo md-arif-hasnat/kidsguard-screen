@@ -74,6 +74,13 @@ export default function ManageSubscriptionPage() {
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
+  const isPromotionalAccess =
+    subscription?.provider === "PROMO" && status === "ACTIVE";
+  const promoAccessEndsAt = timestampMillis(subscription?.promoAccessEndsAt);
+  const promotionalAccessExpired =
+    isPromotionalAccess &&
+    promoAccessEndsAt !== null &&
+    promoAccessEndsAt <= now;
   // New parent families are provisioned with PENDING before they ever open
   // or complete Paddle checkout. Treat that as "not subscribed" instead of
   // showing paid subscription controls.
@@ -97,6 +104,7 @@ export default function ManageSubscriptionPage() {
     status === "CANCELED" ||
     status === "CANCELLED" ||
     status === "EXPIRED" ||
+    promotionalAccessExpired ||
     cancellationTimePassed ||
     neverSubscribed;
   const cancellationRequested =
@@ -245,7 +253,30 @@ export default function ManageSubscriptionPage() {
             </div>
           )}
 
-          {kept ? (
+          {isPromotionalAccess && !promotionalAccessExpired ? (
+            <section className="mt-8 rounded-2xl border border-violet-200 bg-violet-50 p-6">
+              <CheckCircle2 className="h-10 w-10 text-violet-600" />
+              <h2 className="mt-3 text-xl font-black text-violet-950">
+                Promotional access active
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-violet-800">
+                Coupon <strong>{subscription?.promoCode || "PROMO"}</strong>{" "}
+                gives this family full KidsGuard access{" "}
+                {promoAccessEndsAt
+                  ? `until ${formatDate(promoAccessEndsAt)}.`
+                  : "while the promotion remains active."}
+              </p>
+              <p className="mt-3 text-xs font-bold text-violet-700">
+                No payment method is charged for this promotional access.
+              </p>
+              <Link
+                href="/subscribe"
+                className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-violet-200 bg-white px-5 py-4 font-black text-violet-700 hover:bg-violet-100"
+              >
+                Switch to a Paid Subscription
+              </Link>
+            </section>
+          ) : kept ? (
             <section className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
               <CheckCircle2 className="h-10 w-10 text-emerald-600" />
               <h2 className="mt-3 text-xl font-black text-emerald-900">
@@ -332,7 +363,7 @@ export default function ManageSubscriptionPage() {
             </section>
           )}
 
-          {!neverSubscribed && (
+          {!neverSubscribed && !isPromotionalAccess && (
             <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
               <h2 className="font-black text-slate-900">
                 Recurring billing breakdown
@@ -381,14 +412,18 @@ export default function ManageSubscriptionPage() {
               <p className="text-xs font-black uppercase tracking-wider text-slate-400">
                 Current status
               </p>
-              <p className="mt-1 font-bold text-slate-900">{status}</p>
+              <p className="mt-1 font-bold text-slate-900">
+                {promotionalAccessExpired ? "EXPIRED" : status}
+              </p>
             </div>
             <div>
               <p className="text-xs font-black uppercase tracking-wider text-slate-400">
                 Billing
               </p>
               <p className="mt-1 font-bold text-slate-900">
-                {subscription?.billingInterval || "Not configured"}
+                {isPromotionalAccess
+                  ? "PROMOTIONAL ACCESS"
+                  : subscription?.billingInterval || "Not configured"}
               </p>
             </div>
           </div>

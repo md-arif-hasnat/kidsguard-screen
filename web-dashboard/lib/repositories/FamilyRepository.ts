@@ -102,6 +102,13 @@ export interface FamilySubscription {
   stripeSubscriptionId?: string;
   stripePriceId?: string;
   cancelAtPeriodEnd?: boolean;
+  provider?: "PADDLE" | "PROMO" | "STRIPE";
+  promoCode?: string;
+  promoCodeType?: "FREE_LIMITED" | "FREE_FOREVER" | "PERCENTAGE";
+  promoCodeStatus?: "ACTIVE" | "REDEEMED" | "REVOKED" | "EXPIRED";
+  promoAccessStartsAt?: any;
+  promoAccessEndsAt?: any;
+  promoDiscountPercentage?: number;
   cancellationRequestedAt?: any;
   cancellationRequestedBy?: string;
   cancellationRequestId?: string;
