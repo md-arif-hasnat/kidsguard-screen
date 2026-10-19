@@ -440,7 +440,7 @@ test(
       );
     });
 
-    const adminDb = verifiedDb(
+    const adminDb = verifiedAdminDb(
       "admin-uid",
       "admin@example.com"
     );
@@ -466,10 +466,22 @@ function verifiedDb(uid, email) {
     .firestore();
 }
 
+function verifiedAdminDb(uid, email) {
+  return testEnv
+    .authenticatedContext(uid, {
+      email,
+      email_verified: true,
+      firebase: {
+        sign_in_second_factor: "totp"
+      }
+    })
+    .firestore();
+}
+
 test(
   "active platform admin can read internal analytics collections",
   async () => {
-    const adminDb = verifiedDb(
+    const adminDb = verifiedAdminDb(
       "admin-uid",
       "admin@example.com"
     );
@@ -490,13 +502,28 @@ test(
 );
 
 test(
+  "platform admin without a TOTP sign-in cannot read internal data",
+  async () => {
+    const firstFactorOnlyDb = verifiedDb(
+      "admin-uid",
+      "admin@example.com"
+    );
+
+    await assertFails(getDocs(collection(firstFactorOnlyDb, "parents")));
+    await assertSucceeds(
+      getDoc(doc(firstFactorOnlyDb, "platformAdmins", "admin-uid"))
+    );
+  }
+);
+
+test(
   "inactive or unapproved admin roles cannot read internal data",
   async () => {
-    const inactiveDb = verifiedDb(
+    const inactiveDb = verifiedAdminDb(
       "inactive-admin-uid",
       "inactive@example.com"
     );
-    const legacyDb = verifiedDb(
+    const legacyDb = verifiedAdminDb(
       "legacy-admin-uid",
       "legacy@example.com"
     );
@@ -526,7 +553,7 @@ test(
       });
     });
 
-    const adminDb = verifiedDb("admin-uid", "admin@example.com");
+    const adminDb = verifiedAdminDb("admin-uid", "admin@example.com");
     const ownerDb = verifiedDb("owner-uid", "owner@example.com");
 
     await assertSucceeds(getDocs(collection(adminDb, "promoCodes")));
@@ -1757,7 +1784,7 @@ test(
 test(
   "platform admin can triage issues and family users cannot",
   async () => {
-    const adminDb = verifiedDb(
+    const adminDb = verifiedAdminDb(
       "admin-uid",
       "admin@example.com"
     );
@@ -1800,7 +1827,7 @@ test(
 test(
   "platform admin cannot write invalid issue triage status",
   async () => {
-    const adminDb = verifiedDb(
+    const adminDb = verifiedAdminDb(
       "admin-uid",
       "admin@example.com"
     );

@@ -16,6 +16,14 @@ const verifiedContext = (uid, email) => testEnv.authenticatedContext(uid, {
   email_verified: true
 });
 
+const verifiedAdminContext = (uid, email) => testEnv.authenticatedContext(uid, {
+  email,
+  email_verified: true,
+  firebase: {
+    sign_in_second_factor: 'totp'
+  }
+});
+
 before(async () => {
   const firestoreRules = readFileSync(
     new URL('../../firestore.rules.production', import.meta.url),
@@ -109,7 +117,7 @@ test('outsider cannot read a support attachment', async () => {
 });
 
 test('active platform admin can read a support attachment', async () => {
-  const storage = verifiedContext(
+  const storage = verifiedAdminContext(
     'admin-uid',
     'admin@example.com'
   ).storage();
@@ -123,6 +131,19 @@ test('active platform admin can read a support attachment', async () => {
     storage,
     'supportTickets/parent-uid/TICKET01'
   )));
+});
+
+test('platform admin without TOTP cannot read a support attachment', async () => {
+  const storage = verifiedContext(
+    'admin-uid',
+    'admin@example.com'
+  ).storage();
+  const attachment = ref(
+    storage,
+    'supportTickets/parent-uid/TICKET01/screenshot.png'
+  );
+
+  await assertFails(getBytes(attachment));
 });
 
 test('ticket owner can list their own attachments', async () => {
