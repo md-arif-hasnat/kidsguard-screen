@@ -33,11 +33,8 @@ export interface PlatformAdmin {
 export class PlatformAdminRepository {
   static async getAdminProfile(uid: string): Promise<PlatformAdmin | null> {
     if (!db) {
-        console.warn("INTERNAL_DEBUG: Firestore (db) is not initialized.");
         return null;
     }
-    const path = `platformAdmins/${uid}`;
-    console.log(`INTERNAL_DEBUG: Looking up admin profile at: ${path}`);
 
     try {
         const ref = doc(db, "platformAdmins", uid);
@@ -45,19 +42,15 @@ export class PlatformAdminRepository {
 
         if (snap.exists()) {
             const data = snap.data() as PlatformAdmin;
-            console.log("INTERNAL_DEBUG: Admin document found:", data);
             return {
               ...data,
               // Authorization is tied to the protected document path, never
               // to a mutable uid field stored inside the document.
               uid: snap.id
             };
-        } else {
-            console.warn(`INTERNAL_DEBUG: No admin document found at ${path}`);
-            return null;
         }
-    } catch (error) {
-        console.error(`INTERNAL_DEBUG: Error fetching admin profile at ${path}:`, error);
+        return null;
+    } catch {
         return null;
     }
   }
@@ -73,13 +66,6 @@ export class PlatformAdminRepository {
     const isAllowedRole = isAllowedPlatformAdminRole(role);
 
     const allowed = exists && active && isAllowedRole;
-
-    console.log("ADMIN CHECK", {
-        role,
-        active,
-        exists,
-        allowed
-    });
 
     return allowed;
   }

@@ -1,12 +1,17 @@
 "use client";
 
 import InternalLayout from "@/components/InternalLayout";
-import { CheckCircle2, Database, ShieldCheck, Wrench } from "lucide-react";
+import { CheckCircle2, Database, KeyRound, ShieldCheck, Wrench } from "lucide-react";
 
 const checks = [
   {
+    title: "TOTP two-factor authentication",
+    description: "Every new admin browser must verify an authenticator code before protected data is accessible.",
+    icon: KeyRound,
+  },
+  {
     title: "Admin access",
-    description: "Protected by the active platform administrator profile.",
+    description: "Protected by an active allow-listed role plus a verified TOTP sign-in claim.",
     icon: ShieldCheck,
   },
   {
@@ -33,7 +38,7 @@ export default function InternalSettingsPage() {
         </p>
       </header>
 
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         {checks.map(({ title, description, icon: Icon }) => (
           <article key={title} className="rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-xl">
             <div className="mb-5 flex items-center justify-between">

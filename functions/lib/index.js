@@ -57,6 +57,10 @@ async function requirePlatformAdmin(context) {
     if (!context.auth || context.auth.token.email_verified !== true) {
         throw new functions.https.HttpsError('unauthenticated', 'Verified administrator sign-in required.');
     }
+    const firebaseClaims = context.auth.token.firebase;
+    if (firebaseClaims?.sign_in_second_factor !== 'totp') {
+        throw new functions.https.HttpsError('permission-denied', 'Authenticator verification is required for administrator actions.');
+    }
     const adminSnapshot = await db
         .collection('platformAdmins')
         .doc(context.auth.uid)
@@ -916,24 +920,7 @@ const RELEASE_DOWNLOAD_HOSTS = new Set([
 exports.verifyReleaseArtifact = functions
     .runWith({ timeoutSeconds: 120, memory: '512MB' })
     .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.email_verified !== true) {
-        throw new functions.https.HttpsError('unauthenticated', 'Verified administrator sign-in required.');
-    }
-    const adminSnapshot = await db
-        .collection('platformAdmins')
-        .doc(context.auth.uid)
-        .get();
-    const adminData = adminSnapshot.data();
-    const allowedRoles = new Set([
-        'SUPER_ADMIN',
-        'PLATFORM_ADMIN',
-        'DEV_ADMIN'
-    ]);
-    if (!adminSnapshot.exists ||
-        adminData?.active !== true ||
-        !allowedRoles.has(String(adminData?.role || ''))) {
-        throw new functions.https.HttpsError('permission-denied', 'Active platform administrator access required.');
-    }
+    await requirePlatformAdmin(context);
     const downloadUrl = String(data?.apkDownloadUrl || '').trim();
     const expectedSha256 = String(data?.apkSha256 || '')
         .trim()

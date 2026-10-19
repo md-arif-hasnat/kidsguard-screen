@@ -24,7 +24,6 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
   // Route Guard
   React.useEffect(() => {
     if (!loading && !isAdmin && pathname !== '/internal/login') {
-        console.log("INTERNAL_DEBUG: Guard: Not admin, redirecting to login");
         router.push('/internal/login');
     }
   }, [loading, isAdmin, pathname, router]);
