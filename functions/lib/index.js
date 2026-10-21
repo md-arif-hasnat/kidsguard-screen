@@ -33,8 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredPromoAccess = exports.sendPromoCodeEmail = exports.redeemPromoCode = exports.setPromoCodeStatus = exports.createPromoCode = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onWebAccessRequestCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = void 0;
-exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = void 0;
+exports.sendFamilyInvitationEmail = exports.cleanupDeletedFamilies = exports.cleanupFamilyRetentionData = exports.cleanupExpiredFamilyExports = exports.reconcileExpiredPromoAccess = exports.sendPromoCodeEmail = exports.redeemPromoCode = exports.setPromoCodeStatus = exports.createPromoCode = exports.reconcileExpiredSubscriptionCancellations = exports.resumeScheduledSubscription = exports.requestSubscriptionCancellation = exports.removeExtraChildSlot = exports.purchaseExtraChildSlot = exports.ensureParentFamily = exports.cancelFamilyDeletion = exports.requestFamilyDeletion = exports.requestFamilyDataExport = exports.cleanupUnverifiedAccounts = exports.acceptFamilyInvitation = exports.checkInvitationEmail = exports.acceptPairingCode = exports.onPermissionAlertCreated = exports.onTamperAlertCreated = exports.checkOfflineChildren = exports.onProtectionModeChanged = exports.onFamilyUpdated = exports.onInviteAccepted = exports.onInviteCreated = exports.verifyReleaseArtifact = exports.onAppUpdatePublished = exports.onCriticalSyncFailure = exports.onStatusChanged = exports.onSosResolved = exports.onSosCreated = exports.onAppRestrictionEventCreated = exports.onRemoteControlOverrideCreated = exports.onWebAccessRequestCreated = exports.onAppAccessRequestCreated = exports.onPermissionChangeRequestCreated = exports.onInstalledAppCreated = exports.onSupportAdminAction = exports.onActivityCreated = exports.enforcePlatformStaffApproval = exports.resendPlatformStaffInvite = exports.reviewPlatformStaffRequest = exports.deactivatePlatformStaff = exports.resendPlatformStaffApproval = exports.requestPlatformStaffChange = exports.requestPlatformStaffAccount = void 0;
+exports.paddleBillingWebhook = exports.generateWeeklySafetyReports = exports.generateWeeklySafetyReportNow = exports.sendAdminSevenDaySubscriptionPush = exports.onAdminSubscriptionChangedPush = exports.onAdminDeviceWarningPush = exports.onAdminSupportActivityPush = exports.onAdminIssueCreatedPush = exports.monitorReleaseRollout = exports.sendAdminOpenNotificationReminder = exports.onFamilyMembershipSync = exports.removeFamilyMember = exports.removeChildFromFamily = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -48,10 +48,17 @@ const storageBucket = admin.storage().bucket();
 const paddleWebhookSecret = (0, params_1.defineSecret)('PADDLE_WEBHOOK_SECRET');
 const paddleApiKey = (0, params_1.defineSecret)('PADDLE_API_KEY');
 const paddleRecurringAddOnsJson = (0, params_1.defineString)('PADDLE_RECURRING_ADDONS_JSON', { default: '[]' });
+const platformOwnerEmail = (0, params_1.defineString)('PLATFORM_OWNER_EMAIL', { default: 'arifhasnat07@gmail.com' });
+const internalDashboardUrl = (0, params_1.defineString)('INTERNAL_DASHBOARD_URL', { default: 'https://kidsguard-screen.vercel.app' });
 const PLATFORM_ADMIN_ROLES = new Set([
     'SUPER_ADMIN',
     'PLATFORM_ADMIN',
     'DEV_ADMIN'
+]);
+const ASSIGNABLE_PLATFORM_STAFF_ROLES = new Set([
+    'PLATFORM_ADMIN',
+    'EMPLOYEE',
+    'ACCOUNTING'
 ]);
 async function requirePlatformAdmin(context) {
     if (!context.auth || context.auth.token.email_verified !== true) {
@@ -78,6 +85,637 @@ async function requirePlatformAdmin(context) {
             : null
     };
 }
+async function requirePlatformOwner(context) {
+    const operator = await requirePlatformAdmin(context);
+    const ownerEmail = normalizePlatformEmail(platformOwnerEmail.value());
+    const operatorEmail = normalizePlatformEmail(operator.email);
+    const ownerSnapshot = await db
+        .collection('platformAdmins')
+        .doc(operator.uid)
+        .get();
+    if (ownerSnapshot.data()?.role !== 'SUPER_ADMIN' ||
+        !ownerEmail ||
+        operatorEmail !== ownerEmail) {
+        throw new functions.https.HttpsError('permission-denied', 'Only the verified Super Admin owner can review this request.');
+    }
+    return { uid: operator.uid, email: operatorEmail };
+}
+function normalizePlatformEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+function normalizePlatformStaffRole(value) {
+    const role = String(value || '').trim().toUpperCase();
+    if (!ASSIGNABLE_PLATFORM_STAFF_ROLES.has(role)) {
+        throw new functions.https.HttpsError('invalid-argument', 'Select Admin, Employee, or Accounting.');
+    }
+    return role;
+}
+function platformStaffRoleLabel(role) {
+    if (role === 'PLATFORM_ADMIN')
+        return 'Admin';
+    if (role === 'ACCOUNTING')
+        return 'Accounting';
+    return 'Employee';
+}
+function platformApprovalTokenHash(token) {
+    return (0, crypto_1.createHash)('sha256').update(token).digest('hex');
+}
+function platformApprovalTokenMatches(suppliedToken, expectedHash) {
+    const supplied = Buffer.from(platformApprovalTokenHash(suppliedToken), 'hex');
+    const expected = Buffer.from(String(expectedHash || ''), 'hex');
+    return supplied.length === expected.length && (0, crypto_1.timingSafeEqual)(supplied, expected);
+}
+function platformApprovalUrls(requestId, token) {
+    const base = internalDashboardUrl.value().replace(/\/$/, '');
+    const buildUrl = (decision) => {
+        const url = new URL('/internal/team', base);
+        url.searchParams.set('requestId', requestId);
+        url.searchParams.set('token', token);
+        url.searchParams.set('decision', decision);
+        return url.toString();
+    };
+    return { approve: buildUrl('approve'), reject: buildUrl('reject') };
+}
+async function sendPlatformOwnerApprovalEmail(input) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+        throw new Error('RESEND_API_KEY is not configured.');
+    }
+    const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
+    const resend = new Resend(apiKey);
+    const urls = platformApprovalUrls(input.requestId, input.token);
+    const action = input.kind === 'CREATE_ACCOUNT'
+        ? 'New internal account'
+        : input.kind === 'REACTIVATE'
+            ? 'Internal account reactivation'
+            : 'Internal role change';
+    const result = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL ||
+            'KidsGuard <onboarding@resend.dev>',
+        to: platformOwnerEmail.value(),
+        subject: `[Approval required] ${action}: ${input.targetEmail}`,
+        html: `
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px;color:#0f172a">
+        <h2 style="margin:0 0 12px">KidsGuard owner approval required</h2>
+        <p style="line-height:1.6">No access has been granted. Sign in with your Super Admin account and authenticator before approving.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0">
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0"><strong>Action</strong></td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(action)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0"><strong>Name</strong></td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.displayName)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0"><strong>Email</strong></td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.targetEmail)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0"><strong>Requested role</strong></td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(platformStaffRoleLabel(input.requestedRole))}</td></tr>
+          <tr><td style="padding:8px"><strong>Requested by</strong></td><td style="padding:8px">${escapeEmailHtml(input.requestedByEmail || 'Unknown')}</td></tr>
+        </table>
+        <p style="margin:24px 0">
+          <a href="${escapeEmailHtml(urls.approve)}" style="display:inline-block;background:#059669;color:white;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;margin-right:8px">Review &amp; approve</a>
+          <a href="${escapeEmailHtml(urls.reject)}" style="display:inline-block;background:#be123c;color:white;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Review &amp; reject</a>
+        </p>
+        <p style="font-size:12px;color:#64748b;line-height:1.6">This one-time link expires after 48 hours. The link alone cannot approve access; owner password and TOTP verification are also required.</p>
+      </div>`
+    });
+    if (result.error) {
+        throw new Error(result.error.message);
+    }
+}
+async function sendPlatformStaffInviteEmail(input) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey)
+        throw new Error('RESEND_API_KEY is not configured.');
+    const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
+    const resend = new Resend(apiKey);
+    const result = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL ||
+            'KidsGuard <onboarding@resend.dev>',
+        to: input.email,
+        subject: `Your KidsGuard ${platformStaffRoleLabel(input.role)} account is approved`,
+        html: `
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px;color:#0f172a">
+        <h2 style="margin:0 0 12px">Welcome to KidsGuard Internal</h2>
+        <p style="line-height:1.6">Hello ${escapeEmailHtml(input.displayName)}, your ${escapeEmailHtml(platformStaffRoleLabel(input.role))} access was approved by the Super Admin.</p>
+        <p style="line-height:1.6">Set your password using the secure link below. Your first sign-in will also require authenticator setup.</p>
+        <p style="margin:24px 0"><a href="${escapeEmailHtml(input.resetUrl)}" style="display:inline-block;background:#e11d48;color:white;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Set password</a></p>
+        <p style="font-size:12px;color:#64748b">If you did not expect this invitation, do not use the link and contact the Super Admin.</p>
+      </div>`
+    });
+    if (result.error)
+        throw new Error(result.error.message);
+}
+function platformApprovalExpiry() {
+    return admin.firestore.Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000);
+}
+async function createPlatformApprovalRequest(input) {
+    const requestRef = db.collection('platformStaffApprovalRequests').doc();
+    const secretRef = db.collection('platformStaffApprovalSecrets').doc(requestRef.id);
+    const token = (0, crypto_1.randomBytes)(32).toString('base64url');
+    const batch = db.batch();
+    batch.set(requestRef, {
+        requestId: requestRef.id,
+        kind: input.kind,
+        status: 'PENDING',
+        targetUid: input.targetUid,
+        targetEmail: input.targetEmail,
+        displayName: input.displayName,
+        currentRole: input.currentRole,
+        requestedRole: input.requestedRole,
+        requestedActive: input.requestedActive,
+        requestedBy: input.operator.uid,
+        requestedByEmail: input.operator.email,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: platformApprovalExpiry(),
+        notificationStatus: 'PENDING'
+    });
+    batch.set(secretRef, {
+        requestId: requestRef.id,
+        tokenHash: platformApprovalTokenHash(token),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: platformApprovalExpiry()
+    });
+    batch.update(db.collection('platformAdmins').doc(input.targetUid), {
+        pendingApprovalRequestId: requestRef.id,
+        approvalStatus: 'PENDING',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    return { requestId: requestRef.id, token };
+}
+async function deliverPlatformApprovalRequest(requestId, token) {
+    const requestRef = db.collection('platformStaffApprovalRequests').doc(requestId);
+    const requestSnapshot = await requestRef.get();
+    const data = requestSnapshot.data();
+    if (!requestSnapshot.exists || data?.status !== 'PENDING')
+        return false;
+    try {
+        await sendPlatformOwnerApprovalEmail({
+            requestId,
+            token,
+            kind: data.kind,
+            targetEmail: String(data.targetEmail || ''),
+            displayName: String(data.displayName || ''),
+            requestedRole: data.requestedRole,
+            requestedByEmail: typeof data.requestedByEmail === 'string'
+                ? data.requestedByEmail
+                : null
+        });
+        await requestRef.update({
+            notificationStatus: 'SENT',
+            notificationSentAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    }
+    catch (error) {
+        console.error('Platform owner approval email failed:', error);
+        await requestRef.update({
+            notificationStatus: 'FAILED',
+            notificationFailedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return false;
+    }
+}
+function authErrorCode(error) {
+    return typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code || '')
+        : '';
+}
+async function consumePlatformApprovalRateLimit(actorUid) {
+    const limitRef = db.collection('platformStaffRateLimits').doc(actorUid);
+    await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(limitRef);
+        const data = snapshot.data();
+        const now = Date.now();
+        const windowStartedAt = data?.windowStartedAt?.toMillis?.() || 0;
+        const withinWindow = now - windowStartedAt < 60 * 60 * 1000;
+        const requestCount = withinWindow ? Number(data?.requestCount || 0) : 0;
+        if (requestCount >= 20) {
+            throw new functions.https.HttpsError('resource-exhausted', 'Too many team access requests. Try again after one hour.');
+        }
+        transaction.set(limitRef, {
+            actorUid,
+            requestCount: requestCount + 1,
+            windowStartedAt: withinWindow
+                ? data?.windowStartedAt
+                : admin.firestore.Timestamp.fromMillis(now),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+}
+exports.requestPlatformStaffAccount = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const displayName = String(data?.displayName || '').trim();
+    const email = normalizePlatformEmail(data?.email);
+    const requestedRole = normalizePlatformStaffRole(data?.role);
+    if (displayName.length < 2 || displayName.length > 100) {
+        throw new functions.https.HttpsError('invalid-argument', 'Employee name must contain 2-100 characters.');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+        throw new functions.https.HttpsError('invalid-argument', 'Enter a valid work email address.');
+    }
+    if (email === normalizePlatformEmail(platformOwnerEmail.value())) {
+        throw new functions.https.HttpsError('failed-precondition', 'The Super Admin owner account cannot be recreated.');
+    }
+    await consumePlatformApprovalRateLimit(operator.uid);
+    try {
+        await admin.auth().getUserByEmail(email);
+        throw new functions.https.HttpsError('already-exists', 'This email already has a Firebase account. Use a separate work email.');
+    }
+    catch (error) {
+        if (error instanceof functions.https.HttpsError)
+            throw error;
+        if (authErrorCode(error) !== 'auth/user-not-found')
+            throw error;
+    }
+    const authUser = await admin.auth().createUser({
+        email,
+        displayName,
+        password: (0, crypto_1.randomBytes)(48).toString('base64url'),
+        emailVerified: false,
+        disabled: true
+    });
+    const profileRef = db.collection('platformAdmins').doc(authUser.uid);
+    try {
+        await profileRef.set({
+            uid: authUser.uid,
+            email,
+            displayName,
+            role: requestedRole,
+            active: false,
+            approvalStatus: 'PENDING',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdBy: operator.uid,
+            createdByEmail: operator.email
+        });
+        const approval = await createPlatformApprovalRequest({
+            kind: 'CREATE_ACCOUNT',
+            targetUid: authUser.uid,
+            targetEmail: email,
+            displayName,
+            currentRole: null,
+            requestedRole,
+            requestedActive: true,
+            operator
+        });
+        const notificationSent = await deliverPlatformApprovalRequest(approval.requestId, approval.token);
+        return { success: true, requestId: approval.requestId, notificationSent };
+    }
+    catch (error) {
+        await Promise.allSettled([
+            admin.auth().deleteUser(authUser.uid),
+            profileRef.delete()
+        ]);
+        throw error;
+    }
+});
+exports.requestPlatformStaffChange = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const targetUid = String(data?.uid || '').trim();
+    const requestedRole = normalizePlatformStaffRole(data?.role);
+    const requestedActive = data?.active === true;
+    if (!targetUid) {
+        throw new functions.https.HttpsError('invalid-argument', 'User is required.');
+    }
+    const profileRef = db.collection('platformAdmins').doc(targetUid);
+    const profileSnapshot = await profileRef.get();
+    const profile = profileSnapshot.data();
+    if (!profileSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Internal profile not found.');
+    }
+    if (profile?.role === 'SUPER_ADMIN' ||
+        normalizePlatformEmail(profile?.email) ===
+            normalizePlatformEmail(platformOwnerEmail.value())) {
+        throw new functions.https.HttpsError('permission-denied', 'The Super Admin owner profile cannot be changed.');
+    }
+    const pendingId = String(profile?.pendingApprovalRequestId || '');
+    if (pendingId) {
+        const pending = await db
+            .collection('platformStaffApprovalRequests')
+            .doc(pendingId)
+            .get();
+        if (pending.data()?.status === 'PENDING') {
+            throw new functions.https.HttpsError('failed-precondition', 'This profile already has a pending owner approval.');
+        }
+    }
+    if (profile?.role === requestedRole && profile?.active === requestedActive) {
+        throw new functions.https.HttpsError('failed-precondition', 'The requested access is already active.');
+    }
+    if (!requestedActive) {
+        throw new functions.https.HttpsError('invalid-argument', 'Use the immediate deactivate action to remove access.');
+    }
+    await consumePlatformApprovalRateLimit(operator.uid);
+    const kind = profile?.active === true
+        ? 'ROLE_CHANGE'
+        : 'REACTIVATE';
+    const approval = await createPlatformApprovalRequest({
+        kind,
+        targetUid,
+        targetEmail: normalizePlatformEmail(profile?.email),
+        displayName: String(profile?.displayName || profile?.email || 'Employee'),
+        currentRole: String(profile?.role || ''),
+        requestedRole,
+        requestedActive: true,
+        operator
+    });
+    const notificationSent = await deliverPlatformApprovalRequest(approval.requestId, approval.token);
+    return { success: true, requestId: approval.requestId, notificationSent };
+});
+exports.resendPlatformStaffApproval = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const requestId = String(data?.requestId || '').trim();
+    const requestRef = db.collection('platformStaffApprovalRequests').doc(requestId);
+    const requestSnapshot = await requestRef.get();
+    if (!requestSnapshot.exists || requestSnapshot.data()?.status !== 'PENDING') {
+        throw new functions.https.HttpsError('failed-precondition', 'Only pending requests can be resent.');
+    }
+    await consumePlatformApprovalRateLimit(operator.uid);
+    const token = (0, crypto_1.randomBytes)(32).toString('base64url');
+    await db.collection('platformStaffApprovalSecrets').doc(requestId).set({
+        requestId,
+        tokenHash: platformApprovalTokenHash(token),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: platformApprovalExpiry()
+    });
+    await requestRef.update({
+        expiresAt: platformApprovalExpiry(),
+        notificationStatus: 'PENDING'
+    });
+    const notificationSent = await deliverPlatformApprovalRequest(requestId, token);
+    if (!notificationSent) {
+        throw new functions.https.HttpsError('unavailable', 'The approval email could not be delivered.');
+    }
+    return { success: true };
+});
+exports.deactivatePlatformStaff = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const operator = await requirePlatformAdmin(context);
+    const targetUid = String(data?.uid || '').trim();
+    const profileRef = db.collection('platformAdmins').doc(targetUid);
+    const profileSnapshot = await profileRef.get();
+    const profile = profileSnapshot.data();
+    if (!profileSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Internal profile not found.');
+    }
+    if (profile?.role === 'SUPER_ADMIN' ||
+        normalizePlatformEmail(profile?.email) ===
+            normalizePlatformEmail(platformOwnerEmail.value())) {
+        throw new functions.https.HttpsError('permission-denied', 'The Super Admin owner cannot be deactivated.');
+    }
+    await admin.auth().updateUser(targetUid, { disabled: true });
+    const pendingId = String(profile?.pendingApprovalRequestId || '');
+    const batch = db.batch();
+    batch.update(profileRef, {
+        active: false,
+        pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
+        lastApprovalRequestId: admin.firestore.FieldValue.delete(),
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deactivatedBy: operator.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    if (pendingId) {
+        batch.set(db.collection('platformStaffApprovalRequests').doc(pendingId), {
+            status: 'CANCELED',
+            canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+            canceledBy: operator.uid
+        }, { merge: true });
+        batch.delete(db.collection('platformStaffApprovalSecrets').doc(pendingId));
+    }
+    await batch.commit();
+    try {
+        const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ||
+                'KidsGuard <onboarding@resend.dev>',
+            to: platformOwnerEmail.value(),
+            subject: `[Security notice] Internal access deactivated: ${profile?.email || targetUid}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>Internal access removed</h2><p>${escapeEmailHtml(profile?.email || targetUid)} was deactivated immediately by ${escapeEmailHtml(operator.email || operator.uid)}.</p><p>No owner approval was required because this action only removes access.</p></div>`
+        });
+    }
+    catch (error) {
+        console.error('Platform deactivation notice failed:', error);
+    }
+    return { success: true };
+});
+exports.reviewPlatformStaffRequest = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    const owner = await requirePlatformOwner(context);
+    const requestId = String(data?.requestId || '').trim();
+    const token = String(data?.token || '').trim();
+    const decision = String(data?.decision || '').trim().toUpperCase();
+    if (!requestId || token.length < 32 || !['APPROVE', 'REJECT'].includes(decision)) {
+        throw new functions.https.HttpsError('invalid-argument', 'A valid approval request, token, and decision are required.');
+    }
+    const requestRef = db.collection('platformStaffApprovalRequests').doc(requestId);
+    const secretRef = db.collection('platformStaffApprovalSecrets').doc(requestId);
+    const [requestSnapshot, secretSnapshot] = await Promise.all([
+        requestRef.get(),
+        secretRef.get()
+    ]);
+    const request = requestSnapshot.data();
+    const secret = secretSnapshot.data();
+    if (!requestSnapshot.exists ||
+        !secretSnapshot.exists ||
+        request?.status !== 'PENDING') {
+        throw new functions.https.HttpsError('failed-precondition', 'This request is no longer pending.');
+    }
+    const expiresAt = request?.expiresAt?.toMillis?.() || 0;
+    if (expiresAt <= Date.now()) {
+        throw new functions.https.HttpsError('deadline-exceeded', 'This approval link has expired. Resend it from Team Access.');
+    }
+    if (!platformApprovalTokenMatches(token, secret?.tokenHash)) {
+        throw new functions.https.HttpsError('permission-denied', 'The approval token is invalid.');
+    }
+    const targetUid = String(request?.targetUid || '');
+    const targetEmail = normalizePlatformEmail(request?.targetEmail);
+    const requestedRole = normalizePlatformStaffRole(request?.requestedRole);
+    const requestedActive = request?.requestedActive === true;
+    const profileRef = db.collection('platformAdmins').doc(targetUid);
+    const profileSnapshot = await profileRef.get();
+    if (!targetUid || !profileSnapshot.exists) {
+        throw new functions.https.HttpsError('not-found', 'Target profile not found.');
+    }
+    const profile = profileSnapshot.data();
+    const targetAuthUser = await admin.auth().getUser(targetUid);
+    if (profile?.pendingApprovalRequestId !== requestId ||
+        normalizePlatformEmail(targetAuthUser.email) !== targetEmail ||
+        requestedActive !== true) {
+        throw new functions.https.HttpsError('failed-precondition', 'The target account no longer matches this approval request.');
+    }
+    if ((request?.kind === 'CREATE_ACCOUNT' && profile?.active === true) ||
+        (request?.kind === 'ROLE_CHANGE' &&
+            (profile?.active !== true ||
+                String(profile?.role || '') !== String(request?.currentRole || ''))) ||
+        (request?.kind === 'REACTIVATE' && profile?.active === true)) {
+        throw new functions.https.HttpsError('failed-precondition', 'The target account changed after this request was created.');
+    }
+    if (decision === 'REJECT') {
+        const keepExistingAccess = request?.kind === 'ROLE_CHANGE' &&
+            profile?.active === true;
+        await admin.auth().updateUser(targetUid, {
+            disabled: !keepExistingAccess
+        });
+        const batch = db.batch();
+        batch.update(requestRef, {
+            status: 'REJECTED',
+            reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+            reviewedBy: owner.uid,
+            reviewedByEmail: owner.email
+        });
+        batch.update(profileRef, {
+            active: keepExistingAccess,
+            approvalStatus: keepExistingAccess ? 'APPROVED' : 'REJECTED',
+            lastRequestStatus: 'REJECTED',
+            pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        batch.delete(secretRef);
+        await batch.commit();
+        return { success: true, decision: 'REJECTED' };
+    }
+    await admin.auth().updateUser(targetUid, {
+        disabled: !requestedActive,
+        emailVerified: requestedActive
+    });
+    const batch = db.batch();
+    batch.update(requestRef, {
+        status: 'APPROVED',
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: owner.uid,
+        reviewedByEmail: owner.email,
+        appliedRole: requestedRole,
+        appliedActive: requestedActive
+    });
+    batch.update(profileRef, {
+        role: requestedRole,
+        active: requestedActive,
+        approvalStatus: 'APPROVED',
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedBy: owner.uid,
+        approvedByEmail: owner.email,
+        lastApprovalRequestId: requestId,
+        pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    batch.delete(secretRef);
+    await batch.commit();
+    let invitationSent = true;
+    if (request?.kind === 'CREATE_ACCOUNT') {
+        try {
+            const resetUrl = await admin.auth().generatePasswordResetLink(targetEmail, {
+                url: `${internalDashboardUrl.value().replace(/\/$/, '')}/internal/login`,
+                handleCodeInApp: false
+            });
+            await sendPlatformStaffInviteEmail({
+                email: targetEmail,
+                displayName: String(request?.displayName || targetEmail),
+                role: requestedRole,
+                resetUrl
+            });
+        }
+        catch (error) {
+            invitationSent = false;
+            console.error('Approved staff invitation email failed:', error);
+            await profileRef.update({ invitationStatus: 'FAILED' });
+        }
+    }
+    return {
+        success: true,
+        decision: 'APPROVED',
+        invitationSent
+    };
+});
+exports.resendPlatformStaffInvite = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .https.onCall(async (data, context) => {
+    await requirePlatformAdmin(context);
+    const targetUid = String(data?.uid || '').trim();
+    const profileSnapshot = await db
+        .collection('platformAdmins')
+        .doc(targetUid)
+        .get();
+    const profile = profileSnapshot.data();
+    if (!profileSnapshot.exists ||
+        profile?.active !== true ||
+        !ASSIGNABLE_PLATFORM_STAFF_ROLES.has(String(profile?.role || ''))) {
+        throw new functions.https.HttpsError('failed-precondition', 'Only an approved active profile can receive an invitation.');
+    }
+    const email = normalizePlatformEmail(profile?.email);
+    const resetUrl = await admin.auth().generatePasswordResetLink(email, {
+        url: `${internalDashboardUrl.value().replace(/\/$/, '')}/internal/login`,
+        handleCodeInApp: false
+    });
+    await sendPlatformStaffInviteEmail({
+        email,
+        displayName: String(profile?.displayName || email),
+        role: profile?.role,
+        resetUrl
+    });
+    await profileSnapshot.ref.update({
+        invitationStatus: 'SENT',
+        invitationSentAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+});
+exports.enforcePlatformStaffApproval = functions
+    .runWith({ secrets: ['RESEND_API_KEY'] })
+    .firestore.document('platformAdmins/{uid}')
+    .onWrite(async (change, context) => {
+    if (!change.after.exists)
+        return;
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.data();
+    if (after?.active !== true)
+        return;
+    const changed = !before ||
+        before.active !== after.active ||
+        before.role !== after.role ||
+        normalizePlatformEmail(before.email) !== normalizePlatformEmail(after.email);
+    if (!changed)
+        return;
+    const authUser = await admin.auth().getUser(context.params.uid);
+    const actualEmail = normalizePlatformEmail(authUser.email);
+    const ownerEmail = normalizePlatformEmail(platformOwnerEmail.value());
+    if (actualEmail === ownerEmail && after.role === 'SUPER_ADMIN')
+        return;
+    const approvalId = String(after.lastApprovalRequestId || '');
+    const approval = approvalId
+        ? await db.collection('platformStaffApprovalRequests').doc(approvalId).get()
+        : null;
+    const approvalData = approval?.data();
+    const authorized = approval?.exists === true &&
+        approvalData?.status === 'APPROVED' &&
+        approvalData?.targetUid === context.params.uid &&
+        approvalData?.appliedRole === after.role &&
+        approvalData?.appliedActive === true &&
+        normalizePlatformEmail(approvalData?.reviewedByEmail) === ownerEmail;
+    if (authorized)
+        return;
+    await admin.auth().updateUser(context.params.uid, { disabled: true });
+    await change.after.ref.update({
+        active: false,
+        approvalStatus: 'SECURITY_HOLD',
+        securityHoldAt: admin.firestore.FieldValue.serverTimestamp(),
+        securityHoldReason: 'UNAPPROVED_PRIVILEGE_CHANGE'
+    });
+    try {
+        const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ||
+                'KidsGuard <onboarding@resend.dev>',
+            to: platformOwnerEmail.value(),
+            subject: `[Security hold] Unapproved internal access blocked: ${actualEmail || context.params.uid}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>Unapproved privilege change blocked</h2><p>KidsGuard automatically disabled ${escapeEmailHtml(actualEmail || context.params.uid)} because an active internal role change had no valid Super Admin approval record.</p><p>Review Team Access and Firebase audit logs before restoring access.</p></div>`
+        });
+    }
+    catch (error) {
+        console.error('Security hold email failed:', error);
+    }
+});
 function normalizePromoCode(value) {
     return String(value || '').trim().toUpperCase();
 }
@@ -4653,11 +5291,24 @@ async function notifyPlatformAdmins(payload) {
         .collection("platformAdmins")
         .where("active", "==", true)
         .get();
-    const allowedRoles = new Set(["SUPER_ADMIN", "PLATFORM_ADMIN", "DEV_ADMIN"]);
+    const fullAdminRoles = new Set([
+        "SUPER_ADMIN",
+        "PLATFORM_ADMIN",
+        "DEV_ADMIN"
+    ]);
+    const employeeNotificationTypes = new Set([
+        "ADMIN_ISSUE",
+        "ADMIN_SUPPORT",
+        "ADMIN_DEVICE"
+    ]);
     const dashboardBase = "https://kidsguard-screen.vercel.app";
     const targetUrl = new URL(payload.clickAction, dashboardBase).href;
     for (const adminDocument of adminSnapshot.docs) {
-        if (!allowedRoles.has(String(adminDocument.data().role || "")))
+        const role = String(adminDocument.data().role || "");
+        const canReceive = fullAdminRoles.has(role) ||
+            (role === "EMPLOYEE" &&
+                employeeNotificationTypes.has(payload.type));
+        if (!canReceive)
             continue;
         const tokenSnapshot = await db
             .collection("users")

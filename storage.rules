@@ -13,7 +13,7 @@ service firebase.storage {
       ).data;
     }
 
-    function isPlatformAdmin() {
+    function isSupportStaff() {
       let adminPath =
         /databases/(default)/documents/platformAdmins/$(request.auth.uid)
       ;
@@ -27,7 +27,8 @@ service firebase.storage {
         firestore.get(adminPath).data.role in [
           'SUPER_ADMIN',
           'PLATFORM_ADMIN',
-          'DEV_ADMIN'
+          'DEV_ADMIN',
+          'EMPLOYEE'
         ];
     }
 
@@ -38,7 +39,7 @@ service firebase.storage {
             request.auth.uid == parentUid &&
             ticket(ticketId).parentUid == request.auth.uid
           ) ||
-          isPlatformAdmin()
+          isSupportStaff()
         );
 
       allow create: if isVerified() &&

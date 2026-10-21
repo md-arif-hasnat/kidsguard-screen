@@ -18,7 +18,7 @@ service cloud.firestore {
                 ).data.role == 'ADMIN';
             }
 
-            function isPlatformAdmin() {
+            function hasPlatformRole(roles) {
               let adminPath =
                 /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
 
@@ -29,11 +29,37 @@ service cloud.firestore {
                 request.auth.token.firebase.sign_in_second_factor == 'totp' &&
                 exists(adminPath) &&
                 get(adminPath).data.active == true &&
-                get(adminPath).data.role in [
-                  'SUPER_ADMIN',
-                  'PLATFORM_ADMIN',
-                  'DEV_ADMIN'
-                ];
+                get(adminPath).data.role in roles;
+            }
+
+            function isPlatformAdmin() {
+              return hasPlatformRole([
+                'SUPER_ADMIN',
+                'PLATFORM_ADMIN',
+                'DEV_ADMIN'
+              ]);
+            }
+
+            function isSupportStaff() {
+              return hasPlatformRole([
+                'SUPER_ADMIN',
+                'PLATFORM_ADMIN',
+                'DEV_ADMIN',
+                'EMPLOYEE'
+              ]);
+            }
+
+            function isEmployeeStaff() {
+              return hasPlatformRole(['EMPLOYEE']);
+            }
+
+            function isAccountingStaff() {
+              return hasPlatformRole([
+                'SUPER_ADMIN',
+                'PLATFORM_ADMIN',
+                'DEV_ADMIN',
+                'ACCOUNTING'
+              ]);
             }
 
 
@@ -128,9 +154,9 @@ service cloud.firestore {
             }
 
             match /issueTriage/{fingerprint} {
-              allow read: if isPlatformAdmin();
+              allow read: if isSupportStaff();
 
-              allow create, update: if isPlatformAdmin() &&
+              allow create, update: if isSupportStaff() &&
                 fingerprint.size() > 0 &&
                 fingerprint.size() <= 128 &&
                 request.resource.data.fingerprint == fingerprint &&
@@ -155,11 +181,24 @@ service cloud.firestore {
               allow get: if isEmailVerified() &&
                 request.auth.uid == adminId;
 
-              allow list: if false;
+              allow list: if isPlatformAdmin();
               allow create, update, delete: if false;
             }
+
+            match /platformStaffApprovalRequests/{requestId} {
+              allow read: if isPlatformAdmin();
+              allow create, update, delete: if false;
+            }
+
+            match /platformStaffApprovalSecrets/{requestId} {
+              allow read, write: if false;
+            }
+
+            match /platformStaffRateLimits/{adminId} {
+              allow read, write: if false;
+            }
     match /parents/{parentId} {
-      allow read: if isPlatformAdmin() ||
+      allow read: if isAccountingStaff() ||
         (isEmailVerified() && request.auth.uid == parentId);
 
             allow create: if isSignedIn() &&
@@ -246,7 +285,7 @@ service cloud.firestore {
 
     match /subscriptionCancellationRequests/{requestId} {
       // Requests are created and changed only by trusted Cloud Functions.
-      allow read: if isPlatformAdmin() ||
+      allow read: if isAccountingStaff() ||
         (
           isEmailVerified() &&
           resource.data.familyId is string &&
@@ -256,7 +295,7 @@ service cloud.firestore {
     }
 
         match /families/{familyId} {
-          allow read: if isPlatformAdmin() || isFamilyMember(familyId);
+          allow read: if isAccountingStaff() || isFamilyMember(familyId);
 
           allow create: if isEmailVerified() &&
             request.resource.data.ownerId == request.auth.uid &&
@@ -356,13 +395,13 @@ service cloud.firestore {
             }
 
                 match /children/{childId} {
-                  allow read: if isPlatformAdmin() || canReadChild(childId);
+                  allow read: if isSupportStaff() || canReadChild(childId);
 
                   // Root child records are managed by Admin Cloud Functions.
                   allow create, update, delete: if false;
 
                   match /status/{statusId} {
-                    allow read: if isPlatformAdmin() || canReadChild(childId);
+                    allow read: if isSupportStaff() || canReadChild(childId);
 
                             allow create: if isChildIdentity(childId) &&
                               request.resource.data.childId == childId &&
@@ -429,7 +468,7 @@ service cloud.firestore {
                         }
 
                         match /errorReports/{errorId} {
-                          allow read: if isPlatformAdmin();
+                          allow read: if isSupportStaff();
 
                           allow create: if isChildIdentity(childId) &&
                             request.resource.data.errorId == errorId &&
@@ -810,7 +849,92 @@ service cloud.firestore {
 
                                         match /supportTickets/{ticketId} {
                                           function isSupportAdmin() {
-                                            return isPlatformAdmin() || isAdmin();
+                                            return isSupportStaff() || isAdmin();
+                                          }
+
+                                          function isValidStaffAction() {
+                                            return request.resource.data.lastAdminAction is map &&
+                                              request.resource.data.lastAdminAction.actorUid ==
+                                                request.auth.uid &&
+                                              request.resource.data.lastAdminAction.actorEmail is string &&
+                                              request.resource.data.lastAdminAction.actorEmail.lower() ==
+                                                request.auth.token.email.lower() &&
+                                              request.resource.data.lastAdminAction.type in [
+                                                'REPLY',
+                                                'STATUS_CHANGE'
+                                              ] &&
+                                              request.resource.data.lastAdminAction.occurredAt is timestamp;
+                                          }
+
+                                          function isValidStaffReply() {
+                                            let oldReplies = resource.data.replies;
+                                            let newReplies = request.resource.data.replies;
+                                            let reply = newReplies[oldReplies.size()];
+
+                                            return oldReplies is list &&
+                                              newReplies is list &&
+                                              newReplies.size() == oldReplies.size() + 1 &&
+                                              newReplies == oldReplies.concat([reply]) &&
+                                              reply is map &&
+                                              reply.keys().hasOnly([
+                                                'replyId',
+                                                'authorUid',
+                                                'authorEmail',
+                                                'authorRole',
+                                                'message',
+                                                'createdAt'
+                                              ]) &&
+                                              reply.replyId is string &&
+                                              reply.replyId.size() >= 8 &&
+                                              reply.replyId.size() <= 80 &&
+                                              reply.authorUid == request.auth.uid &&
+                                              reply.authorEmail is string &&
+                                              reply.authorEmail.lower() ==
+                                                request.auth.token.email.lower() &&
+                                              reply.authorRole == 'ADMIN' &&
+                                              reply.message is string &&
+                                              reply.message.size() > 0 &&
+                                              reply.message.size() <= 4000 &&
+                                              reply.createdAt is timestamp &&
+                                              request.resource.data.status == 'IN_PROGRESS' &&
+                                              request.resource.data
+                                                .diff(resource.data)
+                                                .affectedKeys()
+                                                .hasOnly([
+                                                  'replies',
+                                                  'updatedAt',
+                                                  'status',
+                                                  'lastAdminAction'
+                                                ]);
+                                          }
+
+                                          function isValidStaffStatusChange() {
+                                            return request.resource.data.replies ==
+                                                resource.data.replies &&
+                                              request.resource.data.status in [
+                                                'OPEN',
+                                                'IN_PROGRESS',
+                                                'RESOLVED',
+                                                'CLOSED'
+                                              ] &&
+                                              request.resource.data
+                                                .diff(resource.data)
+                                                .affectedKeys()
+                                                .hasOnly([
+                                                  'updatedAt',
+                                                  'status',
+                                                  'lastAdminAction'
+                                                ]);
+                                          }
+
+                                          function isValidEmployeeSupportUpdate() {
+                                            return isEmployeeStaff() &&
+                                              request.resource.data.updatedAt == request.time &&
+                                              isValidStaffAction() &&
+                                              (
+                                                isValidStaffReply() ||
+                                                isValidStaffStatusChange()
+                                              );
                                           }
 
                                           function isValidParentReply() {
@@ -860,7 +984,9 @@ service cloud.firestore {
                                               isSupportAdmin()
                                             );
 
-                                          allow update: if isSupportAdmin() ||
+                                          allow update: if isPlatformAdmin() ||
+                                            isAdmin() ||
+                                            isValidEmployeeSupportUpdate() ||
                                             (
                                               isEmailVerified() &&
                                               resource.data.parentUid ==
@@ -884,13 +1010,13 @@ service cloud.firestore {
                                               isValidParentReply()
                                             );
 
-                                          allow delete: if isSupportAdmin();
+                                          allow delete: if isPlatformAdmin() || isAdmin();
                                         }
                                 
     // Enables the internal issues collection-group query without granting
     // parent/child access to technical stack traces.
     match /{path=**}/errorReports/{errorId} {
-      allow read: if isPlatformAdmin();
+      allow read: if isSupportStaff();
     }
 
     // Rules will be added collection by collection.

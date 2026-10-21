@@ -1,20 +1,87 @@
 "use client";
 
-import React from 'react';
 import InternalLayout from '@/components/InternalLayout';
 import {
     Activity,
-    Shield,
     Zap,
-    Users,
-    Smartphone,
     ArrowUpRight,
     MessageCircle,
-    HeartPulse
+    HeartPulse,
+    UsersRound,
+    WalletCards,
+    type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
+import {
+  isAccountingStaff,
+  isFullPlatformAdmin,
+  isSupportStaff,
+} from '@/lib/platformAccess';
+
+type DashboardCardData = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+  desc: string;
+  color: string;
+  visible: boolean;
+};
 
 export default function InternalDashboard() {
+  const { admin } = useInternalAdmin();
+  const role = admin?.role;
+  const cards: DashboardCardData[] = [
+    {
+      title: "System Health",
+      href: "/internal/health",
+      icon: HeartPulse,
+      desc: "Automated checks for devices, sync, permissions, alerts and support.",
+      color: "text-cyan-500",
+      visible: role ? isSupportStaff(role) : false,
+    },
+    {
+      title: "System Analytics",
+      href: "/internal/analytics",
+      icon: Activity,
+      desc: "Network health and family growth metrics.",
+      color: "text-rose-500",
+      visible: role ? isFullPlatformAdmin(role) : false,
+    },
+    {
+      title: "App Releases",
+      href: "/internal/releases",
+      icon: Zap,
+      desc: "Deploy new OTA updates to Android and Web.",
+      color: "text-amber-500",
+      visible: role ? isFullPlatformAdmin(role) : false,
+    },
+    {
+      title: "Customer Support",
+      href: "/internal/support",
+      icon: MessageCircle,
+      desc: "View and resolve parent help requests.",
+      color: "text-emerald-500",
+      visible: role ? isSupportStaff(role) : false,
+    },
+    {
+      title: "Customers & Billing",
+      href: "/internal/customers",
+      icon: WalletCards,
+      desc: "Review customer, subscription, and family information.",
+      color: "text-indigo-400",
+      visible: role ? isAccountingStaff(role) : false,
+    },
+    {
+      title: "Team Access",
+      href: "/internal/team",
+      icon: UsersRound,
+      desc: "Create employees and request owner-approved access changes.",
+      color: "text-fuchsia-400",
+      visible: role ? isFullPlatformAdmin(role) : false,
+    },
+  ];
+
   return (
     <InternalLayout>
       <header className="mb-12">
@@ -23,34 +90,9 @@ export default function InternalDashboard() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-        <DashboardCard
-            title="System Health"
-            href="/internal/health"
-            icon={HeartPulse}
-            desc="Automated checks for devices, sync, permissions, alerts and support."
-            color="text-cyan-500"
-        />
-        <DashboardCard
-            title="System Analytics"
-            href="/internal/analytics"
-            icon={Activity}
-            desc="Network health and family growth metrics."
-            color="text-rose-500"
-        />
-        <DashboardCard
-            title="App Releases"
-            href="/internal/releases"
-            icon={Zap}
-            desc="Deploy new OTA updates to Android and Web."
-            color="text-amber-500"
-        />
-        <DashboardCard
-            title="Customer Support"
-            href="/internal/support"
-            icon={MessageCircle}
-            desc="View and resolve parent help requests."
-            color="text-emerald-500"
-        />
+        {cards.filter((card) => card.visible).map((card) => (
+          <DashboardCard key={card.href} {...card} />
+        ))}
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-12 relative overflow-hidden shadow-2xl">
@@ -58,13 +100,15 @@ export default function InternalDashboard() {
           <div className="relative z-10">
               <h2 className="text-2xl font-black text-white mb-4 uppercase italic italic">Security Governance</h2>
               <p className="text-slate-400 max-w-xl mb-8 font-medium leading-relaxed">
-                  Your session is being logged. As a platform administrator, you have access to cross-family telemetry.
-                  Ensure compliance with the KidsGuard Privacy Policy and internal data handling standards.
+                  Your session is protected by TOTP and limited to the permissions assigned to your role.
+                  Every new account, promotion, and reactivation requires Super Admin owner approval.
               </p>
-              <div className="flex gap-4">
-                  <Link href="/internal/audit" className="bg-white text-slate-950 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
-                      Audit Logs
-                  </Link>
+              <div className="flex flex-wrap gap-4">
+                  {role && isFullPlatformAdmin(role) ? (
+                    <Link href="/internal/audit" className="bg-white text-slate-950 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
+                        Audit Logs
+                    </Link>
+                  ) : null}
                   <Link href="/internal/settings" className="px-8 py-3 border border-slate-700 rounded-2xl font-black text-xs text-slate-400 uppercase tracking-widest hover:text-white transition-all">
                       Internal Settings
                   </Link>
@@ -75,7 +119,7 @@ export default function InternalDashboard() {
   );
 }
 
-function DashboardCard({ title, href, icon: Icon, desc, color }: any) {
+function DashboardCard({ title, href, icon: Icon, desc, color }: DashboardCardData) {
     return (
         <Link href={href} className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] hover:border-rose-500/50 transition-all group flex flex-col gap-6 shadow-xl">
             <div className="flex justify-between items-start">

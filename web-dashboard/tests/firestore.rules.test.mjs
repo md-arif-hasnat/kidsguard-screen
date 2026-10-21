@@ -111,6 +111,47 @@ before(async () => {
       );
 
       await setDoc(
+        doc(adminDb, "platformAdmins", "employee-uid"),
+        {
+          uid: "employee-uid",
+          email: "employee@example.com",
+          role: "EMPLOYEE",
+          active: true,
+          approvalStatus: "APPROVED"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformAdmins", "accounting-uid"),
+        {
+          uid: "accounting-uid",
+          email: "accounting@example.com",
+          role: "ACCOUNTING",
+          active: true,
+          approvalStatus: "APPROVED"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformStaffApprovalRequests", "approval-1"),
+        {
+          requestId: "approval-1",
+          status: "PENDING",
+          targetUid: "employee-uid",
+          targetEmail: "employee@example.com",
+          requestedRole: "EMPLOYEE"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "platformStaffApprovalSecrets", "approval-1"),
+        {
+          requestId: "approval-1",
+          tokenHash: "server-only"
+        }
+      );
+
+      await setDoc(
         doc(adminDb, "families", "family-1"),
         {
           ownerId: "owner-uid",
@@ -457,6 +498,58 @@ test(
   }
 );
 
+test(
+  "employee can perform bounded support actions but cannot rewrite a ticket",
+  async () => {
+    const ticketId = "EMPLOYEE-SUPPORT";
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), "supportTickets", ticketId), {
+        ticketId,
+        familyId: "family-1",
+        parentUid: "owner-uid",
+        parentEmail: "owner@example.com",
+        subject: "Employee support test",
+        message: "Help",
+        category: "GENERAL",
+        status: "OPEN",
+        replies: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    });
+
+    const employeeDb = verifiedAdminDb(
+      "employee-uid",
+      "employee@example.com"
+    );
+    const ticketRef = doc(employeeDb, "supportTickets", ticketId);
+
+    await assertSucceeds(updateDoc(ticketRef, {
+      status: "IN_PROGRESS",
+      updatedAt: serverTimestamp(),
+      lastAdminAction: {
+        type: "STATUS_CHANGE",
+        actorUid: "employee-uid",
+        actorEmail: "employee@example.com",
+        status: "IN_PROGRESS",
+        occurredAt: new Date()
+      }
+    }));
+
+    await assertFails(updateDoc(ticketRef, {
+      parentUid: "employee-uid",
+      updatedAt: serverTimestamp(),
+      lastAdminAction: {
+        type: "STATUS_CHANGE",
+        actorUid: "employee-uid",
+        actorEmail: "employee@example.com",
+        status: "IN_PROGRESS",
+        occurredAt: new Date()
+      }
+    }));
+  }
+);
+
 function verifiedDb(uid, email) {
   return testEnv
     .authenticatedContext(uid, {
@@ -564,6 +657,88 @@ test(
         code: "FORGED",
         type: "FREE_FOREVER",
         status: "ACTIVE"
+      })
+    );
+  }
+);
+
+test(
+  "employee role can handle support and device health but not accounting data",
+  async () => {
+    const employeeDb = verifiedAdminDb(
+      "employee-uid",
+      "employee@example.com"
+    );
+
+    await assertSucceeds(getDocs(collection(employeeDb, "children")));
+    await assertSucceeds(
+      getDoc(doc(employeeDb, "children", "child-1", "status", "current"))
+    );
+    await assertSucceeds(getDocs(collection(employeeDb, "issueTriage")));
+    await assertSucceeds(
+      getDocs(collectionGroup(employeeDb, "errorReports"))
+    );
+    await assertFails(getDocs(collection(employeeDb, "parents")));
+    await assertFails(getDocs(collection(employeeDb, "families")));
+    await assertFails(getDocs(collection(employeeDb, "promoCodes")));
+    await assertFails(getDocs(collection(employeeDb, "auditLogs")));
+    await assertFails(getDocs(collection(employeeDb, "platformAdmins")));
+    await assertFails(getDocs(collection(employeeDb, "adminNotifications")));
+  }
+);
+
+test(
+  "accounting role can read customer data but not support telemetry",
+  async () => {
+    const accountingDb = verifiedAdminDb(
+      "accounting-uid",
+      "accounting@example.com"
+    );
+
+    await assertSucceeds(getDocs(collection(accountingDb, "parents")));
+    await assertSucceeds(getDocs(collection(accountingDb, "families")));
+    await assertFails(getDocs(collection(accountingDb, "children")));
+    await assertFails(getDocs(collection(accountingDb, "supportTickets")));
+    await assertFails(getDocs(collection(accountingDb, "issueTriage")));
+    await assertFails(getDocs(collection(accountingDb, "promoCodes")));
+    await assertFails(getDocs(collection(accountingDb, "platformAdmins")));
+  }
+);
+
+test(
+  "employee without TOTP can read only their own internal profile",
+  async () => {
+    const firstFactorOnlyDb = verifiedDb(
+      "employee-uid",
+      "employee@example.com"
+    );
+
+    await assertSucceeds(
+      getDoc(doc(firstFactorOnlyDb, "platformAdmins", "employee-uid"))
+    );
+    await assertFails(getDocs(collection(firstFactorOnlyDb, "children")));
+    await assertFails(getDocs(collection(firstFactorOnlyDb, "supportTickets")));
+  }
+);
+
+test(
+  "admin can review team metadata but approval secrets remain server-only",
+  async () => {
+    const adminDb = verifiedAdminDb("admin-uid", "admin@example.com");
+
+    await assertSucceeds(getDocs(collection(adminDb, "platformAdmins")));
+    await assertSucceeds(
+      getDocs(collection(adminDb, "platformStaffApprovalRequests"))
+    );
+    await assertFails(
+      getDoc(doc(adminDb, "platformStaffApprovalSecrets", "approval-1"))
+    );
+    await assertFails(
+      setDoc(doc(adminDb, "platformAdmins", "forged-admin"), {
+        uid: "forged-admin",
+        email: "forged@example.com",
+        role: "PLATFORM_ADMIN",
+        active: true
       })
     );
   }

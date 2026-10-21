@@ -34,6 +34,20 @@ import { PlatformAdminRepository } from "@/lib/repositories/PlatformAdminReposit
 
 type LoginView = "login" | "challenge" | "enroll";
 
+function loginReturnPath(): string {
+  if (typeof window === "undefined") return "/internal";
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+  if (
+    returnTo &&
+    returnTo.startsWith("/internal") &&
+    !returnTo.startsWith("//") &&
+    !returnTo.startsWith("/internal/login")
+  ) {
+    return returnTo;
+  }
+  return "/internal";
+}
+
 function friendlyAuthError(error: unknown): string {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return error instanceof Error ? error.message : "Authentication failed.";
@@ -80,7 +94,7 @@ export default function InternalLogin() {
           hasCurrentAdminTotpSignIn(user),
         ]);
         if (!cancelled && isAdmin && mfaVerified) {
-          router.replace("/internal");
+          router.replace(loginReturnPath());
         }
       } catch {
         // The explicit sign-in action below presents actionable errors.
@@ -96,7 +110,7 @@ export default function InternalLogin() {
     const isAdmin = await PlatformAdminRepository.isAdmin(user.uid);
     if (!isAdmin) {
       if (auth) await firebaseSignOut(auth);
-      throw new Error("Access denied: this account is not an active platform administrator.");
+      throw new Error("Access denied: this internal account is not active or approved.");
     }
 
     if (!hasEnrolledAdminTotp(user)) {
@@ -113,7 +127,7 @@ export default function InternalLogin() {
       throw new Error("Sign in again and complete the authenticator challenge.");
     }
 
-    router.replace("/internal");
+    router.replace(loginReturnPath());
   };
 
   const handleMfaChallenge = (caught: unknown): boolean => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Bell, CheckCircle2, Share, X } from "lucide-react";
 import { NotificationRepository } from "@/lib/repositories/NotificationRepository";
 import { useInternalAdmin } from "@/lib/context/InternalAdminContext";
+import { isSupportStaff } from "@/lib/platformAccess";
 
 function isIosDevice(): boolean {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
@@ -22,7 +23,7 @@ export default function AdminPushPrompt() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    if (!admin || !("Notification" in window)) return;
+    if (!admin || !isSupportStaff(admin.role) || !("Notification" in window)) return;
     const iosNeedsInstall = isIosDevice() && !isStandalone();
     setNeedsInstall(iosNeedsInstall);
 
@@ -65,7 +66,7 @@ export default function AdminPushPrompt() {
     }
   };
 
-  if (!visible) return null;
+  if (!visible || !admin || !isSupportStaff(admin.role)) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-[80] mx-auto max-w-lg rounded-2xl border border-rose-500/30 bg-slate-900 p-4 text-white shadow-2xl shadow-black/60">

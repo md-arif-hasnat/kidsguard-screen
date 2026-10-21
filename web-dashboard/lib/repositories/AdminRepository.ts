@@ -160,20 +160,11 @@ export class AdminRepository {
     if (!db) throw new Error("Firestore not initialized");
     const database = db;
 
-    const [familiesSnapshot, childrenSnapshot, parentsSnapshot] =
+    const [familiesSnapshot, parentsSnapshot] =
       await Promise.all([
         getDocs(query(collection(database, "families"), limit(count))),
-        getDocs(query(collection(database, "children"), limit(1000))),
         getDocs(query(collection(database, "parents"), limit(1000)))
       ]);
-
-    const childCounts = new Map<string, number>();
-    childrenSnapshot.docs.forEach(childDocument => {
-      const familyId = childDocument.data().familyId;
-      if (typeof familyId === "string") {
-        childCounts.set(familyId, (childCounts.get(familyId) || 0) + 1);
-      }
-    });
 
     const parentsById = new Map(
       parentsSnapshot.docs.map(parentDocument => [
@@ -206,7 +197,9 @@ export class AdminRepository {
         managerCount: Array.isArray(family.managerUids)
           ? family.managerUids.length
           : 0,
-        childCount: childCounts.get(familyDocument.id) || 0,
+        childCount: Array.isArray(family.childDeviceIds)
+          ? family.childDeviceIds.length
+          : 0,
         subscriptionStatus: subscription.status || "UNKNOWN",
         subscribedAt: typeof rawSubscribedAt === "number"
           ? rawSubscribedAt
