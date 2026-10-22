@@ -554,7 +554,8 @@ function verifiedDb(uid, email) {
   return testEnv
     .authenticatedContext(uid, {
       email,
-      email_verified: true
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000)
     })
     .firestore();
 }
@@ -564,6 +565,7 @@ function verifiedAdminDb(uid, email) {
     .authenticatedContext(uid, {
       email,
       email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000),
       firebase: {
         sign_in_second_factor: "totp"
       }
@@ -605,6 +607,34 @@ test(
     await assertFails(getDocs(collection(firstFactorOnlyDb, "parents")));
     await assertSucceeds(
       getDoc(doc(firstFactorOnlyDb, "platformAdmins", "admin-uid"))
+    );
+  }
+);
+
+test(
+  "internal roles cannot use Firestore after the eight-hour session limit",
+  async () => {
+    const expiredAuthTime = Math.floor(Date.now() / 1000) - (8 * 60 * 60) - 1;
+    const expiredAdminDb = testEnv
+      .authenticatedContext("admin-uid", {
+        email: "admin@example.com",
+        email_verified: true,
+        auth_time: expiredAuthTime,
+        firebase: {sign_in_second_factor: "totp"}
+      })
+      .firestore();
+    const expiredEmployeeDb = testEnv
+      .authenticatedContext("employee-uid", {
+        email: "employee@example.com",
+        email_verified: true,
+        auth_time: expiredAuthTime
+      })
+      .firestore();
+
+    await assertFails(getDocs(collection(expiredAdminDb, "parents")));
+    await assertFails(getDocs(collection(expiredEmployeeDb, "children")));
+    await assertSucceeds(
+      getDoc(doc(expiredAdminDb, "platformAdmins", "admin-uid"))
     );
   }
 );

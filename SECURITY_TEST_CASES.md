@@ -5,7 +5,9 @@
 |---------|----------|-----------------|
 | AUTH-01 | Anonymous login with valid config | Success, UID generated |
 | AUTH-02 | Attempt write without login | Permission Denied (403) |
-| AUTH-03 | Expired session interaction | Permission Denied, prompt relogin |
+| AUTH-03 | 30 minutes without internal-dashboard activity | Automatic sign-out, inactivity message, prompt relogin |
+| AUTH-04 | Internal session reaches 8 hours | Dashboard, Firestore, and privileged callable access denied; prompt relogin |
+| AUTH-05 | Browser closes during an internal session | Local internal login is not restored in the next browser session |
 
 ## 2. Family Isolation
 | Case ID | Scenario | Expected Result |

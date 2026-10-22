@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { signOut } from '@/lib/auth';
+import { signOutInternalSession } from '@/lib/internalSessionSecurity';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import {
@@ -75,9 +75,8 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   const highestUnread = Math.max(0, ...Object.values(notificationCounts));
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push('/internal/login');
     if (onClose) onClose();
+    await signOutInternalSession();
   };
 
   const SidebarContent = (
