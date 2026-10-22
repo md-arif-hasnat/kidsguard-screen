@@ -10,6 +10,9 @@ Admin, Employee, and Accounting accounts.
   Firestore stores only its SHA-256 hash in a server-only collection.
 - Approval requires the owner email, an active `SUPER_ADMIN` profile, and a
   current Firebase TOTP sign-in claim.
+- TOTP is mandatory for `SUPER_ADMIN`, `PLATFORM_ADMIN`, and `DEV_ADMIN` roles.
+- TOTP is optional for `EMPLOYEE` and `ACCOUNTING`; those users can enroll an
+  authenticator from Internal Settings after signing in.
 - Admin promotion and account reactivation do not apply until owner approval.
 - Deactivation is immediate and cannot target the Super Admin owner.
 - Direct client writes to profiles, approvals, secrets, and rate limits are
@@ -62,12 +65,15 @@ Admin, Employee, and Accounting accounts.
 2. Create one Employee profile. Confirm Firebase Auth shows it as disabled.
 3. Open the owner approval email and approve after TOTP sign-in.
 4. Confirm the employee receives a password setup email.
-5. Sign in as the employee, enroll TOTP, and confirm only Health, Devices,
+5. Sign in as the employee without TOTP and confirm only Health, Devices,
    Support, Issues, and Settings are accessible.
-6. Create an Accounting profile and confirm only Customers, Families, and
-   Settings are accessible.
-7. Request an Employee-to-Admin role change and confirm the employee keeps the
+6. From Internal Settings, optionally enroll TOTP for the employee. Sign out,
+   sign in again, and confirm the authenticator challenge appears.
+7. Create an Accounting profile, sign in without TOTP, and confirm only
+   Customers, Families, and Settings are accessible.
+8. Request an Employee-to-Admin role change and confirm the employee keeps the
    old role until the owner approves from email.
-8. Deactivate a test profile and confirm sign-in is blocked immediately.
+9. After approval, confirm the promoted Admin must enroll and use TOTP.
+10. Deactivate a test profile and confirm sign-in is blocked immediately.
 
 No Android APK update is required.

@@ -311,7 +311,7 @@ export default function InternalTeamPage() {
         text: emailAction.decision === "APPROVE"
           ? result.invitationSent === false
             ? "Access approved, but the employee invitation failed. Use Send invite again."
-            : "Access approved. The employee can now set a password and enroll TOTP."
+            : "Access approved. The staff member can set a password and sign in. Admin roles require TOTP; Employee and Accounting can enable it from Settings."
           : "Request rejected. The account remains disabled.",
       });
       setEmailAction(null);

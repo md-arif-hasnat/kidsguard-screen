@@ -100,7 +100,9 @@ export default function InternalDashboard() {
           <div className="relative z-10">
               <h2 className="text-2xl font-black text-white mb-4 uppercase italic italic">Security Governance</h2>
               <p className="text-slate-400 max-w-xl mb-8 font-medium leading-relaxed">
-                  Your session is protected by TOTP and limited to the permissions assigned to your role.
+                  {role && isFullPlatformAdmin(role)
+                    ? "Your admin session is protected by TOTP and limited to the permissions assigned to your role. "
+                    : "Your session is limited to the permissions assigned to your role. Optional 2FA is available in Settings. "}
                   Every new account, promotion, and reactivation requires Super Admin owner approval.
               </p>
               <div className="flex flex-wrap gap-4">
