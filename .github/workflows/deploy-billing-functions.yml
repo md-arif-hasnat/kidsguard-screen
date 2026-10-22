@@ -1,0 +1,59 @@
+name: Temporary Billing Functions Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-billing-functions.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed production source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 020ba4109d5a61a61a49dd751295cd6e9af4ade0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Prepare production Firebase parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
+            > .env.kidsguard-0626
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions --no-audit --no-fund
+
+      - name: Deploy billing functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FUNCTIONS_DISCOVERY_TIMEOUT: "60"
+        run: >
+          npx --yes firebase-tools@15.34.1 deploy
+          --project kidsguard-0626
+          --only "functions:listParentBillingInvoices,functions:getParentInvoiceDownloadUrl,functions:getAdminMonthlyBillingReport"
+          --non-interactive
