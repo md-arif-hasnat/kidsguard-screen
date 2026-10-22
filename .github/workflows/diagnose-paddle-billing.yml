@@ -2,12 +2,13 @@ name: Temporary Paddle Billing Diagnostics
 
 on:
   push:
-    branches: [main]
+    branches: [codex/paddle-billing-diagnostic]
     paths:
       - ".github/workflows/diagnose-paddle-billing.yml"
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   probe:
@@ -30,7 +31,7 @@ jobs:
           PADDLE_KEY="$(gcloud secrets versions access latest --secret=PADDLE_API_KEY --project=kidsguard-0626)"
           test -n "$PADDLE_KEY"
           export PADDLE_KEY
-          node <<'NODE'
+          node <<'NODE' > "$RUNNER_TEMP/paddle-probe.jsonl"
           const key = process.env.PADDLE_KEY || "";
           const base = key.includes("_sdbx_")
             ? "https://sandbox-api.paddle.com"
@@ -51,9 +52,9 @@ jobs:
                 probe: name,
                 status: response.status,
                 ok: response.ok,
-                count: Array.isArray(payload?.data) ? payload.data.length : undefined,
-                errorCode: payload?.error?.code,
-                errorDetail: payload?.error?.detail,
+                count: Array.isArray(payload?.data) ? payload.data.length : null,
+                errorCode: payload?.error?.code || null,
+                errorDetail: payload?.error?.detail || null,
               }));
             }
           })().catch((error) => {
@@ -61,3 +62,16 @@ jobs:
             process.exit(1);
           });
           NODE
+
+      - name: Report result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "One-time Paddle transaction-read verification:"
+            echo
+            echo '~~~json'
+            cat "$RUNNER_TEMP/paddle-probe.jsonl"
+            echo '~~~'
+          } > "$RUNNER_TEMP/paddle-comment.md"
+          gh issue comment 18 --repo "${{ github.repository }}" --body-file "$RUNNER_TEMP/paddle-comment.md"
