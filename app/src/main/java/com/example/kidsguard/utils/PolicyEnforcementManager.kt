@@ -18,7 +18,10 @@ import com.example.kidsguard.models.WebsiteDecisionResult
 import com.example.kidsguard.repository.WebsitePolicyRepository
 import com.example.kidsguard.ui.activities.BlockedWebsiteActivity
 
-class PolicyEnforcementManager(private val context: Context) {
+class PolicyEnforcementManager(
+    private val context: Context,
+    private val onWebsiteBlocked: ((BrowserHistory, WebsiteDecisionResult) -> Unit)? = null
+) {
 
     private val TAG = "POLICY_ENFORCEMENT"
     private val policyRepository = WebsitePolicyRepository(context)
@@ -79,6 +82,11 @@ class PolicyEnforcementManager(private val context: Context) {
         lastBlockTime = now
 
         Log.i(TAG, "BLOCK: ${history.domain}")
+        onWebsiteBlocked?.let { callback ->
+            callback(history, result)
+            return
+        }
+
         val intent = Intent(context, BlockedWebsiteActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
