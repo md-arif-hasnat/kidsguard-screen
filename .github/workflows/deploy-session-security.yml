@@ -1,0 +1,45 @@
+name: Temporary Session Security Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-session-security.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed production source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 7d4e44cbb0c24b36ca58f5b4cfa9a8722c551db2
+          persist-credentials: false
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Deploy session security enforcement
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FUNCTIONS_DISCOVERY_TIMEOUT: "60"
+          PADDLE_RECURRING_ADDONS_JSON: "[]"
+          PLATFORM_OWNER_EMAIL: freshmartbd123@gmail.com
+          INTERNAL_DASHBOARD_URL: https://kidsguard-screen.vercel.app
+          RESEND_FROM_EMAIL: "KidsGuard <noreply@kidsguard-screen.purevelofood.com>"
+        run: >
+          npx --yes firebase-tools@14.18.0 deploy
+          --project kidsguard-0626
+          --only "firestore:rules,functions:requestPlatformStaffAccount,functions:requestPlatformStaffChange,functions:resendPlatformStaffApproval,functions:deactivatePlatformStaff,functions:reviewPlatformStaffRequest,functions:resendPlatformStaffInvite,functions:verifyReleaseArtifact,functions:createPromoCode,functions:setPromoCodeStatus,functions:sendPromoCodeEmail"
