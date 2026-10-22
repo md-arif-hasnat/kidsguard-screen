@@ -16,6 +16,7 @@ import {
   ClipboardList,
   TicketPercent,
   Settings,
+  UserRoundCog,
   LogOut,
   X
 } from 'lucide-react';
@@ -23,6 +24,12 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { signOut } from '@/lib/auth';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
+import {
+  isAccountingStaff,
+  isFullPlatformAdmin,
+  isSupportStaff,
+} from '@/lib/platformAccess';
 
 function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +44,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
   const pathname = usePathname();
   const router = useRouter();
   const { direction, t } = useLanguage();
+  const { admin } = useInternalAdmin();
   const [notificationCounts, setNotificationCounts] = React.useState<Record<string, number>>({});
 
   React.useEffect(() => {
@@ -48,19 +56,21 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
     return () => window.removeEventListener('admin-notification-counts', updateCounts);
   }, []);
 
+  const role = admin?.role;
   const internalItems = [
-    { name: t('systemHealth'), href: '/internal/health', icon: HeartPulse },
-    { name: t('systemAnalytics'), href: '/internal/analytics', icon: BarChart3 },
-    { name: t('appReleases'), href: '/internal/releases', icon: Zap, notificationType: 'RELEASE' },
-    { name: t('customers'), href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER' },
-    { name: t('promotions'), href: '/internal/promotions', icon: TicketPercent },
-    { name: t('families'), href: '/internal/families', icon: Home },
-    { name: t('devices'), href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE' },
-    { name: t('supportInbox'), href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT' },
-    { name: t('issues'), href: '/internal/issues', icon: AlertCircle, notificationType: 'ISSUE' },
-    { name: t('auditLogs'), href: '/internal/audit', icon: ClipboardList },
-    { name: t('settings'), href: '/internal/settings', icon: Settings },
-  ];
+    { name: t('systemHealth'), href: '/internal/health', icon: HeartPulse, visible: role ? isSupportStaff(role) : false },
+    { name: t('systemAnalytics'), href: '/internal/analytics', icon: BarChart3, visible: role ? isFullPlatformAdmin(role) : false },
+    { name: t('appReleases'), href: '/internal/releases', icon: Zap, notificationType: 'RELEASE', visible: role ? isFullPlatformAdmin(role) : false },
+    { name: t('customers'), href: '/internal/customers', icon: Users, notificationType: 'CUSTOMER', visible: role ? isAccountingStaff(role) : false },
+    { name: t('promotions'), href: '/internal/promotions', icon: TicketPercent, visible: role ? isFullPlatformAdmin(role) : false },
+    { name: t('families'), href: '/internal/families', icon: Home, visible: role ? isAccountingStaff(role) : false },
+    { name: t('devices'), href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE', visible: role ? isSupportStaff(role) : false },
+    { name: t('supportInbox'), href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT', visible: role ? isSupportStaff(role) : false },
+    { name: t('issues'), href: '/internal/issues', icon: AlertCircle, notificationType: 'ISSUE', visible: role ? isSupportStaff(role) : false },
+    { name: t('auditLogs'), href: '/internal/audit', icon: ClipboardList, visible: role ? isFullPlatformAdmin(role) : false },
+    { name: 'Team Access', href: '/internal/team', icon: UserRoundCog, visible: role ? isFullPlatformAdmin(role) : false },
+    { name: t('settings'), href: '/internal/settings', icon: Settings, visible: Boolean(role) },
+  ].filter((item) => item.visible);
 
   const highestUnread = Math.max(0, ...Object.values(notificationCounts));
 

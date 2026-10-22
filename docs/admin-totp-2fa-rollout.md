@@ -1,9 +1,11 @@
 # Admin TOTP 2FA rollout
 
-KidsGuard internal admin access requires a verified Firebase email, an active
-`platformAdmins/{uid}` profile, an allowed admin role, and a TOTP second-factor
-claim. The TOTP secret stays inside Firebase Authentication and the admin's
-authenticator app; it is never written to Firestore.
+KidsGuard full admin access requires a verified Firebase email, an active
+`platformAdmins/{uid}` profile with a `SUPER_ADMIN`, `PLATFORM_ADMIN`, or
+`DEV_ADMIN` role, and a TOTP second-factor claim. `EMPLOYEE` and `ACCOUNTING`
+roles can sign in without TOTP and may opt in from Internal Settings. The TOTP
+secret stays inside Firebase Authentication and the user's authenticator app;
+it is never written to Firestore.
 
 ## Safe production rollout order
 

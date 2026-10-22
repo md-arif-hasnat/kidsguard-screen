@@ -34,6 +34,10 @@ import {
   SupportRepository,
   SupportTicket
 } from "@/lib/repositories/SupportRepository";
+import {
+  isFullPlatformAdmin,
+  isSupportStaff,
+} from "@/lib/platformAccess";
 
 type NotificationType = "ISSUE" | "SUPPORT" | "DEVICE" | "CUSTOMER" | "RELEASE";
 
@@ -89,6 +93,13 @@ export default function AdminNotificationCenter() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!admin || !isSupportStaff(admin.role)) {
+      setReports([]);
+      setTriage({});
+      setDevices([]);
+      setTickets([]);
+      return;
+    }
     let active = true;
     const load = async () => {
       try {
@@ -114,7 +125,7 @@ export default function AdminNotificationCenter() {
       window.clearInterval(timer);
       unsubscribe();
     };
-  }, []);
+  }, [admin]);
 
   useEffect(() => {
     if (!db || !admin?.uid) return;
@@ -131,7 +142,10 @@ export default function AdminNotificationCenter() {
   }, [admin?.uid]);
 
   useEffect(() => {
-    if (!db) return;
+    if (!db || !admin || !isFullPlatformAdmin(admin.role)) {
+      setStoredEvents([]);
+      return;
+    }
     const eventsQuery = query(
       collection(db, "adminNotifications"),
       orderBy("createdAt", "desc"),
@@ -145,7 +159,7 @@ export default function AdminNotificationCenter() {
     }, error => {
       console.error("Stored admin notifications could not be loaded:", error);
     });
-  }, []);
+  }, [admin]);
 
   useEffect(() => {
     const close = (event: MouseEvent) => {

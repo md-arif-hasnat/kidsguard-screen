@@ -5,10 +5,11 @@ import InternalSidebar from './InternalSidebar';
 import AdminNotificationCenter from './AdminNotificationCenter';
 import AdminPushPrompt from './AdminPushPrompt';
 import { Menu, Search } from 'lucide-react';
-import { useInternalAdmin, InternalAdminProvider } from '@/lib/context/InternalAdminContext';
-import { useRouter, usePathname } from 'next/navigation';
+import { useInternalAdmin } from '@/lib/context/InternalAdminContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { platformRoleLabel } from '@/lib/platformAccess';
+import { isSupportStaff } from '@/lib/platformAccess';
 
 interface InternalLayoutProps {
   children: React.ReactNode;
@@ -17,16 +18,7 @@ interface InternalLayoutProps {
 const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { admin, loading, isAdmin } = useInternalAdmin();
-  const router = useRouter();
-  const pathname = usePathname();
   const { direction, t } = useLanguage();
-
-  // Route Guard
-  React.useEffect(() => {
-    if (!loading && !isAdmin && pathname !== '/internal/login') {
-        router.push('/internal/login');
-    }
-  }, [loading, isAdmin, pathname, router]);
 
   if (loading) {
     return (
@@ -37,13 +29,7 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
     );
   }
 
-  if (pathname === '/internal/login') {
-    return <>{children}</>;
-  }
-
-  if (!isAdmin) {
-    return null; // Effect will redirect
-  }
+  if (!isAdmin) return null;
 
   return (
     <div className="flex min-h-screen bg-slate-950 overflow-x-hidden text-slate-200">
@@ -73,7 +59,7 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
 
           <div className="flex items-center gap-3 md:gap-6">
             <LanguageSwitcher theme="dark" />
-            <AdminNotificationCenter />
+            {admin && isSupportStaff(admin.role) ? <AdminNotificationCenter /> : null}
             <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20 rounded-full">
                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                 <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t('internalSession')}</span>
@@ -85,7 +71,9 @@ const InternalLayout: React.FC<InternalLayoutProps> = ({ children }) => {
               </div>
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-black text-white leading-none truncate max-w-[120px]">{admin?.email}</p>
-                <p className="text-[9px] font-black text-rose-400 mt-1 uppercase tracking-wider">{admin?.role}</p>
+                <p className="text-[9px] font-black text-rose-400 mt-1 uppercase tracking-wider">
+                  {admin ? platformRoleLabel(admin.role) : ''}
+                </p>
               </div>
             </div>
           </div>

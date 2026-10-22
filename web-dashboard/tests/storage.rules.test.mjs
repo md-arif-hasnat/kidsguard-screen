@@ -62,6 +62,18 @@ before(async () => {
       role: 'PLATFORM_ADMIN',
       active: true
     });
+    await setDoc(doc(db, 'platformAdmins', 'employee-uid'), {
+      uid: 'employee-uid',
+      email: 'employee@example.com',
+      role: 'EMPLOYEE',
+      active: true
+    });
+    await setDoc(doc(db, 'platformAdmins', 'accounting-uid'), {
+      uid: 'accounting-uid',
+      email: 'accounting@example.com',
+      role: 'ACCOUNTING',
+      active: true
+    });
   });
 });
 
@@ -137,6 +149,32 @@ test('platform admin without TOTP cannot read a support attachment', async () =>
   const storage = verifiedContext(
     'admin-uid',
     'admin@example.com'
+  ).storage();
+  const attachment = ref(
+    storage,
+    'supportTickets/parent-uid/TICKET01/screenshot.png'
+  );
+
+  await assertFails(getBytes(attachment));
+});
+
+test('employee without TOTP can read support attachments', async () => {
+  const storage = verifiedContext(
+    'employee-uid',
+    'employee@example.com'
+  ).storage();
+  const attachment = ref(
+    storage,
+    'supportTickets/parent-uid/TICKET01/screenshot.png'
+  );
+
+  await assertSucceeds(getBytes(attachment));
+});
+
+test('accounting role cannot read support attachments', async () => {
+  const storage = verifiedAdminContext(
+    'accounting-uid',
+    'accounting@example.com'
   ).storage();
   const attachment = ref(
     storage,

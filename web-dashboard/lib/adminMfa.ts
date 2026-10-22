@@ -96,14 +96,14 @@ export async function createAdminTotpEnrollment(
   user: User
 ): Promise<AdminTotpEnrollment> {
   if (!user.emailVerified) {
-    throw new Error("Verify the administrator email before enabling 2FA.");
+    throw new Error("Verify your work email before enabling 2FA.");
   }
 
   const session = await multiFactor(user).getSession();
   const secret = await TotpMultiFactorGenerator.generateSecret(session);
   const qrCodeUrl = secret.generateQrCodeUrl(
     user.email || user.uid,
-    "KidsGuard Admin"
+    "KidsGuard Internal"
   );
   const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
     width: 224,
@@ -128,7 +128,7 @@ export async function completeAdminTotpEnrollment(
     enrollment.secret,
     normalizeTotpCode(code)
   );
-  await multiFactor(user).enroll(assertion, "KidsGuard Admin Authenticator");
+  await multiFactor(user).enroll(assertion, "KidsGuard Internal Authenticator");
 }
 
 function normalizeTotpCode(code: string): string {

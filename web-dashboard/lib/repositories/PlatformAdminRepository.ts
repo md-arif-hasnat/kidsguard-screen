@@ -4,13 +4,17 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 export enum PlatformAdminRole {
   SUPER_ADMIN = "SUPER_ADMIN",
   PLATFORM_ADMIN = "PLATFORM_ADMIN",
-  DEV_ADMIN = "DEV_ADMIN"
+  DEV_ADMIN = "DEV_ADMIN",
+  EMPLOYEE = "EMPLOYEE",
+  ACCOUNTING = "ACCOUNTING"
 }
 
 const ALLOWED_PLATFORM_ADMIN_ROLES = new Set<PlatformAdminRole>([
   PlatformAdminRole.SUPER_ADMIN,
   PlatformAdminRole.PLATFORM_ADMIN,
-  PlatformAdminRole.DEV_ADMIN
+  PlatformAdminRole.DEV_ADMIN,
+  PlatformAdminRole.EMPLOYEE,
+  PlatformAdminRole.ACCOUNTING
 ]);
 
 export function isAllowedPlatformAdminRole(
@@ -28,6 +32,9 @@ export interface PlatformAdmin {
   createdAt: any;
   createdBy: string;
   displayName?: string;
+  approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "SECURITY_HOLD";
+  approvedAt?: any;
+  approvedBy?: string;
 }
 
 export class PlatformAdminRepository {
@@ -68,6 +75,10 @@ export class PlatformAdminRepository {
     const allowed = exists && active && isAllowedRole;
 
     return allowed;
+  }
+
+  static async isInternalStaff(uid: string): Promise<boolean> {
+    return this.isAdmin(uid);
   }
 
   // Bootstrap function to create first super admin

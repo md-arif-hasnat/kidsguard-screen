@@ -31,8 +31,24 @@ import {
 import { loginWithEmail, loginWithGoogle, observeAuth } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { PlatformAdminRepository } from "@/lib/repositories/PlatformAdminRepository";
+import { isAllowedPlatformAdminRole } from "@/lib/repositories/PlatformAdminRepository";
+import { isFullPlatformAdmin } from "@/lib/platformAccess";
 
 type LoginView = "login" | "challenge" | "enroll";
+
+function loginReturnPath(): string {
+  if (typeof window === "undefined") return "/internal";
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+  if (
+    returnTo &&
+    returnTo.startsWith("/internal") &&
+    !returnTo.startsWith("//") &&
+    !returnTo.startsWith("/internal/login")
+  ) {
+    return returnTo;
+  }
+  return "/internal";
+}
 
 function friendlyAuthError(error: unknown): string {
   if (typeof error !== "object" || error === null || !("code" in error)) {
@@ -75,12 +91,16 @@ export default function InternalLogin() {
       if (!user) return;
 
       try {
-        const [isAdmin, mfaVerified] = await Promise.all([
-          PlatformAdminRepository.isAdmin(user.uid),
-          hasCurrentAdminTotpSignIn(user),
-        ]);
-        if (!cancelled && isAdmin && mfaVerified) {
-          router.replace("/internal");
+        const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
+        const authorized = Boolean(
+          profile?.active && isAllowedPlatformAdminRole(profile.role)
+        );
+        const mfaVerified = authorized && profile
+          ? !isFullPlatformAdmin(profile.role) ||
+            await hasCurrentAdminTotpSignIn(user)
+          : false;
+        if (!cancelled && authorized && mfaVerified) {
+          router.replace(loginReturnPath());
         }
       } catch {
         // The explicit sign-in action below presents actionable errors.
@@ -93,10 +113,18 @@ export default function InternalLogin() {
   }, [router]);
 
   const prepareAuthorizedUser = async (user: User) => {
-    const isAdmin = await PlatformAdminRepository.isAdmin(user.uid);
-    if (!isAdmin) {
+    const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
+    const authorized = Boolean(
+      profile?.active && isAllowedPlatformAdminRole(profile.role)
+    );
+    if (!authorized || !profile) {
       if (auth) await firebaseSignOut(auth);
-      throw new Error("Access denied: this account is not an active platform administrator.");
+      throw new Error("Access denied: this internal account is not active or approved.");
+    }
+
+    if (!isFullPlatformAdmin(profile.role)) {
+      router.replace(loginReturnPath());
+      return;
     }
 
     if (!hasEnrolledAdminTotp(user)) {
@@ -113,7 +141,7 @@ export default function InternalLogin() {
       throw new Error("Sign in again and complete the authenticator challenge.");
     }
 
-    router.replace("/internal");
+    router.replace(loginReturnPath());
   };
 
   const handleMfaChallenge = (caught: unknown): boolean => {
@@ -240,7 +268,7 @@ export default function InternalLogin() {
             Platform <span className="text-rose-500">Internal</span>
           </h1>
           <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            Password + authenticator protected
+            Secure access for the internal team
           </p>
         </div>
 
@@ -361,7 +389,8 @@ export default function InternalLogin() {
         </div>
 
         <p className="mt-8 text-center text-[10px] font-bold uppercase leading-loose tracking-widest text-slate-600">
-          A new browser must pass two-factor verification.<br />
+          Admin roles require two-factor verification.<br />
+          Other staff can enable it from Settings.<br />
           System access is logged and monitored.
         </p>
       </div>
