@@ -63,6 +63,7 @@ jobs:
           --project kidsguard-0626
           --only "functions:requestPlatformStaffAccount,functions:requestPlatformStaffChange,functions:resendPlatformStaffApproval,functions:deactivatePlatformStaff,functions:reviewPlatformStaffRequest,functions:resendPlatformStaffInvite,functions:enforcePlatformStaffApproval"
           --non-interactive
+          --debug
 
       - name: Deploy Firestore and Storage rules
         env:
