@@ -39,6 +39,15 @@ jobs:
           fi
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
 
+      - name: Prepare Firebase parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            > .env.kidsguard-0626
+
       - name: Install and build Functions
         working-directory: functions
         run: |
@@ -49,9 +58,6 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FUNCTIONS_DISCOVERY_TIMEOUT: "60"
-          PADDLE_RECURRING_ADDONS_JSON: "[]"
-          PLATFORM_OWNER_EMAIL: "freshmartbd123@gmail.com"
-          INTERNAL_DASHBOARD_URL: "https://kidsguard-screen.vercel.app"
         run: >
           npx --yes firebase-tools@15.34.1 deploy
           --project kidsguard-0626
