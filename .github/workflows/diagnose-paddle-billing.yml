@@ -1,0 +1,32 @@
+name: Temporary Paddle Billing Diagnostics
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/diagnose-paddle-billing.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Read invoice function logs
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: >
+          npx --yes firebase-tools@15.34.1 functions:log
+          --project kidsguard-0626
+          --only listParentBillingInvoices
+          --lines 100
