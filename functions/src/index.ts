@@ -28,7 +28,7 @@ const paddleRecurringAddOnsJson = defineString(
 );
 const platformOwnerEmail = defineString(
   'PLATFORM_OWNER_EMAIL',
-  {default: 'arifhasnat07@gmail.com'}
+  {default: 'freshmartbd123@gmail.com'}
 );
 const internalDashboardUrl = defineString(
   'INTERNAL_DASHBOARD_URL',
@@ -6400,7 +6400,7 @@ export const sendPromoCodeEmail = functions
             One redemption per Parent account. Terms and availability may apply.<br>
             KidsGuard · Operated by United Foreign Trade, Bangladesh.<br>
             To stop promotional emails, reply “Unsubscribe” or contact
-            <a href="mailto:arifhasnat07@gmail.com" style="color:#64748b">arifhasnat07@gmail.com</a>.
+            <a href="mailto:freshmartbd123@gmail.com" style="color:#64748b">freshmartbd123@gmail.com</a>.
           </p>
         </div>`
     });
@@ -7888,7 +7888,7 @@ export const sendAdminOpenNotificationReminder = functions
 
     const result = await resend.emails.send({
       from: "KidsGuard <onboarding@resend.dev>",
-      to: ["arifhasnat07@gmail.com"],
+      to: ["freshmartbd123@gmail.com"],
       subject: `[KidsGuard Admin] ${unsent.length} item${unsent.length === 1 ? "" : "s"} open for 1 hour`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto">
@@ -7914,7 +7914,7 @@ export const sendAdminOpenNotificationReminder = functions
         type: item.type,
         title: item.title,
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        recipient: "arifhasnat07@gmail.com"
+        recipient: "freshmartbd123@gmail.com"
       });
     });
     await sentBatch.commit();

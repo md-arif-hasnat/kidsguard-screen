@@ -48,7 +48,7 @@ const storageBucket = admin.storage().bucket();
 const paddleWebhookSecret = (0, params_1.defineSecret)('PADDLE_WEBHOOK_SECRET');
 const paddleApiKey = (0, params_1.defineSecret)('PADDLE_API_KEY');
 const paddleRecurringAddOnsJson = (0, params_1.defineString)('PADDLE_RECURRING_ADDONS_JSON', { default: '[]' });
-const platformOwnerEmail = (0, params_1.defineString)('PLATFORM_OWNER_EMAIL', { default: 'arifhasnat07@gmail.com' });
+const platformOwnerEmail = (0, params_1.defineString)('PLATFORM_OWNER_EMAIL', { default: 'freshmartbd123@gmail.com' });
 const internalDashboardUrl = (0, params_1.defineString)('INTERNAL_DASHBOARD_URL', { default: 'https://kidsguard-screen.vercel.app' });
 const PLATFORM_ADMIN_ROLES = new Set([
     'SUPER_ADMIN',
@@ -4353,7 +4353,7 @@ exports.sendPromoCodeEmail = functions
             One redemption per Parent account. Terms and availability may apply.<br>
             KidsGuard · Operated by United Foreign Trade, Bangladesh.<br>
             To stop promotional emails, reply “Unsubscribe” or contact
-            <a href="mailto:arifhasnat07@gmail.com" style="color:#64748b">arifhasnat07@gmail.com</a>.
+            <a href="mailto:freshmartbd123@gmail.com" style="color:#64748b">freshmartbd123@gmail.com</a>.
           </p>
         </div>`
     });
@@ -5247,7 +5247,7 @@ exports.sendAdminOpenNotificationReminder = functions
     }).join("");
     const result = await resend.emails.send({
         from: "KidsGuard <onboarding@resend.dev>",
-        to: ["arifhasnat07@gmail.com"],
+        to: ["freshmartbd123@gmail.com"],
         subject: `[KidsGuard Admin] ${unsent.length} item${unsent.length === 1 ? "" : "s"} open for 1 hour`,
         html: `
         <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto">
@@ -5271,7 +5271,7 @@ exports.sendAdminOpenNotificationReminder = functions
             type: item.type,
             title: item.title,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
-            recipient: "arifhasnat07@gmail.com"
+            recipient: "freshmartbd123@gmail.com"
         });
     });
     await sentBatch.commit();

@@ -20,7 +20,7 @@ Admin, Employee, and Accounting accounts.
 ## Prerequisites
 
 1. Identity Platform TOTP is enabled.
-2. `arifhasnat07@gmail.com` is the intended owner email, or the
+2. `freshmartbd123@gmail.com` is the intended owner email, or the
    `PLATFORM_OWNER_EMAIL` Firebase parameter is set to the correct address.
 3. That Firebase Auth user has an active `platformAdmins/{uid}` document with
    role `SUPER_ADMIN`.
