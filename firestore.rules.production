@@ -23,6 +23,9 @@ service cloud.firestore {
                 /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
 
               return isEmailVerified() &&
+                request.auth.token.auth_time is int &&
+                request.time.toMillis() <
+                  request.auth.token.auth_time * 1000 + 8 * 60 * 60 * 1000 &&
                 exists(adminPath) &&
                 get(adminPath).data.active == true &&
                 get(adminPath).data.role in roles;

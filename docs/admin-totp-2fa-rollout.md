@@ -7,6 +7,12 @@ roles can sign in without TOTP and may opt in from Internal Settings. The TOTP
 secret stays inside Firebase Authentication and the user's authenticator app;
 it is never written to Firestore.
 
+Internal authentication uses browser-session persistence. Closing the browser
+ends the local login. While the dashboard is open, 30 minutes without user
+activity signs the user out. Every internal role also has an eight-hour
+absolute session limit, enforced by the dashboard and Firestore rules. Full
+administrator callable actions enforce the same limit on the backend.
+
 ## Safe production rollout order
 
 Do not deploy the restrictive rules before the new login page is live.
@@ -65,7 +71,6 @@ admin's identity through an offline process. Do not add an email-only bypass.
 - Enforce a strong Firebase Authentication password policy for password users.
 - Keep at least two individually named super-admin accounts; never share one
   administrator login.
-- Add a 30-minute inactivity timeout and an 8-to-12-hour absolute admin session.
 - Alert on new admin-factor enrollment, factor removal, role changes, and
   repeated failed sign-in attempts.
 - Move toward phishing-resistant WebAuthn/passkeys or hardware security keys

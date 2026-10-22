@@ -33,6 +33,14 @@ import { auth } from "@/lib/firebase";
 import { PlatformAdminRepository } from "@/lib/repositories/PlatformAdminRepository";
 import { isAllowedPlatformAdminRole } from "@/lib/repositories/PlatformAdminRepository";
 import { isFullPlatformAdmin } from "@/lib/platformAccess";
+import {
+  clearInternalSessionActivity,
+  getInternalSessionStartedAt,
+  isInternalSessionExpired,
+  prepareInternalAuthSession,
+  signOutInternalSession,
+  writeInternalSessionActivity,
+} from "@/lib/internalSessionSecurity";
 
 type LoginView = "login" | "challenge" | "enroll";
 
@@ -83,29 +91,55 @@ export default function InternalLogin() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    let cancelled = false;
-    const unsubscribe = observeAuth(async user => {
-      if (!user) return;
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "idle") {
+      setSessionNotice("For security, you were signed out after 30 minutes of inactivity.");
+    } else if (reason === "expired") {
+      setSessionNotice("Your 8-hour internal session ended. Sign in again to continue.");
+    }
+  }, []);
 
-      try {
-        const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
-        const authorized = Boolean(
-          profile?.active && isAllowedPlatformAdminRole(profile.role)
-        );
-        const mfaVerified = authorized && profile
-          ? !isFullPlatformAdmin(profile.role) ||
-            await hasCurrentAdminTotpSignIn(user)
-          : false;
-        if (!cancelled && authorized && mfaVerified) {
-          router.replace(loginReturnPath());
-        }
-      } catch {
-        // The explicit sign-in action below presents actionable errors.
-      }
-    });
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe = () => {};
+
+    void prepareInternalAuthSession()
+      .then(() => {
+        if (cancelled) return;
+        unsubscribe = observeAuth(async user => {
+          if (!user) return;
+
+          try {
+            const startedAt = await getInternalSessionStartedAt(user);
+            if (isInternalSessionExpired(startedAt)) {
+              await signOutInternalSession("expired");
+              return;
+            }
+
+            const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
+            const authorized = Boolean(
+              profile?.active && isAllowedPlatformAdminRole(profile.role)
+            );
+            const mfaVerified = authorized && profile
+              ? !isFullPlatformAdmin(profile.role) ||
+                await hasCurrentAdminTotpSignIn(user)
+              : false;
+            if (!cancelled && authorized && mfaVerified) {
+              router.replace(loginReturnPath());
+            }
+          } catch {
+            // The explicit sign-in action below presents actionable errors.
+          }
+        });
+      })
+      .catch(caught => {
+        if (!cancelled) setError(friendlyAuthError(caught));
+      });
+
     return () => {
       cancelled = true;
       unsubscribe();
@@ -113,11 +147,13 @@ export default function InternalLogin() {
   }, [router]);
 
   const prepareAuthorizedUser = async (user: User) => {
+    writeInternalSessionActivity(user.uid, Date.now());
     const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
     const authorized = Boolean(
       profile?.active && isAllowedPlatformAdminRole(profile.role)
     );
     if (!authorized || !profile) {
+      clearInternalSessionActivity(user.uid);
       if (auth) await firebaseSignOut(auth);
       throw new Error("Access denied: this internal account is not active or approved.");
     }
@@ -137,6 +173,7 @@ export default function InternalLogin() {
     }
 
     if (!(await hasCurrentAdminTotpSignIn(user, true))) {
+      clearInternalSessionActivity(user.uid);
       if (auth) await firebaseSignOut(auth);
       throw new Error("Sign in again and complete the authenticator challenge.");
     }
@@ -165,6 +202,7 @@ export default function InternalLogin() {
     setSuccess(null);
 
     try {
+      await prepareInternalAuthSession();
       const user = await loginWithEmail(email.trim(), password);
       if (!user) throw new Error("Authentication is not configured.");
       await prepareAuthorizedUser(user);
@@ -183,6 +221,7 @@ export default function InternalLogin() {
     setSuccess(null);
 
     try {
+      await prepareInternalAuthSession();
       const user = await loginWithGoogle();
       if (!user) throw new Error("Authentication is not configured.");
       await prepareAuthorizedUser(user);
@@ -219,6 +258,7 @@ export default function InternalLogin() {
 
     try {
       await completeAdminTotpEnrollment(enrollmentUser, enrollment, code);
+      clearInternalSessionActivity(enrollmentUser.uid);
       await firebaseSignOut(auth);
       setEnrollment(null);
       setEnrollmentUser(null);
@@ -234,7 +274,10 @@ export default function InternalLogin() {
   };
 
   const returnToLogin = async () => {
-    if (auth?.currentUser) await firebaseSignOut(auth);
+    if (auth?.currentUser) {
+      clearInternalSessionActivity(auth.currentUser.uid);
+      await firebaseSignOut(auth);
+    }
     setResolver(null);
     setEnrollment(null);
     setEnrollmentUser(null);
@@ -283,6 +326,12 @@ export default function InternalLogin() {
             <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-300">
               <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
               <p className="text-xs font-bold leading-relaxed">{success}</p>
+            </div>
+          )}
+          {sessionNotice && (
+            <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-200">
+              <KeyRound className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+              <p className="text-xs font-bold leading-relaxed">{sessionNotice}</p>
             </div>
           )}
 
@@ -391,7 +440,7 @@ export default function InternalLogin() {
         <p className="mt-8 text-center text-[10px] font-bold uppercase leading-loose tracking-widest text-slate-600">
           Admin roles require two-factor verification.<br />
           Other staff can enable it from Settings.<br />
-          System access is logged and monitored.
+          Sessions end after 30 minutes idle or 8 hours total.
         </p>
       </div>
     </div>

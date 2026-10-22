@@ -42,6 +42,7 @@ const PLATFORM_ADMIN_ROLES = new Set([
   'PLATFORM_ADMIN',
   'DEV_ADMIN'
 ]);
+const PLATFORM_ADMIN_MAX_SESSION_SECONDS = 8 * 60 * 60;
 const ASSIGNABLE_PLATFORM_STAFF_ROLES = new Set([
   'PLATFORM_ADMIN',
   'EMPLOYEE',
@@ -81,6 +82,19 @@ async function requirePlatformAdmin(
     throw new functions.https.HttpsError(
       'unauthenticated',
       'Verified administrator sign-in required.'
+    );
+  }
+
+  const authTime = Number(context.auth.token.auth_time);
+  const sessionAgeSeconds = Math.floor(Date.now() / 1000) - authTime;
+  if (
+    !Number.isFinite(authTime) ||
+    sessionAgeSeconds < 0 ||
+    sessionAgeSeconds >= PLATFORM_ADMIN_MAX_SESSION_SECONDS
+  ) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Your internal session has expired. Sign in again to continue.'
     );
   }
 

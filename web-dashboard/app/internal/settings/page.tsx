@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  Clock3,
   Clipboard,
   Database,
   KeyRound,
@@ -26,6 +27,11 @@ import { auth } from "@/lib/firebase";
 import { isFullPlatformAdmin } from "@/lib/platformAccess";
 
 const checks = [
+  {
+    title: "Session protection",
+    description: "Internal access ends after 30 minutes idle, 8 hours total, or when the browser session closes.",
+    icon: Clock3,
+  },
   {
     title: "Role-based access",
     description: "Each internal role can access only the tools and data assigned to it.",
