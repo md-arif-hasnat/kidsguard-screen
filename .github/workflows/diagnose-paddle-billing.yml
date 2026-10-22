@@ -1,10 +1,7 @@
 name: Temporary Paddle Billing Diagnostics
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/diagnose-paddle-billing.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
