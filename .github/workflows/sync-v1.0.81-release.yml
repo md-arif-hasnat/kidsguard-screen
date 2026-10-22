@@ -1,0 +1,44 @@
+name: Temporary v1.0.81 Firestore Release Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-v1.0.81-release.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout release metadata fix
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions --no-audit --no-fund
+
+      - name: Verify release version validator
+        run: node --test functions/tests/release-version.test.cjs
+
+      - name: Publish v1.0.81 to Firestore
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          VERSION_NAME: 1.0.81
+          VERSION_CODE: "81"
+          APK_DOWNLOAD_URL: https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v1.0.81/KidsGuard-v1.0.81.apk
+          APK_SIZE: 24M
+          RELEASE_NOTES: Keep browsers usable after blocked websites
+        run: node scripts/publish-release.js
