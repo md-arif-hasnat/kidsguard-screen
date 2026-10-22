@@ -117,7 +117,10 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
             browserRepository = BrowserHistoryRepository(applicationContext)
             classifier = WebsiteCategoryClassifier(applicationContext)
-            enforcementManager = PolicyEnforcementManager(applicationContext)
+            enforcementManager = PolicyEnforcementManager(applicationContext) { history, _ ->
+                val blockedUrl = history.url ?: history.domain.orEmpty()
+                blockWeb(blockedUrl, history.browserPackage)
+            }
 
             wellbeingManager = WellbeingManager(applicationContext, prefHelper, sync)
             webManager = WebProtectionManager(applicationContext, prefHelper, sync)
@@ -1106,7 +1109,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) {
-            checkBrowserUrl(event, packageName)
+            if (checkBrowserUrl(event, packageName)) return
         }
 
         when (event.eventType) {
@@ -1129,6 +1132,8 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
     private fun scanBrowser(packageName: String) {
         val rootNode = rootInActiveWindow ?: return
+        if (rootNode.packageName?.toString() != packageName) return
+
         val url = findUrlHeuristic(rootNode, packageName)
         val title = findBrowserTitleHeuristic(rootNode, packageName)
 
@@ -1139,14 +1144,16 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun checkBrowserUrl(event: AccessibilityEvent, packageName: String) {
-        val source = event.source ?: return
+    private fun checkBrowserUrl(event: AccessibilityEvent, packageName: String): Boolean {
+        val source = event.source ?: return false
         val url = findUrlHeuristic(source, packageName)
         if (!url.isNullOrEmpty()) {
             if (webManager?.checkUrl(url, packageName) == false) {
                 blockWeb(url, packageName)
+                return true
             }
         }
+        return false
     }
 
     private fun findUrlHeuristic(rootNode: AccessibilityNodeInfo, packageName: String): String? {
@@ -1280,7 +1287,33 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     }
 
 
+    private var lastBlockedBrowserKey: String? = null
+    private var lastBlockedBrowserAt = 0L
+    private val browserBlockCooldownMs = 1_500L
+    private val browserBackSettleDelayMs = 250L
+
     private fun blockWeb(url: String, packageName: String) {
+        val now = System.currentTimeMillis()
+        val blockKey = "$packageName|${url.trim().lowercase()}"
+        if (
+            blockKey == lastBlockedBrowserKey &&
+            now - lastBlockedBrowserAt < browserBlockCooldownMs
+        ) {
+            Log.d(TAG_BROWSER, "Duplicate browser block ignored while leaving $url")
+            return
+        }
+
+        lastBlockedBrowserKey = blockKey
+        lastBlockedBrowserAt = now
+        handler.removeCallbacks(browserScanRunnable)
+        finishBrowserHistory()
+
+        val movedAwayFromBlockedPage = performGlobalAction(GLOBAL_ACTION_BACK)
+        Log.i(
+            TAG_BROWSER,
+            "Blocked browser page; navigation back requested=$movedAwayFromBlockedPage url=$url"
+        )
+
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -1289,7 +1322,10 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             putExtra("blocked_url", url)
             putExtra("browser_package", packageName)
         }
-        safeStartActivity(intent)
+        handler.postDelayed(
+            { safeStartActivity(intent) },
+            browserBackSettleDelayMs
+        )
     }
 
     private fun bringOurAppToFront() {
