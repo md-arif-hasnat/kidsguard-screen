@@ -1,0 +1,66 @@
+name: Update Team Access production links
+
+on:
+  push:
+    branches:
+      - codex/owner-controlled-team-access
+    paths:
+      - .github/workflows/deploy-team-access.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-team-access-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy-functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Validate Firebase credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON is not configured."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Prepare production Firebase parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
+            > .env.kidsguard-0626
+
+      - name: Install and build Functions
+        working-directory: functions
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Deploy Team Access Functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FUNCTIONS_DISCOVERY_TIMEOUT: "60"
+        run: >
+          npx --yes firebase-tools@15.34.1 deploy
+          --project kidsguard-0626
+          --only "functions:requestPlatformStaffAccount,functions:requestPlatformStaffChange,functions:resendPlatformStaffApproval,functions:deactivatePlatformStaff,functions:reviewPlatformStaffRequest,functions:resendPlatformStaffInvite,functions:enforcePlatformStaffApproval"
+          --non-interactive
