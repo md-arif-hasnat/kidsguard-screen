@@ -28,7 +28,7 @@ export default function AdminPushPrompt() {
     setNeedsInstall(iosNeedsInstall);
 
     if (Notification.permission === "granted") {
-      void NotificationRepository.registerDevice(admin.uid, "Admin iPhone PWA");
+      void NotificationRepository.registerDevice(admin.uid, "Admin phone/PWA");
       return;
     }
 
@@ -57,7 +57,7 @@ export default function AdminPushPrompt() {
     setEnabling(true);
     const success = await NotificationRepository.registerDevice(
       admin.uid,
-      "Admin iPhone PWA"
+      "Admin phone/PWA"
     );
     setEnabling(false);
     if (success) {
@@ -79,15 +79,15 @@ export default function AdminPushPrompt() {
             {needsInstall
               ? "Install KidsGuard Admin first"
               : enabled
-                ? "Lock-screen notifications enabled"
+                ? "Admin phone notifications enabled"
                 : "Enable admin push notifications"}
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-400">
             {needsInstall
               ? "In Safari tap Share, then Add to Home Screen. Open the installed app and enable notifications."
               : enabled
-                ? "New issues, support messages and device warnings will appear on this iPhone."
-                : "Receive immediate iPhone alerts for new issues, support messages and device warnings."}
+                ? "Team approval requests and other admin alerts will appear on this phone."
+                : "Receive team approval requests and other admin alerts directly on this phone."}
           </p>
           {!needsInstall && !enabled && (
             <button
