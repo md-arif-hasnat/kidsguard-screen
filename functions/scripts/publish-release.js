@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { isValidStableVersionName } = require("./release-version");
 
 const versionCode = Number(process.env.VERSION_CODE);
 const versionName = String(process.env.VERSION_NAME || "").trim();
@@ -10,7 +11,7 @@ const releaseNotes = String(process.env.RELEASE_NOTES || "")
   .filter(Boolean);
 
 if (!Number.isInteger(versionCode) || versionCode <= 0) throw new Error("Invalid VERSION_CODE");
-if (!/^1\\.0\\.\\d+$/.test(versionName)) throw new Error("Invalid VERSION_NAME; expected 1.0.x");
+if (!isValidStableVersionName(versionName)) throw new Error("Invalid VERSION_NAME; expected 1.0.x");
 if (!apkDownloadUrl.startsWith("https://")) throw new Error("Invalid APK_DOWNLOAD_URL");
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "");
