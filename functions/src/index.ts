@@ -9263,7 +9263,7 @@ export const diagnosePaddleBillingOnce = functions
       String(process.env.PADDLE_DIAGNOSTIC_TOKEN || '').trim();
     if (
       !expectedToken ||
-      request.get('authorization') !== `Bearer ${expectedToken}`
+      request.get('x-diagnostic-token') !== expectedToken
     ) {
       response.status(404).send('Not found');
       return;
