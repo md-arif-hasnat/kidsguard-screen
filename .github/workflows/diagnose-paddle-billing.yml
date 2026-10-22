@@ -17,7 +17,7 @@ jobs:
       - name: Checkout one-time diagnostic source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: a46ee892587d78413532c5f9417f3ca8c027ae69
+          ref: 0571eca5123c95c8e98f376fcc4847ee452e9d49
           persist-credentials: false
 
       - name: Set up Node.js
@@ -34,6 +34,8 @@ jobs:
           test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/firebase-service-account.json"
+          gcloud config set project kidsguard-0626
           TOKEN="$(openssl rand -hex 32)"
           echo "::add-mask::$TOKEN"
           echo "PADDLE_DIAGNOSTIC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
@@ -60,10 +62,14 @@ jobs:
 
       - name: Probe production Paddle API
         run: |
+          FUNCTION_URL="https://us-central1-kidsguard-0626.cloudfunctions.net/diagnosePaddleBillingOnce"
+          ID_TOKEN="$(gcloud auth print-identity-token --audiences="$FUNCTION_URL")"
+          test -n "$ID_TOKEN"
           curl --fail --silent --show-error \
             --retry 3 --retry-delay 3 \
-            -H "Authorization: Bearer $PADDLE_DIAGNOSTIC_TOKEN" \
-            "https://us-central1-kidsguard-0626.cloudfunctions.net/diagnosePaddleBillingOnce"
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H "X-Diagnostic-Token: $PADDLE_DIAGNOSTIC_TOKEN" \
+            "$FUNCTION_URL"
 
       - name: Delete one-time diagnostic function
         if: always()
