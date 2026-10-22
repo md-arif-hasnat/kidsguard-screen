@@ -25,9 +25,9 @@ Admin, Employee, and Accounting accounts.
 3. That Firebase Auth user has an active `platformAdmins/{uid}` document with
    role `SUPER_ADMIN`.
 4. The owner has completed TOTP enrollment and can sign in at `/internal/login`.
-5. `RESEND_API_KEY` is configured. A verified `RESEND_FROM_EMAIL` is strongly
-   recommended so employee invitations can be delivered outside Resend test
-   recipients.
+5. `RESEND_API_KEY` is configured. Team Access defaults to the verified sender
+   `KidsGuard <noreply@kidsguard-screen.purevelofood.com>`; a different verified
+   sender can be provided through `RESEND_FROM_EMAIL`.
 
 ## Safe deployment order
 

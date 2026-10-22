@@ -50,6 +50,8 @@ const paddleApiKey = (0, params_1.defineSecret)('PADDLE_API_KEY');
 const paddleRecurringAddOnsJson = (0, params_1.defineString)('PADDLE_RECURRING_ADDONS_JSON', { default: '[]' });
 const platformOwnerEmail = (0, params_1.defineString)('PLATFORM_OWNER_EMAIL', { default: 'freshmartbd123@gmail.com' });
 const internalDashboardUrl = (0, params_1.defineString)('INTERNAL_DASHBOARD_URL', { default: 'https://kidsguard-screen.vercel.app' });
+const platformEmailFrom = process.env.RESEND_FROM_EMAIL ||
+    'KidsGuard <noreply@kidsguard-screen.purevelofood.com>';
 const PLATFORM_ADMIN_ROLES = new Set([
     'SUPER_ADMIN',
     'PLATFORM_ADMIN',
@@ -150,8 +152,7 @@ async function sendPlatformOwnerApprovalEmail(input) {
             ? 'Internal account reactivation'
             : 'Internal role change';
     const result = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ||
-            'KidsGuard <onboarding@resend.dev>',
+        from: platformEmailFrom,
         to: platformOwnerEmail.value(),
         subject: `[Approval required] ${action}: ${input.targetEmail}`,
         html: `
@@ -183,8 +184,7 @@ async function sendPlatformStaffInviteEmail(input) {
     const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
     const resend = new Resend(apiKey);
     const result = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ||
-            'KidsGuard <onboarding@resend.dev>',
+        from: platformEmailFrom,
         to: input.email,
         subject: `Your KidsGuard ${platformStaffRoleLabel(input.role)} account is approved`,
         html: `
@@ -487,8 +487,7 @@ exports.deactivatePlatformStaff = functions
         const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL ||
-                'KidsGuard <onboarding@resend.dev>',
+            from: platformEmailFrom,
             to: platformOwnerEmail.value(),
             subject: `[Security notice] Internal access deactivated: ${profile?.email || targetUid}`,
             html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>Internal access removed</h2><p>${escapeEmailHtml(profile?.email || targetUid)} was deactivated immediately by ${escapeEmailHtml(operator.email || operator.uid)}.</p><p>No owner approval was required because this action only removes access.</p></div>`
@@ -705,8 +704,7 @@ exports.enforcePlatformStaffApproval = functions
         const { Resend } = await Promise.resolve().then(() => __importStar(require('resend')));
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL ||
-                'KidsGuard <onboarding@resend.dev>',
+            from: platformEmailFrom,
             to: platformOwnerEmail.value(),
             subject: `[Security hold] Unapproved internal access blocked: ${actualEmail || context.params.uid}`,
             html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>Unapproved privilege change blocked</h2><p>KidsGuard automatically disabled ${escapeEmailHtml(actualEmail || context.params.uid)} because an active internal role change had no valid Super Admin approval record.</p><p>Review Team Access and Firebase audit logs before restoring access.</p></div>`
