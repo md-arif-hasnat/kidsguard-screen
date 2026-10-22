@@ -14,6 +14,7 @@ import RemoteImage from '@/components/RemoteImage';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { translateUiText } from '@/lib/i18n/uiTranslations';
+import BillingInvoicesSection from '@/components/BillingInvoicesSection';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
@@ -276,6 +277,12 @@ export default function SettingsPage() {
             </div>
           </form>
         </section>
+
+        <BillingInvoicesSection
+          isFamilyOwner={Boolean(
+            profile?.uid && family?.ownerId === profile.uid
+          )}
+        />
 
         <section className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
           <div className="flex items-center gap-2 text-slate-900">

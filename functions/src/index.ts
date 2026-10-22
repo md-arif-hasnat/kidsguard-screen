@@ -1374,6 +1374,248 @@ async function changePaddleExtraChildSlots(
   return nextExtraQuantity;
 }
 
+type PaddleTransaction = {
+  id?: string;
+  status?: string;
+  customer_id?: string | null;
+  subscription_id?: string | null;
+  invoice_number?: string | null;
+  origin?: string;
+  currency_code?: string;
+  billed_at?: string | null;
+  created_at?: string;
+  address?: {country_code?: string} | null;
+  custom_data?: Record<string, unknown> | null;
+  details?: {
+    tax_rates_used?: Array<{tax_rate?: string}>;
+    totals?: {
+      subtotal?: string;
+      discount?: string;
+      tax?: string;
+      total?: string;
+      grand_total?: string;
+      grand_total_tax?: string;
+      fee?: string | null;
+      earnings?: string | null;
+      currency_code?: string;
+    };
+    payout_totals?: {
+      subtotal?: string;
+      tax?: string;
+      total?: string;
+      grand_total?: string;
+      grand_total_tax?: string;
+      fee?: string;
+      earnings?: string;
+      currency_code?: string;
+    } | null;
+  };
+};
+
+type PaddleListResponse = {
+  data?: PaddleTransaction[];
+  meta?: {pagination?: {next?: string | null}};
+  error?: {detail?: string};
+};
+
+function paddleMoney(value: unknown): number {
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) ? amount : 0;
+}
+
+function paddleTransactionTotals(transaction: PaddleTransaction) {
+  const totals = transaction.details?.totals || {};
+  const gross = paddleMoney(totals.grand_total ?? totals.total);
+  const tax = paddleMoney(totals.grand_total_tax ?? totals.tax);
+  return {
+    subtotal: paddleMoney(totals.subtotal),
+    discount: paddleMoney(totals.discount),
+    tax,
+    total: gross,
+    fee: paddleMoney(totals.fee),
+    earnings: paddleMoney(totals.earnings),
+    currencyCode: String(
+      totals.currency_code || transaction.currency_code || 'EUR'
+    ).toUpperCase()
+  };
+}
+
+async function paddleGet<T>(url: URL): Promise<T> {
+  const apiKey = paddleApiKey.value().trim();
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Paddle billing is not configured.'
+    );
+  }
+
+  const expectedOrigin = new URL(paddleApiBaseUrl(apiKey)).origin;
+  if (url.origin !== expectedOrigin) {
+    throw new functions.https.HttpsError(
+      'internal',
+      'Paddle returned an invalid pagination URL.'
+    );
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {Authorization: `Bearer ${apiKey}`}
+  });
+  const payload = await response.json().catch(() => null) as
+    | (T & {error?: {detail?: string}})
+    | null;
+  if (!response.ok || !payload) {
+    console.error(
+      `Paddle GET ${url.pathname} failed:`,
+      payload?.error?.detail || response.status
+    );
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Paddle billing records are temporarily unavailable.'
+    );
+  }
+  return payload;
+}
+
+async function listPaddleTransactions(
+  query: Record<string, string>,
+  maximum: number
+): Promise<{transactions: PaddleTransaction[]; truncated: boolean}> {
+  const apiKey = paddleApiKey.value().trim();
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Paddle billing is not configured.'
+    );
+  }
+
+  let nextUrl: URL | null = new URL(
+    `${paddleApiBaseUrl(apiKey)}/transactions`
+  );
+  for (const [key, value] of Object.entries(query)) {
+    nextUrl.searchParams.set(key, value);
+  }
+  nextUrl.searchParams.set('per_page', '30');
+  nextUrl.searchParams.set('include', 'address');
+
+  const transactions: PaddleTransaction[] = [];
+  while (nextUrl && transactions.length < maximum) {
+    const payload: PaddleListResponse =
+      await paddleGet<PaddleListResponse>(nextUrl);
+    transactions.push(...(Array.isArray(payload.data) ? payload.data : []));
+
+    const next = payload.meta?.pagination?.next;
+    nextUrl = typeof next === 'string' && next
+      ? new URL(next, paddleApiBaseUrl(apiKey))
+      : null;
+  }
+
+  return {
+    transactions: transactions.slice(0, maximum),
+    truncated: nextUrl !== null || transactions.length > maximum
+  };
+}
+
+async function getPaddleTransaction(
+  transactionId: string
+): Promise<PaddleTransaction> {
+  const apiKey = paddleApiKey.value().trim();
+  const url = new URL(
+    `${paddleApiBaseUrl(apiKey)}/transactions/` +
+      `${encodeURIComponent(transactionId)}`
+  );
+  url.searchParams.set('include', 'address');
+  const payload = await paddleGet<{
+    data?: PaddleTransaction;
+  }>(url);
+  if (!payload.data) {
+    throw new functions.https.HttpsError(
+      'not-found',
+      'Invoice transaction not found.'
+    );
+  }
+  return payload.data;
+}
+
+async function requireParentBillingOwner(
+  context: functions.https.CallableContext
+): Promise<{
+  uid: string;
+  email: string | null;
+  familyId: string;
+  paddleCustomerId: string | null;
+}> {
+  if (!context.auth || context.auth.token.email_verified !== true) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Verified parent sign-in required.'
+    );
+  }
+
+  const parentSnapshot = await db
+    .collection('parents')
+    .doc(context.auth.uid)
+    .get();
+  const familyId = parentSnapshot.data()?.familyId;
+  if (typeof familyId !== 'string' || !familyId) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'No family is connected to this account.'
+    );
+  }
+
+  const familySnapshot = await db.collection('families').doc(familyId).get();
+  const family = familySnapshot.data() || {};
+  if (!familySnapshot.exists || family.ownerId !== context.auth.uid) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Only the family owner can view subscription invoices.'
+    );
+  }
+
+  const paddleCustomerId = family.subscription?.paddleCustomerId;
+  return {
+    uid: context.auth.uid,
+    email: typeof context.auth.token.email === 'string'
+      ? context.auth.token.email
+      : null,
+    familyId,
+    paddleCustomerId: typeof paddleCustomerId === 'string' && paddleCustomerId
+      ? paddleCustomerId
+      : null
+  };
+}
+
+function normalizeParentInvoice(transaction: PaddleTransaction) {
+  const totals = paddleTransactionTotals(transaction);
+  return {
+    transactionId: String(transaction.id || ''),
+    invoiceNumber: transaction.invoice_number || null,
+    billedAt: transaction.billed_at || transaction.created_at || null,
+    countryCode: transaction.address?.country_code || null,
+    origin: transaction.origin || null,
+    ...totals
+  };
+}
+
+function validReportMonth(value: unknown): string {
+  const month = String(value || '').trim();
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Select a valid billing month.'
+    );
+  }
+  return month;
+}
+
+function reportMonthRange(month: string): {start: string; end: string} {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return {
+    start: new Date(Date.UTC(year, monthNumber - 1, 1)).toISOString(),
+    end: new Date(Date.UTC(year, monthNumber, 1)).toISOString()
+  };
+}
+
 type CanonicalFamilyRole = 'OWNER' | 'MANAGER' | 'VIEWER';
 
 function normalizeFamilyRole(role: unknown): CanonicalFamilyRole | null {
@@ -8764,6 +9006,255 @@ export const generateWeeklySafetyReports = functions
     return null;
   });
 
+
+export const listParentBillingInvoices = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
+  .https.onCall(async (_data, context) => {
+    const owner = await requireParentBillingOwner(context);
+    if (!owner.paddleCustomerId) {
+      return {invoices: [], hasMore: false, source: 'PADDLE'};
+    }
+    const result = await listPaddleTransactions({
+      customer_id: owner.paddleCustomerId,
+      status: 'completed',
+      order_by: 'billed_at[DESC]'
+    }, 360);
+
+    const invoices = result.transactions
+      .filter((transaction) =>
+        transaction.status === 'completed' &&
+        typeof transaction.subscription_id === 'string' &&
+        Boolean(transaction.subscription_id) &&
+        paddleTransactionTotals(transaction).total !== 0
+      )
+      .map(normalizeParentInvoice);
+
+    return {
+      invoices,
+      hasMore: result.truncated,
+      source: 'PADDLE'
+    };
+  });
+
+export const getParentInvoiceDownloadUrl = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 60})
+  .https.onCall(async (data, context) => {
+    const owner = await requireParentBillingOwner(context);
+    if (!owner.paddleCustomerId) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'No Paddle billing history is connected to this family yet.'
+      );
+    }
+    const transactionId = String(data?.transactionId || '').trim();
+    if (!/^txn_[a-z\d]{26}$/.test(transactionId)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Select a valid invoice.'
+      );
+    }
+
+    const transaction = await getPaddleTransaction(transactionId);
+    if (
+      transaction.customer_id !== owner.paddleCustomerId ||
+      transaction.status !== 'completed' ||
+      typeof transaction.subscription_id !== 'string' ||
+      !transaction.subscription_id ||
+      paddleTransactionTotals(transaction).total === 0
+    ) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'This invoice is not available for your family.'
+      );
+    }
+
+    const apiKey = paddleApiKey.value().trim();
+    const invoiceUrl = new URL(
+      `${paddleApiBaseUrl(apiKey)}/transactions/` +
+        `${encodeURIComponent(transactionId)}/invoice`
+    );
+    invoiceUrl.searchParams.set('disposition', 'attachment');
+    const payload = await paddleGet<{data?: {url?: string}}>(invoiceUrl);
+    const downloadUrl = payload.data?.url;
+    if (typeof downloadUrl !== 'string' || !downloadUrl.startsWith('https://')) {
+      throw new functions.https.HttpsError(
+        'unavailable',
+        'Paddle could not prepare this invoice PDF.'
+      );
+    }
+
+    await db.collection('auditLogs').add({
+      actorUid: owner.uid,
+      actorEmail: owner.email,
+      familyId: owner.familyId,
+      action: 'SUBSCRIPTION_INVOICE_DOWNLOADED',
+      targetType: 'PADDLE_TRANSACTION',
+      targetId: transactionId,
+      severity: 'INFO',
+      metadata: {invoiceNumber: transaction.invoice_number || null},
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+      transactionId,
+      invoiceNumber: transaction.invoice_number || null,
+      downloadUrl,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    };
+  });
+
+export const getAdminMonthlyBillingReport = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120, memory: '512MB'})
+  .https.onCall(async (data, context) => {
+    const owner = await requirePlatformOwner(context);
+    const month = validReportMonth(data?.month);
+    const range = reportMonthRange(month);
+    const result = await listPaddleTransactions({
+      status: 'completed',
+      'billed_at[GTE]': range.start,
+      'billed_at[LT]': range.end,
+      order_by: 'billed_at[ASC]'
+    }, 3000);
+
+    if (result.truncated) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'This month has too many transactions for an on-demand statement. Export it from Paddle.'
+      );
+    }
+
+    const transactions = result.transactions.filter((transaction) =>
+      transaction.status === 'completed' &&
+      typeof transaction.subscription_id === 'string' &&
+      Boolean(transaction.subscription_id)
+    );
+    const countries = new Map<string, {
+      countryCode: string;
+      currencyCode: string;
+      transactionCount: number;
+      net: number;
+      tax: number;
+      gross: number;
+      taxRates: Set<string>;
+    }>();
+    const currencies = new Map<string, {
+      currencyCode: string;
+      transactionCount: number;
+      net: number;
+      tax: number;
+      gross: number;
+    }>();
+    const payouts = new Map<string, {
+      currencyCode: string;
+      gross: number;
+      tax: number;
+      fees: number;
+      earnings: number;
+    }>();
+
+    for (const transaction of transactions) {
+      const totals = paddleTransactionTotals(transaction);
+      const countryCode = String(
+        transaction.address?.country_code || 'UNKNOWN'
+      ).toUpperCase();
+      const countryKey = `${countryCode}:${totals.currencyCode}`;
+      const country = countries.get(countryKey) || {
+        countryCode,
+        currencyCode: totals.currencyCode,
+        transactionCount: 0,
+        net: 0,
+        tax: 0,
+        gross: 0,
+        taxRates: new Set<string>()
+      };
+      country.transactionCount += 1;
+      country.net += totals.total - totals.tax;
+      country.tax += totals.tax;
+      country.gross += totals.total;
+      for (const rate of transaction.details?.tax_rates_used || []) {
+        const parsedRate = Number(rate.tax_rate);
+        if (Number.isFinite(parsedRate) && parsedRate >= 0) {
+          country.taxRates.add(String(parsedRate));
+        }
+      }
+      countries.set(countryKey, country);
+
+      const currency = currencies.get(totals.currencyCode) || {
+        currencyCode: totals.currencyCode,
+        transactionCount: 0,
+        net: 0,
+        tax: 0,
+        gross: 0
+      };
+      currency.transactionCount += 1;
+      currency.net += totals.total - totals.tax;
+      currency.tax += totals.tax;
+      currency.gross += totals.total;
+      currencies.set(totals.currencyCode, currency);
+
+      const payoutTotals = transaction.details?.payout_totals;
+      const payoutCurrency = String(
+        payoutTotals?.currency_code || ''
+      ).toUpperCase();
+      if (payoutTotals && payoutCurrency) {
+        const payout = payouts.get(payoutCurrency) || {
+          currencyCode: payoutCurrency,
+          gross: 0,
+          tax: 0,
+          fees: 0,
+          earnings: 0
+        };
+        payout.gross += paddleMoney(
+          payoutTotals.grand_total ?? payoutTotals.total
+        );
+        payout.tax += paddleMoney(
+          payoutTotals.grand_total_tax ?? payoutTotals.tax
+        );
+        payout.fees += paddleMoney(payoutTotals.fee);
+        payout.earnings += paddleMoney(payoutTotals.earnings);
+        payouts.set(payoutCurrency, payout);
+      }
+    }
+
+    const countryBreakdown = Array.from(countries.values())
+      .map((country) => ({
+        ...country,
+        taxRates: Array.from(country.taxRates)
+          .map(Number)
+          .sort((a, b) => a - b)
+      }))
+      .sort((a, b) =>
+        a.countryCode.localeCompare(b.countryCode) ||
+        a.currencyCode.localeCompare(b.currencyCode)
+      );
+
+    await db.collection('auditLogs').add({
+      actorUid: owner.uid,
+      actorEmail: owner.email,
+      familyId: 'PLATFORM',
+      action: 'MONTHLY_BILLING_REPORT_VIEWED',
+      targetType: 'BILLING_MONTH',
+      targetId: month,
+      severity: 'NOTICE',
+      metadata: {transactionCount: transactions.length},
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+      month,
+      periodStart: range.start,
+      periodEnd: range.end,
+      generatedAt: new Date().toISOString(),
+      transactionCount: transactions.length,
+      countryBreakdown,
+      currencyTotals: Array.from(currencies.values())
+        .sort((a, b) => a.currencyCode.localeCompare(b.currencyCode)),
+      payoutTotals: Array.from(payouts.values())
+        .sort((a, b) => a.currencyCode.localeCompare(b.currencyCode)),
+      source: 'PADDLE_COMPLETED_TRANSACTIONS',
+      note: 'Tax and totals use Paddle transaction details. Currency amounts are not converted or combined.'
+    };
+  });
 
 type PaddleWebhookPayload = {
   event_id?: string;
