@@ -44,6 +44,9 @@ export function canAccessInternalPath(
   pathname: string
 ): boolean {
   if (pathname === "/internal/login") return true;
+  if (matchesRoute(pathname, "/internal/billing")) {
+    return role === PlatformAdminRole.SUPER_ADMIN;
+  }
   if (isFullPlatformAdmin(role)) return true;
 
   const allowedRoutes = role === PlatformAdminRole.EMPLOYEE
