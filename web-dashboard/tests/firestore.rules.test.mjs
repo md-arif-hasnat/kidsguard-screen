@@ -518,7 +518,7 @@ test(
       });
     });
 
-    const employeeDb = verifiedAdminDb(
+    const employeeDb = verifiedDb(
       "employee-uid",
       "employee@example.com"
     );
@@ -690,7 +690,7 @@ test(
 test(
   "accounting role can read customer data but not support telemetry",
   async () => {
-    const accountingDb = verifiedAdminDb(
+    const accountingDb = verifiedDb(
       "accounting-uid",
       "accounting@example.com"
     );
@@ -706,7 +706,7 @@ test(
 );
 
 test(
-  "employee without TOTP can read only their own internal profile",
+  "employee without TOTP keeps bounded support access",
   async () => {
     const firstFactorOnlyDb = verifiedDb(
       "employee-uid",
@@ -716,6 +716,22 @@ test(
     await assertSucceeds(
       getDoc(doc(firstFactorOnlyDb, "platformAdmins", "employee-uid"))
     );
+    await assertSucceeds(getDocs(collection(firstFactorOnlyDb, "children")));
+    await assertSucceeds(getDocs(collection(firstFactorOnlyDb, "supportTickets")));
+    await assertFails(getDocs(collection(firstFactorOnlyDb, "parents")));
+  }
+);
+
+test(
+  "accounting without TOTP keeps bounded customer access",
+  async () => {
+    const firstFactorOnlyDb = verifiedDb(
+      "accounting-uid",
+      "accounting@example.com"
+    );
+
+    await assertSucceeds(getDocs(collection(firstFactorOnlyDb, "parents")));
+    await assertSucceeds(getDocs(collection(firstFactorOnlyDb, "families")));
     await assertFails(getDocs(collection(firstFactorOnlyDb, "children")));
     await assertFails(getDocs(collection(firstFactorOnlyDb, "supportTickets")));
   }

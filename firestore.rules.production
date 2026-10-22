@@ -18,22 +18,26 @@ service cloud.firestore {
                 ).data.role == 'ADMIN';
             }
 
-            function hasPlatformRole(roles) {
+            function hasActivePlatformRole(roles) {
               let adminPath =
                 /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
 
               return isEmailVerified() &&
-                request.auth.token.firebase is map &&
-                request.auth.token.firebase.keys()
-                  .hasAll(['sign_in_second_factor']) &&
-                request.auth.token.firebase.sign_in_second_factor == 'totp' &&
                 exists(adminPath) &&
                 get(adminPath).data.active == true &&
                 get(adminPath).data.role in roles;
             }
 
+            function hasTotpPlatformRole(roles) {
+              return hasActivePlatformRole(roles) &&
+                request.auth.token.firebase is map &&
+                request.auth.token.firebase.keys()
+                  .hasAll(['sign_in_second_factor']) &&
+                request.auth.token.firebase.sign_in_second_factor == 'totp';
+            }
+
             function isPlatformAdmin() {
-              return hasPlatformRole([
+              return hasTotpPlatformRole([
                 'SUPER_ADMIN',
                 'PLATFORM_ADMIN',
                 'DEV_ADMIN'
@@ -41,25 +45,17 @@ service cloud.firestore {
             }
 
             function isSupportStaff() {
-              return hasPlatformRole([
-                'SUPER_ADMIN',
-                'PLATFORM_ADMIN',
-                'DEV_ADMIN',
-                'EMPLOYEE'
-              ]);
+              return isPlatformAdmin() ||
+                hasActivePlatformRole(['EMPLOYEE']);
             }
 
             function isEmployeeStaff() {
-              return hasPlatformRole(['EMPLOYEE']);
+              return hasActivePlatformRole(['EMPLOYEE']);
             }
 
             function isAccountingStaff() {
-              return hasPlatformRole([
-                'SUPER_ADMIN',
-                'PLATFORM_ADMIN',
-                'DEV_ADMIN',
-                'ACCOUNTING'
-              ]);
+              return isPlatformAdmin() ||
+                hasActivePlatformRole(['ACCOUNTING']);
             }
 
 

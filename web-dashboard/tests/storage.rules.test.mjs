@@ -158,8 +158,8 @@ test('platform admin without TOTP cannot read a support attachment', async () =>
   await assertFails(getBytes(attachment));
 });
 
-test('employee with TOTP can read support attachments', async () => {
-  const storage = verifiedAdminContext(
+test('employee without TOTP can read support attachments', async () => {
+  const storage = verifiedContext(
     'employee-uid',
     'employee@example.com'
   ).storage();

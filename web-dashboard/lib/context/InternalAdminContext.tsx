@@ -8,6 +8,7 @@ import {
   PlatformAdmin
 } from '../repositories/PlatformAdminRepository';
 import { hasCurrentAdminTotpSignIn } from '../adminMfa';
+import { isFullPlatformAdmin } from '../platformAccess';
 
 interface InternalAdminContextType {
   admin: PlatformAdmin | null;
@@ -37,8 +38,9 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
         const authorizedProfile = Boolean(
           profile?.active && isAllowedPlatformAdminRole(profile.role)
         );
-        const mfaVerified = authorizedProfile
-          ? await hasCurrentAdminTotpSignIn(user)
+        const mfaVerified = authorizedProfile && profile
+          ? !isFullPlatformAdmin(profile.role) ||
+            await hasCurrentAdminTotpSignIn(user)
           : false;
 
         setAdmin(authorizedProfile && mfaVerified ? profile : null);

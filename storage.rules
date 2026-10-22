@@ -13,23 +13,31 @@ service firebase.storage {
       ).data;
     }
 
-    function isSupportStaff() {
+    function hasActivePlatformRole(roles) {
       let adminPath =
         /databases/(default)/documents/platformAdmins/$(request.auth.uid)
       ;
 
       return isVerified() &&
-        request.auth.token.firebase is map &&
-        request.auth.token.firebase.keys().hasAll(['sign_in_second_factor']) &&
-        request.auth.token.firebase.sign_in_second_factor == 'totp' &&
         firestore.exists(adminPath) &&
         firestore.get(adminPath).data.active == true &&
-        firestore.get(adminPath).data.role in [
+        firestore.get(adminPath).data.role in roles;
+    }
+
+    function isPlatformAdmin() {
+      return hasActivePlatformRole([
           'SUPER_ADMIN',
           'PLATFORM_ADMIN',
-          'DEV_ADMIN',
-          'EMPLOYEE'
-        ];
+          'DEV_ADMIN'
+        ]) &&
+        request.auth.token.firebase is map &&
+        request.auth.token.firebase.keys().hasAll(['sign_in_second_factor']) &&
+        request.auth.token.firebase.sign_in_second_factor == 'totp';
+    }
+
+    function isSupportStaff() {
+      return isPlatformAdmin() ||
+        hasActivePlatformRole(['EMPLOYEE']);
     }
 
     match /supportTickets/{parentUid}/{ticketId}/{fileName} {
