@@ -20,6 +20,13 @@ jobs:
           ref: 7d4e44cbb0c24b36ca58f5b4cfa9a8722c551db2
           persist-credentials: false
 
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
       - name: Prepare Firebase credentials
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -28,18 +35,25 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
+      - name: Prepare production Firebase parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
+            > .env.kidsguard-0626
+
       - name: Install Functions dependencies
-        run: npm ci --prefix functions
+        run: npm ci --prefix functions --no-audit --no-fund
 
       - name: Deploy session security enforcement
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FUNCTIONS_DISCOVERY_TIMEOUT: "60"
-          PADDLE_RECURRING_ADDONS_JSON: "[]"
-          PLATFORM_OWNER_EMAIL: freshmartbd123@gmail.com
-          INTERNAL_DASHBOARD_URL: https://kidsguard-screen.vercel.app
-          RESEND_FROM_EMAIL: "KidsGuard <noreply@kidsguard-screen.purevelofood.com>"
         run: >
-          npx --yes firebase-tools@14.18.0 deploy
+          npx --yes firebase-tools@15.34.1 deploy
           --project kidsguard-0626
           --only "firestore:rules,functions:requestPlatformStaffAccount,functions:requestPlatformStaffChange,functions:resendPlatformStaffApproval,functions:deactivatePlatformStaff,functions:reviewPlatformStaffRequest,functions:resendPlatformStaffInvite,functions:verifyReleaseArtifact,functions:createPromoCode,functions:setPromoCodeStatus,functions:sendPromoCodeEmail"
+          --non-interactive
