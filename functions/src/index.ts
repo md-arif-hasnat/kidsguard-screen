@@ -9256,6 +9256,60 @@ export const getAdminMonthlyBillingReport = functions
     };
   });
 
+export const diagnosePaddleBillingOnce = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 60})
+  .https.onRequest(async (request, response) => {
+    const expectedToken =
+      String(process.env.PADDLE_DIAGNOSTIC_TOKEN || '').trim();
+    if (
+      !expectedToken ||
+      request.get('authorization') !== `Bearer ${expectedToken}`
+    ) {
+      response.status(404).send('Not found');
+      return;
+    }
+
+    const apiKey = paddleApiKey.value().trim();
+    if (!apiKey) {
+      response.status(500).json({error: 'PADDLE_API_KEY_MISSING'});
+      return;
+    }
+
+    const baseUrl = paddleApiBaseUrl(apiKey);
+    const probes: Array<[string, string]> = [
+      ['base', 'per_page=1'],
+      ['status', 'per_page=1&status=completed'],
+      ['include', 'per_page=1&status=completed&include=address'],
+      [
+        'order',
+        'per_page=1&status=completed&include=address&' +
+          'order_by=billed_at%5BDESC%5D'
+      ]
+    ];
+    const results = [];
+    for (const [name, query] of probes) {
+      const paddleResponse = await fetch(
+        `${baseUrl}/transactions?${query}`,
+        {headers: {Authorization: `Bearer ${apiKey}`}}
+      );
+      const payload = await paddleResponse.json().catch(() => null) as
+        | {
+          data?: unknown[];
+          error?: {code?: string; detail?: string};
+        }
+        | null;
+      results.push({
+        probe: name,
+        status: paddleResponse.status,
+        ok: paddleResponse.ok,
+        count: Array.isArray(payload?.data) ? payload.data.length : null,
+        errorCode: payload?.error?.code || null,
+        errorDetail: payload?.error?.detail || null
+      });
+    }
+    response.json({results});
+  });
+
 type PaddleWebhookPayload = {
   event_id?: string;
   event_type?: string;
