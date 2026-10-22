@@ -243,6 +243,96 @@ async function sendPlatformOwnerApprovalEmail(input: {
   }
 }
 
+async function sendPlatformOwnerApprovalPush(input: {
+  requestId: string;
+  token: string;
+  kind: PlatformStaffApprovalKind;
+  targetEmail: string;
+  displayName: string;
+  requestedRole: AssignablePlatformStaffRole;
+}): Promise<boolean> {
+  const ownerEmail = normalizePlatformEmail(platformOwnerEmail.value());
+  if (!ownerEmail) return false;
+
+  const ownerUser = await admin.auth().getUserByEmail(ownerEmail);
+  const ownerProfile = await db.collection('platformAdmins').doc(ownerUser.uid).get();
+  if (
+    !ownerProfile.exists ||
+    ownerProfile.data()?.active !== true ||
+    ownerProfile.data()?.role !== 'SUPER_ADMIN'
+  ) {
+    console.warn('Platform owner push skipped: active Super Admin profile not found.');
+    return false;
+  }
+
+  const tokenSnapshot = await db
+    .collection('users')
+    .doc(ownerUser.uid)
+    .collection('notificationTokens')
+    .get();
+  const tokenDocuments = tokenSnapshot.docs.filter(document => {
+    const data = document.data();
+    return data.enabled !== false && typeof data.token === 'string' && data.token;
+  });
+  if (tokenDocuments.length === 0) {
+    console.info('Platform owner push skipped: no enabled notification token.');
+    return false;
+  }
+
+  const action = input.kind === 'CREATE_ACCOUNT'
+    ? 'New internal account'
+    : input.kind === 'REACTIVATE'
+      ? 'Internal account reactivation'
+      : 'Internal role change';
+  const approveUrl = platformApprovalUrls(input.requestId, input.token).approve;
+  const title = 'Team access approval required';
+  const body = `${action}: ${input.displayName} (${platformStaffRoleLabel(input.requestedRole)}). Tap to review and approve.`;
+  const tokenBatches: typeof tokenDocuments[] = [];
+  for (let start = 0; start < tokenDocuments.length; start += 500) {
+    tokenBatches.push(tokenDocuments.slice(start, start + 500));
+  }
+
+  let successCount = 0;
+  for (const documents of tokenBatches) {
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens: documents.map(document => String(document.data().token)),
+      notification: {title, body},
+      data: {
+        type: 'PLATFORM_STAFF_APPROVAL',
+        eventId: input.requestId,
+        requestId: input.requestId,
+        targetEmail: input.targetEmail,
+        title,
+        body,
+        clickAction: approveUrl,
+        url: approveUrl
+      },
+      webpush: {
+        notification: {
+          icon: `${internalDashboardUrl.value().replace(/\/$/, '')}/app-icon.png`,
+          badge: `${internalDashboardUrl.value().replace(/\/$/, '')}/symbol.png`
+        },
+        fcmOptions: {link: approveUrl}
+      }
+    });
+    successCount += response.successCount;
+
+    const invalidDeletes: Promise<admin.firestore.WriteResult>[] = [];
+    response.responses.forEach((result, index) => {
+      const code = result.error?.code;
+      if (
+        code === 'messaging/invalid-registration-token' ||
+        code === 'messaging/registration-token-not-registered'
+      ) {
+        invalidDeletes.push(documents[index].ref.delete());
+      }
+    });
+    await Promise.all(invalidDeletes);
+  }
+
+  return successCount > 0;
+}
+
 async function sendPlatformStaffInviteEmail(input: {
   email: string;
   displayName: string;
@@ -329,31 +419,46 @@ async function deliverPlatformApprovalRequest(
   const data = requestSnapshot.data();
   if (!requestSnapshot.exists || data?.status !== 'PENDING') return false;
 
-  try {
-    await sendPlatformOwnerApprovalEmail({
-      requestId,
-      token,
-      kind: data.kind as PlatformStaffApprovalKind,
-      targetEmail: String(data.targetEmail || ''),
-      displayName: String(data.displayName || ''),
-      requestedRole: data.requestedRole as AssignablePlatformStaffRole,
-      requestedByEmail: typeof data.requestedByEmail === 'string'
-        ? data.requestedByEmail
-        : null
-    });
-    await requestRef.update({
-      notificationStatus: 'SENT',
-      notificationSentAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    return true;
-  } catch (error) {
-    console.error('Platform owner approval email failed:', error);
-    await requestRef.update({
-      notificationStatus: 'FAILED',
-      notificationFailedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    return false;
+  const notificationInput = {
+    requestId,
+    token,
+    kind: data.kind as PlatformStaffApprovalKind,
+    targetEmail: String(data.targetEmail || ''),
+    displayName: String(data.displayName || ''),
+    requestedRole: data.requestedRole as AssignablePlatformStaffRole,
+    requestedByEmail: typeof data.requestedByEmail === 'string'
+      ? data.requestedByEmail
+      : null
+  };
+  const [emailResult, pushResult] = await Promise.allSettled([
+    sendPlatformOwnerApprovalEmail(notificationInput),
+    sendPlatformOwnerApprovalPush(notificationInput)
+  ]);
+  const emailSent = emailResult.status === 'fulfilled';
+  const pushSent = pushResult.status === 'fulfilled' && pushResult.value;
+
+  if (emailResult.status === 'rejected') {
+    console.error('Platform owner approval email failed:', emailResult.reason);
   }
+  if (pushResult.status === 'rejected') {
+    console.error('Platform owner approval push failed:', pushResult.reason);
+  }
+
+  await requestRef.update({
+    notificationStatus: emailSent ? 'SENT' : 'FAILED',
+    ...(emailSent
+      ? {notificationSentAt: admin.firestore.FieldValue.serverTimestamp()}
+      : {notificationFailedAt: admin.firestore.FieldValue.serverTimestamp()}),
+    pushNotificationStatus: pushSent
+      ? 'SENT'
+      : pushResult.status === 'rejected'
+        ? 'FAILED'
+        : 'UNAVAILABLE',
+    ...(pushSent
+      ? {pushNotificationSentAt: admin.firestore.FieldValue.serverTimestamp()}
+      : {})
+  });
+  return emailSent;
 }
 
 function authErrorCode(error: unknown): string {
