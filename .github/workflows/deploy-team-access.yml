@@ -49,6 +49,9 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FUNCTIONS_DISCOVERY_TIMEOUT: "60"
+          PADDLE_RECURRING_ADDONS_JSON: "[]"
+          PLATFORM_OWNER_EMAIL: "freshmartbd123@gmail.com"
+          INTERNAL_DASHBOARD_URL: "https://kidsguard-screen.vercel.app"
         run: >
           npx --yes firebase-tools@15.34.1 deploy
           --project kidsguard-0626
