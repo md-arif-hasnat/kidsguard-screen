@@ -2,6 +2,7 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onCall as onCallV2 } from 'firebase-functions/v2/https';
 import {
   createHash,
   createHmac,
@@ -9395,6 +9396,35 @@ export const getAdminMonthlyBillingReportV3 = functions
   .region('europe-west1')
   .runWith({secrets: [paddleApiKey], timeoutSeconds: 120, memory: '512MB'})
   .https.onCall(getAdminMonthlyBillingReportHandler);
+
+// Gen 2 uses a Cloud Run based network path, independent from the throttled
+// Gen 1 egress pool. The handler request contains the same auth context fields.
+export const listParentBillingInvoicesV4 = onCallV2(
+  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120},
+  (request) => listParentBillingInvoicesHandler(
+    request.data,
+    request as unknown as functions.https.CallableContext
+  )
+);
+export const getParentInvoiceDownloadUrlV4 = onCallV2(
+  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120},
+  (request) => getParentInvoiceDownloadUrlHandler(
+    request.data,
+    request as unknown as functions.https.CallableContext
+  )
+);
+export const getAdminMonthlyBillingReportV4 = onCallV2(
+  {
+    region: 'europe-west1',
+    secrets: [paddleApiKey],
+    timeoutSeconds: 120,
+    memory: '512MiB'
+  },
+  (request) => getAdminMonthlyBillingReportHandler(
+    request.data,
+    request as unknown as functions.https.CallableContext
+  )
+);
 
 type PaddleWebhookPayload = {
   event_id?: string;
