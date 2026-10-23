@@ -9400,14 +9400,16 @@ export const getAdminMonthlyBillingReportV3 = functions
 // Gen 2 uses a Cloud Run based network path, independent from the throttled
 // Gen 1 egress pool. The handler request contains the same auth context fields.
 export const listParentBillingInvoicesV4 = onCallV2(
-  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120},
+  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120,
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'},
   (request) => listParentBillingInvoicesHandler(
     request.data,
     request as unknown as functions.https.CallableContext
   )
 );
 export const getParentInvoiceDownloadUrlV4 = onCallV2(
-  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120},
+  {region: 'europe-west1', secrets: [paddleApiKey], timeoutSeconds: 120,
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'},
   (request) => getParentInvoiceDownloadUrlHandler(
     request.data,
     request as unknown as functions.https.CallableContext
@@ -9418,7 +9420,8 @@ export const getAdminMonthlyBillingReportV4 = onCallV2(
     region: 'europe-west1',
     secrets: [paddleApiKey],
     timeoutSeconds: 120,
-    memory: '512MiB'
+    memory: '512MiB',
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'
   },
   (request) => getAdminMonthlyBillingReportHandler(
     request.data,
