@@ -66,7 +66,7 @@ async function callBillingFunction<T>(
 
   const idToken = await user.getIdToken();
   const response = await fetch(
-    `https://us-central1-${projectId}.cloudfunctions.net/${functionName}`,
+    `https://europe-west1-${projectId}.cloudfunctions.net/${functionName}`,
     {
       method: "POST",
       headers: {
@@ -93,7 +93,7 @@ export class BillingRepository {
     hasMore: boolean;
     source: "PADDLE";
   }> {
-    return callBillingFunction("listParentBillingInvoicesV2");
+    return callBillingFunction("listParentBillingInvoicesV3");
   }
 
   static getParentInvoiceDownloadUrl(transactionId: string): Promise<{
@@ -102,7 +102,7 @@ export class BillingRepository {
     downloadUrl: string;
     expiresAt: string;
   }> {
-    return callBillingFunction("getParentInvoiceDownloadUrlV2", {
+    return callBillingFunction("getParentInvoiceDownloadUrlV3", {
       transactionId,
     });
   }
@@ -110,6 +110,6 @@ export class BillingRepository {
   static getAdminMonthlyReport(
     month: string
   ): Promise<AdminMonthlyBillingReport> {
-    return callBillingFunction("getAdminMonthlyBillingReportV2", { month });
+    return callBillingFunction("getAdminMonthlyBillingReportV3", { month });
   }
 }
