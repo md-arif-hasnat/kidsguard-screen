@@ -1415,7 +1415,7 @@ type PaddleTransaction = {
 type PaddleListResponse = {
   data?: PaddleTransaction[];
   meta?: {pagination?: {next?: string | null}};
-  error?: {detail?: string};
+  error?: {code?: string; detail?: string};
 };
 
 function paddleMoney(value: unknown): number {
@@ -1468,7 +1468,7 @@ async function paddleGet<T>(url: URL): Promise<T> {
     headers: {Authorization: `Bearer ${apiKey}`}
   });
   const payload = await response.json().catch(() => null) as
-    | (T & {error?: {detail?: string}})
+    | (T & {error?: {code?: string; detail?: string}})
     | null;
   if (!response.ok || !payload) {
     console.error(
@@ -1477,7 +1477,11 @@ async function paddleGet<T>(url: URL): Promise<T> {
     );
     throw new functions.https.HttpsError(
       'unavailable',
-      'Paddle billing records are temporarily unavailable.'
+      'Paddle billing records are temporarily unavailable.',
+      {
+        providerStatus: response.status,
+        providerCode: payload?.error?.code || null
+      }
     );
   }
   return payload;
