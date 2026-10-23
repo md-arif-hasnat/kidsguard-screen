@@ -1440,8 +1440,15 @@ function paddleTransactionTotals(transaction: PaddleTransaction) {
   };
 }
 
+function paddleApiKeyValue(): string {
+  // Gen 1 exposes bound secrets through process.env at invocation time. Prefer
+  // that value because it is the same runtime path used by our verified Paddle
+  // diagnostics, while keeping the SecretParam fallback for local emulators.
+  return String(process.env.PADDLE_API_KEY || paddleApiKey.value() || '').trim();
+}
+
 async function paddleGet<T>(url: URL): Promise<T> {
-  const apiKey = paddleApiKey.value().trim();
+  const apiKey = paddleApiKeyValue();
   if (!apiKey) {
     throw new functions.https.HttpsError(
       'failed-precondition',
@@ -1480,7 +1487,7 @@ async function listPaddleTransactions(
   query: Record<string, string>,
   maximum: number
 ): Promise<{transactions: PaddleTransaction[]; truncated: boolean}> {
-  const apiKey = paddleApiKey.value().trim();
+  const apiKey = paddleApiKeyValue();
   if (!apiKey) {
     throw new functions.https.HttpsError(
       'failed-precondition',
@@ -1518,7 +1525,7 @@ async function listPaddleTransactions(
 async function getPaddleTransaction(
   transactionId: string
 ): Promise<PaddleTransaction> {
-  const apiKey = paddleApiKey.value().trim();
+  const apiKey = paddleApiKeyValue();
   const url = new URL(
     `${paddleApiBaseUrl(apiKey)}/transactions/` +
       `${encodeURIComponent(transactionId)}`
@@ -9068,7 +9075,7 @@ export const getParentInvoiceDownloadUrl = functions
       );
     }
 
-    const apiKey = paddleApiKey.value().trim();
+    const apiKey = paddleApiKeyValue();
     const invoiceUrl = new URL(
       `${paddleApiBaseUrl(apiKey)}/transactions/` +
         `${encodeURIComponent(transactionId)}/invoice`
