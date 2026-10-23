@@ -93,7 +93,7 @@ export class BillingRepository {
     hasMore: boolean;
     source: "PADDLE";
   }> {
-    return callBillingFunction("listParentBillingInvoicesV3");
+    return callBillingFunction("listParentBillingInvoicesV4");
   }
 
   static getParentInvoiceDownloadUrl(transactionId: string): Promise<{
@@ -102,7 +102,7 @@ export class BillingRepository {
     downloadUrl: string;
     expiresAt: string;
   }> {
-    return callBillingFunction("getParentInvoiceDownloadUrlV3", {
+    return callBillingFunction("getParentInvoiceDownloadUrlV4", {
       transactionId,
     });
   }
@@ -110,6 +110,6 @@ export class BillingRepository {
   static getAdminMonthlyReport(
     month: string
   ): Promise<AdminMonthlyBillingReport> {
-    return callBillingFunction("getAdminMonthlyBillingReportV3", { month });
+    return callBillingFunction("getAdminMonthlyBillingReportV4", { month });
   }
 }
