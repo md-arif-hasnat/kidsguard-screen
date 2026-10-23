@@ -1457,6 +1457,19 @@ function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+async function paddleFetch(url: URL, apiKey: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    return await fetch(url.toString(), {
+      headers: {Authorization: `Bearer ${apiKey}`},
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function paddleGetUncached<T>(url: URL): Promise<T> {
   const apiKey = paddleApiKeyValue();
   if (!apiKey) {
@@ -1475,9 +1488,22 @@ async function paddleGetUncached<T>(url: URL): Promise<T> {
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(url.toString(), {
-      headers: {Authorization: `Bearer ${apiKey}`}
-    });
+    let response: Response;
+    try {
+      response = await paddleFetch(url, apiKey);
+    } catch (error) {
+      if (attempt < 2) {
+        const backoff = (2 ** attempt) * 500 + Math.floor(Math.random() * 250);
+        await wait(backoff);
+        continue;
+      }
+      console.error(`Paddle GET ${url.pathname} network failure:`, error);
+      throw new functions.https.HttpsError(
+        'unavailable',
+        'Paddle billing records are temporarily unavailable.',
+        {providerStatus: null, providerCode: 'network_error'}
+      );
+    }
     const payload = await response.json().catch(() => null) as
       | (T & {error?: {code?: string; detail?: string}})
       | null;
@@ -9086,9 +9112,10 @@ export const generateWeeklySafetyReports = functions
   });
 
 
-export const listParentBillingInvoices = functions
-  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
-  .https.onCall(async (_data, context) => {
+async function listParentBillingInvoicesHandler(
+  _data: any,
+  context: functions.https.CallableContext
+) {
     const owner = await requireParentBillingOwner(context);
     if (!owner.paddleCustomerId) {
       return {invoices: [], hasMore: false, source: 'PADDLE'};
@@ -9113,11 +9140,16 @@ export const listParentBillingInvoices = functions
       hasMore: result.truncated,
       source: 'PADDLE'
     };
-  });
+}
 
-export const getParentInvoiceDownloadUrl = functions
+export const listParentBillingInvoices = functions
   .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
-  .https.onCall(async (data, context) => {
+  .https.onCall(listParentBillingInvoicesHandler);
+
+async function getParentInvoiceDownloadUrlHandler(
+  data: any,
+  context: functions.https.CallableContext
+) {
     const owner = await requireParentBillingOwner(context);
     if (!owner.paddleCustomerId) {
       throw new functions.https.HttpsError(
@@ -9180,11 +9212,16 @@ export const getParentInvoiceDownloadUrl = functions
       downloadUrl,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
     };
-  });
+}
 
-export const getAdminMonthlyBillingReport = functions
-  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120, memory: '512MB'})
-  .https.onCall(async (data, context) => {
+export const getParentInvoiceDownloadUrl = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
+  .https.onCall(getParentInvoiceDownloadUrlHandler);
+
+async function getAdminMonthlyBillingReportHandler(
+  data: any,
+  context: functions.https.CallableContext
+) {
     const owner = await requirePlatformOwner(context);
     const month = validReportMonth(data?.month);
     const range = reportMonthRange(month);
@@ -9333,13 +9370,31 @@ export const getAdminMonthlyBillingReport = functions
       source: 'PADDLE_COMPLETED_TRANSACTIONS',
       note: 'Tax and totals use Paddle transaction details. Currency amounts are not converted or combined.'
     };
-  });
+}
 
-// Fresh function identities move billing reads off any rate-limited serverless
-// egress pool while the original exports remain available to older clients.
+export const getAdminMonthlyBillingReport = functions
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120, memory: '512MB'})
+  .https.onCall(getAdminMonthlyBillingReportHandler);
+
+// Keep the first fresh identities for clients that loaded the earlier release.
 export const listParentBillingInvoicesV2 = listParentBillingInvoices;
 export const getParentInvoiceDownloadUrlV2 = getParentInvoiceDownloadUrl;
 export const getAdminMonthlyBillingReportV2 = getAdminMonthlyBillingReport;
+
+// These identities run in a separate regional egress pool to avoid persistent
+// IP-based Paddle throttling seen from us-central1.
+export const listParentBillingInvoicesV3 = functions
+  .region('europe-west1')
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
+  .https.onCall(listParentBillingInvoicesHandler);
+export const getParentInvoiceDownloadUrlV3 = functions
+  .region('europe-west1')
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
+  .https.onCall(getParentInvoiceDownloadUrlHandler);
+export const getAdminMonthlyBillingReportV3 = functions
+  .region('europe-west1')
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120, memory: '512MB'})
+  .https.onCall(getAdminMonthlyBillingReportHandler);
 
 type PaddleWebhookPayload = {
   event_id?: string;
