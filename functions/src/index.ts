@@ -1703,6 +1703,175 @@ function normalizeParentInvoice(transaction: PaddleTransaction) {
   };
 }
 
+type StoredBillingInvoice = {
+  familyId?: string;
+  transactionId?: string;
+  customerId?: string | null;
+  subscriptionId?: string | null;
+  status?: string;
+  invoiceNumber?: string | null;
+  origin?: string | null;
+  billedAt?: string | null;
+  createdAt?: string | null;
+  billingMonth?: string | null;
+  countryCode?: string | null;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  total?: number;
+  fee?: number;
+  earnings?: number;
+  currencyCode?: string;
+  taxRates?: number[];
+  payoutTotals?: {
+    subtotal?: number;
+    tax?: number;
+    total?: number;
+    fee?: number;
+    earnings?: number;
+    currencyCode?: string;
+  } | null;
+};
+
+function billingMonth(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1)
+    .padStart(2, '0')}`;
+}
+
+function storedBillingInvoice(
+  familyId: string,
+  transaction: PaddleTransaction
+): StoredBillingInvoice & {
+  provider: 'PADDLE';
+  updatedAt: admin.firestore.FieldValue;
+} {
+  const totals = paddleTransactionTotals(transaction);
+  const billedAt = transaction.billed_at || transaction.created_at || null;
+  const payout = transaction.details?.payout_totals;
+  const payoutCurrency = String(payout?.currency_code || '').toUpperCase();
+  return {
+    familyId,
+    transactionId: String(transaction.id || ''),
+    customerId: transaction.customer_id || null,
+    subscriptionId: transaction.subscription_id || null,
+    status: String(transaction.status || ''),
+    invoiceNumber: transaction.invoice_number || null,
+    origin: transaction.origin || null,
+    billedAt,
+    createdAt: transaction.created_at || null,
+    billingMonth: billingMonth(billedAt),
+    countryCode: transaction.address?.country_code || null,
+    ...totals,
+    taxRates: (transaction.details?.tax_rates_used || [])
+      .map((rate) => Number(rate.tax_rate))
+      .filter((rate) => Number.isFinite(rate) && rate >= 0),
+    payoutTotals: payout && payoutCurrency
+      ? {
+          subtotal: paddleMoney(payout.subtotal),
+          tax: paddleMoney(payout.grand_total_tax ?? payout.tax),
+          total: paddleMoney(payout.grand_total ?? payout.total),
+          fee: paddleMoney(payout.fee),
+          earnings: paddleMoney(payout.earnings),
+          currencyCode: payoutCurrency
+        }
+      : null,
+    provider: 'PADDLE',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+function storedInvoiceToPaddleTransaction(
+  invoice: StoredBillingInvoice
+): PaddleTransaction {
+  const payout = invoice.payoutTotals;
+  return {
+    id: invoice.transactionId,
+    customer_id: invoice.customerId || null,
+    subscription_id: invoice.subscriptionId || null,
+    status: invoice.status,
+    invoice_number: invoice.invoiceNumber || null,
+    origin: invoice.origin || undefined,
+    billed_at: invoice.billedAt || null,
+    created_at: invoice.createdAt || undefined,
+    currency_code: invoice.currencyCode,
+    address: invoice.countryCode
+      ? {country_code: invoice.countryCode}
+      : null,
+    details: {
+      totals: {
+        subtotal: String(invoice.subtotal || 0),
+        discount: String(invoice.discount || 0),
+        tax: String(invoice.tax || 0),
+        total: String(invoice.total || 0),
+        grand_total: String(invoice.total || 0),
+        grand_total_tax: String(invoice.tax || 0),
+        fee: String(invoice.fee || 0),
+        earnings: String(invoice.earnings || 0),
+        currency_code: invoice.currencyCode || 'EUR'
+      },
+      tax_rates_used: (invoice.taxRates || [])
+        .map((rate) => ({tax_rate: String(rate)})),
+      payout_totals: payout
+        ? {
+            subtotal: String(payout.subtotal || 0),
+            tax: String(payout.tax || 0),
+            total: String(payout.total || 0),
+            grand_total: String(payout.total || 0),
+            grand_total_tax: String(payout.tax || 0),
+            fee: String(payout.fee || 0),
+            earnings: String(payout.earnings || 0),
+            currency_code: payout.currencyCode || ''
+          }
+        : null
+    }
+  };
+}
+
+async function storedTransactionsForFamily(
+  familyId: string,
+  maximum: number
+): Promise<{transactions: PaddleTransaction[]; truncated: boolean}> {
+  const snapshot = await db.collection('billingInvoices')
+    .where('familyId', '==', familyId)
+    .get();
+  const transactions = snapshot.docs
+    .map((document) => storedInvoiceToPaddleTransaction(
+      document.data() as StoredBillingInvoice
+    ))
+    .filter((transaction) => transaction.status === 'completed')
+    .sort((first, second) => String(
+      second.billed_at || second.created_at || ''
+    ).localeCompare(String(first.billed_at || first.created_at || '')));
+  return {
+    transactions: transactions.slice(0, maximum),
+    truncated: transactions.length > maximum
+  };
+}
+
+async function storedTransactionsForMonth(
+  month: string,
+  maximum: number
+): Promise<{transactions: PaddleTransaction[]; truncated: boolean}> {
+  const snapshot = await db.collection('billingInvoices')
+    .where('billingMonth', '==', month)
+    .get();
+  const transactions = snapshot.docs
+    .map((document) => storedInvoiceToPaddleTransaction(
+      document.data() as StoredBillingInvoice
+    ))
+    .filter((transaction) => transaction.status === 'completed')
+    .sort((first, second) => String(
+      first.billed_at || first.created_at || ''
+    ).localeCompare(String(second.billed_at || second.created_at || '')));
+  return {
+    transactions: transactions.slice(0, maximum),
+    truncated: transactions.length > maximum
+  };
+}
+
 function validReportMonth(value: unknown): string {
   const month = String(value || '').trim();
   if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) {
@@ -9121,11 +9290,7 @@ async function listParentBillingInvoicesHandler(
     if (!owner.paddleCustomerId) {
       return {invoices: [], hasMore: false, source: 'PADDLE'};
     }
-    const result = await listPaddleTransactions({
-      customer_id: owner.paddleCustomerId,
-      status: 'completed',
-      order_by: 'billed_at[DESC]'
-    }, 360);
+    const result = await storedTransactionsForFamily(owner.familyId, 360);
 
     const invoices = result.transactions
       .filter((transaction) =>
@@ -9226,12 +9391,7 @@ async function getAdminMonthlyBillingReportHandler(
     const owner = await requirePlatformOwner(context);
     const month = validReportMonth(data?.month);
     const range = reportMonthRange(month);
-    const result = await listPaddleTransactions({
-      status: 'completed',
-      'billed_at[GTE]': range.start,
-      'billed_at[LT]': range.end,
-      order_by: 'billed_at[ASC]'
-    }, 3000);
+    const result = await storedTransactionsForMonth(month, 3000);
 
     if (result.truncated) {
       throw new functions.https.HttpsError(
@@ -9369,7 +9529,7 @@ async function getAdminMonthlyBillingReportHandler(
       payoutTotals: Array.from(payouts.values())
         .sort((a, b) => a.currencyCode.localeCompare(b.currencyCode)),
       source: 'PADDLE_COMPLETED_TRANSACTIONS',
-      note: 'Tax and totals use Paddle transaction details. Currency amounts are not converted or combined.'
+      note: 'Tax and totals use the webhook-backed Paddle transaction ledger. Currency amounts are not converted or combined.'
     };
 }
 
@@ -9585,6 +9745,13 @@ export const paddleBillingWebhook = functions
     const promoRedemptionRef = promoCode && parentUid
       ? db.collection('promoRedemptions').doc(`${promoCode}_${parentUid}`)
       : null;
+    const billingInvoiceRef =
+      eventType.startsWith('transaction.') &&
+      data.status === 'completed' &&
+      typeof data.id === 'string' &&
+      /^txn_[a-z\d]{26}$/.test(data.id)
+        ? db.collection('billingInvoices').doc(data.id)
+        : null;
 
     try {
       const result = await db.runTransaction(async (transaction) => {
@@ -9899,6 +10066,13 @@ export const paddleBillingWebhook = functions
         }
 
         transaction.update(familyRef, patch);
+        if (billingInvoiceRef) {
+          transaction.set(
+            billingInvoiceRef,
+            storedBillingInvoice(familyId, data as PaddleTransaction),
+            {merge: true}
+          );
+        }
         transaction.create(eventRef, {
           eventId,
           eventType,
