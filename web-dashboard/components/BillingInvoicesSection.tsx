@@ -7,6 +7,7 @@ import {
   BillingRepository,
   type ParentBillingInvoice,
 } from "@/lib/billing/BillingRepository";
+import { downloadParentInvoicePdf } from "@/lib/billing/parentInvoicePdf";
 
 function formatMoney(amount: number, currencyCode: string): string {
   try {
@@ -82,15 +83,7 @@ export default function BillingInvoicesSection({
     setDownloadingId(invoice.transactionId);
     setError(null);
     try {
-      const result = await BillingRepository.getParentInvoiceDownloadUrl(
-        invoice.transactionId
-      );
-      const anchor = document.createElement("a");
-      anchor.href = result.downloadUrl;
-      anchor.rel = "noopener noreferrer";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      downloadParentInvoicePdf(invoice);
     } catch (downloadError) {
       setError(
         downloadError instanceof Error
@@ -114,8 +107,8 @@ export default function BillingInvoicesSection({
           <div>
             <h2 className="text-lg font-bold text-slate-900">Billing invoices</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">
-              Download the official Paddle PDF invoice for each completed
-              subscription payment, grouped by billing month.
+              Download a PDF receipt for each completed Paddle subscription
+              payment, grouped by billing month.
             </p>
           </div>
         </div>
