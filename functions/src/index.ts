@@ -1447,7 +1447,17 @@ function paddleApiKeyValue(): string {
   return String(process.env.PADDLE_API_KEY || paddleApiKey.value() || '').trim();
 }
 
-async function paddleGet<T>(url: URL): Promise<T> {
+const paddleResponseCache = new Map<string, {
+  expiresAt: number;
+  payload: unknown;
+}>();
+const paddleRequestsInFlight = new Map<string, Promise<unknown>>();
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function paddleGetUncached<T>(url: URL): Promise<T> {
   const apiKey = paddleApiKeyValue();
   if (!apiKey) {
     throw new functions.https.HttpsError(
@@ -1464,13 +1474,35 @@ async function paddleGet<T>(url: URL): Promise<T> {
     );
   }
 
-  const response = await fetch(url.toString(), {
-    headers: {Authorization: `Bearer ${apiKey}`}
-  });
-  const payload = await response.json().catch(() => null) as
-    | (T & {error?: {code?: string; detail?: string}})
-    | null;
-  if (!response.ok || !payload) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(url.toString(), {
+      headers: {Authorization: `Bearer ${apiKey}`}
+    });
+    const payload = await response.json().catch(() => null) as
+      | (T & {error?: {code?: string; detail?: string}})
+      | null;
+    if (response.ok && payload) return payload;
+
+    const providerCode = payload?.error?.code || null;
+    if (
+      response.status === 429 &&
+      providerCode === 'too_many_requests' &&
+      attempt === 0
+    ) {
+      const retryAfter = Number(response.headers.get('retry-after') || '60');
+      if (Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 65) {
+        const jitter = Math.floor(Math.random() * 750) + 250;
+        console.warn(`Paddle rate limit reached; retrying after ${retryAfter}s.`);
+        await wait(Math.ceil(retryAfter * 1000) + jitter);
+        continue;
+      }
+    }
+    if (response.status >= 500 && attempt < 2) {
+      const backoff = (2 ** attempt) * 500 + Math.floor(Math.random() * 250);
+      await wait(backoff);
+      continue;
+    }
+
     console.error(
       `Paddle GET ${url.pathname} failed:`,
       payload?.error?.detail || response.status
@@ -1480,11 +1512,47 @@ async function paddleGet<T>(url: URL): Promise<T> {
       'Paddle billing records are temporarily unavailable.',
       {
         providerStatus: response.status,
-        providerCode: payload?.error?.code || null
+        providerCode
       }
     );
   }
-  return payload;
+
+  throw new functions.https.HttpsError(
+    'unavailable',
+    'Paddle billing records are temporarily unavailable.'
+  );
+}
+
+async function paddleGet<T>(url: URL, cacheTtlMs = 0): Promise<T> {
+  const cacheKey = url.toString();
+  const cached = paddleResponseCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload as T;
+  }
+  if (cached) paddleResponseCache.delete(cacheKey);
+
+  const activeRequest = paddleRequestsInFlight.get(cacheKey);
+  if (activeRequest) return activeRequest as Promise<T>;
+
+  const request = paddleGetUncached<T>(url).then((payload) => {
+    if (cacheTtlMs > 0) {
+      if (paddleResponseCache.size >= 100) {
+        const oldestKey = paddleResponseCache.keys().next().value;
+        if (typeof oldestKey === 'string') paddleResponseCache.delete(oldestKey);
+      }
+      paddleResponseCache.set(cacheKey, {
+        expiresAt: Date.now() + cacheTtlMs,
+        payload
+      });
+    }
+    return payload;
+  });
+  paddleRequestsInFlight.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    paddleRequestsInFlight.delete(cacheKey);
+  }
 }
 
 async function listPaddleTransactions(
@@ -1511,7 +1579,7 @@ async function listPaddleTransactions(
   const transactions: PaddleTransaction[] = [];
   while (nextUrl && transactions.length < maximum) {
     const payload: PaddleListResponse =
-      await paddleGet<PaddleListResponse>(nextUrl);
+      await paddleGet<PaddleListResponse>(nextUrl, 5 * 60 * 1000);
     transactions.push(...(Array.isArray(payload.data) ? payload.data : []));
 
     const next = payload.meta?.pagination?.next;
@@ -9048,7 +9116,7 @@ export const listParentBillingInvoices = functions
   });
 
 export const getParentInvoiceDownloadUrl = functions
-  .runWith({secrets: [paddleApiKey], timeoutSeconds: 60})
+  .runWith({secrets: [paddleApiKey], timeoutSeconds: 120})
   .https.onCall(async (data, context) => {
     const owner = await requireParentBillingOwner(context);
     if (!owner.paddleCustomerId) {
@@ -9266,6 +9334,12 @@ export const getAdminMonthlyBillingReport = functions
       note: 'Tax and totals use Paddle transaction details. Currency amounts are not converted or combined.'
     };
   });
+
+// Fresh function identities move billing reads off any rate-limited serverless
+// egress pool while the original exports remain available to older clients.
+export const listParentBillingInvoicesV2 = listParentBillingInvoices;
+export const getParentInvoiceDownloadUrlV2 = getParentInvoiceDownloadUrl;
+export const getAdminMonthlyBillingReportV2 = getAdminMonthlyBillingReport;
 
 type PaddleWebhookPayload = {
   event_id?: string;
