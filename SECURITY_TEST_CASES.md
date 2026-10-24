@@ -8,6 +8,10 @@
 | AUTH-03 | 30 minutes without internal-dashboard activity | Automatic sign-out, inactivity message, prompt relogin |
 | AUTH-04 | Internal session reaches 8 hours | Dashboard, Firestore, and privileged callable access denied; prompt relogin |
 | AUTH-05 | Browser closes during an internal session | Local internal login is not restored in the next browser session |
+| AUTH-06 | Existing child app starts with a legacy plaintext parent PIN | PIN is migrated to a salted PBKDF2 credential and the plaintext value is deleted |
+| AUTH-07 | Five consecutive wrong parent PIN attempts | PIN entry is locked for 30 seconds; repeated failures increase the lockout up to 15 minutes |
+| AUTH-08 | Release backup or device transfer is attempted | Shared preferences, databases, and app files are excluded; Android backup is disabled |
+| AUTH-09 | Correct parent PIN is entered after lockout expires | Access succeeds and the failure counter is cleared |
 
 ## 2. Family Isolation
 | Case ID | Scenario | Expected Result |

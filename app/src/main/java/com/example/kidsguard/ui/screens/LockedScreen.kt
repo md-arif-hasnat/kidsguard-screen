@@ -235,7 +235,7 @@ fun LockedScreen(onUnlock: () -> Unit, prefHelper: PreferenceHelper, repository:
                 onIncorrectPin = {
                     repository.addEvent(ActivityEvent(type = "PIN_FAILED", title = "PIN Unlock Failed", description = "Attempt blocked"))
                 },
-                correctPin = prefHelper.pin
+                prefHelper = prefHelper
             )
         }
     }
