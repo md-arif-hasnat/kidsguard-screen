@@ -10,6 +10,10 @@ import {
 import { hasCurrentAdminTotpSignIn } from '../adminMfa';
 import { isFullPlatformAdmin } from '../platformAccess';
 import {
+  InternalLoginDefenseRepository,
+  isInternalLoginBlockedError,
+} from '../repositories/InternalLoginDefenseRepository';
+import {
   getInternalSessionStartedAt,
   INTERNAL_IDLE_TIMEOUT_MS,
   internalActivityStorageKey,
@@ -75,6 +79,10 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
                 await hasCurrentAdminTotpSignIn(user)
               : false;
 
+            if (authorizedProfile && mfaVerified) {
+              await InternalLoginDefenseRepository.assertAccess();
+            }
+
             if (cancelled || sequence !== authSequence) return;
             setAdmin(authorizedProfile && mfaVerified ? profile : null);
             setSession(
@@ -82,10 +90,14 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
                 ? {uid: user.uid, startedAt}
                 : null
             );
-          } catch {
+          } catch (caught) {
             if (cancelled || sequence !== authSequence) return;
             setAdmin(null);
             setSession(null);
+            if (isInternalLoginBlockedError(caught) && !endingSession.current) {
+              endingSession.current = true;
+              await signOutInternalSession("blocked");
+            }
           } finally {
             if (!cancelled && sequence === authSequence) setLoading(false);
           }
@@ -116,7 +128,7 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
       : startedAt;
     let lastStorageWrite = lastActivity;
 
-    const endSession = (reason: "idle" | "expired") => {
+    const endSession = (reason: "idle" | "expired" | "blocked") => {
       if (endingSession.current) return;
       endingSession.current = true;
       void signOutInternalSession(reason);
@@ -160,6 +172,13 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
     if (checkSession(Date.now())) return;
 
     const intervalId = window.setInterval(() => checkSession(Date.now()), 15_000);
+    const guardIntervalId = window.setInterval(async () => {
+      try {
+        await InternalLoginDefenseRepository.assertAccess();
+      } catch (caught) {
+        if (isInternalLoginBlockedError(caught)) endSession("blocked");
+      }
+    }, 60_000);
     window.addEventListener("pointerdown", recordActivity, {passive: true});
     window.addEventListener("keydown", recordActivity);
     window.addEventListener("wheel", recordActivity, {passive: true});
@@ -168,6 +187,7 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
 
     return () => {
       window.clearInterval(intervalId);
+      window.clearInterval(guardIntervalId);
       window.removeEventListener("pointerdown", recordActivity);
       window.removeEventListener("keydown", recordActivity);
       window.removeEventListener("wheel", recordActivity);

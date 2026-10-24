@@ -10,7 +10,7 @@ import { auth } from "./firebase";
 export const INTERNAL_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const INTERNAL_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 
-export type InternalSessionEndReason = "idle" | "expired";
+export type InternalSessionEndReason = "idle" | "expired" | "blocked";
 
 const ACTIVITY_KEY_PREFIX = "kidsguard:internal:v1:last-activity:";
 

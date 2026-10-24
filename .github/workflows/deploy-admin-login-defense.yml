@@ -1,0 +1,80 @@
+name: Deploy Admin Login Defense
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-admin-login-defense.yml"
+      - "functions/src/index.ts"
+      - "firestore.rules.production"
+      - "web-dashboard/app/internal/login/**"
+      - "web-dashboard/app/internal/security/login-blocks/**"
+      - "web-dashboard/lib/repositories/InternalLoginDefenseRepository.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout reviewed production source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix functions --no-audit --no-fund
+          npm ci --prefix web-dashboard --no-audit --no-fund
+
+      - name: Verify Functions and dashboard
+        run: |
+          npm run test:login-defense --prefix functions
+          npm run build --prefix web-dashboard
+
+      - name: Verify Firestore rules
+        run: >
+          npx --yes firebase-tools@15.34.1 emulators:exec
+          --only firestore
+          --project kidsguard-rules-test
+          "node --test web-dashboard/tests/firestore.rules.test.mjs"
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Prepare production Firebase parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
+            > .env.kidsguard-0626
+
+      - name: Deploy login-defense Functions and rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FUNCTIONS_DISCOVERY_TIMEOUT: "60"
+        run: >
+          npx --yes firebase-tools@15.34.1 deploy
+          --project kidsguard-0626
+          --only "functions:getInternalLoginGuardStatus,functions:recordInternalLoginFailure,functions:finalizeInternalLogin,functions:assertInternalLoginAccess,functions:listInternalLoginBlocks,functions:approveInternalLoginBlock,firestore:rules"
+          --non-interactive
+

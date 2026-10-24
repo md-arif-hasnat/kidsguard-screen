@@ -10,11 +10,16 @@ import {
   randomUUID,
   timingSafeEqual
 } from 'crypto';
+import {isIP} from 'net';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import {
   localizeNotificationCopy,
   resolveNotificationLocale,
 } from './notificationI18n';
+import {
+  evaluateInternalLoginFailure,
+  INTERNAL_LOGIN_FAILURE_LIMIT,
+} from './internalLoginDefense';
 
 admin.initializeApp();
 
@@ -42,6 +47,11 @@ const PLATFORM_ADMIN_ROLES = new Set([
   'SUPER_ADMIN',
   'PLATFORM_ADMIN',
   'DEV_ADMIN'
+]);
+const PLATFORM_STAFF_ROLES = new Set([
+  ...PLATFORM_ADMIN_ROLES,
+  'EMPLOYEE',
+  'ACCOUNTING'
 ]);
 const PLATFORM_ADMIN_MAX_SESSION_SECONDS = 8 * 60 * 60;
 const ASSIGNABLE_PLATFORM_STAFF_ROLES = new Set([
@@ -79,6 +89,19 @@ type PromoCodeDocument = {
 async function requirePlatformAdmin(
   context: functions.https.CallableContext
 ): Promise<{uid: string; email: string | null}> {
+  const operator = await requireActiveInternalStaff(context);
+  if (!PLATFORM_ADMIN_ROLES.has(operator.role)) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Active platform administrator access required.'
+    );
+  }
+  return {uid: operator.uid, email: operator.email};
+}
+
+async function requireActiveInternalStaff(
+  context: functions.https.CallableContext
+): Promise<{uid: string; email: string | null; role: string}> {
   if (!context.auth || context.auth.token.email_verified !== true) {
     throw new functions.https.HttpsError(
       'unauthenticated',
@@ -99,25 +122,16 @@ async function requirePlatformAdmin(
     );
   }
 
-  const firebaseClaims = context.auth.token.firebase as
-    | {sign_in_second_factor?: unknown}
-    | undefined;
-  if (firebaseClaims?.sign_in_second_factor !== 'totp') {
-    throw new functions.https.HttpsError(
-      'permission-denied',
-      'Authenticator verification is required for administrator actions.'
-    );
-  }
-
   const adminSnapshot = await db
     .collection('platformAdmins')
     .doc(context.auth.uid)
     .get();
   const adminData = adminSnapshot.data();
+  const role = String(adminData?.role || '');
   if (
     !adminSnapshot.exists ||
     adminData?.active !== true ||
-    !PLATFORM_ADMIN_ROLES.has(String(adminData?.role || ''))
+    !PLATFORM_STAFF_ROLES.has(role)
   ) {
     throw new functions.https.HttpsError(
       'permission-denied',
@@ -125,12 +139,77 @@ async function requirePlatformAdmin(
     );
   }
 
+  const firebaseClaims = context.auth.token.firebase as
+    | {sign_in_second_factor?: unknown}
+    | undefined;
+  if (
+    PLATFORM_ADMIN_ROLES.has(role) &&
+    firebaseClaims?.sign_in_second_factor !== 'totp'
+  ) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Authenticator verification is required for administrator actions.'
+    );
+  }
+
+  await assertInternalLoginIpAllowed(context.rawRequest);
+
   return {
     uid: context.auth.uid,
     email: typeof context.auth.token.email === 'string'
       ? context.auth.token.email
-      : null
+      : null,
+    role
   };
+}
+
+function internalLoginClientIp(request: functions.https.Request): string {
+  const normalize = (value: unknown): string => {
+    let candidate = String(value || '').trim();
+    if (candidate.startsWith('::ffff:')) candidate = candidate.slice(7);
+    const bracketedIpv6 = candidate.match(/^\[([^\]]+)\](?::\d+)?$/);
+    if (bracketedIpv6) candidate = bracketedIpv6[1];
+    return isIP(candidate) ? candidate : '';
+  };
+  // Google Cloud Functions adds X-Forwarded-For and documents the first
+  // address as the originating client in the normal direct-call path.
+  const forwardedIp = normalize(
+    String(request.get('x-forwarded-for') || '').split(',')[0]
+  );
+  const directIp = normalize(request.ip || request.socket.remoteAddress);
+  const ip = forwardedIp || directIp;
+  if (!ip) {
+    throw new functions.https.HttpsError(
+      'internal',
+      'Client network identity is unavailable.'
+    );
+  }
+  return ip;
+}
+
+function internalLoginIpHash(ip: string): string {
+  return createHash('sha256').update(ip).digest('hex');
+}
+
+function internalLoginIpRef(request: functions.https.Request) {
+  const ip = internalLoginClientIp(request);
+  return {
+    ip,
+    ref: db.collection('internalLoginIpBlocks').doc(internalLoginIpHash(ip))
+  };
+}
+
+async function assertInternalLoginIpAllowed(
+  request: functions.https.Request
+): Promise<void> {
+  const {ref} = internalLoginIpRef(request);
+  const snapshot = await ref.get();
+  if (snapshot.data()?.status === 'BLOCKED') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Access blocked. Contact your God Father!'
+    );
+  }
 }
 
 async function requirePlatformOwner(
@@ -8562,7 +8641,7 @@ type PlatformAdminPush = {
   title: string;
   body: string;
   clickAction: string;
-  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE" | "ADMIN_SUBSCRIPTION" | "ADMIN_RELEASE";
+  type: "ADMIN_ISSUE" | "ADMIN_SUPPORT" | "ADMIN_DEVICE" | "ADMIN_SUBSCRIPTION" | "ADMIN_RELEASE" | "ADMIN_SECURITY";
   eventId: string;
 };
 
@@ -8660,6 +8739,278 @@ async function notifyPlatformAdminsOnce(payload: PlatformAdminPush): Promise<voi
   if (existing.exists) return;
   await notifyPlatformAdmins(payload);
 }
+
+function internalLoginReviewUrl(requestId: string): string {
+  const url = new URL(
+    '/internal/security/login-blocks',
+    internalDashboardUrl.value().replace(/\/$/, '')
+  );
+  url.searchParams.set('requestId', requestId);
+  return url.toString();
+}
+
+function internalLoginTimestampIso(value: unknown): string | null {
+  if (value instanceof admin.firestore.Timestamp) {
+    return value.toDate().toISOString();
+  }
+  return null;
+}
+
+async function sendInternalLoginBlockEmail(input: {
+  requestId: string;
+  ip: string;
+  attemptedEmail: string;
+  userAgent: string;
+  blockedAt: string;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY is not configured.');
+
+  const reviewUrl = internalLoginReviewUrl(input.requestId);
+  const {Resend} = await import('resend');
+  const resend = new Resend(apiKey);
+  const result = await resend.emails.send({
+    from: platformEmailFrom,
+    to: platformOwnerEmail.value(),
+    subject: '[KidsGuard Security] Admin login IP blocked',
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px;color:#0f172a">
+        <h2 style="margin:0 0 12px;color:#be123c">Admin login protection triggered</h2>
+        <p style="line-height:1.6">Five failed password attempts were detected within 15 minutes. This IP is blocked from the internal portal until the Super Admin approves it.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0">
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">IP address</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.ip)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Attempted email</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.attemptedEmail)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Blocked at</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.blockedAt)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Browser</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;word-break:break-word">${escapeEmailHtml(input.userAgent)}</td></tr>
+        </table>
+        <p style="margin:24px 0"><a href="${escapeEmailHtml(reviewUrl)}" style="display:inline-block;background:#e11d48;color:white;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Review blocked login</a></p>
+        <p style="font-size:12px;line-height:1.6;color:#64748b">Opening the review page does not approve the IP. Sign in with the Super Admin account and approve only when you recognize the activity. Use a different trusted connection, such as mobile data, because the blocked IP cannot approve itself.</p>
+      </div>`
+  });
+  if (result.error) throw new Error(result.error.message);
+}
+
+export const getInternalLoginGuardStatus = functions.https.onCall(
+  async (_data, context) => {
+    const {ref} = internalLoginIpRef(context.rawRequest);
+    const snapshot = await ref.get();
+    return {blocked: snapshot.data()?.status === 'BLOCKED'};
+  }
+);
+
+export const recordInternalLoginFailure = functions
+  .runWith({secrets: ['RESEND_API_KEY']})
+  .https.onCall(async (data, context) => {
+    const attemptedEmail = normalizePlatformEmail(data?.email).slice(0, 254);
+    const userAgent = String(
+      context.rawRequest.get('user-agent') || 'Unknown browser'
+    ).slice(0, 500);
+    const {ip, ref} = internalLoginIpRef(context.rawRequest);
+    const now = Date.now();
+    const nowTimestamp = admin.firestore.Timestamp.fromMillis(now);
+    const requestId = randomUUID();
+
+    const result = await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(ref);
+      const current = snapshot.data() || {};
+      if (current.status === 'BLOCKED') {
+        return {
+          blocked: true,
+          newlyBlocked: false,
+          requestId: String(current.requestId || '')
+        };
+      }
+
+      const windowStartedAtMillis = current.windowStartedAt instanceof admin.firestore.Timestamp
+        ? current.windowStartedAt.toMillis()
+        : 0;
+      const decision = evaluateInternalLoginFailure({
+        status: current.status,
+        failureCount: current.failureCount,
+        windowStartedAtMillis
+      }, now);
+      const {failureCount, blocked} = decision;
+
+      transaction.set(ref, {
+        ipHash: ref.id,
+        ip,
+        status: blocked ? 'BLOCKED' : 'TRACKING',
+        failureCount,
+        windowStartedAt: decision.windowStartedAtMillis === windowStartedAtMillis
+          ? current.windowStartedAt
+          : nowTimestamp,
+        lastFailedAt: nowTimestamp,
+        attemptedEmail: attemptedEmail || '(empty)',
+        userAgent,
+        requestId: blocked ? requestId : null,
+        blockedAt: blocked ? nowTimestamp : null,
+        approvedAt: null,
+        approvedBy: null,
+        updatedAt: nowTimestamp
+      }, {merge: true});
+
+      return {
+        blocked,
+        newlyBlocked: blocked,
+        requestId: blocked ? requestId : '',
+        failureCount
+      };
+    });
+
+    if (result.newlyBlocked) {
+      const reviewPath = `/internal/security/login-blocks?requestId=${encodeURIComponent(result.requestId)}`;
+      const emailAlert = sendInternalLoginBlockEmail({
+        requestId: result.requestId,
+        ip,
+        attemptedEmail: attemptedEmail || '(empty)',
+        userAgent,
+        blockedAt: new Date(now).toISOString()
+      });
+      const pushAlert = notifyPlatformAdminsOnce({
+        type: 'ADMIN_SECURITY',
+        eventId: `login-block-${result.requestId}`,
+        title: 'Admin login IP blocked',
+        body: `Five failed password attempts from ${ip}. Super Admin approval is required.`,
+        clickAction: reviewPath
+      });
+      const alertResults = await Promise.allSettled([emailAlert, pushAlert]);
+      const alertErrors = alertResults
+        .filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+        .map(item => String(item.reason instanceof Error ? item.reason.message : item.reason));
+      await ref.set({
+        emailAlertSent: alertResults[0].status === 'fulfilled',
+        pushAlertSent: alertResults[1].status === 'fulfilled',
+        alertErrors,
+        alertAttemptedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, {merge: true});
+      if (alertErrors.length > 0) {
+        console.error('Internal login block alert failure', {requestId: result.requestId, alertErrors});
+      }
+    }
+
+    return {
+      blocked: result.blocked,
+      remainingAttempts: result.blocked
+        ? 0
+        : Math.max(0, INTERNAL_LOGIN_FAILURE_LIMIT - Number(result.failureCount || 0))
+    };
+  });
+
+export const finalizeInternalLogin = functions.https.onCall(
+  async (_data, context) => {
+    const operator = await requireActiveInternalStaff(context);
+    const {ref} = internalLoginIpRef(context.rawRequest);
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(ref);
+      if (snapshot.data()?.status === 'BLOCKED') {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Access blocked. Contact your God Father!'
+        );
+      }
+      transaction.set(ref, {
+        status: 'CLEARED',
+        failureCount: 0,
+        clearedAt: admin.firestore.FieldValue.serverTimestamp(),
+        clearedBy: operator.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, {merge: true});
+    });
+    return {ok: true};
+  }
+);
+
+export const assertInternalLoginAccess = functions.https.onCall(
+  async (_data, context) => {
+    await requireActiveInternalStaff(context);
+    return {ok: true};
+  }
+);
+
+export const listInternalLoginBlocks = functions.https.onCall(
+  async (_data, context) => {
+    await requirePlatformOwner(context);
+    const snapshot = await db
+      .collection('internalLoginIpBlocks')
+      .where('status', '==', 'BLOCKED')
+      .limit(100)
+      .get();
+    const blocks = snapshot.docs.map(document => {
+      const value = document.data();
+      return {
+        requestId: String(value.requestId || ''),
+        ip: String(value.ip || 'Unknown'),
+        attemptedEmail: String(value.attemptedEmail || ''),
+        userAgent: String(value.userAgent || 'Unknown browser'),
+        failureCount: Number(value.failureCount || 0),
+        blockedAt: internalLoginTimestampIso(value.blockedAt),
+        lastFailedAt: internalLoginTimestampIso(value.lastFailedAt),
+        emailAlertSent: value.emailAlertSent === true,
+        pushAlertSent: value.pushAlertSent === true
+      };
+    });
+    blocks.sort((left, right) =>
+      String(right.blockedAt || '').localeCompare(String(left.blockedAt || ''))
+    );
+    return {blocks};
+  }
+);
+
+export const approveInternalLoginBlock = functions.https.onCall(
+  async (data, context) => {
+    const operator = await requirePlatformOwner(context);
+    const requestId = String(data?.requestId || '').trim();
+    if (!requestId || requestId.length > 100) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid blocked-login request is required.'
+      );
+    }
+
+    const matches = await db
+      .collection('internalLoginIpBlocks')
+      .where('requestId', '==', requestId)
+      .limit(1)
+      .get();
+    if (matches.empty) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'This blocked-login request was not found.'
+      );
+    }
+
+    const blockRef = matches.docs[0].ref;
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(blockRef);
+      if (snapshot.data()?.status !== 'BLOCKED') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This IP has already been approved.'
+        );
+      }
+      transaction.update(blockRef, {
+        status: 'APPROVED',
+        failureCount: 0,
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedBy: operator.uid,
+        approvedByEmail: operator.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      transaction.set(
+        db.collection('internalLoginSecurityEvents').doc(randomUUID()),
+        {
+          type: 'LOGIN_IP_APPROVED',
+          requestId,
+          ipHash: blockRef.id,
+          approvedBy: operator.uid,
+          approvedByEmail: operator.email,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }
+      );
+    });
+    return {ok: true};
+  }
+);
 
 const RELEASE_ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RELEASE_PENDING_ALERT_MS = 6 * 60 * 60 * 1000;

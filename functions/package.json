@@ -2,6 +2,7 @@
   "name": "kidsguard-functions",
   "scripts": {
     "build": "tsc",
+    "test:login-defense": "npm run build && node --test tests/internal-login-defense.test.cjs",
     "lint": "echo Skipping lint",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",

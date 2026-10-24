@@ -196,6 +196,17 @@ service cloud.firestore {
             match /platformStaffRateLimits/{adminId} {
               allow read, write: if false;
             }
+
+            // Login-defense records contain raw IP addresses and browser
+            // metadata. They are available only through owner-authorized
+            // Cloud Functions, never through the client SDK.
+            match /internalLoginIpBlocks/{ipHash} {
+              allow read, write: if false;
+            }
+
+            match /internalLoginSecurityEvents/{eventId} {
+              allow read, write: if false;
+            }
     match /parents/{parentId} {
       allow read: if isAccountingStaff() ||
         (isEmailVerified() && request.auth.uid == parentId);
