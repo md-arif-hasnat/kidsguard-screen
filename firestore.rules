@@ -575,6 +575,14 @@ service cloud.firestore {
                                           allow delete: if isAdmin();
                                         }
 
+    match /internalLoginIpBlocks/{ipHash} {
+      allow read, write: if false;
+    }
+
+    match /internalLoginSecurityEvents/{eventId} {
+      allow read, write: if false;
+    }
+
     // Rules will be added collection by collection.
     match /{document=**} {
       allow read, write: if false;

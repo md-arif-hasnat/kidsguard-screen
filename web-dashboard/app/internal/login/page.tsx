@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -32,6 +32,10 @@ import { loginWithEmail, loginWithGoogle, observeAuth } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { PlatformAdminRepository } from "@/lib/repositories/PlatformAdminRepository";
 import { isAllowedPlatformAdminRole } from "@/lib/repositories/PlatformAdminRepository";
+import {
+  InternalLoginDefenseRepository,
+  isInternalLoginBlockedError,
+} from "@/lib/repositories/InternalLoginDefenseRepository";
 import { isFullPlatformAdmin } from "@/lib/platformAccess";
 import {
   clearInternalSessionActivity,
@@ -43,6 +47,7 @@ import {
 } from "@/lib/internalSessionSecurity";
 
 type LoginView = "login" | "challenge" | "enroll";
+const BLOCKED_LOGIN_MESSAGE = "Access blocked. Contact your God Father!";
 
 function loginReturnPath(): string {
   if (typeof window === "undefined") return "/internal";
@@ -79,6 +84,17 @@ function friendlyAuthError(error: unknown): string {
   }
 }
 
+function isPasswordCredentialError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  return [
+    "auth/invalid-credential",
+    "auth/wrong-password",
+    "auth/user-not-found",
+  ].includes(String(error.code));
+}
+
 export default function InternalLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,6 +108,10 @@ export default function InternalLogin() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [guardBlocked, setGuardBlocked] = useState(false);
+  const [guardChecking, setGuardChecking] = useState(true);
+  const [guardUnavailable, setGuardUnavailable] = useState(false);
+  const previousGuardBlocked = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -100,7 +120,46 @@ export default function InternalLogin() {
       setSessionNotice("For security, you were signed out after 30 minutes of inactivity.");
     } else if (reason === "expired") {
       setSessionNotice("Your 8-hour internal session ended. Sign in again to continue.");
+    } else if (reason === "blocked") {
+      setSessionNotice(BLOCKED_LOGIN_MESSAGE);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let firstCheck = true;
+
+    const checkGuard = async () => {
+      try {
+        const status = await InternalLoginDefenseRepository.getStatus();
+        if (cancelled) return;
+        setGuardBlocked(status.blocked);
+        setGuardUnavailable(false);
+        setError(current => current?.startsWith("Login security") ? null : current);
+        if (previousGuardBlocked.current && !status.blocked) {
+          setError(null);
+          setSessionNotice(null);
+          setSuccess("This IP was approved. You can sign in again now.");
+        }
+        previousGuardBlocked.current = status.blocked;
+      } catch {
+        if (cancelled) return;
+        setGuardUnavailable(true);
+        setError("Login security check is temporarily unavailable. Try again shortly.");
+      } finally {
+        if (!cancelled && firstCheck) {
+          firstCheck = false;
+          setGuardChecking(false);
+        }
+      }
+    };
+
+    void checkGuard();
+    const intervalId = window.setInterval(checkGuard, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {
@@ -129,9 +188,16 @@ export default function InternalLogin() {
                 await hasCurrentAdminTotpSignIn(user)
               : false;
             if (!cancelled && authorized && mfaVerified) {
+              await InternalLoginDefenseRepository.finalizeLogin();
+              writeInternalSessionActivity(user.uid, Date.now());
               router.replace(loginReturnPath());
             }
-          } catch {
+          } catch (caught) {
+            if (isInternalLoginBlockedError(caught)) {
+              setGuardBlocked(true);
+              previousGuardBlocked.current = true;
+              await signOutInternalSession("blocked");
+            }
             // The explicit sign-in action below presents actionable errors.
           }
         });
@@ -147,7 +213,6 @@ export default function InternalLogin() {
   }, [router]);
 
   const prepareAuthorizedUser = async (user: User) => {
-    writeInternalSessionActivity(user.uid, Date.now());
     const profile = await PlatformAdminRepository.getAdminProfile(user.uid);
     const authorized = Boolean(
       profile?.active && isAllowedPlatformAdminRole(profile.role)
@@ -159,6 +224,8 @@ export default function InternalLogin() {
     }
 
     if (!isFullPlatformAdmin(profile.role)) {
+      await InternalLoginDefenseRepository.finalizeLogin();
+      writeInternalSessionActivity(user.uid, Date.now());
       router.replace(loginReturnPath());
       return;
     }
@@ -178,6 +245,8 @@ export default function InternalLogin() {
       throw new Error("Sign in again and complete the authenticator challenge.");
     }
 
+    await InternalLoginDefenseRepository.finalizeLogin();
+    writeInternalSessionActivity(user.uid, Date.now());
     router.replace(loginReturnPath());
   };
 
@@ -197,6 +266,7 @@ export default function InternalLogin() {
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
+    if (guardBlocked || guardChecking || guardUnavailable) return;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -208,7 +278,29 @@ export default function InternalLogin() {
       await prepareAuthorizedUser(user);
     } catch (caught) {
       if (!handleMfaChallenge(caught)) {
-        setError(friendlyAuthError(caught));
+        if (isInternalLoginBlockedError(caught)) {
+          setGuardBlocked(true);
+          previousGuardBlocked.current = true;
+          setError(null);
+        } else if (isPasswordCredentialError(caught)) {
+          try {
+            const failure = await InternalLoginDefenseRepository.recordFailure(email);
+            if (failure.blocked) {
+              setGuardBlocked(true);
+              previousGuardBlocked.current = true;
+              setError(null);
+            } else {
+              setError(
+                `The email or password is incorrect. ${failure.remainingAttempts} attempt${failure.remainingAttempts === 1 ? "" : "s"} remaining before this IP is blocked.`
+              );
+            }
+          } catch {
+            setGuardUnavailable(true);
+            setError("Login security service is unavailable. Sign-in is disabled until the check recovers.");
+          }
+        } else {
+          setError(friendlyAuthError(caught));
+        }
       }
     } finally {
       setLoading(false);
@@ -216,6 +308,7 @@ export default function InternalLogin() {
   };
 
   const handleGoogleLogin = async () => {
+    if (guardBlocked || guardChecking || guardUnavailable) return;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -316,6 +409,16 @@ export default function InternalLogin() {
         </div>
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl sm:p-8">
+          {guardBlocked && (
+            <div role="alert" className="mb-6 rounded-xl border border-rose-500/50 bg-rose-500/15 p-5 text-center text-rose-200 shadow-lg shadow-rose-950/20">
+              <AlertCircle className="mx-auto mb-2" size={24} aria-hidden="true" />
+              <p className="text-sm font-black uppercase tracking-wide">IP address blocked</p>
+              <p className="mt-2 text-xs font-bold leading-relaxed">{BLOCKED_LOGIN_MESSAGE}</p>
+              <p className="mt-2 text-[10px] font-medium leading-relaxed text-rose-300/80">
+                The Super Admin has been notified by email and phone. This page checks for approval automatically.
+              </p>
+            </div>
+          )}
           {error && (
             <div role="alert" className="mb-6 flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-300">
               <AlertCircle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
@@ -348,6 +451,7 @@ export default function InternalLogin() {
                     autoComplete="username"
                     value={email}
                     onChange={event => setEmail(event.target.value)}
+                    disabled={loading || guardBlocked || guardChecking || guardUnavailable}
                     className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3.5 text-sm font-medium text-white outline-none transition-all focus:ring-2 focus:ring-rose-500"
                     placeholder="admin@kidsguard.com"
                     required
@@ -363,19 +467,24 @@ export default function InternalLogin() {
                     autoComplete="current-password"
                     value={password}
                     onChange={event => setPassword(event.target.value)}
+                    disabled={loading || guardBlocked || guardChecking || guardUnavailable}
                     className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3.5 text-sm font-medium text-white outline-none transition-all focus:ring-2 focus:ring-rose-500"
                     placeholder="••••••••"
                     required
                   />
                 </div>
-                <PrimaryButton loading={loading} label="Authenticate" />
+                <PrimaryButton
+                  loading={loading || guardChecking}
+                  label="Authenticate"
+                  disabled={guardBlocked || guardUnavailable}
+                />
               </form>
 
               <div className="mt-8 border-t border-slate-800 pt-8">
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  disabled={loading}
+                  disabled={loading || guardBlocked || guardChecking || guardUnavailable}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-700 bg-slate-800 py-3.5 font-bold text-white transition-all hover:bg-slate-700 disabled:opacity-50"
                 >
                   <Chrome size={20} aria-hidden="true" />
@@ -497,11 +606,19 @@ function SecurityHeading({
   );
 }
 
-function PrimaryButton({ loading, label }: { loading: boolean; label: string }) {
+function PrimaryButton({
+  loading,
+  label,
+  disabled = false,
+}: {
+  loading: boolean;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="submit"
-      disabled={loading}
+      disabled={loading || disabled}
       className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 py-4 font-black uppercase italic tracking-wider text-white shadow-xl shadow-rose-900/20 transition-all hover:bg-rose-700 disabled:opacity-50"
     >
       {loading ? <Loader2 className="animate-spin" size={20} aria-hidden="true" /> : (

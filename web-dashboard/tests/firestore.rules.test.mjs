@@ -152,6 +152,23 @@ before(async () => {
       );
 
       await setDoc(
+        doc(adminDb, "internalLoginIpBlocks", "hashed-ip"),
+        {
+          ip: "203.0.113.10",
+          status: "BLOCKED",
+          requestId: "login-block-1"
+        }
+      );
+
+      await setDoc(
+        doc(adminDb, "internalLoginSecurityEvents", "security-event-1"),
+        {
+          type: "LOGIN_IP_APPROVED",
+          requestId: "login-block-1"
+        }
+      );
+
+      await setDoc(
         doc(adminDb, "families", "family-1"),
         {
           ownerId: "owner-uid",
@@ -785,6 +802,25 @@ test(
         email: "forged@example.com",
         role: "PLATFORM_ADMIN",
         active: true
+      })
+    );
+  }
+);
+
+test(
+  "login-defense IP and audit records remain server-only",
+  async () => {
+    const adminDb = verifiedAdminDb("admin-uid", "admin@example.com");
+
+    await assertFails(
+      getDoc(doc(adminDb, "internalLoginIpBlocks", "hashed-ip"))
+    );
+    await assertFails(
+      getDoc(doc(adminDb, "internalLoginSecurityEvents", "security-event-1"))
+    );
+    await assertFails(
+      updateDoc(doc(adminDb, "internalLoginIpBlocks", "hashed-ip"), {
+        status: "APPROVED"
       })
     );
   }
