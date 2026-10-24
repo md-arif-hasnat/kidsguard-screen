@@ -72,9 +72,24 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FUNCTIONS_DISCOVERY_TIMEOUT: "60"
-        run: >
-          npx --yes firebase-tools@15.34.1 deploy
-          --project kidsguard-0626
-          --only "functions:getInternalLoginGuardStatus,functions:recordInternalLoginFailure,functions:finalizeInternalLogin,functions:assertInternalLoginAccess,functions:listInternalLoginBlocks,functions:approveInternalLoginBlock,firestore:rules"
-          --non-interactive
+        shell: bash
+        run: |
+          set +e
+          npx --yes firebase-tools@15.34.1 deploy \
+            --project kidsguard-0626 \
+            --only "functions:getInternalLoginGuardStatus,functions:recordInternalLoginFailure,functions:finalizeInternalLogin,functions:assertInternalLoginAccess,functions:listInternalLoginBlocks,functions:approveInternalLoginBlock,firestore:rules" \
+            --non-interactive 2>&1 | tee "$RUNNER_TEMP/firebase-deploy.log"
+          DEPLOY_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$DEPLOY_STATUS" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -Fq \
+            "Functions successfully deployed but could not set up cleanup policy" \
+            "$RUNNER_TEMP/firebase-deploy.log"; then
+            echo "::warning::Deployment succeeded; artifact cleanup policy remains intentionally unchanged."
+            exit 0
+          fi
+          exit "$DEPLOY_STATUS"
 
