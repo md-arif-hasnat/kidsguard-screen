@@ -6,14 +6,120 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import com.example.kidsguard.security.PinCredential
+import com.example.kidsguard.security.PinLockoutPolicy
+import com.example.kidsguard.security.PinSecurity
 import java.util.Calendar
+
+data class PinVerificationResult(
+    val verified: Boolean,
+    val lockedOut: Boolean,
+    val remainingAttempts: Int,
+    val lockoutRemainingSeconds: Int
+)
 
 class PreferenceHelper(context: Context) {
     private val prefs = context.getSharedPreferences("kidsguard_prefs", Context.MODE_PRIVATE)
 
-    var pin: String
-        get() = prefs.getString("pin", "1234") ?: "1234"
-        set(value) = prefs.edit().putString("pin", value).apply()
+    init {
+        migrateLegacyPinIfNeeded()
+    }
+
+    @Synchronized
+    private fun migrateLegacyPinIfNeeded(): PinCredential {
+        readPinCredential()?.let { credential ->
+            if (prefs.contains(LEGACY_PIN_KEY)) {
+                prefs.edit().remove(LEGACY_PIN_KEY).apply()
+            }
+            return credential
+        }
+
+        val legacyPin = prefs.getString(LEGACY_PIN_KEY, DEFAULT_PIN)
+            ?.takeIf(PinSecurity::isValidPin)
+            ?: DEFAULT_PIN
+        return savePinCredential(PinSecurity.createCredential(legacyPin))
+    }
+
+    private fun readPinCredential(): PinCredential? {
+        val algorithm = prefs.getString(PIN_ALGORITHM_KEY, null) ?: return null
+        val iterations = prefs.getInt(PIN_ITERATIONS_KEY, 0)
+        val salt = prefs.getString(PIN_SALT_KEY, null) ?: return null
+        val hash = prefs.getString(PIN_HASH_KEY, null) ?: return null
+        return PinCredential(algorithm, iterations, salt, hash)
+    }
+
+    private fun savePinCredential(credential: PinCredential): PinCredential {
+        prefs.edit()
+            .putString(PIN_ALGORITHM_KEY, credential.algorithm)
+            .putInt(PIN_ITERATIONS_KEY, credential.iterations)
+            .putString(PIN_SALT_KEY, credential.saltHex)
+            .putString(PIN_HASH_KEY, credential.hashHex)
+            .remove(LEGACY_PIN_KEY)
+            .commit()
+        return credential
+    }
+
+    @Synchronized
+    fun verifyPin(pinAttempt: String): PinVerificationResult {
+        val now = System.currentTimeMillis()
+        val lockoutRemaining = pinLockoutRemainingSeconds(now)
+        if (lockoutRemaining > 0) {
+            return PinVerificationResult(
+                verified = false,
+                lockedOut = true,
+                remainingAttempts = 0,
+                lockoutRemainingSeconds = lockoutRemaining
+            )
+        }
+
+        val verified = PinSecurity.verify(pinAttempt, migrateLegacyPinIfNeeded())
+        if (verified) {
+            prefs.edit()
+                .remove(PIN_FAILED_ATTEMPTS_KEY)
+                .remove(PIN_LOCKOUT_END_KEY)
+                .apply()
+            return PinVerificationResult(
+                verified = true,
+                lockedOut = false,
+                remainingAttempts = PinLockoutPolicy.ATTEMPTS_BEFORE_LOCKOUT,
+                lockoutRemainingSeconds = 0
+            )
+        }
+
+        val failedAttempts = prefs.getInt(PIN_FAILED_ATTEMPTS_KEY, 0) + 1
+        val lockoutDuration = PinLockoutPolicy.lockoutDurationMillis(failedAttempts)
+        val lockoutEnd = if (lockoutDuration > 0) now + lockoutDuration else 0L
+        prefs.edit()
+            .putInt(PIN_FAILED_ATTEMPTS_KEY, failedAttempts)
+            .putLong(PIN_LOCKOUT_END_KEY, lockoutEnd)
+            .commit()
+
+        return PinVerificationResult(
+            verified = false,
+            lockedOut = lockoutDuration > 0,
+            remainingAttempts = PinLockoutPolicy.remainingAttempts(failedAttempts),
+            lockoutRemainingSeconds = millisToCeilingSeconds(lockoutDuration)
+        )
+    }
+
+    @Synchronized
+    fun changePin(newPin: String): Boolean {
+        if (!PinSecurity.isValidPin(newPin)) return false
+        savePinCredential(PinSecurity.createCredential(newPin))
+        prefs.edit()
+            .remove(PIN_FAILED_ATTEMPTS_KEY)
+            .remove(PIN_LOCKOUT_END_KEY)
+            .apply()
+        return true
+    }
+
+    fun pinLockoutRemainingSeconds(now: Long = System.currentTimeMillis()): Int {
+        val remaining = (prefs.getLong(PIN_LOCKOUT_END_KEY, 0L) - now).coerceAtLeast(0L)
+        return millisToCeilingSeconds(remaining)
+    }
+
+    private fun millisToCeilingSeconds(millis: Long): Int =
+        if (millis <= 0L) 0 else ((millis + 999L) / 1_000L).toInt()
 
     var secretTapsCount: Int
         get() = prefs.getInt("secret_taps_count", 5)
@@ -284,6 +390,15 @@ class PreferenceHelper(context: Context) {
         android.util.Log.i("PreferenceHelper", "Local pairing data cleared.")
     }
 }
+
+private const val DEFAULT_PIN = "1234"
+private const val LEGACY_PIN_KEY = "pin"
+private const val PIN_ALGORITHM_KEY = "pin_algorithm_v2"
+private const val PIN_ITERATIONS_KEY = "pin_iterations_v2"
+private const val PIN_SALT_KEY = "pin_salt_v2"
+private const val PIN_HASH_KEY = "pin_hash_v2"
+private const val PIN_FAILED_ATTEMPTS_KEY = "pin_failed_attempts_v2"
+private const val PIN_LOCKOUT_END_KEY = "pin_lockout_end_v2"
 
 object RemoteStatusService {
     fun updateChildStatus(context: Context, prefHelper: PreferenceHelper) {

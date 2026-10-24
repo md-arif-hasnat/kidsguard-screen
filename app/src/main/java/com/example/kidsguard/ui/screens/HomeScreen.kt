@@ -658,7 +658,7 @@ fun HomeScreen(
                     showPinDialog = false
                     onOpenSettings()
                 },
-                correctPin = prefHelper.pin
+                prefHelper = prefHelper
             )
         }
 

@@ -10,6 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.security.PinSecurity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PinEntryDialog(
@@ -17,10 +23,23 @@ fun PinEntryDialog(
     onDismiss: () -> Unit,
     onCorrectPin: () -> Unit,
     onIncorrectPin: () -> Unit = {},
-    correctPin: String
+    prefHelper: PreferenceHelper
 ) {
     var pin by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("Incorrect PIN") }
+    var isChecking by remember { mutableStateOf(false) }
+    var lockoutRemainingSeconds by remember {
+        mutableIntStateOf(prefHelper.pinLockoutRemainingSeconds())
+    }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(prefHelper) {
+        while (true) {
+            lockoutRemainingSeconds = prefHelper.pinLockoutRemainingSeconds()
+            delay(1_000L)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -40,11 +59,19 @@ fun PinEntryDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = isError,
                     singleLine = true,
+                    enabled = !isChecking && lockoutRemainingSeconds == 0,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (isError) {
+                if (lockoutRemainingSeconds > 0) {
                     Text(
-                        text = "Incorrect PIN",
+                        text = "Too many attempts. Try again in ${lockoutRemainingSeconds}s.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                    )
+                } else if (isError) {
+                    Text(
+                        text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(start = 16.dp, top = 4.dp)
@@ -56,20 +83,35 @@ fun PinEntryDialog(
             Button(
                 onClick = {
                     val enteredPin = pin.trim()
-                    val targetPin = correctPin.trim()
-                    
-                    if (enteredPin == targetPin) {
-                        android.util.Log.i("PinEntry", "PIN match success. Executing success handler.")
-                        onCorrectPin()
-                    } else {
-                        android.util.Log.w("PinEntry", "PIN mismatch. Entered: $enteredPin")
-                        isError = true
-                        onIncorrectPin()
-                        pin = ""
+                    isChecking = true
+                    coroutineScope.launch {
+                        val result = withContext(Dispatchers.Default) {
+                            prefHelper.verifyPin(enteredPin)
+                        }
+                        isChecking = false
+                        lockoutRemainingSeconds = result.lockoutRemainingSeconds
+                        if (result.verified) {
+                            onCorrectPin()
+                        } else {
+                            isError = true
+                            errorMessage = when {
+                                result.lockedOut ->
+                                    "Too many attempts. Try again in ${result.lockoutRemainingSeconds}s."
+                                result.remainingAttempts == 1 ->
+                                    "Incorrect PIN. 1 attempt remaining."
+                                else ->
+                                    "Incorrect PIN. ${result.remainingAttempts} attempts remaining."
+                            }
+                            onIncorrectPin()
+                            pin = ""
+                        }
                     }
-                }
+                },
+                enabled = !isChecking &&
+                    lockoutRemainingSeconds == 0 &&
+                    PinSecurity.isValidPin(pin.trim())
             ) {
-                Text("Unlock")
+                Text(if (isChecking) "Checking…" else "Unlock")
             }
         },
         dismissButton = {
