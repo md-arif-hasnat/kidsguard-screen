@@ -25,6 +25,7 @@ import com.example.kidsguard.notifications.LocalNotificationEngine
 import com.example.kidsguard.repository.LocationRepository
 import com.example.kidsguard.repository.SafeZoneRepository
 import com.example.kidsguard.sync.FirebaseRemoteSyncProvider
+import com.example.kidsguard.sync.ChildStatusManager
 import com.example.kidsguard.sync.RemoteCommandHandler
 import com.example.kidsguard.sync.SyncRemoteCommand
 import com.google.android.gms.location.*
@@ -49,6 +50,7 @@ class BackgroundTrackingService : Service() {
     private lateinit var reverseGeocoder: ReverseGeocoder
     private lateinit var syncProvider: FirebaseRemoteSyncProvider
     private lateinit var commandHandler: RemoteCommandHandler
+    private lateinit var childStatusManager: ChildStatusManager
     private lateinit var lockScheduleManager: com.example.kidsguard.managers.LockScheduleManager
     private lateinit var errorLogRepository: com.example.kidsguard.repository.ErrorLogRepository
     private var forceNextLocationSync = false
@@ -109,6 +111,14 @@ class BackgroundTrackingService : Service() {
             errorLogRepository = errorLogRepository,
             syncProvider = syncProvider
         )
+        childStatusManager = ChildStatusManager(
+            context = appContext,
+            prefHelper = prefHelper,
+            syncProvider = syncProvider,
+            trackingRepository = trackingRepository,
+            safeZoneRepository = safeZoneRepository,
+            locationRepository = locationRepository
+        )
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         notificationEngine = LocalNotificationEngine(appContext, errorLogRepository)
@@ -157,6 +167,7 @@ class BackgroundTrackingService : Service() {
         )
 
         setupLocationCallback()
+        syncProvider.connect()
         setupCommandListener()
         startLockScheduleMonitoring()
     }
@@ -229,6 +240,12 @@ class BackgroundTrackingService : Service() {
         }
 
         setupCommandListener()
+        if (prefHelper.userRole == "CHILD" && prefHelper.childId.isNotBlank()) {
+            // The foreground service, rather than the activity, owns the heartbeat so
+            // the parent dashboard keeps receiving fresh device status while the app
+            // UI is closed or Android recreates the activity.
+            childStatusManager.startPeriodicSync()
+        }
         startLocationUpdates()
         Log.d(TAG, "BackgroundTrackingService: location updates started")
         
@@ -353,6 +370,8 @@ class BackgroundTrackingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "BackgroundTrackingService: stopped safely")
+        childStatusManager.stopPeriodicSync()
+        syncProvider.disconnect()
         fusedLocationClient.removeLocationUpdates(locationCallback)
         locationHandlerThread?.quitSafely()
         locationHandlerThread = null
