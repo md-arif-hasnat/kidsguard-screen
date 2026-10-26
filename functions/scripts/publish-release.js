@@ -5,6 +5,7 @@ const { isValidStableVersionName } = require("./release-version");
 const versionCode = Number(process.env.VERSION_CODE);
 const versionName = String(process.env.VERSION_NAME || "").trim();
 const apkDownloadUrl = String(process.env.APK_DOWNLOAD_URL || "").trim();
+const apkSha256 = String(process.env.APK_SHA256 || "").trim().toLowerCase();
 const apkSize = String(process.env.APK_SIZE || "").trim();
 const releaseNotes = String(process.env.RELEASE_NOTES || "")
   .split("\n")
@@ -14,6 +15,7 @@ const releaseNotes = String(process.env.RELEASE_NOTES || "")
 if (!Number.isInteger(versionCode) || versionCode <= 0) throw new Error("Invalid VERSION_CODE");
 if (!isValidStableVersionName(versionName)) throw new Error("Invalid VERSION_NAME; expected 1.0.x");
 if (!apkDownloadUrl.startsWith("https://")) throw new Error("Invalid APK_DOWNLOAD_URL");
+if (!/^[a-f0-9]{64}$/.test(apkSha256)) throw new Error("Invalid APK_SHA256");
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "");
 initializeApp({ credential: cert(serviceAccount) });
@@ -22,6 +24,7 @@ const releaseData = {
   latestVersionCode: versionCode,
   latestVersionName: versionName,
   apkDownloadUrl,
+  apkSha256,
   mandatoryUpdate: false,
   releaseChannel: "stable",
   updateMessage: "A new KidsGuard version is available. Please update for the latest improvements.",

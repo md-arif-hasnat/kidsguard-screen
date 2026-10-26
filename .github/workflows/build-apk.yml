@@ -135,13 +135,20 @@ jobs:
           if [ -s "$APK" ]; then
             SIZE=$(du -h "$APK" | cut -f1)
           else
-            SIZE_BYTES=$(gh release view "v$VERSION_NAME" \
+            RELEASE_DIR="$RUNNER_TEMP/kidsguard-release-$VERSION_NAME"
+            mkdir -p "$RELEASE_DIR"
+            gh release download "v$VERSION_NAME" \
               --repo "$GITHUB_REPOSITORY" \
-              --json assets \
-              --jq '.assets[] | select(.name | endswith(".apk")) | .size' | head -1)
-            test -n "$SIZE_BYTES"
+              --pattern '*.apk' \
+              --dir "$RELEASE_DIR" \
+              --clobber
+            APK=$(find "$RELEASE_DIR" -maxdepth 1 -type f -name '*.apk' | head -1)
+            test -s "$APK"
+            SIZE_BYTES=$(stat -c%s "$APK")
             SIZE="$SIZE_BYTES bytes"
           fi
+          APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
+          [[ "$APK_SHA256" =~ ^[a-f0-9]{64}$ ]]
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           {
             echo "## KidsGuard v$VERSION_NAME"
@@ -156,6 +163,7 @@ jobs:
             echo "- $COMMIT_SUBJECT"
           } > release-notes-generated.md
           echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -187,6 +195,7 @@ jobs:
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
           APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/app-release.apk
           APK_SIZE: ${{ steps.metadata.outputs.size }}
+          APK_SHA256: ${{ steps.metadata.outputs.sha256 }}
           RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
