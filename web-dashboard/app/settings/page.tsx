@@ -153,6 +153,15 @@ export default function SettingsPage() {
     family?.ownerId === profile.uid &&
     profileRole === FamilyRole.OWNER
   );
+  const nextEmailChangeAt = ParentRepository.getNextOwnerEmailChangeAt(
+    profile?.emailChangeRequestedAt
+  );
+  const emailChangeNote = nextEmailChangeAt
+    ? `Next email change available after ${new Intl.DateTimeFormat(locale, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }).format(nextEmailChangeAt)}.`
+    : 'You can change your email once a week. The next change is possible 7 days after your previous request.';
 
   return (
     <DashboardLayout>
@@ -171,6 +180,8 @@ export default function SettingsPage() {
 
       <OwnerEmailChangeDialog
         currentEmail={profile?.email || ""}
+        familyId={family?.familyId || ""}
+        ownerUid={profile?.uid || ""}
         open={showEmailChange && isFamilyOwner}
         onClose={() => setShowEmailChange(false)}
       />
@@ -256,14 +267,15 @@ export default function SettingsPage() {
                   />
                 </div>
                 {isFamilyOwner && (
-                  <div className="flex items-center justify-between gap-3 px-1 pt-1">
-                    <p className="text-[11px] leading-relaxed text-slate-500">
-                      Only the family owner can change the login email.
+                  <div className="flex items-start justify-between gap-3 px-1 pt-1">
+                    <p className="text-[11px] leading-relaxed text-slate-400">
+                      {emailChangeNote}
                     </p>
                     <button
                       type="button"
                       onClick={() => setShowEmailChange(true)}
-                      className="shrink-0 text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline"
+                      disabled={Boolean(nextEmailChangeAt)}
+                      className="shrink-0 text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
                     >
                       Change email
                     </button>

@@ -137,29 +137,16 @@ export const resetPassword = async (email: string) => {
   }
 };
 
-export const requestOwnerEmailChange = async (
-  newEmail: string,
+export const reauthenticateOwnerForEmailChange = async (
   currentPassword: string
-): Promise<string> => {
+): Promise<User> => {
   const user = auth?.currentUser;
   const currentEmail = user?.email?.trim().toLowerCase();
-  const normalizedEmail = newEmail.trim().toLowerCase();
 
   if (!user || !currentEmail) {
     throw authError(
       "auth/user-not-found",
       "Your authenticated account is unavailable. Please sign in again."
-    );
-  }
-
-  if (!normalizedEmail) {
-    throw authError("auth/invalid-email", "Enter a valid new email address.");
-  }
-
-  if (normalizedEmail === currentEmail) {
-    throw authError(
-      "auth/same-email",
-      "The new email address must be different from your current email."
     );
   }
 
@@ -186,10 +173,46 @@ export const requestOwnerEmailChange = async (
   );
   await reauthenticateWithCredential(user, credential);
 
+  return user;
+};
+
+export const sendOwnerEmailChangeVerification = async (
+  user: User,
+  newEmail: string
+): Promise<string> => {
+  const currentEmail = user.email?.trim().toLowerCase();
+  const normalizedEmail = newEmail.trim().toLowerCase();
+
+  if (!currentEmail) {
+    throw authError(
+      "auth/user-not-found",
+      "Your authenticated account is unavailable. Please sign in again."
+    );
+  }
+
+  if (!normalizedEmail) {
+    throw authError("auth/invalid-email", "Enter a valid new email address.");
+  }
+
+  if (normalizedEmail === currentEmail) {
+    throw authError(
+      "auth/same-email",
+      "The new email address must be different from your current email."
+    );
+  }
+
   await verifyBeforeUpdateEmail(user, normalizedEmail, {
     url: `${window.location.origin}/login?emailChange=verified`,
     handleCodeInApp: false
   });
 
   return normalizedEmail;
+};
+
+export const requestOwnerEmailChange = async (
+  newEmail: string,
+  currentPassword: string
+): Promise<string> => {
+  const user = await reauthenticateOwnerForEmailChange(currentPassword);
+  return sendOwnerEmailChangeVerification(user, newEmail);
 };
