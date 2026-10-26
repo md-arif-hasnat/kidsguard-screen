@@ -1,4 +1,5 @@
-const admin = require("firebase-admin");
+const { cert, initializeApp } = require("firebase-admin/app");
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { isValidStableVersionName } = require("./release-version");
 
 const versionCode = Number(process.env.VERSION_CODE);
@@ -15,8 +16,8 @@ if (!isValidStableVersionName(versionName)) throw new Error("Invalid VERSION_NAM
 if (!apkDownloadUrl.startsWith("https://")) throw new Error("Invalid APK_DOWNLOAD_URL");
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "");
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+initializeApp({ credential: cert(serviceAccount) });
+const db = getFirestore();
 const releaseData = {
   latestVersionCode: versionCode,
   latestVersionName: versionName,
@@ -27,8 +28,8 @@ const releaseData = {
   releaseNotes,
   fileSize: apkSize,
   minimumAndroidVersion: "7.0",
-  releasedAt: admin.firestore.FieldValue.serverTimestamp(),
-  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  releasedAt: FieldValue.serverTimestamp(),
+  createdAt: FieldValue.serverTimestamp(),
   createdByUid: "github-actions",
   createdByEmail: "github-actions@github.com",
 };
