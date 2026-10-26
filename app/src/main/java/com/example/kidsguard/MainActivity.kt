@@ -231,7 +231,10 @@ class MainActivity : ComponentActivity() {
         }
 
         if (prefHelper.userRole == "CHILD") {
-            childStatusManager.startPeriodicSync()
+            // BackgroundTrackingService owns the recurring heartbeat. Keep these
+            // event-driven updates for immediate UI feedback without running two
+            // independent five-minute loops.
+            childStatusManager.updateStatus()
             lifecycleScope.launch {
                 trackingManager.isTrackingEnabled.collect {
                     childStatusManager.updateStatus()
