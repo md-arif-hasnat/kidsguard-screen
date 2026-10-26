@@ -67,6 +67,7 @@ const InternalSidebar: React.FC<InternalSidebarProps> = ({ isOpen, onClose }) =>
     { name: t('promotions'), href: '/internal/promotions', icon: TicketPercent, visible: role ? isFullPlatformAdmin(role) : false },
     { name: 'Billing & Tax', href: '/internal/billing', icon: ReceiptText, visible: role === 'SUPER_ADMIN' },
     { name: 'Login Defense', href: '/internal/security/login-blocks', icon: ShieldAlert, notificationType: 'SECURITY', visible: role === 'SUPER_ADMIN' },
+    { name: 'Admin Sessions', href: '/internal/security/sessions', icon: Smartphone, notificationType: 'SECURITY', visible: role === 'SUPER_ADMIN' },
     { name: t('families'), href: '/internal/families', icon: Home, visible: role ? isAccountingStaff(role) : false },
     { name: t('devices'), href: '/internal/devices', icon: Smartphone, notificationType: 'DEVICE', visible: role ? isSupportStaff(role) : false },
     { name: t('supportInbox'), href: '/internal/support', icon: MessageSquare, notificationType: 'SUPPORT', visible: role ? isSupportStaff(role) : false },

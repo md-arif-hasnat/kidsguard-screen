@@ -1,6 +1,24 @@
 // Keep the existing Gen 1 API contract explicit while using the current SDK.
 import * as functions from 'firebase-functions/v1';
-import * as admin from 'firebase-admin';
+import {initializeApp} from 'firebase-admin/app';
+import {getAuth} from 'firebase-admin/auth';
+import {
+  CollectionReference,
+  DocumentData,
+  DocumentReference,
+  DocumentSnapshot,
+  FieldValue,
+  GeoPoint,
+  getFirestore,
+  Timestamp,
+  WriteResult,
+} from 'firebase-admin/firestore';
+import {
+  BatchResponse,
+  getMessaging,
+  MulticastMessage,
+} from 'firebase-admin/messaging';
+import {getStorage} from 'firebase-admin/storage';
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall as onCallV2 } from 'firebase-functions/v2/https';
 import {
@@ -20,12 +38,18 @@ import {
   evaluateInternalLoginFailure,
   INTERNAL_LOGIN_FAILURE_LIMIT,
 } from './internalLoginDefense';
+import {
+  evaluateInternalSession,
+  INTERNAL_SESSION_ABSOLUTE_MS,
+  internalSessionFingerprint,
+  isInternalSessionCompromise,
+} from './internalSessionDefense';
 
-admin.initializeApp();
+initializeApp();
 
-const db = admin.firestore();
-const bucket = admin.storage().bucket();
-const storageBucket = admin.storage().bucket();
+const db = getFirestore();
+const bucket = getStorage().bucket();
+const storageBucket = getStorage().bucket();
 const paddleWebhookSecret = defineSecret('PADDLE_WEBHOOK_SECRET');
 const paddleApiKey = defineSecret('PADDLE_API_KEY');
 const paddleRecurringAddOnsJson = defineString(
@@ -53,7 +77,7 @@ const PLATFORM_STAFF_ROLES = new Set([
   'EMPLOYEE',
   'ACCOUNTING'
 ]);
-const PLATFORM_ADMIN_MAX_SESSION_SECONDS = 8 * 60 * 60;
+const PLATFORM_ADMIN_MAX_SESSION_SECONDS = INTERNAL_SESSION_ABSOLUTE_MS / 1000;
 const ASSIGNABLE_PLATFORM_STAFF_ROLES = new Set([
   'PLATFORM_ADMIN',
   'EMPLOYEE',
@@ -100,7 +124,8 @@ async function requirePlatformAdmin(
 }
 
 async function requireActiveInternalStaff(
-  context: functions.https.CallableContext
+  context: functions.https.CallableContext,
+  options: {requireSession?: boolean} = {}
 ): Promise<{uid: string; email: string | null; role: string}> {
   if (!context.auth || context.auth.token.email_verified !== true) {
     throw new functions.https.HttpsError(
@@ -154,6 +179,16 @@ async function requireActiveInternalStaff(
 
   await assertInternalLoginIpAllowed(context.rawRequest);
 
+  if (options.requireSession !== false) {
+    await assertActiveInternalAdminSession(context, {
+      uid: context.auth.uid,
+      email: typeof context.auth.token.email === 'string'
+        ? context.auth.token.email
+        : null,
+      role,
+    });
+  }
+
   return {
     uid: context.auth.uid,
     email: typeof context.auth.token.email === 'string'
@@ -197,6 +232,255 @@ function internalLoginIpRef(request: functions.https.Request) {
     ip,
     ref: db.collection('internalLoginIpBlocks').doc(internalLoginIpHash(ip))
   };
+}
+
+type InternalStaffIdentity = {
+  uid: string;
+  email: string | null;
+  role: string;
+};
+
+function internalSessionRef(uid: string): DocumentReference {
+  return db.collection('internalAdminSessions').doc(uid);
+}
+
+function internalSessionAuthTime(
+  context: functions.https.CallableContext
+): number {
+  const authTime = Number(context.auth?.token.auth_time);
+  if (!Number.isFinite(authTime) || authTime <= 0) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Secure internal session identity is unavailable. Sign in again.'
+    );
+  }
+  return authTime;
+}
+
+function internalSessionRequestContext(
+  context: functions.https.CallableContext
+): {
+  ip: string;
+  ipHash: string;
+  userAgent: string;
+  userAgentHash: string;
+} {
+  const ip = internalLoginClientIp(context.rawRequest);
+  const fingerprint = internalSessionFingerprint({
+    ip,
+    userAgent: context.rawRequest.get('user-agent'),
+  });
+  return {ip, ...fingerprint};
+}
+
+function internalSessionExpiresAtMillis(authTime: number): number {
+  return authTime * 1000 + INTERNAL_SESSION_ABSOLUTE_MS;
+}
+
+function internalSessionEvaluationData(value: DocumentData | undefined) {
+  const expiresAt = value?.expiresAt;
+  return value ? {
+    state: value.state,
+    authTime: value.authTime,
+    expiresAtMillis: expiresAt instanceof Timestamp ? expiresAt.toMillis() : 0,
+    ipHash: value.ipHash,
+    userAgentHash: value.userAgentHash,
+  } : null;
+}
+
+async function compromiseInternalAdminSession(
+  context: functions.https.CallableContext,
+  operator: InternalStaffIdentity
+): Promise<never> {
+  const authTime = internalSessionAuthTime(context);
+  const requestContext = internalSessionRequestContext(context);
+  const sessionRef = internalSessionRef(operator.uid);
+  const now = Date.now();
+
+  const result = await db.runTransaction(async transaction => {
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const session = sessionSnapshot.data();
+    const decision = evaluateInternalSession(
+      internalSessionEvaluationData(session),
+      {
+        authTime,
+        nowMillis: now,
+        ip: requestContext.ip,
+        userAgent: requestContext.userAgent,
+      }
+    );
+
+    if (!isInternalSessionCompromise(decision)) {
+      return {compromised: false, decision};
+    }
+
+    const sessionId = String(session?.sessionId || randomUUID());
+    const eventId = `session-compromise-${sessionId}`;
+    const nowTimestamp = Timestamp.fromMillis(now);
+    const event = {
+      eventId,
+      type: 'INTERNAL_SESSION_COMPROMISED',
+      uid: operator.uid,
+      email: operator.email,
+      role: operator.role,
+      sessionId,
+      reason: decision,
+      originalIp: String(session?.ip || 'Unavailable'),
+      observedIp: requestContext.ip,
+      originalUserAgent: String(session?.userAgent || 'Unknown browser'),
+      observedUserAgent: requestContext.userAgent,
+      createdAt: nowTimestamp,
+    };
+
+    transaction.update(sessionRef, {
+      state: 'COMPROMISED',
+      compromiseReason: decision,
+      compromisedAt: nowTimestamp,
+      observedIpHash: requestContext.ipHash,
+      observedUserAgentHash: requestContext.userAgentHash,
+      updatedAt: nowTimestamp,
+    });
+    transaction.set(
+      db.collection('internalSessionSecurityEvents').doc(eventId),
+      event,
+      {merge: true}
+    );
+    transaction.set(
+      db.collection('internalSessionSecurityAlerts').doc(eventId),
+      {...event, deliveryStatus: 'PENDING'},
+      {merge: true}
+    );
+    return {compromised: true, decision};
+  });
+
+  if (result.compromised) {
+    try {
+      await getAuth().revokeRefreshTokens(operator.uid);
+    } catch (error) {
+      console.error('Failed to revoke compromised internal refresh tokens', {
+        uid: operator.uid,
+        error,
+      });
+    }
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Secure internal session mismatch detected. All sessions were revoked.'
+    );
+  }
+
+  throw new functions.https.HttpsError(
+    'unauthenticated',
+    result.decision === 'EXPIRED'
+      ? 'Your internal session has expired. Sign in again to continue.'
+      : 'Secure internal session is unavailable. Sign in again.'
+  );
+}
+
+async function assertActiveInternalAdminSession(
+  context: functions.https.CallableContext,
+  operator: InternalStaffIdentity
+): Promise<void> {
+  const authTime = internalSessionAuthTime(context);
+  const requestContext = internalSessionRequestContext(context);
+  const sessionRef = internalSessionRef(operator.uid);
+  const sessionSnapshot = await sessionRef.get();
+  const session = sessionSnapshot.data();
+  const now = Date.now();
+  const decision = evaluateInternalSession(
+    internalSessionEvaluationData(session),
+    {
+      authTime,
+      nowMillis: now,
+      ip: requestContext.ip,
+      userAgent: requestContext.userAgent,
+    }
+  );
+
+  if (decision === 'VALID') {
+    const lastSeenAt = session?.lastSeenAt;
+    const lastSeenMillis = lastSeenAt instanceof Timestamp
+      ? lastSeenAt.toMillis()
+      : 0;
+    if (now - lastSeenMillis >= 5 * 60 * 1000) {
+      await sessionRef.update({
+        lastSeenAt: Timestamp.fromMillis(now),
+        updatedAt: Timestamp.fromMillis(now),
+      });
+    }
+    return;
+  }
+
+  if (isInternalSessionCompromise(decision)) {
+    await compromiseInternalAdminSession(context, operator);
+  }
+
+  throw new functions.https.HttpsError(
+    'unauthenticated',
+    decision === 'EXPIRED'
+      ? 'Your internal session has expired. Sign in again to continue.'
+      : 'Secure internal session is unavailable. Sign in again.'
+  );
+}
+
+async function beginInternalAdminSession(
+  context: functions.https.CallableContext,
+  operator: InternalStaffIdentity
+): Promise<{sessionId: string; expiresAt: string}> {
+  const authTime = internalSessionAuthTime(context);
+  const requestContext = internalSessionRequestContext(context);
+  const sessionRef = internalSessionRef(operator.uid);
+  const existingSnapshot = await sessionRef.get();
+  const existing = existingSnapshot.data();
+  const existingAuthTime = Number(existing?.authTime || 0);
+
+  if (existingSnapshot.exists && existingAuthTime === authTime) {
+    await assertActiveInternalAdminSession(context, operator);
+    const existingExpiry = existing?.expiresAt;
+    return {
+      sessionId: String(existing?.sessionId || ''),
+      expiresAt: existingExpiry instanceof Timestamp
+        ? existingExpiry.toDate().toISOString()
+        : new Date(internalSessionExpiresAtMillis(authTime)).toISOString(),
+    };
+  }
+
+  if (existingSnapshot.exists && existingAuthTime > authTime) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'A newer internal session is already active. Sign in again.'
+    );
+  }
+
+  const sessionId = randomUUID();
+  const nowTimestamp = Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(internalSessionExpiresAtMillis(authTime));
+  await sessionRef.set({
+    sessionId,
+    uid: operator.uid,
+    email: operator.email,
+    role: operator.role,
+    state: 'ACTIVE',
+    authTime,
+    ip: requestContext.ip,
+    ipHash: requestContext.ipHash,
+    userAgent: requestContext.userAgent,
+    userAgentHash: requestContext.userAgentHash,
+    createdAt: nowTimestamp,
+    lastSeenAt: nowTimestamp,
+    expiresAt,
+    updatedAt: nowTimestamp,
+  });
+  await db.collection('internalSessionSecurityEvents').add({
+    type: existingSnapshot.exists
+      ? 'INTERNAL_SESSION_REPLACED'
+      : 'INTERNAL_SESSION_STARTED',
+    uid: operator.uid,
+    email: operator.email,
+    role: operator.role,
+    sessionId,
+    createdAt: nowTimestamp,
+  });
+  return {sessionId, expiresAt: expiresAt.toDate().toISOString()};
 }
 
 async function assertInternalLoginIpAllowed(
@@ -348,7 +632,7 @@ async function sendPlatformOwnerApprovalPush(input: {
   const ownerEmail = normalizePlatformEmail(platformOwnerEmail.value());
   if (!ownerEmail) return false;
 
-  const ownerUser = await admin.auth().getUserByEmail(ownerEmail);
+  const ownerUser = await getAuth().getUserByEmail(ownerEmail);
   const ownerProfile = await db.collection('platformAdmins').doc(ownerUser.uid).get();
   if (
     !ownerProfile.exists ||
@@ -388,7 +672,7 @@ async function sendPlatformOwnerApprovalPush(input: {
 
   let successCount = 0;
   for (const documents of tokenBatches) {
-    const response = await admin.messaging().sendEachForMulticast({
+    const response = await getMessaging().sendEachForMulticast({
       tokens: documents.map(document => String(document.data().token)),
       notification: {title, body},
       data: {
@@ -411,7 +695,7 @@ async function sendPlatformOwnerApprovalPush(input: {
     });
     successCount += response.successCount;
 
-    const invalidDeletes: Promise<admin.firestore.WriteResult>[] = [];
+    const invalidDeletes: Promise<WriteResult>[] = [];
     response.responses.forEach((result, index) => {
       const code = result.error?.code;
       if (
@@ -453,8 +737,8 @@ async function sendPlatformStaffInviteEmail(input: {
   if (result.error) throw new Error(result.error.message);
 }
 
-function platformApprovalExpiry(): admin.firestore.Timestamp {
-  return admin.firestore.Timestamp.fromMillis(
+function platformApprovalExpiry(): Timestamp {
+  return Timestamp.fromMillis(
     Date.now() + 48 * 60 * 60 * 1000
   );
 }
@@ -485,20 +769,20 @@ async function createPlatformApprovalRequest(input: {
     requestedActive: input.requestedActive,
     requestedBy: input.operator.uid,
     requestedByEmail: input.operator.email,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     expiresAt: platformApprovalExpiry(),
     notificationStatus: 'PENDING'
   });
   batch.set(secretRef, {
     requestId: requestRef.id,
     tokenHash: platformApprovalTokenHash(token),
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     expiresAt: platformApprovalExpiry()
   });
   batch.update(db.collection('platformAdmins').doc(input.targetUid), {
     pendingApprovalRequestId: requestRef.id,
     approvalStatus: 'PENDING',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   });
   await batch.commit();
   return {requestId: requestRef.id, token};
@@ -541,15 +825,15 @@ async function deliverPlatformApprovalRequest(
   await requestRef.update({
     notificationStatus: emailSent ? 'SENT' : 'FAILED',
     ...(emailSent
-      ? {notificationSentAt: admin.firestore.FieldValue.serverTimestamp()}
-      : {notificationFailedAt: admin.firestore.FieldValue.serverTimestamp()}),
+      ? {notificationSentAt: FieldValue.serverTimestamp()}
+      : {notificationFailedAt: FieldValue.serverTimestamp()}),
     pushNotificationStatus: pushSent
       ? 'SENT'
       : pushResult.status === 'rejected'
         ? 'FAILED'
         : 'UNAVAILABLE',
     ...(pushSent
-      ? {pushNotificationSentAt: admin.firestore.FieldValue.serverTimestamp()}
+      ? {pushNotificationSentAt: FieldValue.serverTimestamp()}
       : {})
   });
   return emailSent;
@@ -581,8 +865,8 @@ async function consumePlatformApprovalRateLimit(actorUid: string): Promise<void>
       requestCount: requestCount + 1,
       windowStartedAt: withinWindow
         ? data?.windowStartedAt
-        : admin.firestore.Timestamp.fromMillis(now),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        : Timestamp.fromMillis(now),
+      updatedAt: FieldValue.serverTimestamp()
     }, {merge: true});
   });
 }
@@ -616,7 +900,7 @@ export const requestPlatformStaffAccount = functions
     await consumePlatformApprovalRateLimit(operator.uid);
 
     try {
-      await admin.auth().getUserByEmail(email);
+      await getAuth().getUserByEmail(email);
       throw new functions.https.HttpsError(
         'already-exists',
         'This email already has a Firebase account. Use a separate work email.'
@@ -626,7 +910,7 @@ export const requestPlatformStaffAccount = functions
       if (authErrorCode(error) !== 'auth/user-not-found') throw error;
     }
 
-    const authUser = await admin.auth().createUser({
+    const authUser = await getAuth().createUser({
       email,
       displayName,
       password: randomBytes(48).toString('base64url'),
@@ -643,7 +927,7 @@ export const requestPlatformStaffAccount = functions
         role: requestedRole,
         active: false,
         approvalStatus: 'PENDING',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         createdBy: operator.uid,
         createdByEmail: operator.email
       });
@@ -664,7 +948,7 @@ export const requestPlatformStaffAccount = functions
       return {success: true, requestId: approval.requestId, notificationSent};
     } catch (error) {
       await Promise.allSettled([
-        admin.auth().deleteUser(authUser.uid),
+        getAuth().deleteUser(authUser.uid),
         profileRef.delete()
       ]);
       throw error;
@@ -764,7 +1048,7 @@ export const resendPlatformStaffApproval = functions
     await db.collection('platformStaffApprovalSecrets').doc(requestId).set({
       requestId,
       tokenHash: platformApprovalTokenHash(token),
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       expiresAt: platformApprovalExpiry()
     });
     await requestRef.update({
@@ -803,23 +1087,23 @@ export const deactivatePlatformStaff = functions
       );
     }
 
-    await admin.auth().updateUser(targetUid, {disabled: true});
+    await getAuth().updateUser(targetUid, {disabled: true});
     const pendingId = String(profile?.pendingApprovalRequestId || '');
     const batch = db.batch();
     batch.update(profileRef, {
       active: false,
-      pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
-      lastApprovalRequestId: admin.firestore.FieldValue.delete(),
-      deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      pendingApprovalRequestId: FieldValue.delete(),
+      lastApprovalRequestId: FieldValue.delete(),
+      deactivatedAt: FieldValue.serverTimestamp(),
       deactivatedBy: operator.uid,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
     if (pendingId) {
       batch.set(
         db.collection('platformStaffApprovalRequests').doc(pendingId),
         {
           status: 'CANCELED',
-          canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+          canceledAt: FieldValue.serverTimestamp(),
           canceledBy: operator.uid
         },
         {merge: true}
@@ -899,7 +1183,7 @@ export const reviewPlatformStaffRequest = functions
       throw new functions.https.HttpsError('not-found', 'Target profile not found.');
     }
     const profile = profileSnapshot.data();
-    const targetAuthUser = await admin.auth().getUser(targetUid);
+    const targetAuthUser = await getAuth().getUser(targetUid);
     if (
       profile?.pendingApprovalRequestId !== requestId ||
       normalizePlatformEmail(targetAuthUser.email) !== targetEmail ||
@@ -930,13 +1214,13 @@ export const reviewPlatformStaffRequest = functions
     if (decision === 'REJECT') {
       const keepExistingAccess = request?.kind === 'ROLE_CHANGE' &&
         profile?.active === true;
-      await admin.auth().updateUser(targetUid, {
+      await getAuth().updateUser(targetUid, {
         disabled: !keepExistingAccess
       });
       const batch = db.batch();
       batch.update(requestRef, {
         status: 'REJECTED',
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: FieldValue.serverTimestamp(),
         reviewedBy: owner.uid,
         reviewedByEmail: owner.email
       });
@@ -944,22 +1228,22 @@ export const reviewPlatformStaffRequest = functions
         active: keepExistingAccess,
         approvalStatus: keepExistingAccess ? 'APPROVED' : 'REJECTED',
         lastRequestStatus: 'REJECTED',
-        pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        pendingApprovalRequestId: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp()
       });
       batch.delete(secretRef);
       await batch.commit();
       return {success: true, decision: 'REJECTED'};
     }
 
-    await admin.auth().updateUser(targetUid, {
+    await getAuth().updateUser(targetUid, {
       disabled: !requestedActive,
       emailVerified: requestedActive
     });
     const batch = db.batch();
     batch.update(requestRef, {
       status: 'APPROVED',
-      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reviewedAt: FieldValue.serverTimestamp(),
       reviewedBy: owner.uid,
       reviewedByEmail: owner.email,
       appliedRole: requestedRole,
@@ -969,12 +1253,12 @@ export const reviewPlatformStaffRequest = functions
       role: requestedRole,
       active: requestedActive,
       approvalStatus: 'APPROVED',
-      approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      approvedAt: FieldValue.serverTimestamp(),
       approvedBy: owner.uid,
       approvedByEmail: owner.email,
       lastApprovalRequestId: requestId,
-      pendingApprovalRequestId: admin.firestore.FieldValue.delete(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      pendingApprovalRequestId: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp()
     });
     batch.delete(secretRef);
     await batch.commit();
@@ -982,7 +1266,7 @@ export const reviewPlatformStaffRequest = functions
     let invitationSent = true;
     if (request?.kind === 'CREATE_ACCOUNT') {
       try {
-        const resetUrl = await admin.auth().generatePasswordResetLink(
+        const resetUrl = await getAuth().generatePasswordResetLink(
           targetEmail,
           {
             url: `${internalDashboardUrl.value().replace(/\/$/, '')}/internal/login`,
@@ -1030,7 +1314,7 @@ export const resendPlatformStaffInvite = functions
       );
     }
     const email = normalizePlatformEmail(profile?.email);
-    const resetUrl = await admin.auth().generatePasswordResetLink(email, {
+    const resetUrl = await getAuth().generatePasswordResetLink(email, {
       url: `${internalDashboardUrl.value().replace(/\/$/, '')}/internal/login`,
       handleCodeInApp: false
     });
@@ -1042,7 +1326,7 @@ export const resendPlatformStaffInvite = functions
     });
     await profileSnapshot.ref.update({
       invitationStatus: 'SENT',
-      invitationSentAt: admin.firestore.FieldValue.serverTimestamp()
+      invitationSentAt: FieldValue.serverTimestamp()
     });
     return {success: true};
   });
@@ -1062,7 +1346,7 @@ export const enforcePlatformStaffApproval = functions
       normalizePlatformEmail(before.email) !== normalizePlatformEmail(after.email);
     if (!changed) return;
 
-    const authUser = await admin.auth().getUser(context.params.uid);
+    const authUser = await getAuth().getUser(context.params.uid);
     const actualEmail = normalizePlatformEmail(authUser.email);
     const ownerEmail = normalizePlatformEmail(platformOwnerEmail.value());
     if (actualEmail === ownerEmail && after.role === 'SUPER_ADMIN') return;
@@ -1080,11 +1364,11 @@ export const enforcePlatformStaffApproval = functions
       normalizePlatformEmail(approvalData?.reviewedByEmail) === ownerEmail;
     if (authorized) return;
 
-    await admin.auth().updateUser(context.params.uid, {disabled: true});
+    await getAuth().updateUser(context.params.uid, {disabled: true});
     await change.after.ref.update({
       active: false,
       approvalStatus: 'SECURITY_HOLD',
-      securityHoldAt: admin.firestore.FieldValue.serverTimestamp(),
+      securityHoldAt: FieldValue.serverTimestamp(),
       securityHoldReason: 'UNAPPROVED_PRIVILEGE_CHANGE'
     });
 
@@ -1825,7 +2109,7 @@ function storedBillingInvoice(
   transaction: PaddleTransaction
 ): StoredBillingInvoice & {
   provider: 'PADDLE';
-  updatedAt: admin.firestore.FieldValue;
+  updatedAt: FieldValue;
 } {
   const totals = paddleTransactionTotals(transaction);
   const billedAt = transaction.billed_at || transaction.created_at || null;
@@ -1858,7 +2142,7 @@ function storedBillingInvoice(
         }
       : null,
     provider: 'PADDLE',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   };
 }
 
@@ -1990,9 +2274,9 @@ const RETENTION_MAX_DATED_TREES = 100;
 const ALLOWED_RETENTION_DAYS = new Set([30, 90, 365]);
 
 async function deleteExpiredByField(
-  collectionRef: admin.firestore.CollectionReference,
+  collectionRef: CollectionReference,
   field: string,
-  cutoff: number | admin.firestore.Timestamp,
+  cutoff: number | Timestamp,
   preserveIds: string[] = []
 ): Promise<number> {
   let deletedCount = 0;
@@ -2032,7 +2316,7 @@ function isIsoDayDocumentId(value: string): boolean {
 }
 
 async function deleteExpiredDatedTrees(
-  childRef: admin.firestore.DocumentReference,
+  childRef: DocumentReference,
   collectionName: 'appUsage' | 'webActivity',
   cutoffDay: string
 ): Promise<number> {
@@ -2062,14 +2346,14 @@ function serializeExportValue(
 ): unknown {
   if (
     value instanceof
-    admin.firestore.Timestamp
+    Timestamp
   ) {
     return value.toDate().toISOString();
   }
 
   if (
     value instanceof
-    admin.firestore.GeoPoint
+    GeoPoint
   ) {
     return {
       latitude: value.latitude,
@@ -2100,7 +2384,7 @@ function serializeExportValue(
 
 async function exportDocumentTree(
   documentRef:
-    admin.firestore.DocumentReference
+    DocumentReference
 ): Promise<Record<string, unknown> | null> {
   const documentSnapshot =
     await documentRef.get();
@@ -2187,9 +2471,9 @@ async function getExportFamilyOwner(
   uid: string;
   familyId: string;
   familyRef:
-    admin.firestore.DocumentReference;
+    DocumentReference;
   familySnapshot:
-    admin.firestore.DocumentSnapshot;
+    DocumentSnapshot;
 }> {
   if (!context.auth) {
     throw new functions.https.HttpsError(
@@ -2388,7 +2672,7 @@ export const onSupportAdminAction = functions.firestore
         currentStatus: after.status || null
       },
       createdAt:
-        admin.firestore.FieldValue.serverTimestamp()
+        FieldValue.serverTimestamp()
     });
   });
 
@@ -2713,7 +2997,7 @@ export const onSosCreated = functions.firestore
                         postalCode,
                         city,
                         country,
-                        geocodedAt: admin.firestore.FieldValue.serverTimestamp()
+                        geocodedAt: FieldValue.serverTimestamp()
                     });
                 }
             } catch (error) {
@@ -3254,9 +3538,9 @@ export const checkOfflineChildren = functions.pubsub
               offlineAlertSent: true,
               offlineSince: lastSeen,
               offlineAlertSentAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
               lastCheckedAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
             },
             {
               merge: true,
@@ -3284,7 +3568,7 @@ export const checkOfflineChildren = functions.pubsub
               {
                 offlineAlertSent: false,
                 offlineAlertErrorAt:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
               },
               {
                 merge: true,
@@ -3320,11 +3604,11 @@ export const checkOfflineChildren = functions.pubsub
             {
               offlineAlertSent: false,
               offlineSince:
-                admin.firestore.FieldValue.delete(),
+                FieldValue.delete(),
               backOnlineAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
               lastCheckedAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
             },
             {
               merge: true,
@@ -3353,7 +3637,7 @@ export const checkOfflineChildren = functions.pubsub
                 offlineAlertSent: true,
                 offlineSince,
                 backOnlineErrorAt:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
               },
               {
                 merge: true,
@@ -3369,7 +3653,7 @@ export const checkOfflineChildren = functions.pubsub
         await offlineStateRef.set(
           {
             lastCheckedAt:
-              admin.firestore.FieldValue.serverTimestamp(),
+              FieldValue.serverTimestamp(),
           },
           {
             merge: true,
@@ -3398,7 +3682,7 @@ async function broadcastToParents(childId: string, payload: NotificationPayload)
       payload.familyId || childSnapshot.data()?.familyId || ""
     ).trim();
 
-    let familyDoc: admin.firestore.DocumentSnapshot | null = null;
+    let familyDoc: DocumentSnapshot | null = null;
     if (childFamilyId) {
       const directFamily = await db.collection('families').doc(childFamilyId).get();
       if (directFamily.exists) familyDoc = directFamily;
@@ -3596,7 +3880,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         message: localizedCopy.body,
         locale,
         read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         clickAction: payload.clickAction,
         route: payload.clickAction
     };
@@ -3649,7 +3933,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
 
     const allTokens = [...webTokens, ...nativeTokens];
 
-    const webPayload: admin.messaging.MulticastMessage = {
+    const webPayload: MulticastMessage = {
       tokens: webTokens,
       notification: {
         title: localizedCopy.title,
@@ -3671,7 +3955,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
       },
     };
 
-    const messagingPayload: admin.messaging.MulticastMessage = {
+    const messagingPayload: MulticastMessage = {
       tokens: nativeTokens,
         notification: {
             title: localizedCopy.title,
@@ -3706,15 +3990,15 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
     };
 
     try {
-        let webResponse: admin.messaging.BatchResponse | null = null;
-        let nativeResponse: admin.messaging.BatchResponse | null = null;
+        let webResponse: BatchResponse | null = null;
+        let nativeResponse: BatchResponse | null = null;
 
         if (webTokens.length > 0) {
-          webResponse = await admin.messaging().sendEachForMulticast(webPayload);
+          webResponse = await getMessaging().sendEachForMulticast(webPayload);
         }
 
         if (nativeTokens.length > 0) {
-          nativeResponse = await admin.messaging().sendEachForMulticast(messagingPayload);
+          nativeResponse = await getMessaging().sendEachForMulticast(messagingPayload);
         }
         const successCount =
           (webResponse?.successCount || 0) +
@@ -3730,7 +4014,7 @@ async function notifyParent(uid: string, payload: NotificationPayload) {
         const tokensToRemove: Promise<any>[] = [];
 
         const removeInvalidTokens = (
-          response: admin.messaging.BatchResponse | null,
+          response: BatchResponse | null,
           tokenList: string[]
         ) => {
           if (!response || response.failureCount === 0) return;
@@ -4094,7 +4378,7 @@ export const acceptPairingCode = functions.https.onCall(
 
             transaction.update(familyRef, {
               childDeviceIds:
-                admin.firestore.FieldValue.arrayUnion(latestChildId)
+                FieldValue.arrayUnion(latestChildId)
             });
 
             transaction.set(
@@ -4107,12 +4391,12 @@ export const acceptPairingCode = functions.https.onCall(
                 avatarId: latestPairingData.avatarId || 'avatar_1',
                 familyId,
                 pairedAt:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
                 lastSeen:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
                 parentalConsentVersion,
                 parentalConsentAt:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
                 parentalConsentBy: uid
               },
               { merge: true }
@@ -4122,7 +4406,7 @@ export const acceptPairingCode = functions.https.onCall(
               consentVersion: parentalConsentVersion,
               accepted: true,
               consentedAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
               parentUid: uid,
               parentEmail:
                 typeof context.auth?.token.email === 'string'
@@ -4151,7 +4435,7 @@ export const acceptPairingCode = functions.https.onCall(
               parentalConsentAccepted: true,
               parentalConsentVersion,
               pairedAt:
-                admin.firestore.FieldValue.serverTimestamp()
+                FieldValue.serverTimestamp()
             });
 
             return {
@@ -4202,7 +4486,7 @@ export const checkInvitationEmail =
       }
 
       try {
-        await admin.auth().getUserByEmail(email);
+        await getAuth().getUserByEmail(email);
 
         return {
           available: false,
@@ -4486,23 +4770,23 @@ export const acceptFamilyInvitation =
 
             const familyUpdate: any = {
               memberUids:
-                admin.firestore.FieldValue.arrayUnion(uid),
+                FieldValue.arrayUnion(uid),
               invites: updatedInvites
             };
                 if (role === 'MANAGER') {
                   familyUpdate.managerUids =
-                    admin.firestore.FieldValue.arrayUnion(uid);
+                    FieldValue.arrayUnion(uid);
                 }
 
             if (!memberUids.includes(uid)) {
               familyUpdate.members =
-                admin.firestore.FieldValue.arrayUnion({
+                FieldValue.arrayUnion({
                   uid,
                   email,
                   displayName,
                   role,
                   joinedAt:
-                    admin.firestore.Timestamp.now(),
+                    Timestamp.now(),
                   invitedBy:
                     latestInviteData.invitedBy || null,
                   assignedChildren: ['*']
@@ -4514,7 +4798,7 @@ export const acceptFamilyInvitation =
             transaction.update(inviteRef, {
               status: 'ACCEPTED',
               acceptedAt:
-                admin.firestore.FieldValue.serverTimestamp(),
+                FieldValue.serverTimestamp(),
               acceptedByUid: uid
             });
 
@@ -4528,16 +4812,16 @@ export const acceptFamilyInvitation =
                   email,
                   familyId,
                   familyIds:
-                    admin.firestore.FieldValue.arrayUnion(familyId),
+                    FieldValue.arrayUnion(familyId),
                   activeFamilyId: familyId,
                   role,
                   displayName,
                 dateOfBirth,
                 lastLoginAt:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .serverTimestamp(),
                 updatedAt:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .serverTimestamp()
               },
               { merge: true }
@@ -4559,8 +4843,8 @@ export const cleanupUnverifiedAccounts = onSchedule(
     timeZone: "Europe/Berlin",
   },
   async () => {
-    const authService = admin.auth();
-    const firestore = admin.firestore();
+    const authService = getAuth();
+    const firestore = getFirestore();
     const cutoffTime = Date.now() - 48 * 60 * 60 * 1000;
 
     let pageToken: string | undefined;
@@ -4633,7 +4917,7 @@ async function deleteAuthUserIfExists(
   uid: string
 ): Promise<void> {
   try {
-    await admin.auth().deleteUser(uid);
+    await getAuth().deleteUser(uid);
   } catch (error: any) {
     if (error?.code !== 'auth/user-not-found') {
       throw error;
@@ -5214,11 +5498,11 @@ const notificationCount = notifications.length;
 
 
 function makeExportValueJsonSafe(value: any): any {
-  if (value instanceof admin.firestore.Timestamp) {
+  if (value instanceof Timestamp) {
     return value.toDate().toISOString();
   }
 
-  if (value instanceof admin.firestore.GeoPoint) {
+  if (value instanceof GeoPoint) {
     return {
       latitude: value.latitude,
       longitude: value.longitude
@@ -5227,7 +5511,7 @@ function makeExportValueJsonSafe(value: any): any {
 
   if (
     value instanceof
-    admin.firestore.DocumentReference
+    DocumentReference
   ) {
     return value.path;
   }
@@ -5255,7 +5539,7 @@ function makeExportValueJsonSafe(value: any): any {
 
 async function exportDocumentWithSubcollections(
   documentSnapshot:
-    admin.firestore.DocumentSnapshot
+    DocumentSnapshot
 ): Promise<Record<string, any>> {
   const exportedDocument: Record<string, any> = {
     id: documentSnapshot.id,
@@ -5377,7 +5661,7 @@ export const requestFamilyDataExport =
 
           if (
             lastRequestedAt instanceof
-              admin.firestore.Timestamp
+              Timestamp
           ) {
             const elapsedMs =
               Date.now() -
@@ -5409,7 +5693,7 @@ export const requestFamilyDataExport =
               uid,
               familyId,
               lastRequestedAt:
-                admin.firestore.Timestamp.now()
+                Timestamp.now()
             },
             {
               merge: true
@@ -5595,7 +5879,7 @@ const htmlContent =
             expiresAt.toISOString()
         },
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       return {
@@ -5722,9 +6006,9 @@ export const requestFamilyDeletion =
     }
 
     const requestedAt =
-      admin.firestore.Timestamp.now();
+      Timestamp.now();
     const scheduledAt =
-      admin.firestore.Timestamp.fromMillis(
+      Timestamp.fromMillis(
         requestedAt.toMillis() +
           30 * 24 * 60 * 60 * 1000
       );
@@ -5817,11 +6101,11 @@ export const cancelFamilyDeletion =
     await familyRef.update({
       deletionStatus: 'ACTIVE',
       deletionRequestedAt:
-        admin.firestore.FieldValue.delete(),
+        FieldValue.delete(),
       deletionScheduledAt:
-        admin.firestore.FieldValue.delete(),
+        FieldValue.delete(),
       deletionRequestedBy:
-        admin.firestore.FieldValue.delete()
+        FieldValue.delete()
     });
 
     return {
@@ -5897,7 +6181,7 @@ export const ensureParentFamily =
           displayName,
           role: 'OWNER',
           joinedAt:
-            admin.firestore.Timestamp.now(),
+            Timestamp.now(),
           assignedChildren: ['*']
         }],
         memberUids: [uid],
@@ -5920,7 +6204,7 @@ export const ensureParentFamily =
           dataRetentionDays: 365
         },
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       transaction.update(parentRef, {
@@ -5929,7 +6213,7 @@ export const ensureParentFamily =
         activeFamilyId: familyId,
         role: 'OWNER',
         familyProvisionedAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       return {
@@ -6066,15 +6350,15 @@ export const purchaseExtraChildSlot =
           targetId: subscriptionId,
           severity: 'NOTICE',
           metadata: {expectedQuantity},
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: FieldValue.serverTimestamp()
         });
         return {success: true, expectedQuantity};
       } catch (error) {
         await familyRef.update({
           'subscription.extraChildPurchasePendingAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.extraChildPurchasePendingBy':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.extraChildPurchaseStatus': 'FAILED'
         });
         throw error;
@@ -6181,13 +6465,13 @@ export const removeExtraChildSlot =
           targetId: subscriptionId,
           severity: 'NOTICE',
           metadata: {expectedQuantity},
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: FieldValue.serverTimestamp()
         });
         return {success: true, expectedQuantity};
       } catch (error) {
         await familyRef.update({
-          'subscription.extraChildPurchasePendingAt': admin.firestore.FieldValue.delete(),
-          'subscription.extraChildPurchasePendingBy': admin.firestore.FieldValue.delete(),
+          'subscription.extraChildPurchasePendingAt': FieldValue.delete(),
+          'subscription.extraChildPurchasePendingBy': FieldValue.delete(),
           'subscription.extraChildPurchaseStatus': 'FAILED'
         });
         throw error;
@@ -6281,7 +6565,7 @@ export const requestSubscriptionCancellation =
         typeof subscription.paddleSubscriptionId === 'string'
           ? subscription.paddleSubscriptionId
           : null;
-      const requestedAt = admin.firestore.Timestamp.now();
+      const requestedAt = Timestamp.now();
       const requestRef = db.collection('subscriptionCancellationRequests').doc();
       const reason =
         typeof data?.reason === 'string'
@@ -6299,7 +6583,7 @@ export const requestSubscriptionCancellation =
         subscription.currentPeriodEndsAt ||
         (
           status === 'TRIALING' && Number.isFinite(subscribedAtMs)
-            ? admin.firestore.Timestamp.fromMillis(
+            ? Timestamp.fromMillis(
               subscribedAtMs + 7 * 24 * 60 * 60 * 1000
             )
             : requestedAt
@@ -6320,7 +6604,7 @@ export const requestSubscriptionCancellation =
           paddleSubscription.next_billed_at;
         if (paddleEffectiveAt) {
           const parsedEffectiveAt =
-            admin.firestore.Timestamp.fromDate(
+            Timestamp.fromDate(
               new Date(paddleEffectiveAt)
             );
           effectiveAt = parsedEffectiveAt;
@@ -6367,7 +6651,7 @@ export const requestSubscriptionCancellation =
           provider: providerSubscriptionId ? 'PADDLE' : null
         },
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       return {
@@ -6450,7 +6734,7 @@ export const resumeScheduledSubscription =
           'subscription.cancelAtPeriodEnd': false,
           'subscription.cancellationStatus': 'COMPLETED',
           'subscription.cancelledAt':
-            admin.firestore.FieldValue.serverTimestamp()
+            FieldValue.serverTimestamp()
         });
         throw new functions.https.HttpsError(
           'failed-precondition',
@@ -6500,15 +6784,15 @@ export const resumeScheduledSubscription =
         transaction.update(familyRef, {
           'subscription.cancelAtPeriodEnd': false,
           'subscription.cancellationRequestedAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.cancellationRequestedBy':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.cancellationRequestId':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.cancellationEffectiveAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.cancellationStatus':
-            admin.firestore.FieldValue.delete()
+            FieldValue.delete()
         });
 
         if (typeof requestId === 'string' && requestId) {
@@ -6516,7 +6800,7 @@ export const resumeScheduledSubscription =
             db.collection('subscriptionCancellationRequests').doc(requestId),
             {
               status: 'REVOKED',
-              revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+              revokedAt: FieldValue.serverTimestamp(),
               revokedBy: uid
             },
             {merge: true}
@@ -6533,7 +6817,7 @@ export const resumeScheduledSubscription =
         targetId: requestId || familyId,
         severity: 'NOTICE',
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       return {
@@ -6574,9 +6858,9 @@ export const reconcileExpiredSubscriptionCancellations = functions.pubsub
         'subscription.cancelAtPeriodEnd': false,
         'subscription.cancellationStatus': 'COMPLETED',
         'subscription.cancelledAt':
-          admin.firestore.FieldValue.serverTimestamp(),
+          FieldValue.serverTimestamp(),
         'subscription.updatedAt':
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
       updated += 1;
     });
@@ -6616,7 +6900,7 @@ async function revokePromoAccessForCode(
     redemptions.docs.forEach((redemption, index) => {
       batch.update(redemption.ref, {
         status: 'REVOKED',
-        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+        revokedAt: FieldValue.serverTimestamp(),
         revokedBy: actorUid,
         revokeReason: reason
       });
@@ -6632,9 +6916,9 @@ async function revokePromoAccessForCode(
           'subscription.status': 'CANCELED',
           'subscription.promoCodeStatus': 'REVOKED',
           'subscription.promoRevokedAt':
-            admin.firestore.FieldValue.serverTimestamp(),
+            FieldValue.serverTimestamp(),
           'subscription.updatedAt':
-            admin.firestore.FieldValue.serverTimestamp()
+            FieldValue.serverTimestamp()
         });
         revoked += 1;
       }
@@ -6758,15 +7042,15 @@ export const createPromoCode = functions
       accessDays: type === 'FREE_LIMITED' ? accessDays : null,
       expiresAt: expiresAtMs === null
         ? null
-        : admin.firestore.Timestamp.fromMillis(expiresAtMs),
+        : Timestamp.fromMillis(expiresAtMs),
       usageLimit,
       redemptionCount: 0,
       paddleDiscountId,
       recurringIntervals,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       createdBy: operator.uid,
       createdByEmail: operator.email,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       updatedBy: operator.uid
     });
 
@@ -6778,7 +7062,7 @@ export const createPromoCode = functions
       targetId: code,
       severity: 'NOTICE',
       metadata: {type, percentage, accessDays, usageLimit, expiresAtMs},
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return {success: true, code, paddleDiscountId};
@@ -6839,18 +7123,18 @@ export const setPromoCodeStatus = functions
 
     await promoRef.update({
       status: requestedStatus,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       updatedBy: operator.uid,
       ...(requestedStatus === 'DELETED'
         ? {
-            deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            deletedAt: FieldValue.serverTimestamp(),
             deletedBy: operator.uid
           }
         : {}),
       ...(requestedStatus === 'ACTIVE'
         ? {
-            deletedAt: admin.firestore.FieldValue.delete(),
-            deletedBy: admin.firestore.FieldValue.delete()
+            deletedAt: FieldValue.delete(),
+            deletedBy: FieldValue.delete()
           }
         : {})
     });
@@ -6863,7 +7147,7 @@ export const setPromoCodeStatus = functions
       targetId: code,
       severity: requestedStatus === 'ACTIVE' ? 'NOTICE' : 'WARNING',
       metadata: {revokedAccessCount},
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return {success: true, code, status: requestedStatus, revokedAccessCount};
@@ -6986,9 +7270,9 @@ export const redeemPromoCode = functions.https.onCall(async (data, context) => {
     }
 
     transaction.update(promoRef, {
-      redemptionCount: admin.firestore.FieldValue.increment(1),
-      lastRedeemedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      redemptionCount: FieldValue.increment(1),
+      lastRedeemedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
     });
     transaction.create(redemptionRef, {
       redemptionId: redemptionRef.id,
@@ -7000,7 +7284,7 @@ export const redeemPromoCode = functions.https.onCall(async (data, context) => {
         ? context.auth.token.email
         : null,
       familyId,
-      redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+      redeemedAt: FieldValue.serverTimestamp(),
       accessEndsAt
     });
     transaction.update(familyRef, {
@@ -7016,16 +7300,16 @@ export const redeemPromoCode = functions.https.onCall(async (data, context) => {
       'subscription.promoCodeStatus': 'ACTIVE',
       'subscription.promoAccessStartsAt': redeemedAt,
       'subscription.promoAccessEndsAt': accessEndsAt,
-      'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+      'subscription.updatedAt': FieldValue.serverTimestamp(),
       'subscription.paddleSubscriptionId':
-        admin.firestore.FieldValue.delete(),
+        FieldValue.delete(),
       'subscription.paddleCustomerId':
-        admin.firestore.FieldValue.delete(),
+        FieldValue.delete(),
       'subscription.cancelAtPeriodEnd': false,
       'subscription.cancellationEffectiveAt':
-        admin.firestore.FieldValue.delete(),
+        FieldValue.delete(),
       'subscription.cancellationStatus':
-        admin.firestore.FieldValue.delete()
+        FieldValue.delete()
     });
 
     return {
@@ -7046,7 +7330,7 @@ export const redeemPromoCode = functions.https.onCall(async (data, context) => {
       targetId: code,
       severity: 'NOTICE',
       metadata: {type: result.type, accessEndsAt: result.accessEndsAt},
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
   }
 
@@ -7128,7 +7412,7 @@ export const sendPromoCodeEmail = functions
       code,
       recipient,
       providerEmailId: response.data?.id || null,
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      sentAt: FieldValue.serverTimestamp(),
       sentBy: operator.uid,
       sentByEmail: operator.email
     });
@@ -7162,7 +7446,7 @@ export const reconcileExpiredPromoAccess = functions.pubsub
         'subscription.status': 'EXPIRED',
         'subscription.promoCodeStatus': 'EXPIRED',
         'subscription.updatedAt':
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
       const code = normalizePromoCode(subscription.promoCode);
       const ownerId = String(familyDocument.data().ownerId || '');
@@ -7171,7 +7455,7 @@ export const reconcileExpiredPromoAccess = functions.pubsub
           db.collection('promoRedemptions').doc(`${code}_${ownerId}`),
           {
             status: 'EXPIRED',
-            expiredAt: admin.firestore.FieldValue.serverTimestamp()
+            expiredAt: FieldValue.serverTimestamp()
           },
           {merge: true}
         );
@@ -7277,7 +7561,7 @@ export const cleanupFamilyRetentionData = onSchedule(
         const cutoffMs =
           Date.now() - retentionDays * 24 * 60 * 60 * 1000;
         const cutoffTimestamp =
-          admin.firestore.Timestamp.fromMillis(cutoffMs);
+          Timestamp.fromMillis(cutoffMs);
         const cutoffDay = new Date(cutoffMs)
           .toISOString()
           .slice(0, 10);
@@ -7381,7 +7665,7 @@ export const cleanupFamilyRetentionData = onSchedule(
               deletedCount
             },
             createdAt:
-              admin.firestore.FieldValue.serverTimestamp()
+              FieldValue.serverTimestamp()
           });
         }
 
@@ -7406,7 +7690,7 @@ export const cleanupDeletedFamilies = onSchedule(
     timeZone: "Europe/Berlin",
   },
   async () => {
-    const now = admin.firestore.Timestamp.now();
+    const now = Timestamp.now();
 
     const pendingFamilies = await db
       .collection("families")
@@ -7618,7 +7902,7 @@ export const cleanupDeletedFamilies = onSchedule(
             await memberRef.update({
               familyId: null,
               role:
-                admin.firestore.FieldValue.delete(),
+                FieldValue.delete(),
             });
           }
         }
@@ -7938,16 +8222,16 @@ export const removeChildFromFamily =
             (id: unknown) => id !== childId
           ),
         updatedAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       transaction.update(childRef, {
         familyId: null,
         removedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
+          FieldValue.serverTimestamp(),
         removedBy: uid,
         updatedAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       transaction.set(auditRef, {
@@ -7960,7 +8244,7 @@ export const removeChildFromFamily =
         targetId: childId,
         severity: 'WARNING',
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
     });
 
@@ -8118,7 +8402,7 @@ export const removeFamilyMember =
             id !== memberUid
         ),
         updatedAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
 
       if (memberParentSnapshot.exists) {
@@ -8126,16 +8410,16 @@ export const removeFamilyMember =
           memberParentRef,
           {
             familyId:
-              admin.firestore.FieldValue.delete(),
+              FieldValue.delete(),
             activeFamilyId:
-              admin.firestore.FieldValue.delete(),
+              FieldValue.delete(),
             familyIds:
-              admin.firestore.FieldValue.arrayRemove(
+              FieldValue.arrayRemove(
                 familyId
               ),
             role: 'VIEWER',
             updatedAt:
-              admin.firestore.FieldValue.serverTimestamp()
+              FieldValue.serverTimestamp()
           },
           { merge: true }
         );
@@ -8151,7 +8435,7 @@ export const removeFamilyMember =
         targetId: memberUid,
         severity: 'WARNING',
         createdAt:
-          admin.firestore.FieldValue.serverTimestamp()
+          FieldValue.serverTimestamp()
       });
     });
 
@@ -8275,7 +8559,7 @@ export const onFamilyMembershipSync =
           memberUids: expectedMemberUids,
           managerUids: expectedManagerUids,
           updatedAt:
-            admin.firestore.FieldValue
+            FieldValue
               .serverTimestamp()
         });
 
@@ -8325,11 +8609,11 @@ export const onFamilyMembershipSync =
                 familyId,
                 activeFamilyId: familyId,
                 familyIds:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .arrayUnion(familyId),
                 role: validMember.role,
                 updatedAt:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .serverTimestamp()
               },
               { merge: true }
@@ -8354,17 +8638,17 @@ export const onFamilyMembershipSync =
               parentRef,
               {
                 familyId:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .delete(),
                 activeFamilyId:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .delete(),
                 familyIds:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .arrayRemove(familyId),
                 role: 'VIEWER',
                 updatedAt:
-                  admin.firestore.FieldValue
+                  FieldValue
                     .serverTimestamp()
               },
               { merge: true }
@@ -8436,10 +8720,10 @@ export const sendAdminOpenNotificationReminder = functions
         db.collection("children").limit(500).get()
       ]);
 
-    const triage = new Map<string, admin.firestore.DocumentData>();
+    const triage = new Map<string, DocumentData>();
     triageSnapshot.docs.forEach(document => triage.set(document.id, document.data()));
 
-    const issueReports = new Map<string, admin.firestore.DocumentData[]>();
+    const issueReports = new Map<string, DocumentData[]>();
     reportSnapshot.docs.forEach(document => {
       const report = document.data();
       const fingerprint = report.fingerprint || document.id;
@@ -8626,7 +8910,7 @@ export const sendAdminOpenNotificationReminder = functions
         key: item.key,
         type: item.type,
         title: item.title,
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        sentAt: FieldValue.serverTimestamp(),
         recipient: "freshmartbd123@gmail.com"
       });
     });
@@ -8652,7 +8936,7 @@ async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
     body: payload.body,
     clickAction: payload.clickAction,
     eventId: payload.eventId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    createdAt: FieldValue.serverTimestamp()
   }, { merge: true });
 
   const adminSnapshot = await db
@@ -8695,7 +8979,7 @@ async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
     const tokens = tokenDocuments.map(document => String(document.data().token));
     if (tokens.length === 0) continue;
 
-    const response = await admin.messaging().sendEachForMulticast({
+    const response = await getMessaging().sendEachForMulticast({
       tokens,
       notification: {
         title: payload.title,
@@ -8720,7 +9004,7 @@ async function notifyPlatformAdmins(payload: PlatformAdminPush): Promise<void> {
       }
     });
 
-    const invalidDeletes: Promise<admin.firestore.WriteResult>[] = [];
+    const invalidDeletes: Promise<WriteResult>[] = [];
     response.responses.forEach((item, index) => {
       const code = item.error?.code;
       if (
@@ -8750,7 +9034,7 @@ function internalLoginReviewUrl(requestId: string): string {
 }
 
 function internalLoginTimestampIso(value: unknown): string | null {
-  if (value instanceof admin.firestore.Timestamp) {
+  if (value instanceof Timestamp) {
     return value.toDate().toISOString();
   }
   return null;
@@ -8790,6 +9074,50 @@ async function sendInternalLoginBlockEmail(input: {
   if (result.error) throw new Error(result.error.message);
 }
 
+async function sendInternalSessionCompromiseEmail(input: {
+  eventId: string;
+  email: string;
+  reason: string;
+  originalIp: string;
+  observedIp: string;
+  originalUserAgent: string;
+  observedUserAgent: string;
+  createdAt: string;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY is not configured.');
+
+  const reviewUrl = new URL(
+    '/internal/security/sessions',
+    internalDashboardUrl.value().replace(/\/$/, '')
+  );
+  reviewUrl.searchParams.set('eventId', input.eventId);
+  const {Resend} = await import('resend');
+  const resend = new Resend(apiKey);
+  const result = await resend.emails.send({
+    from: platformEmailFrom,
+    to: platformOwnerEmail.value(),
+    subject: '[KidsGuard Security] Possible admin session theft blocked',
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;padding:24px;color:#0f172a">
+        <h2 style="margin:0 0 12px;color:#be123c">Possible session theft blocked</h2>
+        <p style="line-height:1.6">KidsGuard detected an internal admin session being used from a different network or browser. The session was disabled immediately and all refresh tokens for that account were revoked.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0">
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Account</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.email || 'Unknown')}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Reason</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.reason)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Original IP</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.originalIp)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Observed IP</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.observedIp)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Original browser</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;word-break:break-word">${escapeEmailHtml(input.originalUserAgent)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Observed browser</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;word-break:break-word">${escapeEmailHtml(input.observedUserAgent)}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold">Detected at</td><td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeEmailHtml(input.createdAt)}</td></tr>
+        </table>
+        <p style="margin:24px 0"><a href="${escapeEmailHtml(reviewUrl.toString())}" style="display:inline-block;background:#e11d48;color:white;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Review admin sessions</a></p>
+        <p style="font-size:12px;line-height:1.6;color:#64748b">If this was your own network or browser change, sign in again. If it was not you, reset the account password before restoring access.</p>
+      </div>`
+  });
+  if (result.error) throw new Error(result.error.message);
+}
+
 export const getInternalLoginGuardStatus = functions.https.onCall(
   async (_data, context) => {
     const {ref} = internalLoginIpRef(context.rawRequest);
@@ -8807,7 +9135,7 @@ export const recordInternalLoginFailure = functions
     ).slice(0, 500);
     const {ip, ref} = internalLoginIpRef(context.rawRequest);
     const now = Date.now();
-    const nowTimestamp = admin.firestore.Timestamp.fromMillis(now);
+    const nowTimestamp = Timestamp.fromMillis(now);
     const requestId = randomUUID();
 
     const result = await db.runTransaction(async transaction => {
@@ -8821,7 +9149,7 @@ export const recordInternalLoginFailure = functions
         };
       }
 
-      const windowStartedAtMillis = current.windowStartedAt instanceof admin.firestore.Timestamp
+      const windowStartedAtMillis = current.windowStartedAt instanceof Timestamp
         ? current.windowStartedAt.toMillis()
         : 0;
       const decision = evaluateInternalLoginFailure({
@@ -8881,7 +9209,7 @@ export const recordInternalLoginFailure = functions
         emailAlertSent: alertResults[0].status === 'fulfilled',
         pushAlertSent: alertResults[1].status === 'fulfilled',
         alertErrors,
-        alertAttemptedAt: admin.firestore.FieldValue.serverTimestamp()
+        alertAttemptedAt: FieldValue.serverTimestamp()
       }, {merge: true});
       if (alertErrors.length > 0) {
         console.error('Internal login block alert failure', {requestId: result.requestId, alertErrors});
@@ -8898,7 +9226,9 @@ export const recordInternalLoginFailure = functions
 
 export const finalizeInternalLogin = functions.https.onCall(
   async (_data, context) => {
-    const operator = await requireActiveInternalStaff(context);
+    const operator = await requireActiveInternalStaff(context, {
+      requireSession: false,
+    });
     const {ref} = internalLoginIpRef(context.rawRequest);
     await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(ref);
@@ -8911,12 +9241,13 @@ export const finalizeInternalLogin = functions.https.onCall(
       transaction.set(ref, {
         status: 'CLEARED',
         failureCount: 0,
-        clearedAt: admin.firestore.FieldValue.serverTimestamp(),
+        clearedAt: FieldValue.serverTimestamp(),
         clearedBy: operator.uid,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       }, {merge: true});
     });
-    return {ok: true};
+    const session = await beginInternalAdminSession(context, operator);
+    return {ok: true, ...session};
   }
 );
 
@@ -8991,10 +9322,10 @@ export const approveInternalLoginBlock = functions.https.onCall(
       transaction.update(blockRef, {
         status: 'APPROVED',
         failureCount: 0,
-        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedAt: FieldValue.serverTimestamp(),
         approvedBy: operator.uid,
         approvedByEmail: operator.email,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       });
       transaction.set(
         db.collection('internalLoginSecurityEvents').doc(randomUUID()),
@@ -9004,13 +9335,189 @@ export const approveInternalLoginBlock = functions.https.onCall(
           ipHash: blockRef.id,
           approvedBy: operator.uid,
           approvedByEmail: operator.email,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: FieldValue.serverTimestamp()
         }
       );
     });
     return {ok: true};
   }
 );
+
+export const endInternalAdminSession = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Authenticated internal account required.'
+      );
+    }
+
+    const reasonValue = String(data?.reason || 'logout').toUpperCase();
+    const reason = new Set([
+      'LOGOUT', 'IDLE', 'EXPIRED', 'BLOCKED', 'SECURITY',
+    ]).has(reasonValue) ? reasonValue : 'LOGOUT';
+    const authTime = internalSessionAuthTime(context);
+    const sessionRef = internalSessionRef(context.auth.uid);
+    const sessionSnapshot = await sessionRef.get();
+    const session = sessionSnapshot.data();
+    const nowTimestamp = Timestamp.now();
+
+    if (
+      sessionSnapshot.exists &&
+      Number(session?.authTime || 0) === authTime &&
+      session?.state === 'ACTIVE'
+    ) {
+      await sessionRef.update({
+        state: 'ENDED',
+        endedReason: reason,
+        endedAt: nowTimestamp,
+        updatedAt: nowTimestamp,
+      });
+      await db.collection('internalSessionSecurityEvents').add({
+        type: 'INTERNAL_SESSION_ENDED',
+        uid: context.auth.uid,
+        email: typeof context.auth.token.email === 'string'
+          ? context.auth.token.email
+          : null,
+        sessionId: String(session?.sessionId || ''),
+        reason,
+        createdAt: nowTimestamp,
+      });
+    }
+
+    await getAuth().revokeRefreshTokens(context.auth.uid);
+    return {ok: true};
+  }
+);
+
+export const listInternalAdminSessions = functions.https.onCall(
+  async (_data, context) => {
+    await requirePlatformOwner(context);
+    const [sessionSnapshot, eventSnapshot] = await Promise.all([
+      db.collection('internalAdminSessions').limit(100).get(),
+      db.collection('internalSessionSecurityEvents')
+        .orderBy('createdAt', 'desc')
+        .limit(100)
+        .get(),
+    ]);
+
+    const sessions = sessionSnapshot.docs.map(document => {
+      const value = document.data();
+      return {
+        uid: document.id,
+        sessionId: String(value.sessionId || ''),
+        email: String(value.email || ''),
+        role: String(value.role || ''),
+        state: String(value.state || 'UNKNOWN'),
+        ip: String(value.ip || 'Unavailable'),
+        userAgent: String(value.userAgent || 'Unknown browser'),
+        createdAt: internalLoginTimestampIso(value.createdAt),
+        lastSeenAt: internalLoginTimestampIso(value.lastSeenAt),
+        expiresAt: internalLoginTimestampIso(value.expiresAt),
+        endedAt: internalLoginTimestampIso(value.endedAt),
+        compromisedAt: internalLoginTimestampIso(value.compromisedAt),
+        compromiseReason: value.compromiseReason
+          ? String(value.compromiseReason)
+          : null,
+      };
+    });
+    const events = eventSnapshot.docs.map(document => {
+      const value = document.data();
+      return {
+        eventId: document.id,
+        type: String(value.type || 'UNKNOWN'),
+        uid: String(value.uid || ''),
+        email: String(value.email || ''),
+        sessionId: String(value.sessionId || ''),
+        reason: value.reason ? String(value.reason) : null,
+        originalIp: value.originalIp ? String(value.originalIp) : null,
+        observedIp: value.observedIp ? String(value.observedIp) : null,
+        createdAt: internalLoginTimestampIso(value.createdAt),
+      };
+    });
+    return {sessions, events};
+  }
+);
+
+export const revokeInternalAdminSession = functions.https.onCall(
+  async (data, context) => {
+    const operator = await requirePlatformOwner(context);
+    const uid = String(data?.uid || '').trim();
+    if (!uid || uid.length > 128 || !/^[A-Za-z0-9:_-]+$/.test(uid)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid internal account is required.'
+      );
+    }
+
+    const sessionRef = internalSessionRef(uid);
+    const sessionSnapshot = await sessionRef.get();
+    if (!sessionSnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'No internal session was found for this account.'
+      );
+    }
+
+    const nowTimestamp = Timestamp.now();
+    const session = sessionSnapshot.data() || {};
+    await sessionRef.update({
+      state: 'REVOKED',
+      revokedAt: nowTimestamp,
+      revokedBy: operator.uid,
+      revokedByEmail: operator.email,
+      updatedAt: nowTimestamp,
+    });
+    await db.collection('internalSessionSecurityEvents').add({
+      type: 'INTERNAL_SESSION_REVOKED',
+      uid,
+      email: session.email || null,
+      sessionId: session.sessionId || null,
+      revokedBy: operator.uid,
+      revokedByEmail: operator.email,
+      createdAt: nowTimestamp,
+    });
+    await getAuth().revokeRefreshTokens(uid);
+    return {ok: true};
+  }
+);
+
+export const onInternalSessionSecurityAlertCreated = functions
+  .runWith({secrets: ['RESEND_API_KEY']})
+  .firestore.document('internalSessionSecurityAlerts/{eventId}')
+  .onCreate(async snapshot => {
+    const value = snapshot.data();
+    const eventId = String(value.eventId || snapshot.id);
+    const reviewPath = `/internal/security/sessions?eventId=${encodeURIComponent(eventId)}`;
+    const emailAlert = sendInternalSessionCompromiseEmail({
+      eventId,
+      email: String(value.email || ''),
+      reason: String(value.reason || 'SESSION_MISMATCH'),
+      originalIp: String(value.originalIp || 'Unavailable'),
+      observedIp: String(value.observedIp || 'Unavailable'),
+      originalUserAgent: String(value.originalUserAgent || 'Unknown browser'),
+      observedUserAgent: String(value.observedUserAgent || 'Unknown browser'),
+      createdAt: internalLoginTimestampIso(value.createdAt) || new Date().toISOString(),
+    });
+    const pushAlert = notifyPlatformAdminsOnce({
+      type: 'ADMIN_SECURITY',
+      eventId,
+      title: 'Possible admin session theft blocked',
+      body: `${String(value.email || 'An internal account')} was used from a different network or browser. All sessions were revoked.`,
+      clickAction: reviewPath,
+    });
+    const results = await Promise.allSettled([emailAlert, pushAlert]);
+    const errors = results
+      .filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+      .map(item => String(item.reason instanceof Error ? item.reason.message : item.reason));
+    await snapshot.ref.set({
+      deliveryStatus: errors.length === 0 ? 'SENT' : 'PARTIAL_FAILURE',
+      emailAlertSent: results[0].status === 'fulfilled',
+      pushAlertSent: results[1].status === 'fulfilled',
+      deliveryErrors: errors,
+      deliveryAttemptedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
 
 const RELEASE_ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RELEASE_PENDING_ALERT_MS = 6 * 60 * 60 * 1000;
@@ -9205,7 +9712,7 @@ function isCancelledSubscriptionStatus(value: unknown): boolean {
 }
 
 async function subscriptionCustomerLabel(
-  family: admin.firestore.DocumentData
+  family: DocumentData
 ): Promise<string> {
   const ownerId = typeof family.ownerId === "string" ? family.ownerId : "";
   if (ownerId) {
@@ -9257,10 +9764,10 @@ export const onAdminSubscriptionChangedPush = functions.firestore
       await trackingRef.set({
         familyId,
         customer,
-        subscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+        subscribedAt: FieldValue.serverTimestamp(),
         retentionNotified: false,
-        cancelledAt: admin.firestore.FieldValue.delete(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        cancelledAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
       await notifyPlatformAdmins({
@@ -9276,8 +9783,8 @@ export const onAdminSubscriptionChangedPush = functions.firestore
       await trackingRef.set({
         familyId,
         customer,
-        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
       await notifyPlatformAdmins({
@@ -9331,8 +9838,8 @@ export const sendAdminSevenDaySubscriptionPush = functions.pubsub
 
       await trackingDocument.ref.set({
         retentionNotified: true,
-        retentionNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        retentionNotifiedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
     }
 
@@ -9398,7 +9905,7 @@ async function buildWeeklySafetyReport(
   familyId: string,
   periodStart: number,
   periodEnd: number
-): Promise<{ reportId: string; report: admin.firestore.DocumentData }> {
+): Promise<{ reportId: string; report: DocumentData }> {
   const familyRef = db.collection("families").doc(familyId);
   const familySnapshot = await familyRef.get();
   if (!familySnapshot.exists) throw new Error(`Family ${familyId} not found`);
@@ -9531,7 +10038,7 @@ async function buildWeeklySafetyReport(
     familyId,
     periodStart,
     periodEnd,
-    generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    generatedAt: FieldValue.serverTimestamp(),
     childReports,
     totals,
     highlights,
@@ -9720,7 +10227,7 @@ async function getParentInvoiceDownloadUrlHandler(
       targetId: transactionId,
       severity: 'INFO',
       metadata: {invoiceNumber: transaction.invoice_number || null},
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return {
@@ -9865,7 +10372,7 @@ async function getAdminMonthlyBillingReportHandler(
       targetId: month,
       severity: 'NOTICE',
       metadata: {transactionCount: transactions.length},
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     return {
@@ -10141,15 +10648,15 @@ export const paddleBillingWebhook = functions
         const patch: Record<string, any> = {
           'subscription.provider': 'PADDLE',
           'subscription.promoAccessEndsAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.promoAccessStartsAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.promoRevokedAt':
-            admin.firestore.FieldValue.delete(),
+            FieldValue.delete(),
           'subscription.lastPaddleEventId': eventId,
           'subscription.lastPaddleEventType': eventType,
           'subscription.lastProviderSyncAt':
-            admin.firestore.FieldValue.serverTimestamp()
+            FieldValue.serverTimestamp()
         };
 
         if (typeof data.customer_id === 'string') {
@@ -10264,7 +10771,7 @@ export const paddleBillingWebhook = functions
               effectiveAt;
           } else if (!cancellationScheduled) {
             patch['subscription.cancellationEffectiveAt'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
           }
 
           // A newly-created/resumed subscription must not inherit an old
@@ -10273,13 +10780,13 @@ export const paddleBillingWebhook = functions
           // immediately after a successful checkout.
           if (!cancellationScheduled) {
             patch['subscription.cancellationRequestedAt'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.cancellationRequestedBy'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.cancellationRequestId'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.cancellationStatus'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
           }
 
           if (Array.isArray(data.items)) {
@@ -10348,11 +10855,11 @@ export const paddleBillingWebhook = functions
             patch['subscription.extraChildSlots'] =
               paidExtraSlots;
             patch['subscription.extraChildPurchasePendingAt'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.extraChildPurchasePendingBy'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.extraChildPurchaseExpectedQuantity'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.extraChildPurchaseStatus'] =
               'CONFIRMED';
 
@@ -10393,26 +10900,26 @@ export const paddleBillingWebhook = functions
                 paddleSubscriptionId:
                   typeof data.id === 'string' ? data.id : null,
                 redeemedAt:
-                  admin.firestore.FieldValue.serverTimestamp()
+                  FieldValue.serverTimestamp()
               });
               transaction.update(promoRef, {
                 redemptionCount:
-                  admin.firestore.FieldValue.increment(1),
+                  FieldValue.increment(1),
                 lastRedeemedAt:
-                  admin.firestore.FieldValue.serverTimestamp(),
+                  FieldValue.serverTimestamp(),
                 updatedAt:
-                  admin.firestore.FieldValue.serverTimestamp()
+                  FieldValue.serverTimestamp()
               });
             }
           } else if (!promoCode) {
             patch['subscription.promoCode'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.promoCodeType'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.promoCodeStatus'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
             patch['subscription.promoDiscountPercentage'] =
-              admin.firestore.FieldValue.delete();
+              FieldValue.delete();
           }
         }
 
@@ -10433,7 +10940,7 @@ export const paddleBillingWebhook = functions
             paddleDateMillis(payload.occurred_at) ||
             Date.now(),
           processedAt:
-            admin.firestore.FieldValue.serverTimestamp(),
+            FieldValue.serverTimestamp(),
           status: 'PROCESSED'
         });
 

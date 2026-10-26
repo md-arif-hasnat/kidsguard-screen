@@ -1,16 +1,11 @@
-import { auth } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+import { app, auth } from "@/lib/firebase";
 
 const BLOCKED_MESSAGE = "Access blocked. Contact your God Father!";
 
-export type InternalLoginGuardStatus = {
-  blocked: boolean;
-};
-
-export type InternalLoginFailureResult = {
-  blocked: boolean;
-  remainingAttempts: number;
-};
-
+export type InternalLoginGuardStatus = {blocked: boolean};
+export type InternalLoginFailureResult = {blocked: boolean; remainingAttempts: number};
 export type InternalLoginBlock = {
   requestId: string;
   ip: string;
@@ -22,6 +17,32 @@ export type InternalLoginBlock = {
   emailAlertSent: boolean;
   pushAlertSent: boolean;
 };
+export type InternalAdminSession = {
+  uid: string;
+  sessionId: string;
+  email: string;
+  role: string;
+  state: string;
+  ip: string;
+  userAgent: string;
+  createdAt: string | null;
+  lastSeenAt: string | null;
+  expiresAt: string | null;
+  endedAt: string | null;
+  compromisedAt: string | null;
+  compromiseReason: string | null;
+};
+export type InternalSessionSecurityEvent = {
+  eventId: string;
+  type: string;
+  uid: string;
+  email: string;
+  sessionId: string;
+  reason: string | null;
+  originalIp: string | null;
+  observedIp: string | null;
+  createdAt: string | null;
+};
 
 export class InternalLoginBlockedError extends Error {
   constructor() {
@@ -30,97 +51,96 @@ export class InternalLoginBlockedError extends Error {
   }
 }
 
-function callableErrorMessage(payload: unknown, fallback: string): string {
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "error" in payload &&
-    typeof payload.error === "object" &&
-    payload.error !== null &&
-    "message" in payload.error
-  ) {
-    return String(payload.error.message || fallback);
+export class InternalSessionSecurityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InternalSessionSecurityError";
   }
-  return fallback;
 }
 
 async function callInternalLoginFunction<T>(
   functionName: string,
   data: Record<string, unknown> = {},
-  authenticated = false
+  authenticated = false,
+  limitedUseAppCheckToken = false
 ): Promise<T> {
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!projectId) throw new Error("Firebase security service is not configured.");
-
-  const headers: Record<string, string> = {"Content-Type": "application/json"};
-  if (authenticated) {
-    const user = auth?.currentUser;
-    if (!user) throw new Error("Authenticated internal account required.");
-    headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  if (!app) throw new Error("Firebase security service is not configured.");
+  if (authenticated && !auth?.currentUser) {
+    throw new Error("Authenticated internal account required.");
   }
 
-  const response = await fetch(
-    `https://us-central1-${projectId}.cloudfunctions.net/${functionName}`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({data}),
-      cache: "no-store"
-    }
-  );
-  const payload = await response.json().catch(() => null) as
-    | {result?: T; data?: T; error?: {message?: string}}
-    | null;
-  const message = callableErrorMessage(
-    payload,
-    "The internal login security service is temporarily unavailable."
-  );
-  if (!response.ok || payload?.error || (!payload?.result && !payload?.data)) {
+  try {
+    const callable = httpsCallable<Record<string, unknown>, T>(
+      getFunctions(app, "us-central1"),
+      functionName,
+      limitedUseAppCheckToken ? {limitedUseAppCheckTokens: true} : undefined
+    );
+    const result = await callable(data);
+    return result.data;
+  } catch (caught) {
+    const message = caught instanceof Error
+      ? caught.message
+      : "The internal login security service is temporarily unavailable.";
     if (message.includes("Contact your God Father")) {
       throw new InternalLoginBlockedError();
     }
+    if (
+      message.includes("Secure internal session") ||
+      message.includes("newer internal session") ||
+      message.includes("internal session has expired")
+    ) {
+      throw new InternalSessionSecurityError(message);
+    }
     throw new Error(message);
   }
-  return (payload.result || payload.data) as T;
 }
 
 export class InternalLoginDefenseRepository {
   static getStatus(): Promise<InternalLoginGuardStatus> {
     return callInternalLoginFunction("getInternalLoginGuardStatus");
   }
-
   static recordFailure(email: string): Promise<InternalLoginFailureResult> {
     return callInternalLoginFunction("recordInternalLoginFailure", {email});
   }
-
   static async finalizeLogin(): Promise<void> {
-    await callInternalLoginFunction<{ok: true}>(
-      "finalizeInternalLogin",
-      {},
-      true
-    );
+    await callInternalLoginFunction<{
+      ok: true;
+      sessionId: string;
+      expiresAt: string;
+    }>("finalizeInternalLogin", {}, true, true);
   }
-
   static async assertAccess(): Promise<void> {
     await callInternalLoginFunction<{ok: true}>(
-      "assertInternalLoginAccess",
-      {},
-      true
+      "assertInternalLoginAccess", {}, true
     );
   }
-
   static async listBlocks(): Promise<InternalLoginBlock[]> {
-    const result = await callInternalLoginFunction<{
-      blocks: InternalLoginBlock[];
-    }>("listInternalLoginBlocks", {}, true);
+    const result = await callInternalLoginFunction<{blocks: InternalLoginBlock[]}>(
+      "listInternalLoginBlocks", {}, true
+    );
     return result.blocks;
   }
-
   static async approveBlock(requestId: string): Promise<void> {
     await callInternalLoginFunction<{ok: true}>(
-      "approveInternalLoginBlock",
-      {requestId},
-      true
+      "approveInternalLoginBlock", {requestId}, true, true
+    );
+  }
+  static async endSession(reason: string): Promise<void> {
+    await callInternalLoginFunction<{ok: true}>(
+      "endInternalAdminSession", {reason}, true, true
+    );
+  }
+  static listSessions(): Promise<{
+    sessions: InternalAdminSession[];
+    events: InternalSessionSecurityEvent[];
+  }> {
+    return callInternalLoginFunction(
+      "listInternalAdminSessions", {}, true, true
+    );
+  }
+  static async revokeSession(uid: string): Promise<void> {
+    await callInternalLoginFunction<{ok: true}>(
+      "revokeInternalAdminSession", {uid}, true, true
     );
   }
 }
@@ -130,3 +150,11 @@ export function isInternalLoginBlockedError(error: unknown): boolean {
     (error instanceof Error && error.message.includes("Contact your God Father"));
 }
 
+export function isInternalSessionSecurityError(error: unknown): boolean {
+  return error instanceof InternalSessionSecurityError ||
+    (error instanceof Error && (
+      error.message.includes("Secure internal session") ||
+      error.message.includes("newer internal session") ||
+      error.message.includes("internal session has expired")
+    ));
+}

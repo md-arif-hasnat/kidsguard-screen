@@ -12,6 +12,7 @@ import { isFullPlatformAdmin } from '../platformAccess';
 import {
   InternalLoginDefenseRepository,
   isInternalLoginBlockedError,
+  isInternalSessionSecurityError,
 } from '../repositories/InternalLoginDefenseRepository';
 import {
   getInternalSessionStartedAt,
@@ -97,6 +98,12 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
             if (isInternalLoginBlockedError(caught) && !endingSession.current) {
               endingSession.current = true;
               await signOutInternalSession("blocked");
+            } else if (
+              isInternalSessionSecurityError(caught) &&
+              !endingSession.current
+            ) {
+              endingSession.current = true;
+              await signOutInternalSession("security");
             }
           } finally {
             if (!cancelled && sequence === authSequence) setLoading(false);
@@ -128,7 +135,7 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
       : startedAt;
     let lastStorageWrite = lastActivity;
 
-    const endSession = (reason: "idle" | "expired" | "blocked") => {
+    const endSession = (reason: "idle" | "expired" | "blocked" | "security") => {
       if (endingSession.current) return;
       endingSession.current = true;
       void signOutInternalSession(reason);
@@ -177,6 +184,7 @@ export const InternalAdminProvider: React.FC<{ children: React.ReactNode }> = ({
         await InternalLoginDefenseRepository.assertAccess();
       } catch (caught) {
         if (isInternalLoginBlockedError(caught)) endSession("blocked");
+        else if (isInternalSessionSecurityError(caught)) endSession("security");
       }
     }, 60_000);
     window.addEventListener("pointerdown", recordActivity, {passive: true});

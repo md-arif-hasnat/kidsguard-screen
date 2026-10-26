@@ -12,6 +12,7 @@ import {
 import {
   collection,
   collectionGroup,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -25,6 +26,7 @@ import {
 } from "node:fs";
 
 const PROJECT_ID = "kidsguard-rules-test";
+const ACTIVE_AUTH_TIME = Math.floor(Date.now() / 1000);
 
 let testEnv;
 
@@ -131,6 +133,22 @@ before(async () => {
           approvalStatus: "APPROVED"
         }
       );
+
+      for (const [uid, email, role] of [
+        ["admin-uid", "admin@example.com", "PLATFORM_ADMIN"],
+        ["employee-uid", "employee@example.com", "EMPLOYEE"],
+        ["accounting-uid", "accounting@example.com", "ACCOUNTING"]
+      ]) {
+        await setDoc(doc(adminDb, "internalAdminSessions", uid), {
+          uid,
+          email,
+          role,
+          sessionId: `session-${uid}`,
+          state: "ACTIVE",
+          authTime: ACTIVE_AUTH_TIME,
+          expiresAt: new Date(ACTIVE_AUTH_TIME * 1000 + 8 * 60 * 60 * 1000)
+        });
+      }
 
       await setDoc(
         doc(adminDb, "platformStaffApprovalRequests", "approval-1"),
@@ -572,7 +590,7 @@ function verifiedDb(uid, email) {
     .authenticatedContext(uid, {
       email,
       email_verified: true,
-      auth_time: Math.floor(Date.now() / 1000)
+      auth_time: ACTIVE_AUTH_TIME
     })
     .firestore();
 }
@@ -582,7 +600,7 @@ function verifiedAdminDb(uid, email) {
     .authenticatedContext(uid, {
       email,
       email_verified: true,
-      auth_time: Math.floor(Date.now() / 1000),
+      auth_time: ACTIVE_AUTH_TIME,
       firebase: {
         sign_in_second_factor: "totp"
       }
@@ -652,6 +670,25 @@ test(
     await assertFails(getDocs(collection(expiredEmployeeDb, "children")));
     await assertSucceeds(
       getDoc(doc(expiredAdminDb, "platformAdmins", "admin-uid"))
+    );
+  }
+);
+
+test(
+  "internal data requires the exact active server session",
+  async () => {
+    const wrongSessionDb = testEnv
+      .authenticatedContext("admin-uid", {
+        email: "admin@example.com",
+        email_verified: true,
+        auth_time: ACTIVE_AUTH_TIME + 1,
+        firebase: {sign_in_second_factor: "totp"}
+      })
+      .firestore();
+
+    await assertFails(getDocs(collection(wrongSessionDb, "parents")));
+    await assertSucceeds(
+      getDoc(doc(wrongSessionDb, "platformAdmins", "admin-uid"))
     );
   }
 );
@@ -808,7 +845,7 @@ test(
 );
 
 test(
-  "login-defense IP and audit records remain server-only",
+  "login and session defense records remain server-only",
   async () => {
     const adminDb = verifiedAdminDb("admin-uid", "admin@example.com");
 
@@ -823,6 +860,92 @@ test(
         status: "APPROVED"
       })
     );
+    await assertFails(
+      getDoc(doc(adminDb, "internalAdminSessions", "admin-uid"))
+    );
+    await assertFails(
+      getDoc(doc(adminDb, "internalSessionSecurityEvents", "event-1"))
+    );
+    await assertFails(
+      setDoc(doc(adminDb, "internalSessionSecurityAlerts", "forged-alert"), {
+        type: "INTERNAL_SESSION_COMPROMISED"
+      })
+    );
+  }
+);
+
+test(
+  "parent profile deletion and arbitrary private subcollections are denied",
+  async () => {
+    const ownerDb = verifiedDb("owner-uid", "owner@example.com");
+
+    await assertFails(deleteDoc(doc(ownerDb, "parents", "owner-uid")));
+    await assertFails(
+      setDoc(doc(ownerDb, "parents", "owner-uid", "private", "secret"), {
+        admin: true
+      })
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(ownerDb, "parents", "owner-uid", "notificationSettings", "current"),
+        {requestAlerts: true},
+        {merge: true}
+      )
+    );
+    await assertFails(
+      setDoc(
+        doc(ownerDb, "parents", "owner-uid", "notificationSettings", "current"),
+        {requestAlerts: "yes"},
+        {merge: true}
+      )
+    );
+  }
+);
+
+test(
+  "new parents cannot self-assign paid subscription fields",
+  async () => {
+    const attackerDb = verifiedDb("new-parent", "new@example.com");
+    await assertFails(setDoc(doc(attackerDb, "parents", "new-parent"), {
+      uid: "new-parent",
+      email: "new@example.com",
+      phoneNumber: null,
+      displayName: "New Parent",
+      avatarId: "parent_1",
+      provider: "password",
+      familyId: null,
+      familyIds: [],
+      activeFamilyId: null,
+      ownedFamilyId: null,
+      region: "DE",
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      subscriptionStatus: "ACTIVE"
+    }));
+  }
+);
+
+test(
+  "verified parents can create only the expected empty profile",
+  async () => {
+    const parentDb = verifiedDb("new-parent-ok", "new-ok@example.com");
+    const profileRef = doc(parentDb, "parents", "new-parent-ok");
+    await assertSucceeds(setDoc(profileRef, {
+      uid: "new-parent-ok",
+      email: "new-ok@example.com",
+      phoneNumber: null,
+      displayName: "New Parent",
+      avatarId: "parent_1",
+      provider: "password",
+      familyId: null,
+      familyIds: [],
+      activeFamilyId: null,
+      ownedFamilyId: null,
+      region: "DE",
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp()
+    }));
+    await assertFails(updateDoc(profileRef, {familyId: "forged-family"}));
   }
 );
 

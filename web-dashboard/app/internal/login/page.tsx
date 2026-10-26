@@ -35,6 +35,7 @@ import { isAllowedPlatformAdminRole } from "@/lib/repositories/PlatformAdminRepo
 import {
   InternalLoginDefenseRepository,
   isInternalLoginBlockedError,
+  isInternalSessionSecurityError,
 } from "@/lib/repositories/InternalLoginDefenseRepository";
 import { isFullPlatformAdmin } from "@/lib/platformAccess";
 import {
@@ -122,6 +123,10 @@ export default function InternalLogin() {
       setSessionNotice("Your 8-hour internal session ended. Sign in again to continue.");
     } else if (reason === "blocked") {
       setSessionNotice(BLOCKED_LOGIN_MESSAGE);
+    } else if (reason === "security") {
+      setSessionNotice(
+        "Your internal session was revoked because its security context changed. Sign in again; reset your password first if this was not you."
+      );
     }
   }, []);
 
@@ -197,6 +202,8 @@ export default function InternalLogin() {
               setGuardBlocked(true);
               previousGuardBlocked.current = true;
               await signOutInternalSession("blocked");
+            } else if (isInternalSessionSecurityError(caught)) {
+              await signOutInternalSession("security");
             }
             // The explicit sign-in action below presents actionable errors.
           }
@@ -282,6 +289,8 @@ export default function InternalLogin() {
           setGuardBlocked(true);
           previousGuardBlocked.current = true;
           setError(null);
+        } else if (isInternalSessionSecurityError(caught)) {
+          await signOutInternalSession("security");
         } else if (isPasswordCredentialError(caught)) {
           try {
             const failure = await InternalLoginDefenseRepository.recordFailure(email);

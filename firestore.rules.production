@@ -18,11 +18,24 @@ service cloud.firestore {
                 ).data.role == 'ADMIN';
             }
 
+            function hasActiveInternalSession() {
+              let sessionPath =
+                /databases/$(database)/documents/internalAdminSessions/$(request.auth.uid);
+
+              return isEmailVerified() &&
+                request.auth.token.auth_time is int &&
+                exists(sessionPath) &&
+                get(sessionPath).data.state == 'ACTIVE' &&
+                get(sessionPath).data.authTime == request.auth.token.auth_time &&
+                get(sessionPath).data.expiresAt is timestamp &&
+                request.time < get(sessionPath).data.expiresAt;
+            }
+
             function hasActivePlatformRole(roles) {
               let adminPath =
                 /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
 
-              return isEmailVerified() &&
+              return hasActiveInternalSession() &&
                 request.auth.token.auth_time is int &&
                 request.time.toMillis() <
                   request.auth.token.auth_time * 1000 + 8 * 60 * 60 * 1000 &&
@@ -207,6 +220,18 @@ service cloud.firestore {
             match /internalLoginSecurityEvents/{eventId} {
               allow read, write: if false;
             }
+
+            match /internalAdminSessions/{adminId} {
+              allow read, write: if false;
+            }
+
+            match /internalSessionSecurityEvents/{eventId} {
+              allow read, write: if false;
+            }
+
+            match /internalSessionSecurityAlerts/{eventId} {
+              allow read, write: if false;
+            }
     match /parents/{parentId} {
       allow read: if isAccountingStaff() ||
         (isEmailVerified() && request.auth.uid == parentId);
@@ -214,6 +239,20 @@ service cloud.firestore {
             allow create: if isSignedIn() &&
               request.auth.uid == parentId &&
               request.resource.data.uid == request.auth.uid &&
+              request.resource.data.keys().hasOnly([
+                'uid', 'email', 'phoneNumber', 'displayName', 'avatarId',
+                'provider', 'familyId', 'familyIds', 'activeFamilyId',
+                'ownedFamilyId', 'role', 'region', 'preferredLanguage',
+                'resolvedLanguage', 'lastActiveDate', 'createdAt',
+                'lastLoginAt', 'legalConsentAcceptedAt', 'termsVersion',
+                'privacyVersion', 'adultConfirmedAt'
+              ]) &&
+              request.resource.data.familyId == null &&
+              request.resource.data.familyIds == [] &&
+              request.resource.data.activeFamilyId == null &&
+              request.resource.data.ownedFamilyId == null &&
+              request.resource.data.createdAt == request.time &&
+              request.resource.data.lastLoginAt == request.time &&
               (
                 isEmailVerified() ||
                 request.resource.data.keys().hasAll([
@@ -241,7 +280,13 @@ service cloud.firestore {
                 .affectedKeys()
                 .hasAny([
                   'uid',
+                  'email',
                   'role',
+                  'familyId',
+                  'familyIds',
+                  'activeFamilyId',
+                  'ownedFamilyId',
+                  'createdAt',
                   'subscriptionStatus',
                   'trialStartedAt',
                   'trialEndsAt',
@@ -252,12 +297,59 @@ service cloud.firestore {
                   'currency'
                 ]);
 
-            allow delete: if isEmailVerified() &&
-              request.auth.uid == parentId;
+            allow delete: if false;
 
-      match /{subcollection}/{documentId}/{nested=**} {
-        allow read, write: if isEmailVerified() &&
-          request.auth.uid == parentId;
+      match /notificationSettings/{settingsId} {
+        function validNotificationSettings() {
+          let data = request.resource.data;
+          return data.keys().hasOnly([
+              'safeZone', 'sos', 'battery', 'deviceStatus', 'pairing',
+              'appUsage', 'requestAlerts', 'permissionChanges', 'syncErrors',
+              'appUpdates', 'securityAlerts'
+            ]) &&
+            (!data.keys().hasAny(['safeZone']) || data.safeZone is bool) &&
+            (!data.keys().hasAny(['sos']) || data.sos is bool) &&
+            (!data.keys().hasAny(['battery']) || data.battery is bool) &&
+            (!data.keys().hasAny(['deviceStatus']) || data.deviceStatus is bool) &&
+            (!data.keys().hasAny(['pairing']) || data.pairing is bool) &&
+            (!data.keys().hasAny(['appUsage']) || data.appUsage is bool) &&
+            (!data.keys().hasAny(['requestAlerts']) || data.requestAlerts is bool) &&
+            (!data.keys().hasAny(['permissionChanges']) || data.permissionChanges is bool) &&
+            (!data.keys().hasAny(['syncErrors']) || data.syncErrors is bool) &&
+            (!data.keys().hasAny(['appUpdates']) || data.appUpdates is bool) &&
+            (!data.keys().hasAny(['securityAlerts']) || data.securityAlerts is bool);
+        }
+
+        allow read: if isEmailVerified() &&
+          request.auth.uid == parentId &&
+          settingsId == 'current';
+        allow create, update: if isEmailVerified() &&
+          request.auth.uid == parentId &&
+          settingsId == 'current' &&
+          validNotificationSettings();
+        allow delete: if false;
+      }
+
+      match /devices/{deviceId} {
+        function validParentDevice() {
+          let data = request.resource.data;
+          return data.keys().hasOnly([
+              'deviceId', 'platform', 'deviceName', 'lastSeen',
+              'appVersion', 'userAgent'
+            ]) &&
+            data.deviceId == deviceId &&
+            data.platform in ['Web', 'Android', 'iOS'] &&
+            (!data.keys().hasAny(['deviceName']) || data.deviceName is string) &&
+            (!data.keys().hasAny(['lastSeen']) || data.lastSeen is timestamp) &&
+            (!data.keys().hasAny(['appVersion']) || data.appVersion is string) &&
+            (!data.keys().hasAny(['userAgent']) || data.userAgent is string);
+        }
+
+        allow read: if isEmailVerified() && request.auth.uid == parentId;
+        allow create, update: if isEmailVerified() &&
+          request.auth.uid == parentId &&
+          validParentDevice();
+        allow delete: if isEmailVerified() && request.auth.uid == parentId;
       }
     }
 
