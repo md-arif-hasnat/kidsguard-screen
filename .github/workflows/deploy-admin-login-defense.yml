@@ -1,4 +1,4 @@
-name: Deploy Admin Login Defense
+name: Deploy Admin Security
 
 on:
   push:
@@ -6,10 +6,24 @@ on:
     paths:
       - ".github/workflows/deploy-admin-login-defense.yml"
       - "functions/src/index.ts"
+      - "functions/src/internalSessionDefense.ts"
+      - "functions/tests/internal-session-defense.test.cjs"
+      - "functions/package.json"
+      - "functions/package-lock.json"
       - "firestore.rules.production"
+      - "storage.rules"
       - "web-dashboard/app/internal/login/**"
       - "web-dashboard/app/internal/security/login-blocks/**"
+      - "web-dashboard/app/internal/security/sessions/**"
+      - "web-dashboard/components/InternalSidebar.tsx"
+      - "web-dashboard/lib/context/InternalAdminContext.tsx"
+      - "web-dashboard/lib/internalSessionSecurity.ts"
       - "web-dashboard/lib/repositories/InternalLoginDefenseRepository.ts"
+      - "web-dashboard/next.config.js"
+      - "web-dashboard/package.json"
+      - "web-dashboard/package-lock.json"
+      - "web-dashboard/tests/firestore.rules.test.mjs"
+      - "web-dashboard/tests/storage.rules.test.mjs"
 
 permissions:
   contents: read
@@ -17,7 +31,7 @@ permissions:
 jobs:
   verify-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - name: Checkout reviewed production source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -33,6 +47,12 @@ jobs:
             functions/package-lock.json
             web-dashboard/package-lock.json
 
+      - name: Set up Java 21 for Firebase emulators
+        uses: actions/setup-java@7a445ee88d4e23b52c33e515b424b9607c1c0303
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install dependencies
         run: |
           npm ci --prefix functions --no-audit --no-fund
@@ -40,15 +60,17 @@ jobs:
 
       - name: Verify Functions and dashboard
         run: |
-          npm run test:login-defense --prefix functions
+          npm run test:security --prefix functions
           npm run build --prefix web-dashboard
+          npm audit --omit=dev --audit-level=moderate --prefix functions
+          npm audit --omit=dev --audit-level=moderate --prefix web-dashboard
 
       - name: Verify Firestore rules
         run: >
           npx --yes firebase-tools@15.34.1 emulators:exec
-          --only firestore
+          --only firestore,storage
           --project kidsguard-rules-test
-          "node --test web-dashboard/tests/firestore.rules.test.mjs"
+          "node --test --test-concurrency=1 web-dashboard/tests/firestore.rules.test.mjs web-dashboard/tests/storage.rules.test.mjs"
 
       - name: Prepare Firebase credentials
         env:
@@ -68,7 +90,7 @@ jobs:
             'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
             > .env.kidsguard-0626
 
-      - name: Deploy login-defense Functions and rules
+      - name: Deploy admin-security Functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FUNCTIONS_DISCOVERY_TIMEOUT: "60"
@@ -77,7 +99,7 @@ jobs:
           set +e
           npx --yes firebase-tools@15.34.1 deploy \
             --project kidsguard-0626 \
-            --only "functions:getInternalLoginGuardStatus,functions:recordInternalLoginFailure,functions:finalizeInternalLogin,functions:assertInternalLoginAccess,functions:listInternalLoginBlocks,functions:approveInternalLoginBlock,firestore:rules" \
+            --only "functions:requestPlatformStaffAccount,functions:requestPlatformStaffChange,functions:resendPlatformStaffApproval,functions:deactivatePlatformStaff,functions:reviewPlatformStaffRequest,functions:resendPlatformStaffInvite,functions:verifyReleaseArtifact,functions:createPromoCode,functions:setPromoCodeStatus,functions:sendPromoCodeEmail,functions:getInternalLoginGuardStatus,functions:recordInternalLoginFailure,functions:finalizeInternalLogin,functions:assertInternalLoginAccess,functions:listInternalLoginBlocks,functions:approveInternalLoginBlock,functions:endInternalAdminSession,functions:listInternalAdminSessions,functions:revokeInternalAdminSession,functions:onInternalSessionSecurityAlertCreated,functions:getAdminMonthlyBillingReport,functions:getAdminMonthlyBillingReportV2,functions:getAdminMonthlyBillingReportV3,functions:getAdminMonthlyBillingReportV4" \
             --non-interactive 2>&1 | tee "$RUNNER_TEMP/firebase-deploy.log"
           DEPLOY_STATUS=${PIPESTATUS[0]}
           set -e
@@ -92,4 +114,13 @@ jobs:
             exit 0
           fi
           exit "$DEPLOY_STATUS"
+
+      - name: Deploy Firestore and Storage rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: >
+          npx --yes firebase-tools@15.34.1 deploy
+          --project kidsguard-0626
+          --only "firestore:rules,storage"
+          --non-interactive
 

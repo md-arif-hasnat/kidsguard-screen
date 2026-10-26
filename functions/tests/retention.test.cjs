@@ -7,12 +7,12 @@ process.env.FIREBASE_CONFIG = JSON.stringify({
   storageBucket: 'kidsguard-retention-test.appspot.com'
 });
 
-const admin = require('firebase-admin');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const {
   cleanupFamilyRetentionData
 } = require('../lib/index.js');
 
-const db = admin.firestore();
+const db = getFirestore();
 
 test('retention cleanup deletes only expired history', async () => {
   const now = Date.now();
@@ -43,10 +43,10 @@ test('retention cleanup deletes only expired history', async () => {
     .doc(childId)
     .collection('appRestrictionEvents');
   await restrictions.doc('old').set({
-    occurredAt: admin.firestore.Timestamp.fromMillis(oldMillis)
+    occurredAt: Timestamp.fromMillis(oldMillis)
   });
   await restrictions.doc('recent').set({
-    occurredAt: admin.firestore.Timestamp.fromMillis(recentMillis)
+    occurredAt: Timestamp.fromMillis(recentMillis)
   });
 
   const appUsageOld = db

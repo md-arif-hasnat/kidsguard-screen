@@ -6,11 +6,12 @@ import {
 } from "firebase/auth";
 
 import { auth } from "./firebase";
+import { InternalLoginDefenseRepository } from "./repositories/InternalLoginDefenseRepository";
 
 export const INTERNAL_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const INTERNAL_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 
-export type InternalSessionEndReason = "idle" | "expired" | "blocked";
+export type InternalSessionEndReason = "idle" | "expired" | "blocked" | "security";
 
 const ACTIVITY_KEY_PREFIX = "kidsguard:internal:v1:last-activity:";
 
@@ -80,6 +81,13 @@ export async function signOutInternalSession(
   if (uid) clearInternalSessionActivity(uid);
 
   try {
+    if (auth?.currentUser) {
+      try {
+        await InternalLoginDefenseRepository.endSession(reason || "logout");
+      } catch {
+        // Local sign-out must still complete if the revocation service is down.
+      }
+    }
     if (auth) await firebaseSignOut(auth);
   } finally {
     if (typeof window !== "undefined") {

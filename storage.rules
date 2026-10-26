@@ -7,19 +7,30 @@ service firebase.storage {
         request.auth.token.email_verified == true;
     }
 
-    function ticket(ticketId) {
-      return firestore.get(
+    function ownsTicket(ticketId) {
+      let ticketPath =
         /databases/(default)/documents/supportTickets/$(ticketId)
-      ).data;
+      ;
+      return firestore.exists(ticketPath) &&
+        firestore.get(ticketPath).data.parentUid == request.auth.uid;
     }
 
     function hasActivePlatformRole(roles) {
       let adminPath =
         /databases/(default)/documents/platformAdmins/$(request.auth.uid)
       ;
+      let sessionPath =
+        /databases/(default)/documents/internalAdminSessions/$(request.auth.uid)
+      ;
 
       return isVerified() &&
+        request.auth.token.auth_time is int &&
         firestore.exists(adminPath) &&
+        firestore.exists(sessionPath) &&
+        firestore.get(sessionPath).data.state == 'ACTIVE' &&
+        firestore.get(sessionPath).data.authTime == request.auth.token.auth_time &&
+        firestore.get(sessionPath).data.expiresAt is timestamp &&
+        request.time < firestore.get(sessionPath).data.expiresAt &&
         firestore.get(adminPath).data.active == true &&
         firestore.get(adminPath).data.role in roles;
     }
@@ -45,14 +56,14 @@ service firebase.storage {
         (
           (
             request.auth.uid == parentUid &&
-            ticket(ticketId).parentUid == request.auth.uid
+            ownsTicket(ticketId)
           ) ||
           isSupportStaff()
         );
 
       allow create: if isVerified() &&
         request.auth.uid == parentUid &&
-        ticket(ticketId).parentUid == request.auth.uid &&
+        ownsTicket(ticketId) &&
         request.resource.size > 0 &&
         request.resource.size <= 5 * 1024 * 1024 &&
         request.resource.contentType.matches(

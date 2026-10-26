@@ -8,17 +8,20 @@ import { doc, setDoc } from 'firebase/firestore';
 import { getBytes, listAll, ref, uploadBytes } from 'firebase/storage';
 import { readFileSync } from 'node:fs';
 
-const PROJECT_ID = 'kidsguard-storage-test';
+const PROJECT_ID = 'kidsguard-rules-test';
+const ACTIVE_AUTH_TIME = Math.floor(Date.now() / 1000);
 let testEnv;
 
 const verifiedContext = (uid, email) => testEnv.authenticatedContext(uid, {
   email,
-  email_verified: true
+  email_verified: true,
+  auth_time: ACTIVE_AUTH_TIME
 });
 
 const verifiedAdminContext = (uid, email) => testEnv.authenticatedContext(uid, {
   email,
   email_verified: true,
+  auth_time: ACTIVE_AUTH_TIME,
   firebase: {
     sign_in_second_factor: 'totp'
   }
@@ -74,6 +77,21 @@ before(async () => {
       role: 'ACCOUNTING',
       active: true
     });
+    for (const [uid, email, role] of [
+      ['admin-uid', 'admin@example.com', 'PLATFORM_ADMIN'],
+      ['employee-uid', 'employee@example.com', 'EMPLOYEE'],
+      ['accounting-uid', 'accounting@example.com', 'ACCOUNTING']
+    ]) {
+      await setDoc(doc(db, 'internalAdminSessions', uid), {
+        uid,
+        email,
+        role,
+        sessionId: `session-${uid}`,
+        state: 'ACTIVE',
+        authTime: ACTIVE_AUTH_TIME,
+        expiresAt: new Date(ACTIVE_AUTH_TIME * 1000 + 8 * 60 * 60 * 1000)
+      });
+    }
   });
 });
 
@@ -150,6 +168,21 @@ test('platform admin without TOTP cannot read a support attachment', async () =>
     'admin-uid',
     'admin@example.com'
   ).storage();
+  const attachment = ref(
+    storage,
+    'supportTickets/parent-uid/TICKET01/screenshot.png'
+  );
+
+  await assertFails(getBytes(attachment));
+});
+
+test('platform admin with a stale session cannot read a support attachment', async () => {
+  const storage = testEnv.authenticatedContext('admin-uid', {
+    email: 'admin@example.com',
+    email_verified: true,
+    auth_time: ACTIVE_AUTH_TIME + 1,
+    firebase: {sign_in_second_factor: 'totp'}
+  }).storage();
   const attachment = ref(
     storage,
     'supportTickets/parent-uid/TICKET01/screenshot.png'
