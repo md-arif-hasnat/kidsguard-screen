@@ -17,6 +17,7 @@ import { translateUiText } from '@/lib/i18n/uiTranslations';
 import BillingInvoicesSection from '@/components/BillingInvoicesSection';
 import OwnerEmailChangeDialog from '@/components/OwnerEmailChangeDialog';
 import { FamilyRole } from '@/lib/repositories/FamilyRepository';
+import { sanitizePhoneInput, validateAndNormalizePhone } from '@/lib/phoneValidation';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
@@ -39,17 +40,20 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showEmailChange, setShowEmailChange] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
 
   // Form State
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [region, setRegion] = useState<'DE' | 'BD' | 'US' | 'Global'>('DE');
+  const phoneValidation = validateAndNormalizePhone(phoneNumber, region);
 
   useEffect(() => {
     if (profile) {
         setDisplayName(profile.displayName || '');
         setPhoneNumber(profile.phoneNumber || '');
         setRegion(profile.region || 'DE');
+        setPhoneTouched(false);
 
         const loadNotifs = async () => {
             const ns = await NotificationRepository.getNotificationSettings(profile.uid);
@@ -78,6 +82,13 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!profile) return;
 
+    setPhoneTouched(true);
+    const validatedPhone = validateAndNormalizePhone(phoneNumber, region);
+    if (!validatedPhone.isValid) {
+      setStatus({ type: 'error', message: validatedPhone.error });
+      return;
+    }
+
     setSaving(true);
     setStatus(null);
 
@@ -85,12 +96,13 @@ export default function SettingsPage() {
       await Promise.all([
         ParentRepository.updateProfile(profile.uid, {
             displayName: displayName.trim(),
-            phoneNumber: phoneNumber.trim(),
+            phoneNumber: validatedPhone.normalized,
             region
         }),
         NotificationRepository.updateNotificationSettings(profile.uid, notifSettings)
       ]);
 
+      setPhoneNumber(validatedPhone.normalized);
       setStatus({ type: 'success', message: t('profileSaved') });
     } catch (err: any) {
       setStatus({ type: 'error', message: err.message || t('saveFailed') });
@@ -242,17 +254,48 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('phoneNumber')}</label>
+                <label htmlFor="parent-mobile-number" className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('phoneNumber')} *</label>
                 <div className="relative">
                   <Phone className="absolute start-3 top-3 text-slate-400" size={18} />
                   <input
+                    id="parent-mobile-number"
+                    name="parent-mobile-number"
                     type="tel"
+                    required
+                    inputMode="tel"
+                    autoComplete="tel"
+                    pattern="[+0-9]*"
+                    maxLength={16}
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium text-sm"
-                    placeholder="+1234567890"
+                    onChange={(e) => {
+                      setPhoneNumber(sanitizePhoneInput(e.target.value));
+                      setStatus(null);
+                    }}
+                    onBlur={() => setPhoneTouched(true)}
+                    aria-invalid={phoneTouched && !phoneValidation.isValid}
+                    aria-describedby="parent-mobile-number-help"
+                    className={`w-full bg-slate-50 border rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 outline-none transition-all font-medium text-sm ${
+                      phoneTouched && !phoneValidation.isValid
+                        ? 'border-rose-300 focus:ring-rose-400'
+                        : 'border-slate-200 focus:ring-primary-500'
+                    }`}
+                    placeholder={region === 'BD' ? '01712345678' : region === 'DE' ? '01711234567' : region === 'US' ? '2125550123' : '+8801712345678'}
                   />
                 </div>
+                <p
+                  id="parent-mobile-number-help"
+                  className={`px-1 text-[11px] leading-relaxed ${
+                    phoneTouched && !phoneValidation.isValid
+                      ? 'font-medium text-rose-600'
+                      : 'text-slate-400'
+                  }`}
+                >
+                  {phoneTouched && !phoneValidation.isValid
+                    ? phoneValidation.error
+                    : phoneValidation.isValid
+                      ? `Valid mobile number. It will be saved as ${phoneValidation.normalized}.`
+                      : 'Use digits only with a valid mobile country code.'}
+                </p>
               </div>
 
               <div className={`space-y-1.5 ${isFamilyOwner ? '' : 'opacity-70'}`}>
@@ -289,7 +332,10 @@ export default function SettingsPage() {
                   <Globe className="absolute start-3 top-3 text-slate-400" size={18} />
                   <select
                     value={region}
-                    onChange={(e) => setRegion(e.target.value as any)}
+                    onChange={(e) => {
+                      setRegion(e.target.value as any);
+                      if (phoneNumber) setPhoneTouched(true);
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium appearance-none text-sm"
                   >
                     <option value="DE">{t('germany')}</option>
