@@ -51,12 +51,7 @@ jobs:
           cache-dependency-path: web-dashboard/package-lock.json
 
       - name: Install locked dependencies
-        run: |
-          npm ci --prefix web-dashboard --no-audit --no-fund
-          npm ci --prefix functions --no-audit --no-fund
-
-      - name: Build retention worker
-        run: npm run build --prefix functions
+        run: npm ci --prefix web-dashboard --no-audit --no-fund
 
       - name: Lint and build production dashboard
         run: |
@@ -116,7 +111,12 @@ jobs:
           java-version: "21"
 
       - name: Install locked dependencies
-        run: npm ci --prefix web-dashboard --no-audit --no-fund
+        run: |
+          npm ci --prefix web-dashboard --no-audit --no-fund
+          npm ci --prefix functions --no-audit --no-fund
+
+      - name: Build retention worker
+        run: npm run build --prefix functions
 
       - name: Verify Firestore and Storage authorization
         run: >
