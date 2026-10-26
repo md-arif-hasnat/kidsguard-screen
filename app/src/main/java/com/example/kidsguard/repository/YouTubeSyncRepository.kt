@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.models.YouTubeActivity
 import com.example.kidsguard.sync.FirebaseConfig
+import com.example.kidsguard.youtube.YouTubeThumbnailPolicy
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
@@ -152,7 +153,10 @@ class YouTubeSyncRepository(private val context: Context) {
 
             activity.videoId?.let { data["videoId"] = it }
             activity.youtubeUrl?.let { data["youtubeUrl"] = it }
-            activity.thumbnailUrl?.let { data["thumbnailUrl"] = it }
+            YouTubeThumbnailPolicy.remoteThumbnailOrNull(
+                videoId = activity.videoId,
+                candidateUrl = activity.thumbnailUrl
+            )?.let { data["thumbnailUrl"] = it }
             activity.linkSource?.let { data["linkSource"] = it }
             activity.linkConfidence?.let { data["linkConfidence"] = it }
 

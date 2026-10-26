@@ -32,6 +32,93 @@ interface YouTubeHistoryPanelProps {
 
 type DateFilter = 'all' | 'today' | '7d' | '30d';
 
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const TRUSTED_THUMBNAIL_HOSTS = new Set([
+  'i.ytimg.com',
+  'img.youtube.com',
+  'yt3.ggpht.com',
+]);
+
+function getThumbnailCandidates(activity: YouTubeActivity): string[] {
+  const candidates: string[] = [];
+
+  if (activity.thumbnailUrl) {
+    try {
+      const url = new URL(activity.thumbnailUrl);
+      if (url.protocol === 'https:' && TRUSTED_THUMBNAIL_HOSTS.has(url.hostname)) {
+        candidates.push(url.toString());
+      }
+    } catch {
+      // Ignore malformed/device-only artwork and derive from videoId below.
+    }
+  }
+
+  const videoId = activity.videoId?.trim();
+  if (videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId)) {
+    candidates.push(
+      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+      `https://i.ytimg.com/vi/${videoId}/default.jpg`,
+    );
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function ReliableYouTubeThumbnail({
+  activity,
+  sizes,
+  className,
+  fallback,
+}: {
+  activity: YouTubeActivity;
+  sizes: string;
+  className: string;
+  fallback: React.ReactNode;
+}) {
+  const candidates = getThumbnailCandidates(activity);
+  return (
+    <ThumbnailCandidateSequence
+      key={candidates.join('|')}
+      candidates={candidates}
+      alt={activity.videoTitle || 'YouTube thumbnail'}
+      sizes={sizes}
+      className={className}
+      fallback={fallback}
+    />
+  );
+}
+
+function ThumbnailCandidateSequence({
+  candidates,
+  alt,
+  sizes,
+  className,
+  fallback,
+}: {
+  candidates: string[];
+  alt: string;
+  sizes: string;
+  className: string;
+  fallback: React.ReactNode;
+}) {
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const source = candidates[candidateIndex];
+
+  if (!source) return fallback;
+
+  return (
+    <RemoteImage
+      src={source}
+      alt={alt}
+      fill
+      sizes={sizes}
+      className={className}
+      onError={() => setCandidateIndex(index => index + 1)}
+    />
+  );
+}
+
 export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProps) {
   const { family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
 
@@ -213,19 +300,16 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
 
                       {/* Thumbnail */}
                       <div className="relative h-14 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-16 sm:w-28">
-                        {activity.thumbnailUrl ? (
-                          <RemoteImage
-                            src={activity.thumbnailUrl}
-                            alt={activity.videoTitle || "YouTube thumbnail"}
-                            fill
-                            sizes="(min-width: 640px) 112px, 96px"
-                            className="object-cover"
-                          />
-                        ) : (
+                        <ReliableYouTubeThumbnail
+                          activity={activity}
+                          sizes="(min-width: 640px) 112px, 96px"
+                          className="object-cover"
+                          fallback={(
                           <div className="w-full h-full flex items-center justify-center text-red-600">
                             <Play size={24} fill="currentColor" />
                           </div>
-                        )}
+                          )}
+                        />
                       </div>
 
                       {/* Title + Channel */}
@@ -322,12 +406,6 @@ function ActivityDetailsModal({ activity, onClose }: any) {
     return null;
   }, [activity.youtubeUrl]);
 
-  const derivedThumbnail = useMemo(() => {
-    if (activity.thumbnailUrl) return activity.thumbnailUrl;
-    if (activity.videoId) return `https://img.youtube.com/vi/${activity.videoId}/hqdefault.jpg`;
-    return null;
-  }, [activity.thumbnailUrl, activity.videoId]);
-
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -340,13 +418,16 @@ function ActivityDetailsModal({ activity, onClose }: any) {
 
         <header className="flex flex-col gap-6 mb-10">
           <div className="w-full aspect-video bg-slate-100 rounded-3xl overflow-hidden border border-slate-100 relative group">
-            {derivedThumbnail ? (
-              <RemoteImage src={derivedThumbnail} alt={activity.videoTitle} fill sizes="(min-width: 768px) 640px, 100vw" className="object-cover" />
-            ) : (
+            <ReliableYouTubeThumbnail
+              activity={activity}
+              sizes="(min-width: 768px) 640px, 100vw"
+              className="object-cover"
+              fallback={(
               <div className="w-full h-full flex items-center justify-center text-red-600 bg-red-50">
                 <Youtube size={64} />
               </div>
-            )}
+              )}
+            />
 
             {safeYoutubeUrl && (
                <a

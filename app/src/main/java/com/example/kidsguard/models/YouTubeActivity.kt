@@ -23,5 +23,11 @@ data class YouTubeActivity(
     var deviceId: String? = null,
     var uploadedAt: Long? = null,
     var syncVersion: Int = 1,
-    var createdBy: String? = null // Child ID or Device ID
+    var createdBy: String? = null, // Child ID or Device ID
+
+    // Thumbnail recovery metadata stays local and is not uploaded to Firestore.
+    // Gson gives older saved records the safe zero/null values automatically.
+    val thumbnailRetryCount: Int = 0,
+    val lastThumbnailRetryAt: Long? = null,
+    val thumbnailFailureReason: String? = null
 )

@@ -813,6 +813,8 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 return@launch
             }
 
+            YouTubeApiClient.cacheResolvedVideo(resolveRequest, apiResolved)
+
             val apiCandidate = YouTubeMetadataCandidate(
                 videoTitle = resolveRequest.title,
                 channelName = resolveRequest.channel,
@@ -1063,6 +1065,9 @@ class KidsGuardAccessibilityService : AccessibilityService() {
             )
 
             com.example.kidsguard.sync.YouTubeSyncWorker.runOnce(
+                applicationContext
+            )
+            com.example.kidsguard.sync.YouTubeMetadataRetryWorker.scheduleImmediate(
                 applicationContext
             )
         } else {
