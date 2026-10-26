@@ -51,6 +51,7 @@ export default function OwnerEmailChangeDialog({
   onClose
 }: OwnerEmailChangeDialogProps) {
   const [newEmail, setNewEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export default function OwnerEmailChangeDialog({
   useEffect(() => {
     if (!open) {
       setNewEmail("");
+      setConfirmEmail("");
       setCurrentPassword("");
       setSubmitting(false);
       setSentTo(null);
@@ -70,8 +72,18 @@ export default function OwnerEmailChangeDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitting(true);
     setError(null);
+
+    if (
+      newEmail.trim().toLowerCase() !==
+      confirmEmail.trim().toLowerCase()
+    ) {
+      setCurrentPassword("");
+      setError("The new email addresses do not match.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const destination = await requestOwnerEmailChange(
@@ -81,6 +93,7 @@ export default function OwnerEmailChangeDialog({
       setCurrentPassword("");
       setSentTo(destination);
     } catch (requestError) {
+      setCurrentPassword("");
       setError(friendlyEmailChangeError(requestError));
     } finally {
       setSubmitting(false);
@@ -165,7 +178,11 @@ export default function OwnerEmailChangeDialog({
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5 p-6">
+          <form
+            onSubmit={handleSubmit}
+            autoComplete="off"
+            className="space-y-5 p-6"
+          >
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Current email
@@ -189,14 +206,50 @@ export default function OwnerEmailChangeDialog({
                 />
                 <input
                   id="owner-new-email"
+                  name="owner-new-email"
                   type="email"
                   required
-                  autoComplete="email"
+                  autoComplete="off"
                   value={newEmail}
-                  onChange={(event) => setNewEmail(event.target.value)}
+                  onChange={(event) => {
+                    setNewEmail(event.target.value);
+                    setCurrentPassword("");
+                    setError(null);
+                  }}
                   disabled={submitting}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pe-4 ps-10 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
                   placeholder="new-email@example.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="owner-confirm-email"
+                className="mx-1 text-xs font-bold uppercase tracking-wider text-slate-700"
+              >
+                Confirm new email
+              </label>
+              <div className="relative">
+                <Mail
+                  className="absolute start-3 top-3 text-slate-400"
+                  size={18}
+                />
+                <input
+                  id="owner-confirm-email"
+                  name="owner-confirm-email"
+                  type="email"
+                  required
+                  autoComplete="off"
+                  value={confirmEmail}
+                  onChange={(event) => {
+                    setConfirmEmail(event.target.value);
+                    setCurrentPassword("");
+                    setError(null);
+                  }}
+                  disabled={submitting}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pe-4 ps-10 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+                  placeholder="Enter the new email again"
                 />
               </div>
             </div>
@@ -215,9 +268,13 @@ export default function OwnerEmailChangeDialog({
                 />
                 <input
                   id="owner-current-password"
+                  name="owner-account-verification-secret"
                   type="password"
                   required
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  data-form-type="other"
                   value={currentPassword}
                   onChange={(event) =>
                     setCurrentPassword(event.target.value)
