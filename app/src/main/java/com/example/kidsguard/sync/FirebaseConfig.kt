@@ -1,30 +1,38 @@
 package com.example.kidsguard.sync
 
 import android.content.Context
+import android.util.Log
+import com.example.kidsguard.BuildConfig
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 object FirebaseConfig {
+    private const val TAG = "FirebaseConfig"
+
+    @Volatile
+    private var appCheckInitialized = false
     
     /**
      * Initializes Firebase App Check with the appropriate provider.
      * This is called on startup to protect backend resources.
      */
+    @Synchronized
     fun initializeAppCheck(context: Context) {
+        if (appCheckInitialized) return
+
         if (!isFirebaseConfigured(context)) {
-            android.util.Log.w("FirebaseConfig", "Skipping App Check: Firebase not configured")
+            Log.w(TAG, "Skipping App Check: Firebase not configured")
             return
         }
 
         try {
-            android.util.Log.d("FirebaseConfig", "Initializing App Check...")
             val firebaseAppCheck = FirebaseAppCheck.getInstance()
-            
+
             // Use Debug provider for development (Debug builds)
             // Use Play Integrity provider for production (Release builds)
-            if (com.example.kidsguard.BuildConfig.DEBUG) {
+            if (BuildConfig.DEBUG) {
                 firebaseAppCheck.installAppCheckProviderFactory(
                     DebugAppCheckProviderFactory.getInstance()
                 )
@@ -33,8 +41,13 @@ object FirebaseConfig {
                     PlayIntegrityAppCheckProviderFactory.getInstance()
                 )
             }
+            appCheckInitialized = true
+            Log.i(
+                TAG,
+                "App Check initialized with ${if (BuildConfig.DEBUG) "Debug" else "Play Integrity"} provider"
+            )
         } catch (e: Exception) {
-            // Log to internal logger if available later
+            Log.e(TAG, "App Check initialization failed", e)
         }
     }
 
@@ -47,15 +60,15 @@ object FirebaseConfig {
             FirebaseApp.getInstance()
             true
         } catch (e: Exception) {
-            android.util.Log.w("FirebaseConfig", "FirebaseApp.getInstance() failed: ${e.message}")
+            Log.w(TAG, "FirebaseApp.getInstance() failed: ${e.message}")
             try {
                 val hasApps = FirebaseApp.getApps(context).isNotEmpty()
                 if (!hasApps) {
-                    android.util.Log.w("FirebaseConfig", "No Firebase Apps found in context")
+                    Log.w(TAG, "No Firebase Apps found in context")
                 }
                 hasApps
             } catch (ex: Exception) {
-                android.util.Log.e("FirebaseConfig", "Error checking for Firebase Apps", ex)
+                Log.e(TAG, "Error checking for Firebase Apps", ex)
                 false
             }
         }

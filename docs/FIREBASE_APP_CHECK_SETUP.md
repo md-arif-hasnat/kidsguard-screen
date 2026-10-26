@@ -1,6 +1,6 @@
 # Firebase App Check production rollout
 
-KidsGuard Android release builds already use the Play Integrity App Check provider. Debug Android builds intentionally use the Firebase Debug provider.
+KidsGuard Android release builds use the Play Integrity App Check provider. Debug Android builds intentionally use the Firebase Debug provider. App Check is initialized by `KidsGuardApplication`, before activities, workers, receivers, or services can use Firebase.
 
 The web dashboard now supports reCAPTCHA Enterprise App Check when `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY` is configured. Without that variable, App Check is not initialized and existing production behavior remains unchanged.
 
@@ -18,7 +18,7 @@ The web dashboard now supports reCAPTCHA Enterprise App Check when `NEXT_PUBLIC_
 ## Android setup
 
 1. Register the release app in Firebase App Check with Play Integrity.
-2. Add the SHA-256 certificate fingerprint of the production signing certificate to the Firebase Android app.
+2. Add the SHA-256 certificate fingerprint of the production signing certificate to the Firebase Android app. The active `secure.kidsguard.app` production signer was registered on 2026-10-26.
 3. Verify release-device traffic in App Check metrics.
 4. Keep debug tokens restricted to development devices and remove unused tokens.
 
