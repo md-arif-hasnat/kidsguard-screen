@@ -13,8 +13,14 @@ import {
   signInWithPhoneNumber,
   ConfirmationResult,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  verifyBeforeUpdateEmail
 } from "firebase/auth";
+
+const authError = (code: string, message: string): Error & { code: string } =>
+  Object.assign(new Error(message), { code });
 
 export const signIn = async (): Promise<User | null> => {
   if (!auth) return null;
@@ -129,4 +135,61 @@ export const resetPassword = async (email: string) => {
     console.error("Password reset failed:", error);
     throw error;
   }
+};
+
+export const requestOwnerEmailChange = async (
+  newEmail: string,
+  currentPassword: string
+): Promise<string> => {
+  const user = auth?.currentUser;
+  const currentEmail = user?.email?.trim().toLowerCase();
+  const normalizedEmail = newEmail.trim().toLowerCase();
+
+  if (!user || !currentEmail) {
+    throw authError(
+      "auth/user-not-found",
+      "Your authenticated account is unavailable. Please sign in again."
+    );
+  }
+
+  if (!normalizedEmail) {
+    throw authError("auth/invalid-email", "Enter a valid new email address.");
+  }
+
+  if (normalizedEmail === currentEmail) {
+    throw authError(
+      "auth/same-email",
+      "The new email address must be different from your current email."
+    );
+  }
+
+  const hasPasswordProvider = user.providerData.some(
+    (provider) => provider.providerId === EmailAuthProvider.PROVIDER_ID
+  );
+  if (!hasPasswordProvider) {
+    throw authError(
+      "auth/password-provider-required",
+      "This account does not use a password. Email changes must be completed through its sign-in provider."
+    );
+  }
+
+  if (!currentPassword) {
+    throw authError(
+      "auth/missing-password",
+      "Enter your current password to continue."
+    );
+  }
+
+  const credential = EmailAuthProvider.credential(
+    currentEmail,
+    currentPassword
+  );
+  await reauthenticateWithCredential(user, credential);
+
+  await verifyBeforeUpdateEmail(user, normalizedEmail, {
+    url: `${window.location.origin}/login?emailChange=verified`,
+    handleCodeInApp: false
+  });
+
+  return normalizedEmail;
 };

@@ -15,6 +15,8 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { translateUiText } from '@/lib/i18n/uiTranslations';
 import BillingInvoicesSection from '@/components/BillingInvoicesSection';
+import OwnerEmailChangeDialog from '@/components/OwnerEmailChangeDialog';
+import { FamilyRole } from '@/lib/repositories/FamilyRepository';
 
 export default function SettingsPage() {
   const { profile, family, role: profileRole, loading: profileLoading } = useParentProfile();
@@ -36,6 +38,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showEmailChange, setShowEmailChange] = useState(false);
 
   // Form State
   const [displayName, setDisplayName] = useState('');
@@ -145,6 +148,11 @@ export default function SettingsPage() {
   }
 
   const avatarUrl = getAvatarUrl(profile);
+  const isFamilyOwner = Boolean(
+    profile?.uid &&
+    family?.ownerId === profile.uid &&
+    profileRole === FamilyRole.OWNER
+  );
 
   return (
     <DashboardLayout>
@@ -160,6 +168,12 @@ export default function SettingsPage() {
           onClose={() => setShowAvatarPicker(false)}
         />
       )}
+
+      <OwnerEmailChangeDialog
+        currentEmail={profile?.email || ""}
+        open={showEmailChange && isFamilyOwner}
+        onClose={() => setShowEmailChange(false)}
+      />
 
       {status && (
         <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 border ${
@@ -230,7 +244,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5 opacity-70">
+              <div className={`space-y-1.5 ${isFamilyOwner ? '' : 'opacity-70'}`}>
                 <label className="text-xs font-bold text-slate-700 mx-1 uppercase tracking-wider">{t('emailAddress')}</label>
                 <div className="relative">
                   <Mail className="absolute start-3 top-3 text-slate-400" size={18} />
@@ -241,6 +255,20 @@ export default function SettingsPage() {
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 ps-10 pe-4 outline-none font-medium cursor-not-allowed text-sm"
                   />
                 </div>
+                {isFamilyOwner && (
+                  <div className="flex items-center justify-between gap-3 px-1 pt-1">
+                    <p className="text-[11px] leading-relaxed text-slate-500">
+                      Only the family owner can change the login email.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailChange(true)}
+                      className="shrink-0 text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline"
+                    >
+                      Change email
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
