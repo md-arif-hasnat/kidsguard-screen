@@ -10,16 +10,27 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { requestOwnerEmailChange, signOut } from "@/lib/auth";
+import {
+  reauthenticateOwnerForEmailChange,
+  sendOwnerEmailChangeVerification,
+  signOut
+} from "@/lib/auth";
+import { ParentRepository } from "@/lib/repositories/ParentRepository";
 
 type OwnerEmailChangeDialogProps = {
   currentEmail: string;
+  familyId: string;
+  ownerUid: string;
   open: boolean;
   onClose: () => void;
 };
 
 const friendlyEmailChangeError = (error: unknown): string => {
-  const authError = error as { code?: string; message?: string };
+  const authError = error as {
+    code?: string;
+    message?: string;
+    nextAllowedAt?: Date;
+  };
 
   switch (authError.code) {
     case "auth/invalid-credential":
@@ -40,6 +51,10 @@ const friendlyEmailChangeError = (error: unknown): string => {
     case "auth/password-provider-required":
     case "auth/user-not-found":
       return authError.message || "The email change could not be started.";
+    case "email-change/cooldown":
+      return authError.nextAllowedAt
+        ? `You can change your email again after ${authError.nextAllowedAt.toLocaleString()}.`
+        : "You can change your email only once every 7 days.";
     default:
       return "The email change could not be started. Please try again.";
   }
@@ -47,6 +62,8 @@ const friendlyEmailChangeError = (error: unknown): string => {
 
 export default function OwnerEmailChangeDialog({
   currentEmail,
+  familyId,
+  ownerUid,
   open,
   onClose
 }: OwnerEmailChangeDialogProps) {
@@ -85,14 +102,53 @@ export default function OwnerEmailChangeDialog({
 
     setSubmitting(true);
 
+    let requestToken: string | null = null;
+    let verificationSent = false;
+
     try {
-      const destination = await requestOwnerEmailChange(
-        newEmail,
-        currentPassword
+      await ParentRepository.assertOwnerEmailChangeAllowed(
+        ownerUid,
+        familyId
       );
+      const user = await reauthenticateOwnerForEmailChange(currentPassword);
+      requestToken =
+        await ParentRepository.reserveOwnerEmailChangeRequest(
+          ownerUid,
+          familyId
+        );
+      const destination = await sendOwnerEmailChangeVerification(
+        user,
+        newEmail
+      );
+      verificationSent = true;
       setCurrentPassword("");
       setSentTo(destination);
+
+      try {
+        await ParentRepository.completeOwnerEmailChangeRequest(
+          ownerUid,
+          requestToken
+        );
+      } catch (completionError) {
+        console.error(
+          "Email verification was sent, but the request marker could not be finalized:",
+          completionError
+        );
+      }
     } catch (requestError) {
+      if (requestToken && !verificationSent) {
+        try {
+          await ParentRepository.cancelOwnerEmailChangeRequest(
+            ownerUid,
+            requestToken
+          );
+        } catch (rollbackError) {
+          console.error(
+            "Could not roll back the failed email-change reservation:",
+            rollbackError
+          );
+        }
+      }
       setCurrentPassword("");
       setError(friendlyEmailChangeError(requestError));
     } finally {

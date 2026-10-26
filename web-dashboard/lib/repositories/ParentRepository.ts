@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp, query, collection, orderBy, limit, getDocs, runTransaction } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp, query, collection, orderBy, limit, getDocs, runTransaction, deleteField } from "firebase/firestore";
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export interface ParentProfile {
@@ -32,9 +32,164 @@ export interface ParentProfile {
   includedChildren?: number;
   extraChildPriceCents?: number;
   currency?: 'EUR';
+  emailChangeRequestedAt?: Timestamp;
+  emailChangeRequestToken?: string;
 }
 
+export const OWNER_EMAIL_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type OwnerEmailChangeCooldownError = Error & {
+  code: "email-change/cooldown";
+  nextAllowedAt: Date;
+};
+
 export class ParentRepository {
+  private static timestampMillis(value: unknown): number | null {
+    if (
+      value &&
+      typeof (value as { toMillis?: unknown }).toMillis === "function"
+    ) {
+      return (value as { toMillis: () => number }).toMillis();
+    }
+
+    return null;
+  }
+
+  static getNextOwnerEmailChangeAt(
+    requestedAt: unknown,
+    now: number = Date.now()
+  ): Date | null {
+    const requestedAtMillis = this.timestampMillis(requestedAt);
+    if (requestedAtMillis === null) return null;
+
+    const nextAllowedAtMillis =
+      requestedAtMillis + OWNER_EMAIL_CHANGE_COOLDOWN_MS;
+
+    return nextAllowedAtMillis > now
+      ? new Date(nextAllowedAtMillis)
+      : null;
+  }
+
+  private static cooldownError(nextAllowedAt: Date): OwnerEmailChangeCooldownError {
+    return Object.assign(
+      new Error("Your next email change is not available yet."),
+      {
+        code: "email-change/cooldown" as const,
+        nextAllowedAt
+      }
+    );
+  }
+
+  static async assertOwnerEmailChangeAllowed(
+    uid: string,
+    familyId: string
+  ): Promise<void> {
+    if (!db) throw new Error("Firestore is unavailable.");
+
+    const [parentSnapshot, familySnapshot] = await Promise.all([
+      getDoc(doc(db, "parents", uid)),
+      getDoc(doc(db, "families", familyId))
+    ]);
+
+    if (!familySnapshot.exists() || familySnapshot.data().ownerId !== uid) {
+      throw new Error("Only the family owner can change the login email.");
+    }
+
+    const nextAllowedAt = this.getNextOwnerEmailChangeAt(
+      parentSnapshot.data()?.emailChangeRequestedAt
+    );
+    if (nextAllowedAt) {
+      throw this.cooldownError(nextAllowedAt);
+    }
+  }
+
+  static async reserveOwnerEmailChangeRequest(
+    uid: string,
+    familyId: string
+  ): Promise<string> {
+    if (!db) throw new Error("Firestore is unavailable.");
+
+    const firestore = db;
+    const requestToken = globalThis.crypto.randomUUID();
+    await runTransaction(firestore, async (transaction) => {
+      const parentRef = doc(firestore, "parents", uid);
+      const familyRef = doc(firestore, "families", familyId);
+      const [parentSnapshot, familySnapshot] = await Promise.all([
+        transaction.get(parentRef),
+        transaction.get(familyRef)
+      ]);
+
+      if (!familySnapshot.exists() || familySnapshot.data().ownerId !== uid) {
+        throw new Error("Only the family owner can change the login email.");
+      }
+
+      const nextAllowedAt = this.getNextOwnerEmailChangeAt(
+        parentSnapshot.data()?.emailChangeRequestedAt
+      );
+      if (nextAllowedAt) {
+        throw this.cooldownError(nextAllowedAt);
+      }
+
+      transaction.set(
+        parentRef,
+        {
+          emailChangeRequestedAt: serverTimestamp(),
+          emailChangeRequestToken: requestToken
+        },
+        { merge: true }
+      );
+    });
+
+    return requestToken;
+  }
+
+  static async completeOwnerEmailChangeRequest(
+    uid: string,
+    requestToken: string
+  ): Promise<void> {
+    if (!db) throw new Error("Firestore is unavailable.");
+
+    const firestore = db;
+    await runTransaction(firestore, async (transaction) => {
+      const parentRef = doc(firestore, "parents", uid);
+      const parentSnapshot = await transaction.get(parentRef);
+      if (
+        !parentSnapshot.exists() ||
+        parentSnapshot.data().emailChangeRequestToken !== requestToken
+      ) {
+        return;
+      }
+
+      transaction.update(parentRef, {
+        emailChangeRequestToken: deleteField()
+      });
+    });
+  }
+
+  static async cancelOwnerEmailChangeRequest(
+    uid: string,
+    requestToken: string
+  ): Promise<void> {
+    if (!db) return;
+
+    const firestore = db;
+    await runTransaction(firestore, async (transaction) => {
+      const parentRef = doc(firestore, "parents", uid);
+      const parentSnapshot = await transaction.get(parentRef);
+      if (
+        !parentSnapshot.exists() ||
+        parentSnapshot.data().emailChangeRequestToken !== requestToken
+      ) {
+        return;
+      }
+
+      transaction.update(parentRef, {
+        emailChangeRequestedAt: deleteField(),
+        emailChangeRequestToken: deleteField()
+      });
+    });
+  }
+
   private static async syncOwnerMemberEmail(
     profile: ParentProfile,
     email: string
