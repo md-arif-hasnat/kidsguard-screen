@@ -3,6 +3,7 @@ package com.example.kidsguard.repository
 import android.content.Context
 import android.util.Log
 import com.example.kidsguard.models.YouTubeActivity
+import com.example.kidsguard.youtube.YouTubeThumbnailPolicy
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -219,6 +220,125 @@ class YouTubeHistoryRepository private constructor(context: Context) {
         Log.i(
             TAG,
             "History enriched: $title | videoId=${finalUpdated.videoId}"
+        )
+    }
+
+    /**
+     * Enriches exactly one saved record. Retry workers use the local UUID so
+     * repeated/truncated titles cannot update the wrong history item.
+     */
+    @Synchronized
+    fun enrichSavedActivityById(
+        activityId: String,
+        channelName: String?,
+        videoId: String,
+        youtubeUrl: String,
+        thumbnailUrl: String,
+        linkSource: String,
+        linkConfidence: Float
+    ): Boolean {
+        val currentList = _history.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == activityId }
+        if (index == -1) {
+            addDebugLog("THUMBNAIL_RETRY_ITEM_MISSING id=$activityId")
+            return false
+        }
+
+        val old = currentList[index]
+        currentList[index] = old.copy(
+            channelName = channelName?.trim()?.takeIf { it.isNotBlank() }
+                ?: old.channelName,
+            videoId = videoId,
+            youtubeUrl = youtubeUrl,
+            thumbnailUrl = thumbnailUrl,
+            linkSource = linkSource,
+            linkConfidence = linkConfidence,
+            isSynced = false,
+            thumbnailFailureReason = null
+        )
+        _history.value = currentList
+        persistHistory(currentList)
+        addDebugLog("THUMBNAIL_RETRY_RESOLVED id=$activityId videoId=$videoId")
+        return true
+    }
+
+    /**
+     * Repairs records where a video ID exists but MediaSession supplied a
+     * device-only content:// artwork URI (or no artwork at all).
+     */
+    @Synchronized
+    fun repairDerivedThumbnails(): Int {
+        var repairCount = 0
+        val updated = _history.value.map { activity ->
+            val remoteThumbnail = YouTubeThumbnailPolicy.remoteThumbnailOrNull(
+                activity.videoId,
+                activity.thumbnailUrl
+            )
+
+            if (
+                remoteThumbnail != null &&
+                remoteThumbnail != activity.thumbnailUrl
+            ) {
+                repairCount++
+                activity.copy(
+                    thumbnailUrl = remoteThumbnail,
+                    isSynced = false,
+                    thumbnailFailureReason = null
+                )
+            } else {
+                activity
+            }
+        }
+
+        if (repairCount > 0) {
+            _history.value = updated
+            persistHistory(updated)
+            addDebugLog("THUMBNAIL_DERIVED_REPAIRED count=$repairCount")
+        }
+        return repairCount
+    }
+
+    @Synchronized
+    fun getNextUnresolvedThumbnail(
+        now: Long = System.currentTimeMillis(),
+        retryCooldownMs: Long = 60 * 60 * 1000L,
+        maxRetries: Int = 3
+    ): YouTubeActivity? {
+        return _history.value
+            .asReversed()
+            .firstOrNull { activity ->
+                val hasRemoteThumbnail = YouTubeThumbnailPolicy.remoteThumbnailOrNull(
+                    videoId = null,
+                    candidateUrl = activity.thumbnailUrl
+                ) != null
+                val retryReady = activity.lastThumbnailRetryAt == null ||
+                    now - activity.lastThumbnailRetryAt >= retryCooldownMs
+
+                !hasRemoteThumbnail &&
+                    activity.videoId.isNullOrBlank() &&
+                    activity.videoTitle.isNotBlank() &&
+                    activity.thumbnailRetryCount < maxRetries &&
+                    retryReady
+            }
+    }
+
+    @Synchronized
+    fun recordThumbnailRetryFailure(activityId: String, reason: String) {
+        val currentList = _history.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == activityId }
+        if (index == -1) return
+
+        val old = currentList[index]
+        currentList[index] = old.copy(
+            thumbnailRetryCount = old.thumbnailRetryCount + 1,
+            lastThumbnailRetryAt = System.currentTimeMillis(),
+            thumbnailFailureReason = reason.take(160)
+        )
+        _history.value = currentList
+        persistHistory(currentList)
+        addDebugLog(
+            "THUMBNAIL_RETRY_FAILED id=$activityId " +
+                "attempt=${old.thumbnailRetryCount + 1} reason=$reason"
         )
     }
 

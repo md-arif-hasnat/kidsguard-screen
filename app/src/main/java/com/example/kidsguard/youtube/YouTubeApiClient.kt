@@ -22,7 +22,10 @@ object YouTubeApiClient {
     private const val KEY_BACKOFF_LEVEL = "backoff_level"
     private const val KEY_DAILY_COUNT = "daily_count"
     private const val KEY_DAILY_DATE = "daily_date"
-    private const val KEY_CACHE_JSON = "search_cache_v1"
+    // v2 only stores resolver-validated, high-confidence matches. The v1
+    // cache stored the first search result before scoring and is intentionally
+    // left unread so previously cached false matches cannot be reused.
+    private const val KEY_CACHE_JSON = "search_cache_v2"
 
     private const val SEARCH_COOLDOWN_MS = 15_000L
     private const val DAILY_BUDGET = 80
@@ -252,20 +255,6 @@ object YouTubeApiClient {
             )
             debugLog?.invoke("YOUTUBE_API_CALL_SUCCESS items=${response.items.size}")
 
-            response.items.firstOrNull()?.id?.videoId?.let { videoId ->
-                val thumb = response.items.first().snippet?.thumbnails?.high?.url
-                    ?: response.items.first().snippet?.thumbnails?.medium?.url
-                cache[cacheKey] = CacheEntry(
-                    videoId = videoId,
-                    youtubeUrl = YouTubeVideoResolver.buildYouTubeUrl(videoId),
-                    thumbnailUrl = thumb,
-                    source = "YOUTUBE_SEARCH_API",
-                    confidence = 0f,
-                    savedAt = now
-                )
-                saveCache(cache)
-            }
-
             response
         } catch (e: HttpException) {
             if (e.code() == 429) {
@@ -284,5 +273,26 @@ object YouTubeApiClient {
             debugLog?.invoke("YOUTUBE_API_EXCEPTION error=$lastError")
             null
         }
+    }
+
+    /** Cache only a result that has passed the resolver's strict threshold. */
+    @Synchronized
+    fun cacheResolvedVideo(
+        request: YouTubeResolveRequest,
+        resolved: ResolvedYouTubeVideo
+    ) {
+        check(initialized) { "YouTubeApiClient.init(context) must be called before use" }
+        if (resolved.source != YouTubeVideoResolver.SOURCE_SEARCH_API) return
+
+        val cache = loadCache()
+        cache[normalizeKey(request.title, request.channel)] = CacheEntry(
+            videoId = resolved.videoId,
+            youtubeUrl = resolved.youtubeUrl,
+            thumbnailUrl = resolved.thumbnailUrl,
+            source = resolved.source,
+            confidence = resolved.confidence,
+            savedAt = System.currentTimeMillis()
+        )
+        saveCache(cache)
     }
 }

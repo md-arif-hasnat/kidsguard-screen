@@ -44,11 +44,14 @@ class YouTubeSyncWorker(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request
             )
+            YouTubeMetadataRetryWorker.schedulePeriodic(context)
+            YouTubeMetadataRetryWorker.scheduleImmediate(context)
             Log.d(TAG, "YouTube Sync work scheduled")
         }
         
         fun stop(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            YouTubeMetadataRetryWorker.stop(context)
             Log.d(TAG, "YouTube Sync work cancelled")
         }
 
