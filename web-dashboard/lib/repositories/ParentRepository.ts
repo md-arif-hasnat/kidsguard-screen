@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp, query, collection, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, Timestamp, query, collection, orderBy, limit, getDocs, runTransaction } from "firebase/firestore";
 import { AuditRepository, AuditAction, AuditSeverity } from "./AuditRepository";
 
 export interface ParentProfile {
@@ -35,6 +35,56 @@ export interface ParentProfile {
 }
 
 export class ParentRepository {
+  private static async syncOwnerMemberEmail(
+    profile: ParentProfile,
+    email: string
+  ): Promise<void> {
+    if (!db) return;
+
+    const firestore = db;
+    const normalizedEmail = email.trim().toLowerCase();
+    const familyIds = Array.from(new Set([
+      profile.ownedFamilyId,
+      profile.activeFamilyId,
+      profile.familyId,
+      ...(profile.familyIds || [])
+    ].filter((familyId): familyId is string => Boolean(familyId))));
+
+    for (const familyId of familyIds) {
+      await runTransaction(firestore, async (transaction) => {
+        const familyRef = doc(firestore, "families", familyId);
+        const familySnapshot = await transaction.get(familyRef);
+
+        if (!familySnapshot.exists()) return;
+
+        const family = familySnapshot.data();
+        if (family.ownerId !== profile.uid || !Array.isArray(family.members)) {
+          return;
+        }
+
+        let changed = false;
+        const members = family.members.map((member: any) => {
+          if (
+            member?.uid !== profile.uid ||
+            String(member.email || "").trim().toLowerCase() === normalizedEmail
+          ) {
+            return member;
+          }
+
+          changed = true;
+          return { ...member, email: normalizedEmail };
+        });
+
+        if (changed) {
+          transaction.update(familyRef, {
+            members,
+            updatedAt: serverTimestamp()
+          });
+        }
+      });
+    }
+  }
+
   static async getProfile(uid: string): Promise<ParentProfile | null> {
     if (!db) return null;
     const ref = doc(db, "parents", uid);
@@ -93,6 +143,16 @@ export class ParentRepository {
     await setDoc(doc(db, "parents", user.uid), profile, { merge: true });
 
     const updated = await this.getProfile(user.uid);
+
+    if (updated && user.email) {
+      try {
+        await this.syncOwnerMemberEmail(updated, user.email);
+      } catch (error) {
+        // The verified Firebase identity remains authoritative. A temporary
+        // metadata sync failure must never block a successful sign-in.
+        console.warn("Could not sync the verified owner email to family metadata:", error);
+      }
+    }
 
     if (updated?.familyId) {
       await AuditRepository.log({
