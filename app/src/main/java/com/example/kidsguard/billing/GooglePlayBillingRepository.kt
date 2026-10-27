@@ -340,7 +340,7 @@ class GooglePlayBillingRepository(context: Context) : PurchasesUpdatedListener {
                         )
                     )
                     .await()
-                val data = result.data as? Map<*, *>
+                val data = result.getData() as? Map<*, *>
                 if (data?.get("success") != true) {
                     error("Google Play subscription verification failed.")
                 }
