@@ -157,4 +157,21 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:bundleRelease --no-configuration-cache
+          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease --no-configuration-cache
+
+      - name: Verify Play release manifest
+        run: |
+          APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ ! -s "$APK" ]; then
+            APK="app/build/outputs/apk/release/app-release.apk"
+          fi
+          test -s "$APK"
+          test "$(apkanalyzer manifest application-id "$APK")" = "secure.kidsguard.app"
+          if apkanalyzer manifest permissions "$APK" | grep -Fqx \
+            'android.permission.REQUEST_INSTALL_PACKAGES'; then
+            echo "Play release APK still requests REQUEST_INSTALL_PACKAGES."
+            exit 1
+          fi
+          apkanalyzer manifest print "$APK" > "$RUNNER_TEMP/release-manifest.xml"
+          grep -Fq 'android:name="isMonitoringTool"' "$RUNNER_TEMP/release-manifest.xml"
+          grep -Fq 'android:value="child_monitoring"' "$RUNNER_TEMP/release-manifest.xml"
