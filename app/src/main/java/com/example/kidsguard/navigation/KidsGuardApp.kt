@@ -42,6 +42,7 @@ import com.example.kidsguard.ui.screens.NotificationsScreen
 import com.example.kidsguard.ui.screens.ParentDashboardScreen
 import com.example.kidsguard.ui.screens.ParentLoginScreen
 import com.example.kidsguard.ui.screens.ParentSettingsScreen
+import com.example.kidsguard.ui.screens.GooglePlaySubscriptionScreen
 import com.example.kidsguard.ui.screens.PermissionChecklistScreen
 import com.example.kidsguard.ui.screens.ParentSetupScreen
 import com.example.kidsguard.ui.screens.PolicyTesterScreen
@@ -569,6 +570,9 @@ fun KidsGuardApp(
                         onBack = { onScreenChange(Screen.ParentDashboard) },
                         prefHelper = prefHelper,
                         authRepository = authRepository,
+                        onOpenSubscription = {
+                            onScreenChange(Screen.GooglePlaySubscription)
+                        },
                         onLogout = {
                             com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                             prefHelper.userRole = "NONE"
@@ -582,6 +586,11 @@ fun KidsGuardApp(
                     )
                 }
             }
+
+            Screen.GooglePlaySubscription ->
+                GooglePlaySubscriptionScreen(
+                    onBack = { onScreenChange(Screen.Settings) }
+                )
 
             Screen.DeveloperMenu -> {
                 DeveloperMenuScreen(

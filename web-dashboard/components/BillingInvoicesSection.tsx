@@ -40,8 +40,10 @@ function monthLabel(key: string): string {
 
 export default function BillingInvoicesSection({
   isFamilyOwner,
+  billingProvider,
 }: {
   isFamilyOwner: boolean;
+  billingProvider?: string;
 }) {
   const [invoices, setInvoices] = useState<ParentBillingInvoice[]>([]);
   const [loading, setLoading] = useState(isFamilyOwner);
@@ -50,7 +52,7 @@ export default function BillingInvoicesSection({
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    if (!isFamilyOwner) return;
+    if (!isFamilyOwner || billingProvider === "GOOGLE_PLAY") return;
     let cancelled = false;
     setLoading(true);
     BillingRepository.listParentInvoices()
@@ -68,7 +70,7 @@ export default function BillingInvoicesSection({
     return () => {
       cancelled = true;
     };
-  }, [isFamilyOwner]);
+  }, [billingProvider, isFamilyOwner]);
 
   const groupedInvoices = useMemo(() => {
     const groups = new Map<string, ParentBillingInvoice[]>();
@@ -96,6 +98,35 @@ export default function BillingInvoicesSection({
   };
 
   if (!isFamilyOwner) return null;
+
+  if (billingProvider === "GOOGLE_PLAY") {
+    return (
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-primary-100 p-2 text-primary-600">
+            <ReceiptText size={22} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Google Play receipts
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">
+              Google Play issues receipts for this subscription. Open your
+              Google Play order history to view or download payment records.
+            </p>
+            <a
+              href="https://play.google.com/store/account/orderhistory"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
+            >
+              Open Google Play order history
+            </a>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

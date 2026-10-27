@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
@@ -53,6 +54,7 @@ import com.example.kidsguard.repository.AuthRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +62,7 @@ fun ParentSettingsScreen(
     onBack: () -> Unit,
     prefHelper: PreferenceHelper,
     authRepository: AuthRepository,
+    onOpenSubscription: () -> Unit,
     onLogout: () -> Unit
 ) {
     var showLogoutDialog by remember {
@@ -99,6 +102,28 @@ fun ParentSettingsScreen(
     }
     var requestNotificationSettingLoading by remember(parentUid) {
         mutableStateOf(parentUid != null)
+    }
+    var isFamilyOwner by remember(parentUid, prefHelper.familyId) {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(parentUid, prefHelper.familyId) {
+        val uid = parentUid
+        val familyId = prefHelper.familyId
+        isFamilyOwner = if (uid != null && !familyId.isNullOrBlank()) {
+            try {
+                FirebaseFirestore.getInstance()
+                    .collection("families")
+                    .document(familyId)
+                    .get()
+                    .await()
+                    .getString("ownerId") == uid
+            } catch (_: Exception) {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     LaunchedEffect(parentUid) {
@@ -169,6 +194,15 @@ fun ParentSettingsScreen(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
+
+            if (isFamilyOwner) {
+                ControlRow(
+                    icon = Icons.Default.CreditCard,
+                    title = "Subscription",
+                    subtitle = "Start or manage Google Play billing",
+                    onClick = onOpenSubscription
+                )
+            }
 
             ListItem(
                 headlineContent = { Text("Child Access Requests") },

@@ -148,6 +148,20 @@ export default function SubscribePage() {
     profile?.familyId ||
     profile?.familyIds?.[0] ||
     "";
+  const existingSubscriptionStatus = String(
+    family?.subscription?.status || "NONE"
+  ).toUpperCase();
+  const hasActiveGooglePlaySubscription =
+    family?.subscription?.provider === "GOOGLE_PLAY" &&
+    ["ACTIVE", "TRIALING", "PAST_DUE"].includes(
+      existingSubscriptionStatus
+    );
+
+  useEffect(() => {
+    if (!loading && hasActiveGooglePlaySubscription) {
+      router.replace("/manage-subscription?provider=google-play");
+    }
+  }, [hasActiveGooglePlaySubscription, loading, router]);
 
   const applyCoupon = async () => {
     const normalized = couponCode.trim().toUpperCase();
@@ -213,6 +227,13 @@ export default function SubscribePage() {
   };
 
   const openCheckout = () => {
+    if (hasActiveGooglePlaySubscription) {
+      setError(
+        "This family already has a subscription managed by Google Play."
+      );
+      return;
+    }
+
     if (!window.Paddle || !sdkReady) {
       setError("Secure checkout is still loading. Please try again.");
       return;
@@ -275,7 +296,11 @@ export default function SubscribePage() {
     }
   };
 
-  if (loading || role !== FamilyRole.OWNER) {
+  if (
+    loading ||
+    role !== FamilyRole.OWNER ||
+    hasActiveGooglePlaySubscription
+  ) {
     return (
       <DashboardLayout>
         <div className="flex min-h-[50vh] items-center justify-center">
