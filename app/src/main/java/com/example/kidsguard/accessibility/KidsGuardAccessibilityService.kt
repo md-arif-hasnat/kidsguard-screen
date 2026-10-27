@@ -146,6 +146,11 @@ class KidsGuardAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (!::prefHelper.isInitialized ||
+            !prefHelper.accessibilityDisclosureAccepted
+        ) {
+            return
+        }
         val packageName = event.packageName?.toString() ?: "unknown"
         val eventType = event.eventType
         val className = event.className?.toString() ?: ""

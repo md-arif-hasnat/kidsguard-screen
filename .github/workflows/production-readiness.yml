@@ -155,4 +155,4 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --no-configuration-cache
+          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:bundleRelease --no-configuration-cache

@@ -102,7 +102,13 @@ export interface FamilySubscription {
   stripeSubscriptionId?: string;
   stripePriceId?: string;
   cancelAtPeriodEnd?: boolean;
-  provider?: "PADDLE" | "PROMO" | "STRIPE";
+  provider?: "PADDLE" | "PROMO" | "STRIPE" | "GOOGLE_PLAY";
+  entitlementActive?: boolean;
+  googlePlayProductId?: string;
+  googlePlayBasePlanId?: string;
+  googlePlayOfferId?: string;
+  googlePlayLatestOrderId?: string;
+  googlePlayProviderStatus?: string;
   promoCode?: string;
   promoCodeType?: "FREE_LIMITED" | "FREE_FOREVER" | "PERCENTAGE";
   promoCodeStatus?: "ACTIVE" | "REDEEMED" | "REVOKED" | "EXPIRED";

@@ -314,7 +314,11 @@ class MainActivity : ComponentActivity() {
                                     ) &&
                                     com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                         this
-                                    )
+                                    ) &&
+                                    com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(
+                                        this
+                                    ) &&
+                                    prefHelper.hasRequiredMonitoringConsents()
 
                         if (!hasAllPermissions) Screen.PermissionChecklist else Screen.Home
                     }

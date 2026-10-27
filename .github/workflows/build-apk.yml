@@ -1,4 +1,4 @@
-name: Build and Release KidsGuard APK
+name: Build and Release KidsGuard Android Artifacts
 
 on:
   workflow_dispatch:
@@ -77,7 +77,7 @@ jobs:
           TAG="v$VERSION_NAME"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "release_needed=false" >> "$GITHUB_OUTPUT"
-            echo "KidsGuard $TAG already exists. No APK build will run."
+            echo "KidsGuard $TAG already exists. No Android build will run."
           else
             echo "release_needed=true" >> "$GITHUB_OUTPUT"
             echo "KidsGuard $TAG is new. Release build will run."
@@ -106,7 +106,7 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/kidsguard-release.jks"
           test -s "$RUNNER_TEMP/kidsguard-release.jks"
 
-      - name: Build signed release APK
+      - name: Build signed release APK and Play AAB
         if: steps.guard.outputs.release_needed == 'true'
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/kidsguard-release.jks
@@ -114,14 +114,16 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
 
-      - name: Verify APK
+      - name: Verify Android release artifacts
         if: steps.guard.outputs.release_needed == 'true'
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$APK"
-          sha256sum "$APK"
+          test -s "$AAB"
+          sha256sum "$APK" "$AAB"
 
       - name: Prepare release metadata
         if: success()
@@ -176,6 +178,14 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
+      - name: Upload Play AAB artifact
+        if: steps.guard.outputs.release_needed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: KidsGuard-play-aab-v${{ steps.version.outputs.version_name }}
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
       - name: Create and publish GitHub Release
         if: steps.guard.outputs.release_needed == 'true'
         env:
@@ -184,7 +194,13 @@ jobs:
         run: |
           TAG="v$VERSION_NAME"
           APK="app/build/outputs/apk/release/app-release.apk"
-          gh release create "$TAG" "$APK#KidsGuard-v$VERSION_NAME.apk"             --title "KidsGuard v$VERSION_NAME"             --notes-file release-notes-generated.md             --repo "$GITHUB_REPOSITORY"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          gh release create "$TAG" \
+            "$APK#KidsGuard-v$VERSION_NAME.apk" \
+            "$AAB#KidsGuard-v$VERSION_NAME.aab" \
+            --title "KidsGuard v$VERSION_NAME" \
+            --notes-file release-notes-generated.md \
+            --repo "$GITHUB_REPOSITORY"
 
       - name: Sync release to Firestore
         if: success()

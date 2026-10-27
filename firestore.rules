@@ -583,6 +583,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Raw Google Play purchase tokens are server-only billing credentials.
+    match /googlePlayPurchases/{purchaseId} {
+      allow read, write: if false;
+    }
+
+    match /billingConflicts/{eventId} {
+      allow read, write: if false;
+    }
+
     // Rules will be added collection by collection.
     match /{document=**} {
       allow read, write: if false;

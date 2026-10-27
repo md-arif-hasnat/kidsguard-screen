@@ -74,6 +74,8 @@ export default function ManageSubscriptionPage() {
 
   const subscription = family?.subscription;
   const status = String(subscription?.status || "NONE").toUpperCase();
+  const isGooglePlaySubscription =
+    subscription?.provider === "GOOGLE_PLAY";
   const isPromotionalAccess =
     subscription?.provider === "PROMO" && status === "ACTIVE";
   const promoAccessEndsAt = timestampMillis(subscription?.promoAccessEndsAt);
@@ -253,7 +255,28 @@ export default function ManageSubscriptionPage() {
             </div>
           )}
 
-          {isPromotionalAccess && !promotionalAccessExpired ? (
+          {isGooglePlaySubscription ? (
+            <section className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+              <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+              <h2 className="mt-3 text-xl font-black text-emerald-900">
+                Google Play subscription {ended ? "inactive" : "active"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-emerald-700">
+                Google Play securely manages payment, renewal and cancellation
+                for this family subscription.
+              </p>
+              <a
+                href={`https://play.google.com/store/account/subscriptions?sku=${encodeURIComponent(
+                  subscription?.googlePlayProductId || "kidsguard_family"
+                )}&package=secure.kidsguard.app`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-6 flex w-full items-center justify-center rounded-xl border-2 border-emerald-200 bg-white px-5 py-4 font-black text-emerald-700 hover:bg-emerald-100"
+              >
+                Manage in Google Play
+              </a>
+            </section>
+          ) : isPromotionalAccess && !promotionalAccessExpired ? (
             <section className="mt-8 rounded-2xl border border-violet-200 bg-violet-50 p-6">
               <CheckCircle2 className="h-10 w-10 text-violet-600" />
               <h2 className="mt-3 text-xl font-black text-violet-950">
@@ -363,7 +386,7 @@ export default function ManageSubscriptionPage() {
             </section>
           )}
 
-          {!neverSubscribed && !isPromotionalAccess && (
+          {!neverSubscribed && !isPromotionalAccess && !isGooglePlaySubscription && (
             <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
               <h2 className="font-black text-slate-900">
                 Recurring billing breakdown
@@ -423,7 +446,9 @@ export default function ManageSubscriptionPage() {
               <p className="mt-1 font-bold text-slate-900">
                 {isPromotionalAccess
                   ? "PROMOTIONAL ACCESS"
-                  : subscription?.billingInterval || "Not configured"}
+                  : isGooglePlaySubscription
+                    ? `GOOGLE PLAY · ${subscription?.billingInterval || "PLAN"}`
+                    : subscription?.billingInterval || "Not configured"}
               </p>
             </div>
           </div>

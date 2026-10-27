@@ -21,6 +21,7 @@ import {
 import {getStorage} from 'firebase-admin/storage';
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall as onCallV2 } from 'firebase-functions/v2/https';
+import {onMessagePublished} from 'firebase-functions/v2/pubsub';
 import {
   createHash,
   createHmac,
@@ -44,6 +45,10 @@ import {
   internalSessionFingerprint,
   isInternalSessionCompromise,
 } from './internalSessionDefense';
+import {
+  GooglePlayPublisherClient,
+  resolveGooglePlayEntitlement,
+} from './googlePlayBilling';
 
 initializeApp();
 
@@ -63,6 +68,18 @@ const platformOwnerEmail = defineString(
 const internalDashboardUrl = defineString(
   'INTERNAL_DASHBOARD_URL',
   {default: 'https://kidsguard-screen.vercel.app'}
+);
+const googlePlayPackageName = defineString(
+  'GOOGLE_PLAY_PACKAGE_NAME',
+  {default: 'secure.kidsguard.app'}
+);
+const googlePlaySubscriptionProductId = defineString(
+  'GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID',
+  {default: 'kidsguard_family'}
+);
+const googlePlayRtdnTopic = defineString(
+  'GOOGLE_PLAY_RTDN_TOPIC',
+  {default: 'google-play-rtdn'}
 );
 const platformEmailFrom = process.env.RESEND_FROM_EMAIL ||
   'KidsGuard <noreply@kidsguard-screen.purevelofood.com>';
@@ -2053,6 +2070,366 @@ async function requireParentBillingOwner(
       : null
   };
 }
+
+const ACTIVE_BILLING_STATUSES = new Set([
+  'ACTIVE',
+  'TRIALING',
+  'PAST_DUE'
+]);
+
+function googlePlayTokenHash(purchaseToken: string): string {
+  return createHash('sha256').update(purchaseToken).digest('hex');
+}
+
+function googlePlayAccountId(uid: string): string {
+  return createHash('sha256').update(uid).digest('hex');
+}
+
+function currentBillingProvider(subscription: Record<string, any>):
+  string | null {
+  if (typeof subscription.provider === 'string' && subscription.provider) {
+    return subscription.provider.toUpperCase();
+  }
+  if (typeof subscription.paddleSubscriptionId === 'string' &&
+      subscription.paddleSubscriptionId) {
+    return 'PADDLE';
+  }
+  return null;
+}
+
+function assertGooglePlayCanManageSubscription(
+  subscription: Record<string, any>
+): void {
+  const provider = currentBillingProvider(subscription);
+  const status = String(subscription.status || 'NONE').toUpperCase();
+  if (provider && provider !== 'GOOGLE_PLAY' &&
+      ACTIVE_BILLING_STATUSES.has(status)) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'This family already has an active subscription managed by another billing provider.'
+    );
+  }
+}
+
+function googlePlayFamilyPatch(
+  entitlement: ReturnType<typeof resolveGooglePlayEntitlement>,
+  tokenHash: string,
+  verifiedAt: Timestamp
+): Record<string, unknown> {
+  return {
+    'subscription.provider': 'GOOGLE_PLAY',
+    'subscription.status': entitlement.status,
+    'subscription.entitlementActive': entitlement.entitlementActive,
+    'subscription.googlePlayProductId': entitlement.productId,
+    'subscription.googlePlayBasePlanId': entitlement.basePlanId,
+    'subscription.googlePlayOfferId': entitlement.offerId,
+    'subscription.googlePlayPurchaseTokenHash': tokenHash,
+    'subscription.googlePlayLatestOrderId': entitlement.latestOrderId,
+    'subscription.googlePlayProviderStatus': entitlement.providerStatus,
+    'subscription.billingInterval': entitlement.billingInterval,
+    'subscription.currentPeriodEndsAt':
+      Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+    'subscription.nextBilledAt':
+      Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+    'subscription.cancelAtPeriodEnd': entitlement.cancelAtPeriodEnd,
+    'subscription.cancellationStatus': entitlement.cancelAtPeriodEnd
+      ? 'CONFIRMED'
+      : FieldValue.delete(),
+    'subscription.verifiedAt': verifiedAt,
+    'subscription.updatedAt': verifiedAt
+  };
+}
+
+export const verifyGooglePlaySubscription = onCallV2(
+  {
+    region: 'us-central1',
+    enforceAppCheck: true,
+    timeoutSeconds: 60,
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'
+  },
+  async (request) => {
+    const owner = await requireParentBillingOwner(
+      request as unknown as functions.https.CallableContext
+    );
+    const purchaseToken = typeof request.data?.purchaseToken === 'string'
+      ? request.data.purchaseToken.trim()
+      : '';
+    const productId = typeof request.data?.productId === 'string'
+      ? request.data.productId.trim()
+      : '';
+    const expectedProductId = googlePlaySubscriptionProductId.value();
+    if (!purchaseToken || purchaseToken.length > 4096) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid Google Play purchase token is required.'
+      );
+    }
+    if (productId !== expectedProductId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'The Google Play subscription product is not supported.'
+      );
+    }
+
+    const familyRef = db.collection('families').doc(owner.familyId);
+    const initialFamily = await familyRef.get();
+    if (!initialFamily.exists) {
+      throw new functions.https.HttpsError('not-found', 'Family not found.');
+    }
+    assertGooglePlayCanManageSubscription(
+      initialFamily.data()?.subscription || {}
+    );
+
+    try {
+      const publisher = new GooglePlayPublisherClient(
+        googlePlayPackageName.value()
+      );
+      const purchase = await publisher.getSubscription(purchaseToken);
+      const obfuscatedAccountId =
+        purchase.externalAccountIdentifiers?.obfuscatedExternalAccountId;
+      if (obfuscatedAccountId &&
+          obfuscatedAccountId !== googlePlayAccountId(owner.uid)) {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'This Google Play purchase belongs to another parent account.'
+        );
+      }
+
+      const entitlement = resolveGooglePlayEntitlement(
+        purchase,
+        expectedProductId
+      );
+      if (!entitlement.entitlementActive) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'The Google Play subscription is not active.'
+        );
+      }
+
+      const tokenHash = googlePlayTokenHash(purchaseToken);
+      const purchaseRef = db
+        .collection('googlePlayPurchases')
+        .doc(tokenHash);
+      const verifiedAt = Timestamp.now();
+
+      await db.runTransaction(async (transaction) => {
+        const [familySnapshot, purchaseSnapshot] = await Promise.all([
+          transaction.get(familyRef),
+          transaction.get(purchaseRef)
+        ]);
+        if (!familySnapshot.exists ||
+            familySnapshot.data()?.ownerId !== owner.uid) {
+          throw new functions.https.HttpsError(
+            'permission-denied',
+            'Only the family owner can activate a subscription.'
+          );
+        }
+        const existingPurchase = purchaseSnapshot.data() || {};
+        if (purchaseSnapshot.exists &&
+            existingPurchase.familyId !== owner.familyId) {
+          throw new functions.https.HttpsError(
+            'already-exists',
+            'This Google Play purchase is already linked to another family.'
+          );
+        }
+        assertGooglePlayCanManageSubscription(
+          familySnapshot.data()?.subscription || {}
+        );
+
+        transaction.set(purchaseRef, {
+          purchaseToken,
+          purchaseTokenHash: tokenHash,
+          packageName: googlePlayPackageName.value(),
+          productId: entitlement.productId,
+          basePlanId: entitlement.basePlanId,
+          offerId: entitlement.offerId,
+          familyId: owner.familyId,
+          ownerUid: owner.uid,
+          ownerEmail: owner.email,
+          providerStatus: entitlement.providerStatus,
+          status: entitlement.status,
+          entitlementActive: entitlement.entitlementActive,
+          currentPeriodEndsAt:
+            Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+          latestOrderId: entitlement.latestOrderId,
+          regionCode: entitlement.regionCode,
+          testPurchase: entitlement.testPurchase,
+          linkedPurchaseTokenHash: purchase.linkedPurchaseToken
+            ? googlePlayTokenHash(purchase.linkedPurchaseToken)
+            : null,
+          verifiedAt,
+          updatedAt: verifiedAt,
+          createdAt: existingPurchase.createdAt || verifiedAt
+        }, {merge: true});
+        transaction.update(
+          familyRef,
+          googlePlayFamilyPatch(entitlement, tokenHash, verifiedAt)
+        );
+      });
+
+      if (entitlement.acknowledgementPending) {
+        await publisher.acknowledgeSubscription(
+          expectedProductId,
+          purchaseToken
+        );
+        await purchaseRef.set({
+          acknowledgedAt: FieldValue.serverTimestamp()
+        }, {merge: true});
+      }
+
+      await db.collection('auditLogs').add({
+        actorUid: owner.uid,
+        actorEmail: owner.email,
+        familyId: owner.familyId,
+        action: 'GOOGLE_PLAY_SUBSCRIPTION_VERIFIED',
+        targetType: 'SUBSCRIPTION',
+        targetId: tokenHash,
+        severity: 'NOTICE',
+        metadata: {
+          productId: entitlement.productId,
+          basePlanId: entitlement.basePlanId,
+          providerStatus: entitlement.providerStatus,
+          testPurchase: entitlement.testPurchase
+        },
+        createdAt: FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: true,
+        provider: 'GOOGLE_PLAY',
+        status: entitlement.status,
+        entitlementActive: entitlement.entitlementActive,
+        billingInterval: entitlement.billingInterval,
+        currentPeriodEndsAtMillis: entitlement.currentPeriodEndsAtMillis
+      };
+    } catch (error) {
+      if (error instanceof functions.https.HttpsError) throw error;
+      console.error('Google Play subscription verification failed:', error);
+      throw new functions.https.HttpsError(
+        'unavailable',
+        'Google Play could not verify the subscription. Please try again.'
+      );
+    }
+  }
+);
+
+type GooglePlayRtdnPayload = {
+  version?: string;
+  packageName?: string;
+  eventTimeMillis?: string;
+  subscriptionNotification?: {
+    version?: string;
+    notificationType?: number;
+    purchaseToken?: string;
+    subscriptionId?: string;
+  };
+};
+
+function googlePlayRtdnPayload(message: {
+  data?: string;
+  json?: unknown;
+}): GooglePlayRtdnPayload {
+  if (message.json && typeof message.json === 'object') {
+    return message.json as GooglePlayRtdnPayload;
+  }
+  if (!message.data) return {};
+  return JSON.parse(
+    Buffer.from(message.data, 'base64').toString('utf8')
+  ) as GooglePlayRtdnPayload;
+}
+
+export const handleGooglePlaySubscriptionNotification = onMessagePublished(
+  {
+    topic: googlePlayRtdnTopic,
+    region: 'us-central1',
+    timeoutSeconds: 60,
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'
+  },
+  async (event) => {
+    const payload = googlePlayRtdnPayload(event.data.message);
+    if (payload.packageName !== googlePlayPackageName.value()) {
+      console.warn('Ignoring Google Play RTDN for another package.');
+      return;
+    }
+    const notification = payload.subscriptionNotification;
+    const purchaseToken = notification?.purchaseToken?.trim() || '';
+    if (!purchaseToken) {
+      console.info('Ignoring non-subscription Google Play RTDN.');
+      return;
+    }
+
+    const tokenHash = googlePlayTokenHash(purchaseToken);
+    const purchaseRef = db.collection('googlePlayPurchases').doc(tokenHash);
+    const purchaseSnapshot = await purchaseRef.get();
+    const mapping = purchaseSnapshot.data() || {};
+    const familyId = typeof mapping.familyId === 'string'
+      ? mapping.familyId
+      : '';
+    if (!purchaseSnapshot.exists || !familyId) {
+      console.warn(
+        `Google Play RTDN ${event.id} arrived before purchase registration.`
+      );
+      return;
+    }
+
+    const publisher = new GooglePlayPublisherClient(
+      googlePlayPackageName.value()
+    );
+    const purchase = await publisher.getSubscription(purchaseToken);
+    const entitlement = resolveGooglePlayEntitlement(
+      purchase,
+      googlePlaySubscriptionProductId.value()
+    );
+    const verifiedAt = Timestamp.now();
+    const familyRef = db.collection('families').doc(familyId);
+
+    await db.runTransaction(async (transaction) => {
+      const familySnapshot = await transaction.get(familyRef);
+      const familySubscription = familySnapshot.data()?.subscription || {};
+      if (!familySnapshot.exists ||
+          currentBillingProvider(familySubscription) !== 'GOOGLE_PLAY' ||
+          familySubscription.googlePlayPurchaseTokenHash !== tokenHash) {
+        transaction.set(purchaseRef, {
+          providerStatus: entitlement.providerStatus,
+          status: entitlement.status,
+          entitlementActive: entitlement.entitlementActive,
+          currentPeriodEndsAt:
+            Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+          lastRtdnEventId: event.id,
+          lastRtdnNotificationType: notification?.notificationType || null,
+          updatedAt: verifiedAt
+        }, {merge: true});
+        return;
+      }
+
+      transaction.set(purchaseRef, {
+        providerStatus: entitlement.providerStatus,
+        status: entitlement.status,
+        entitlementActive: entitlement.entitlementActive,
+        currentPeriodEndsAt:
+          Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+        latestOrderId: entitlement.latestOrderId,
+        lastRtdnEventId: event.id,
+        lastRtdnNotificationType: notification?.notificationType || null,
+        updatedAt: verifiedAt
+      }, {merge: true});
+      transaction.update(
+        familyRef,
+        googlePlayFamilyPatch(entitlement, tokenHash, verifiedAt)
+      );
+    });
+
+    if (entitlement.acknowledgementPending && entitlement.entitlementActive) {
+      await publisher.acknowledgeSubscription(
+        googlePlaySubscriptionProductId.value(),
+        purchaseToken
+      );
+      await purchaseRef.set({
+        acknowledgedAt: FieldValue.serverTimestamp()
+      }, {merge: true});
+    }
+  }
+);
 
 function normalizeParentInvoice(transaction: PaddleTransaction) {
   const totals = paddleTransactionTotals(transaction);
@@ -10645,6 +11022,46 @@ export const paddleBillingWebhook = functions
 
         const subscription =
           familyData.subscription || {};
+        if (
+          currentBillingProvider(subscription) === 'GOOGLE_PLAY' &&
+          ACTIVE_BILLING_STATUSES.has(
+            String(subscription.status || 'NONE').toUpperCase()
+          )
+        ) {
+          transaction.create(eventRef, {
+            eventId,
+            eventType,
+            familyId,
+            parentUid: parentUid || null,
+            occurredAt:
+              paddleDateMillis(payload.occurred_at) || Date.now(),
+            processedAt: FieldValue.serverTimestamp(),
+            status: 'REJECTED_PROVIDER_CONFLICT'
+          });
+          transaction.set(
+            db.collection('billingConflicts').doc(eventId),
+            {
+              eventId,
+              eventType,
+              familyId,
+              parentUid: parentUid || null,
+              existingProvider: 'GOOGLE_PLAY',
+              incomingProvider: 'PADDLE',
+              providerTransactionId:
+                typeof data.id === 'string' ? data.id : null,
+              providerSubscriptionId:
+                typeof data.subscription_id === 'string'
+                  ? data.subscription_id
+                  : eventType.startsWith('subscription.') &&
+                    typeof data.id === 'string'
+                    ? data.id
+                    : null,
+              status: 'NEEDS_REFUND_REVIEW',
+              createdAt: FieldValue.serverTimestamp()
+            }
+          );
+          return 'provider-conflict';
+        }
         const patch: Record<string, any> = {
           'subscription.provider': 'PADDLE',
           'subscription.promoAccessEndsAt':
@@ -10947,9 +11364,16 @@ export const paddleBillingWebhook = functions
         return 'processed';
       });
 
+      if (result === 'provider-conflict') {
+        console.error(
+          `Paddle event ${eventId} was quarantined because family ${familyId} is billed by Google Play.`
+        );
+      }
+
       res.status(200).json({
         received: true,
-        duplicate: result === 'duplicate'
+        duplicate: result === 'duplicate',
+        providerConflict: result === 'provider-conflict'
       });
     } catch (error) {
       const message =

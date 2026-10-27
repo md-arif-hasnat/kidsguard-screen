@@ -368,6 +368,7 @@ export default function SettingsPage() {
           isFamilyOwner={Boolean(
             profile?.uid && family?.ownerId === profile.uid
           )}
+          billingProvider={family?.subscription?.provider}
         />
 
         <section className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">

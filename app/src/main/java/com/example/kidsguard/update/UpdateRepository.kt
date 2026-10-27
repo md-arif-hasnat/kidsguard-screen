@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
+import com.example.kidsguard.BuildConfig
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -295,6 +296,11 @@ class UpdateRepository(private val context: Context) {
     fun downloadAndInstallUpdate(info: AppUpdateInfo) {
         if (_updateState.value.isDownloading) return
 
+        if (!BuildConfig.ALLOW_SIDELOAD_UPDATES) {
+            openGooglePlayListing()
+            return
+        }
+
         val downloadUri = Uri.parse(info.apkDownloadUrl.trim())
         if (
             downloadUri.scheme?.lowercase() != "https" ||
@@ -415,6 +421,26 @@ class UpdateRepository(private val context: Context) {
                     error.message ?: "Update download failed"
                 )
             }
+        }
+    }
+
+    private fun openGooglePlayListing() {
+        val marketUri = Uri.parse("market://details?id=${context.packageName}")
+        val webUri = Uri.parse(
+            "https://play.google.com/store/apps/details?id=${context.packageName}"
+        )
+        val marketIntent = Intent(Intent.ACTION_VIEW, marketUri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            setPackage("com.android.vending")
+        }
+        try {
+            context.startActivity(marketIntent)
+        } catch (_: Exception) {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, webUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
         }
     }
 

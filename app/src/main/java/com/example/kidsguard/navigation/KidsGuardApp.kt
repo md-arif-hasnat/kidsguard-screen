@@ -42,6 +42,7 @@ import com.example.kidsguard.ui.screens.NotificationsScreen
 import com.example.kidsguard.ui.screens.ParentDashboardScreen
 import com.example.kidsguard.ui.screens.ParentLoginScreen
 import com.example.kidsguard.ui.screens.ParentSettingsScreen
+import com.example.kidsguard.ui.screens.GooglePlaySubscriptionScreen
 import com.example.kidsguard.ui.screens.PermissionChecklistScreen
 import com.example.kidsguard.ui.screens.ParentSetupScreen
 import com.example.kidsguard.ui.screens.PolicyTesterScreen
@@ -188,7 +189,11 @@ fun KidsGuardApp(
                                     ) &&
                                     com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                         context
-                                    )
+                                    ) &&
+                                    com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(
+                                        context
+                                    ) &&
+                                    prefHelper.hasRequiredMonitoringConsents()
 
                         if (!hasAllPermissions) {
                             Screen.PermissionChecklist
@@ -268,7 +273,11 @@ fun KidsGuardApp(
                                 ) &&
                                 com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                     context
-                                )
+                                ) &&
+                                com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(
+                                    context
+                                ) &&
+                                prefHelper.hasRequiredMonitoringConsents()
 
                     if (hasAllPermissions) {
                         android.util.Log.i(
@@ -338,7 +347,10 @@ fun KidsGuardApp(
                         com.example.kidsguard.utils.PermissionUtils
                             .hasNotificationPermission(context) &&
                         com.example.kidsguard.utils.PermissionUtils
-                            .isAccessibilityServiceEnabled(context)
+                            .isAccessibilityServiceEnabled(context) &&
+                        com.example.kidsguard.utils.NotificationAccessHelper
+                            .isEnabled(context) &&
+                        prefHelper.hasRequiredMonitoringConsents()
 
                 if (hasCorePermissions) {
                     PermissionChecklistScreen(
@@ -569,6 +581,9 @@ fun KidsGuardApp(
                         onBack = { onScreenChange(Screen.ParentDashboard) },
                         prefHelper = prefHelper,
                         authRepository = authRepository,
+                        onOpenSubscription = {
+                            onScreenChange(Screen.GooglePlaySubscription)
+                        },
                         onLogout = {
                             com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                             prefHelper.userRole = "NONE"
@@ -582,6 +597,11 @@ fun KidsGuardApp(
                     )
                 }
             }
+
+            Screen.GooglePlaySubscription ->
+                GooglePlaySubscriptionScreen(
+                    onBack = { onScreenChange(Screen.Settings) }
+                )
 
             Screen.DeveloperMenu -> {
                 DeveloperMenuScreen(

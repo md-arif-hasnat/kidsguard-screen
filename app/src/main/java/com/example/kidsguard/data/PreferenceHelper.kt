@@ -228,6 +228,48 @@ class PreferenceHelper(context: Context) {
         get() = prefs.getString("user_role", "NONE") ?: "NONE"
         set(value) = prefs.edit().putString("user_role", value).apply()
 
+    var backgroundLocationDisclosureAccepted: Boolean
+        get() = prefs.getBoolean(
+            "background_location_disclosure_accepted",
+            false
+        )
+        set(value) = prefs.edit()
+            .putBoolean("background_location_disclosure_accepted", value)
+            .apply()
+
+    var accessibilityDisclosureAccepted: Boolean
+        get() = prefs.getBoolean(
+            "accessibility_disclosure_accepted",
+            false
+        )
+        set(value) = prefs.edit()
+            .putBoolean("accessibility_disclosure_accepted", value)
+            .apply()
+
+    var notificationAccessDisclosureAccepted: Boolean
+        get() = prefs.getBoolean(
+            "notification_access_disclosure_accepted",
+            false
+        )
+        set(value) = prefs.edit()
+            .putBoolean("notification_access_disclosure_accepted", value)
+            .apply()
+
+    var appInventoryDisclosureAccepted: Boolean
+        get() = prefs.getBoolean(
+            "app_inventory_disclosure_accepted",
+            false
+        )
+        set(value) = prefs.edit()
+            .putBoolean("app_inventory_disclosure_accepted", value)
+            .apply()
+
+    fun hasRequiredMonitoringConsents(): Boolean =
+        backgroundLocationDisclosureAccepted &&
+            accessibilityDisclosureAccepted &&
+            notificationAccessDisclosureAccepted &&
+            appInventoryDisclosureAccepted
+
     var pairingCode: String
         get() = prefs.getString("pairing_code", "") ?: ""
         set(value) = prefs.edit().putString("pairing_code", value).apply()
