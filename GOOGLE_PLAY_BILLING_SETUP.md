@@ -82,7 +82,13 @@ Functions to deploy:
 ```text
 verifyGooglePlaySubscription
 handleGooglePlaySubscriptionNotification
+reconcileGooglePlaySubscriptions
 ```
+
+RTDN is the primary change signal. `reconcileGooglePlaySubscriptions` also
+re-checks up to 100 of the stalest stored purchases every hour. This safety net
+corrects entitlement state if an RTDN delivery is delayed or missed, without
+granting access based on locally stored billing data.
 
 ## 6. Internal test matrix
 

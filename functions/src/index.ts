@@ -2431,6 +2431,151 @@ export const handleGooglePlaySubscriptionNotification = onMessagePublished(
   }
 );
 
+type GooglePlayReconciliationOutcome = 'UPDATED' | 'DETACHED';
+
+async function reconcileStoredGooglePlayPurchase(
+  purchaseDocument: DocumentSnapshot,
+  publisher: GooglePlayPublisherClient,
+  expectedProductId: string
+): Promise<GooglePlayReconciliationOutcome> {
+  const mapping = purchaseDocument.data() || {};
+  const purchaseToken = typeof mapping.purchaseToken === 'string'
+    ? mapping.purchaseToken.trim()
+    : '';
+  const familyId = typeof mapping.familyId === 'string'
+    ? mapping.familyId.trim()
+    : '';
+  const tokenHash = purchaseDocument.id;
+  if (!purchaseToken || !familyId ||
+      googlePlayTokenHash(purchaseToken) !== tokenHash) {
+    await purchaseDocument.ref.set({
+      lastReconciliationAttemptAt: FieldValue.serverTimestamp(),
+      lastReconciliationErrorCode: 'MAPPING_INVALID',
+      updatedAt: FieldValue.serverTimestamp()
+    }, {merge: true});
+    return 'DETACHED';
+  }
+
+  const purchase = await publisher.getSubscription(purchaseToken);
+  const entitlement = resolveGooglePlayEntitlement(
+    purchase,
+    expectedProductId
+  );
+  const verifiedAt = Timestamp.now();
+  const familyRef = db.collection('families').doc(familyId);
+
+  const familyUpdated = await db.runTransaction(async (transaction) => {
+    const familySnapshot = await transaction.get(familyRef);
+    const familySubscription = familySnapshot.data()?.subscription || {};
+    const isCurrentFamilyPurchase = familySnapshot.exists &&
+      currentBillingProvider(familySubscription) === 'GOOGLE_PLAY' &&
+      familySubscription.googlePlayPurchaseTokenHash === tokenHash;
+
+    transaction.set(purchaseDocument.ref, {
+      productId: entitlement.productId,
+      basePlanId: entitlement.basePlanId,
+      offerId: entitlement.offerId,
+      providerStatus: entitlement.providerStatus,
+      status: entitlement.status,
+      entitlementActive: entitlement.entitlementActive,
+      currentPeriodEndsAt:
+        Timestamp.fromMillis(entitlement.currentPeriodEndsAtMillis),
+      latestOrderId: entitlement.latestOrderId,
+      regionCode: entitlement.regionCode,
+      testPurchase: entitlement.testPurchase,
+      linkedPurchaseTokenHash: purchase.linkedPurchaseToken
+        ? googlePlayTokenHash(purchase.linkedPurchaseToken)
+        : null,
+      verifiedAt,
+      lastReconciliationAttemptAt: verifiedAt,
+      lastReconciliationErrorCode: FieldValue.delete(),
+      updatedAt: verifiedAt
+    }, {merge: true});
+
+    if (isCurrentFamilyPurchase) {
+      transaction.update(
+        familyRef,
+        googlePlayFamilyPatch(entitlement, tokenHash, verifiedAt)
+      );
+    }
+    return isCurrentFamilyPurchase;
+  });
+
+  if (entitlement.acknowledgementPending && entitlement.entitlementActive) {
+    await publisher.acknowledgeSubscription(
+      expectedProductId,
+      purchaseToken
+    );
+    await purchaseDocument.ref.set({
+      acknowledgedAt: FieldValue.serverTimestamp()
+    }, {merge: true});
+  }
+
+  return familyUpdated ? 'UPDATED' : 'DETACHED';
+}
+
+/**
+ * RTDN remains the primary change signal. This hourly safety net re-checks
+ * the stalest stored purchase mappings so a missed notification cannot leave
+ * an expired, held, paused or recovered subscription in the wrong state.
+ */
+export const reconcileGooglePlaySubscriptions = onSchedule(
+  {
+    schedule: 'every 60 minutes',
+    timeZone: 'UTC',
+    region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    serviceAccount: 'kidsguard-0626@appspot.gserviceaccount.com'
+  },
+  async () => {
+    const expectedProductId = googlePlaySubscriptionProductId.value();
+    const publisher = new GooglePlayPublisherClient(
+      googlePlayPackageName.value()
+    );
+    const purchases = await db
+      .collection('googlePlayPurchases')
+      .orderBy('updatedAt', 'asc')
+      .limit(100)
+      .get();
+    let updated = 0;
+    let detached = 0;
+    let failed = 0;
+
+    for (let index = 0; index < purchases.docs.length; index += 5) {
+      const chunk = purchases.docs.slice(index, index + 5);
+      const outcomes = await Promise.all(chunk.map(async (document) => {
+        try {
+          return await reconcileStoredGooglePlayPurchase(
+            document,
+            publisher,
+            expectedProductId
+          );
+        } catch (error) {
+          failed += 1;
+          console.error(
+            `Google Play reconciliation failed for ${document.id}:`,
+            error
+          );
+          await document.ref.set({
+            lastReconciliationAttemptAt: FieldValue.serverTimestamp(),
+            lastReconciliationErrorCode: 'PROVIDER_CHECK_FAILED',
+            updatedAt: FieldValue.serverTimestamp()
+          }, {merge: true});
+          return null;
+        }
+      }));
+      updated += outcomes.filter((outcome) => outcome === 'UPDATED').length;
+      detached += outcomes.filter((outcome) => outcome === 'DETACHED').length;
+    }
+
+    console.log(
+      'Google Play reconciliation completed:',
+      {checked: purchases.size, updated, detached, failed}
+    );
+  }
+);
+
 function normalizeParentInvoice(transaction: PaddleTransaction) {
   const totals = paddleTransactionTotals(transaction);
   return {
