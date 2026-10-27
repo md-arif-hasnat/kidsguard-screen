@@ -111,6 +111,12 @@ jobs:
             exit 0
           fi
           if grep -Fq \
+            "Functions deploy had errors with the following functions:" \
+            "$RUNNER_TEMP/firebase-deploy.log"; then
+            echo "::error::One or more Firebase Functions failed to deploy."
+            exit "$DEPLOY_STATUS"
+          fi
+          if grep -Fq \
             "Functions successfully deployed but could not set up cleanup policy" \
             "$RUNNER_TEMP/firebase-deploy.log"; then
             echo "::warning::Deployment succeeded; artifact cleanup policy remains intentionally unchanged."
