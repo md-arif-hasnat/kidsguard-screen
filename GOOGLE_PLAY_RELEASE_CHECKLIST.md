@@ -100,6 +100,11 @@ must agree exactly.
 
 ## Internal testing acceptance test
 
+Before upload, confirm the GitHub **Production Readiness Gate** and **Build and
+Release KidsGuard Android Artifacts** workflows are green. The release workflow
+now fails automatically if the built Play artifact has the wrong application
+ID, retains `REQUEST_INSTALL_PACKAGES`, or loses the child-monitoring metadata.
+
 1. Upload the signed release AAB with a new version code.
 2. Install only from the Internal testing link using a license-test account.
 3. Complete child pairing and test every disclosure's Not now and Agree paths.
