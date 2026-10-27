@@ -43,6 +43,9 @@ jobs:
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
+      - name: Verify Google Play release contract
+        run: node scripts/check-google-play-release.mjs
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
         with:
@@ -123,6 +126,15 @@ jobs:
           AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$APK"
           test -s "$AAB"
+          test "$(apkanalyzer manifest application-id "$APK")" = "secure.kidsguard.app"
+          if apkanalyzer manifest permissions "$APK" | grep -Fqx \
+            'android.permission.REQUEST_INSTALL_PACKAGES'; then
+            echo "Play release APK still requests REQUEST_INSTALL_PACKAGES."
+            exit 1
+          fi
+          apkanalyzer manifest print "$APK" > "$RUNNER_TEMP/release-manifest.xml"
+          grep -Fq 'android:name="isMonitoringTool"' "$RUNNER_TEMP/release-manifest.xml"
+          grep -Fq 'android:value="child_monitoring"' "$RUNNER_TEMP/release-manifest.xml"
           sha256sum "$APK" "$AAB"
 
       - name: Prepare release metadata

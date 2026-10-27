@@ -30,8 +30,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Verify shared production contracts
-        run: node scripts/check-parent-child-contracts.mjs
+      - name: Verify shared production and Google Play contracts
+        run: |
+          node scripts/check-parent-child-contracts.mjs
+          node scripts/check-google-play-release.mjs
 
   dashboard:
     name: Parent dashboard
