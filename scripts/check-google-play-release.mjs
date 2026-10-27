@@ -69,7 +69,8 @@ for (const expected of [
   "{default: 'kidsguard_family'}",
   "{default: 'google-play-rtdn'}",
   'export const verifyGooglePlaySubscription =',
-  'export const handleGooglePlaySubscriptionNotification ='
+  'export const handleGooglePlaySubscriptionNotification =',
+  'export const reconcileGooglePlaySubscriptions ='
 ]) {
   requireText(functionsPath, expected, 'Firebase Google Play contract changed');
 }
@@ -79,7 +80,8 @@ for (const expected of [
   'GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID=kidsguard_family',
   'GOOGLE_PLAY_RTDN_TOPIC=google-play-rtdn',
   'functions:verifyGooglePlaySubscription',
-  'functions:handleGooglePlaySubscriptionNotification'
+  'functions:handleGooglePlaySubscriptionNotification',
+  'functions:reconcileGooglePlaySubscriptions'
 ]) {
   requireText(
     deployWorkflowPath,

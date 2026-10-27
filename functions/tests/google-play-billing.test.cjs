@@ -90,6 +90,28 @@ test('expired purchase does not grant access', () => {
   assert.equal(entitlement.entitlementActive, false);
 });
 
+test('account hold removes access and reports past due', () => {
+  const entitlement = resolveGooglePlayEntitlement(
+    purchase({subscriptionState: 'SUBSCRIPTION_STATE_ON_HOLD'}),
+    'kidsguard_family',
+    NOW
+  );
+
+  assert.equal(entitlement.status, 'PAST_DUE');
+  assert.equal(entitlement.entitlementActive, false);
+});
+
+test('paused subscription removes access', () => {
+  const entitlement = resolveGooglePlayEntitlement(
+    purchase({subscriptionState: 'SUBSCRIPTION_STATE_PAUSED'}),
+    'kidsguard_family',
+    NOW
+  );
+
+  assert.equal(entitlement.status, 'PAUSED');
+  assert.equal(entitlement.entitlementActive, false);
+});
+
 test('a token for another product is rejected', () => {
   assert.throws(
     () => resolveGooglePlayEntitlement(
