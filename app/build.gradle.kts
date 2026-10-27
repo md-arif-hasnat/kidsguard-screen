@@ -42,6 +42,7 @@ android {
             "YOUTUBE_API_KEY",
             "\"$youtubeApiKey\""
         )
+        buildConfigField("boolean", "ALLOW_SIDELOAD_UPDATES", "true")
     }
 
     signingConfigs {
@@ -70,6 +71,9 @@ android {
             optimization {
                 enable = false
             }
+            // Google Play releases must update through Play, never by asking
+            // the user to install an APK from an external source.
+            buildConfigField("boolean", "ALLOW_SIDELOAD_UPDATES", "false")
             val releaseSigning = signingConfigs.findByName("release")
             if (releaseSigning != null) {
                 signingConfig = releaseSigning

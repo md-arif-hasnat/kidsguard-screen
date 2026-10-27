@@ -3,6 +3,7 @@ package com.example.kidsguard.notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.example.kidsguard.data.PreferenceHelper
 import com.example.kidsguard.repository.YouTubeHistoryRepository
 import com.example.kidsguard.utils.MediaSessionMetadataReader
 
@@ -23,6 +24,12 @@ class KidsGuardNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
+
+        if (!PreferenceHelper(applicationContext)
+                .notificationAccessDisclosureAccepted
+        ) {
+            return
+        }
 
         if (sbn?.packageName != "com.google.android.youtube") return
 

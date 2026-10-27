@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -42,6 +44,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +62,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.kidsguard.admin.KidsGuardAdminReceiver
 import com.example.kidsguard.accessibility.KidsGuardAccessibilityService
 import com.example.kidsguard.data.PreferenceHelper
+import com.example.kidsguard.repository.InstalledAppsRepository
 import com.example.kidsguard.utils.NotificationAccessHelper
 import com.example.kidsguard.utils.PermissionUtils
 import kotlinx.coroutines.delay
@@ -83,7 +87,7 @@ private enum class SetupStepId {
     NOTIFICATION_ACCESS,
     BATTERY_OPTIMIZATION,
     USAGE_ACCESS,
-    MICROPHONE
+    APP_INVENTORY
 }
 
 private data class SetupStep(
@@ -101,6 +105,9 @@ fun ChildSetupWizardScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val prefHelper = remember(context.applicationContext) {
+        PreferenceHelper(context.applicationContext)
+    }
 
     val steps = remember {
         listOf(
@@ -159,10 +166,10 @@ fun ChildSetupWizardScreen(
                 required = false
             ),
             SetupStep(
-                id = SetupStepId.MICROPHONE,
-                title = "Microphone Access",
-                description = "Optional: required only for supported audio features.",
-                required = false
+                id = SetupStepId.APP_INVENTORY,
+                title = "Installed App Protection",
+                description = "Allow KidsGuard to identify installed apps so the linked parent can manage app access and screen time.",
+                required = true
             )
         )
     }
@@ -173,6 +180,9 @@ fun ChildSetupWizardScreen(
 
     var permissionRefreshKey by remember {
         mutableIntStateOf(0)
+    }
+    var pendingDisclosure by remember {
+        mutableStateOf<SetupStepId?>(null)
     }
 
     val step = steps[currentStep]
@@ -195,12 +205,16 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.BACKGROUND_LOCATION -> {
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-                        PermissionUtils.hasBackgroundLocationPermission(context)
+                prefHelper.backgroundLocationDisclosureAccepted &&
+                    (
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                            PermissionUtils.hasBackgroundLocationPermission(context)
+                    )
             }
 
             SetupStepId.ACCESSIBILITY -> {
-                PermissionUtils.isAccessibilityServiceEnabled(context)
+                prefHelper.accessibilityDisclosureAccepted &&
+                    PermissionUtils.isAccessibilityServiceEnabled(context)
             }
 
             SetupStepId.OVERLAY -> {
@@ -217,7 +231,8 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.NOTIFICATION_ACCESS -> {
-                NotificationAccessHelper.isEnabled(context)
+                prefHelper.notificationAccessDisclosureAccepted &&
+                    NotificationAccessHelper.isEnabled(context)
             }
 
             SetupStepId.BATTERY_OPTIMIZATION -> {
@@ -228,11 +243,8 @@ fun ChildSetupWizardScreen(
                 hasUsageAccess(context)
             }
 
-            SetupStepId.MICROPHONE -> {
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED
+            SetupStepId.APP_INVENTORY -> {
+                prefHelper.appInventoryDisclosureAccepted
             }
         }
     }
@@ -244,7 +256,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 0 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.LOCATION &&
                 PermissionUtils.hasLocationPermission(context)
             ) {
                 goToNextStep()
@@ -258,7 +270,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 1 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.BACKGROUND_LOCATION &&
                 PermissionUtils.hasBackgroundLocationPermission(context)
             ) {
                 goToNextStep()
@@ -272,7 +284,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 2 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.ACCESSIBILITY &&
                 PermissionUtils.isAccessibilityServiceEnabled(context)
             ) {
                 goToNextStep()
@@ -286,7 +298,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 3 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.OVERLAY &&
                 Settings.canDrawOverlays(context)
             ) {
                 goToNextStep()
@@ -300,7 +312,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 4 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.DEVICE_ADMIN &&
                 KidsGuardAdminReceiver.isAdminActive(context)
             ) {
                 goToNextStep()
@@ -314,7 +326,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 5 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.NOTIFICATIONS &&
                 (
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                                 PermissionUtils.hasNotificationPermission(context)
@@ -331,7 +343,7 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 6 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.BATTERY_OPTIMIZATION &&
                 PermissionUtils.isBatteryOptimizationIgnored(context)
             ) {
                 goToNextStep()
@@ -345,31 +357,37 @@ fun ChildSetupWizardScreen(
             permissionRefreshKey++
 
             if (
-                currentStep == 7 &&
+                steps.getOrNull(currentStep)?.id == SetupStepId.USAGE_ACCESS &&
                 hasUsageAccess(context)
             ) {
                 goToNextStep()
             }
         }
 
-    val microphonePermissionLauncher =
+    val backgroundLocationSettingsLauncher =
         rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission()
+            contract = ActivityResultContracts.StartActivityForResult()
         ) {
             permissionRefreshKey++
-
-            if (
-                currentStep == 8 &&
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                goToNextStep()
-            }
         }
 
     fun requestCurrentStep() {
+        val disclosureAlreadyAccepted = when (step.id) {
+            SetupStepId.BACKGROUND_LOCATION ->
+                prefHelper.backgroundLocationDisclosureAccepted
+            SetupStepId.ACCESSIBILITY ->
+                prefHelper.accessibilityDisclosureAccepted
+            SetupStepId.NOTIFICATION_ACCESS ->
+                prefHelper.notificationAccessDisclosureAccepted
+            SetupStepId.APP_INVENTORY ->
+                prefHelper.appInventoryDisclosureAccepted
+            else -> true
+        }
+        if (!disclosureAlreadyAccepted) {
+            pendingDisclosure = step.id
+            return
+        }
+
         when (step.id) {
             SetupStepId.LOCATION -> {
                 locationPermissionLauncher.launch(
@@ -381,7 +399,14 @@ fun ChildSetupWizardScreen(
             }
 
             SetupStepId.BACKGROUND_LOCATION -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    backgroundLocationSettingsLauncher.launch(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     backgroundLocationLauncher.launch(
                         Manifest.permission.ACCESS_BACKGROUND_LOCATION
                     )
@@ -477,10 +502,10 @@ fun ChildSetupWizardScreen(
                 )
             }
 
-            SetupStepId.MICROPHONE -> {
-                microphonePermissionLauncher.launch(
-                    Manifest.permission.RECORD_AUDIO
-                )
+            SetupStepId.APP_INVENTORY -> {
+                InstalledAppsRepository(context.applicationContext)
+                    .initialScan()
+                permissionRefreshKey++
             }
         }
     }
@@ -796,6 +821,80 @@ fun ChildSetupWizardScreen(
             )
         }
     }
+
+    pendingDisclosure?.let { disclosureStep ->
+        val disclosure = disclosureCopy(disclosureStep)
+        AlertDialog(
+            onDismissRequest = { pendingDisclosure = null },
+            title = {
+                Text(
+                    text = disclosure.title,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                Text(
+                    text = disclosure.message,
+                    lineHeight = 21.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        when (disclosureStep) {
+                            SetupStepId.BACKGROUND_LOCATION ->
+                                prefHelper.backgroundLocationDisclosureAccepted = true
+                            SetupStepId.ACCESSIBILITY ->
+                                prefHelper.accessibilityDisclosureAccepted = true
+                            SetupStepId.NOTIFICATION_ACCESS ->
+                                prefHelper.notificationAccessDisclosureAccepted = true
+                            SetupStepId.APP_INVENTORY ->
+                                prefHelper.appInventoryDisclosureAccepted = true
+                            else -> Unit
+                        }
+                        pendingDisclosure = null
+                        permissionRefreshKey++
+                        requestCurrentStep()
+                    }
+                ) {
+                    Text("Agree and continue")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDisclosure = null }) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
+}
+
+private data class DisclosureCopy(
+    val title: String,
+    val message: String
+)
+
+private fun disclosureCopy(step: SetupStepId): DisclosureCopy = when (step) {
+    SetupStepId.BACKGROUND_LOCATION -> DisclosureCopy(
+        title = "Background location disclosure",
+        message = "KidsGuard collects this child device's precise location in the background, including when the app is closed or not in use. Location is used for live location, route history and parent-defined safe-zone alerts, and is sent securely to the linked parent account. It is not sold or used for advertising."
+    )
+    SetupStepId.ACCESSIBILITY -> DisclosureCopy(
+        title = "Accessibility Service disclosure",
+        message = "KidsGuard uses Android Accessibility Service on this child device to identify the active app and read relevant on-screen browser or YouTube content. It uses this access to enforce parent-selected app, website and screen-time rules and to detect attempts to disable protection. Relevant activity may be sent securely to the linked parent account. It is not sold or used for advertising."
+    )
+    SetupStepId.NOTIFICATION_ACCESS -> DisclosureCopy(
+        title = "Notification access disclosure",
+        message = "KidsGuard reads notifications on this child device to identify supported YouTube and media titles, channel details and playback activity for the linked parent's safety dashboard. Relevant details may be sent securely to the linked parent account. Notification data is not sold or used for advertising."
+    )
+    SetupStepId.APP_INVENTORY -> DisclosureCopy(
+        title = "Installed apps disclosure",
+        message = "KidsGuard collects installed app names, package identifiers, versions and install status from this child device. This inventory is sent securely to the linked parent account so the parent can manage app access, screen time and new-install alerts. It is not sold or used for advertising."
+    )
+    else -> DisclosureCopy(
+        title = "Permission disclosure",
+        message = "Review and agree before continuing."
+    )
 }
 
 private fun hasUsageAccess(

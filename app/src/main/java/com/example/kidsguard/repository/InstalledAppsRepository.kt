@@ -36,6 +36,7 @@ class InstalledAppsRepository(private val context: Context) {
      * Use this during initialization to populate the installedApps collection.
      */
     fun initialScan() {
+        if (!hasAppInventoryConsent()) return
         // Older builds cached package names before Firestore confirmed the
         // upload. Force one baseline rescan to repair those stale caches.
         val baselineReady = prefs.getBoolean(KEY_BASELINE_READY, false)
@@ -46,6 +47,7 @@ class InstalledAppsRepository(private val context: Context) {
      * Complete rescan that synchronizes local state and Firestore with current device reality.
      */
     fun fullRescan() {
+        if (!hasAppInventoryConsent()) return
         performScan(isFullRescan = true)
     }
 
@@ -162,6 +164,7 @@ class InstalledAppsRepository(private val context: Context) {
      * Checks if a package is new and handles syncing/notification.
      */
     fun handlePackageAdded(packageName: String) {
+        if (!hasAppInventoryConsent()) return
         if (packageName == context.packageName) return
 
         val launchIntent = pm.getLaunchIntentForPackage(packageName)
@@ -208,6 +211,7 @@ class InstalledAppsRepository(private val context: Context) {
     }
 
     fun handlePackageRemoved(packageName: String) {
+        if (!hasAppInventoryConsent()) return
         prefs.edit().remove(packageName).apply()
         Log.i(TAG, "Removed package from install cache: $packageName")
 
@@ -251,6 +255,14 @@ class InstalledAppsRepository(private val context: Context) {
             .addOnFailureListener { error ->
                 Log.e(TAG, "Failed to sync app record: ${app.packageName}", error)
             }
+    }
+
+    private fun hasAppInventoryConsent(): Boolean {
+        val accepted = prefHelper.appInventoryDisclosureAccepted
+        if (!accepted) {
+            Log.i(TAG, "Installed app access skipped until guardian consent")
+        }
+        return accepted
     }
 
 }

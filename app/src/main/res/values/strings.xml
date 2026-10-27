@@ -3,9 +3,9 @@
     <string name="accessibility_description">KidGuard prevents curious little hands from leaving the app
         when active.</string>
     <string name="device_admin_description">KidsGuard uses system protection to prevent accidental app uninstallation and manage wellbeing restrictions.</string>
-    <string name="youtube_accessibility_description">KidsGuard monitors YouTube watch history to ensure a safe viewing environment.</string>
+    <string name="youtube_accessibility_description">With parent or guardian consent, KidsGuard uses Accessibility Service to identify active apps and browser or YouTube content, enforce parent-selected blocks and screen-time rules, and detect attempts to disable protection.</string>
 
     <!-- Play Store Metadata -->
-    <string name="short_description">Protect your phone from curious little hands with a fake dead battery lock.</string>
-    <string name="full_description">KidsGuard Screen is the ultimate family safety tool to protect your device from accidental use by children. \n\nFeatures: \n- Fake Dead Battery Screen: Stealthily locks your phone with a realistic dead battery animation.\n- Multiple Unlock Methods: Secure PIN, secret tap patterns, or volume key combinations.\n- Scheduled Lock: Automatically activate protection during specific times (e.g., bedtime).\n- Child Safety Focus: Prevents app switching and accidental touches while active.\n- Privacy First: No data collection, no ads, and no hidden permissions.</string>
+    <string name="short_description">Transparent parental controls for safer child devices and healthier screen time.</string>
+    <string name="full_description">KidsGuard Screen is a parental-control and child-safety app for devices managed by a parent or legal guardian.\n\nCore features:\n- Live location and parent-defined safe-zone alerts\n- App inventory, app blocking and screen-time limits\n- Adult and gambling website protection\n- YouTube and browser activity visible to the linked parent\n- Scheduled device lock and tamper alerts\n- Persistent notification while child-device monitoring is active\n\nKidsGuard clearly discloses monitoring, requests consent before sensitive access, and shares child-device information only with the linked family account. It does not sell personal data or use monitoring data for advertising. KidsGuard must not be used to monitor adults or anyone without lawful parental or guardian authority.</string>
 </resources>

@@ -189,7 +189,11 @@ fun KidsGuardApp(
                                     ) &&
                                     com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                         context
-                                    )
+                                    ) &&
+                                    com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(
+                                        context
+                                    ) &&
+                                    prefHelper.hasRequiredMonitoringConsents()
 
                         if (!hasAllPermissions) {
                             Screen.PermissionChecklist
@@ -269,7 +273,11 @@ fun KidsGuardApp(
                                 ) &&
                                 com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(
                                     context
-                                )
+                                ) &&
+                                com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(
+                                    context
+                                ) &&
+                                prefHelper.hasRequiredMonitoringConsents()
 
                     if (hasAllPermissions) {
                         android.util.Log.i(
@@ -339,7 +347,10 @@ fun KidsGuardApp(
                         com.example.kidsguard.utils.PermissionUtils
                             .hasNotificationPermission(context) &&
                         com.example.kidsguard.utils.PermissionUtils
-                            .isAccessibilityServiceEnabled(context)
+                            .isAccessibilityServiceEnabled(context) &&
+                        com.example.kidsguard.utils.NotificationAccessHelper
+                            .isEnabled(context) &&
+                        prefHelper.hasRequiredMonitoringConsents()
 
                 if (hasCorePermissions) {
                     PermissionChecklistScreen(

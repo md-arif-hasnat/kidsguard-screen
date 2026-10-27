@@ -50,7 +50,9 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Verify Kotlin and unit tests
+      - name: Verify Kotlin, unit tests and Play release bundle
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --no-configuration-cache
+        run: >
+          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest
+          :app:bundleRelease --no-configuration-cache

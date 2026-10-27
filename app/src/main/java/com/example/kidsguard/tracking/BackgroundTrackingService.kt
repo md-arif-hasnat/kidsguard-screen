@@ -267,6 +267,10 @@ class BackgroundTrackingService : Service() {
     private fun setupLocationCallback() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
+                if (!prefHelper.backgroundLocationDisclosureAccepted) {
+                    Log.i(TAG, "Location ignored until guardian disclosure is accepted")
+                    return
+                }
                 locationResult.lastLocation?.let { location ->
                     // Get address from reverse geocoder
                     android.util.Log.d("LocationUpload", "resolving full address")
@@ -413,8 +417,8 @@ class BackgroundTrackingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("KidsGuard Active")
-            .setContentText("Location protection is running")
+            .setContentTitle("KidsGuard child protection is active")
+            .setContentText("Location and parental monitoring are running")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
