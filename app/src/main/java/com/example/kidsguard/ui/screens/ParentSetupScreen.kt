@@ -66,7 +66,7 @@ fun ParentSetupScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Enter the KDG code shown on your child's phone",
+                text = "Enter the 6-digit code shown on your child's phone",
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
