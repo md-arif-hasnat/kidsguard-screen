@@ -39,6 +39,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "@grpc/grpc-js": "1.14.6"
+    "@grpc/grpc-js": "1.14.6",
+    "re2js": "2.8.7"
   }
 }
