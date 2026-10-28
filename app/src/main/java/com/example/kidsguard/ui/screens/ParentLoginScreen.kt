@@ -217,7 +217,7 @@ fun ParentLoginScreen(
                                 onLoginSuccess()
                             }
                         } else {
-                            error = "Authentication failed. Please check your credentials."
+                            error = "Login unsuccessful. Check your email/password and verify your email before continuing."
                             isLoading = false
                         }
                     }
