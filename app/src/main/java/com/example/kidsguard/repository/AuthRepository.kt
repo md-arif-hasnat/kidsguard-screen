@@ -572,7 +572,7 @@ class AuthRepository(private val context: Context) {
             user.getIdToken(true).await()
             val familyResult = functions.getHttpsCallable("ensureParentFamily")
                 .call(emptyMap<String, Any>()).await()
-            val familyPayload = familyResult.data as? Map<*, *>
+            val familyPayload = familyResult.getData() as? Map<*, *>
             val familyId = (familyPayload?.get("familyId") as? String)
                 ?.takeIf { it.isNotBlank() }
                 ?: return Result.failure(IllegalStateException("Family setup returned no family ID."))
@@ -587,7 +587,7 @@ class AuthRepository(private val context: Context) {
                     "parentalConsentAccepted" to true,
                     "parentalConsentVersion" to "2026-09-27"
                 )).await()
-            val payload = result.data as? Map<*, *>
+            val payload = result.getData() as? Map<*, *>
             val childId = payload?.get("childId") as? String
             if (payload?.get("success") != true || childId.isNullOrBlank()) {
                 return Result.failure(IllegalStateException("Pairing response was incomplete."))
