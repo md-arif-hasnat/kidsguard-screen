@@ -9,7 +9,7 @@ The application code is ready to use the following immutable Play Console IDs:
 | Monthly base plan | `monthly` |
 | Annual base plan | `annual` |
 | Suggested new-customer offer | `trial-7-days` |
-| RTDN Pub/Sub topic | `kidsguard-play-rtdn` |
+| RTDN Pub/Sub topic | `google-play-rtdn` |
 
 Do not create alternative IDs without updating both the Android application and
 the Firebase Functions parameters.
@@ -57,7 +57,7 @@ granting Play Console permissions.
 
 ## 4. Real-time developer notifications
 
-1. Create Pub/Sub topic `kidsguard-play-rtdn` in the linked Cloud project.
+1. Create Pub/Sub topic `google-play-rtdn` in the linked Cloud project.
 2. Grant `google-play-developer-notifications@system.gserviceaccount.com` the
    Pub/Sub Publisher role on that topic.
 3. Configure the topic in Play Console's monetization setup and send a test
@@ -74,7 +74,7 @@ The defaults match production, but they should be confirmed during deployment:
 ```text
 GOOGLE_PLAY_PACKAGE_NAME=secure.kidsguard.app
 GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID=kidsguard_family
-GOOGLE_PLAY_RTDN_TOPIC=kidsguard-play-rtdn
+GOOGLE_PLAY_RTDN_TOPIC=google-play-rtdn
 ```
 
 Functions to deploy:
