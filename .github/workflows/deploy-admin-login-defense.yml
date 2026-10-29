@@ -90,7 +90,7 @@ jobs:
             'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
             'GOOGLE_PLAY_PACKAGE_NAME=secure.kidsguard.app' \
             'GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID=kidsguard_family' \
-            'GOOGLE_PLAY_RTDN_TOPIC=kidsguard-play-rtdn' \
+            'GOOGLE_PLAY_RTDN_TOPIC=google-play-rtdn' \
             > .env.kidsguard-0626
 
       - name: Deploy admin-security Functions

@@ -550,71 +550,58 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    suspend fun validateAndPair(code: String): Boolean {
-        if (!FirebaseConfig.isFirebaseConfigured(context)) return false
-
-        Log.d(TAG, "ANDROID: Validating pair code: $code")
+    /**
+     * Uses the same server-authorized pairing flow as the web dashboard.
+     * Do not read/update pairingCodes directly from the parent client.
+     */
+    suspend fun validateAndPair(code: String, parentalConsentAccepted: Boolean): Result<Unit> {
         return try {
-            val docRef = db.collection(FirebaseConfig.COL_PAIRING_CODES).document(code)
-            val doc = docRef.get().await()
-
-            if (doc.exists()) {
-                val pairingData = doc.toObject(PairingCodeDoc::class.java)
-                if (pairingData != null &&
-                    !pairingData.used &&
-                    pairingData.expiresAt?.toDate()?.after(Calendar.getInstance().time) == true
-                ) {
-
-                    Log.i(TAG, "ANDROID: Valid pair code found for child: ${pairingData.childName}")
-                    // Create or update family
-                    val familyId = createOrUpdateFamily(pairingData.deviceId)
-
-                    // Mark as used and update with family info so the child device can finalize setup
-                    val familySnapshot = com.google.firebase.firestore.FirebaseFirestore
-                        .getInstance()
-                        .collection("families")
-                        .document(familyId)
-                        .get()
-                        .await()
-
-                    val members = familySnapshot.get("members") as? List<*>
-
-                    val actualParentName = members
-                        ?.mapNotNull { it as? Map<*, *> }
-                        ?.firstOrNull {
-                            (it["role"] as? String)?.equals("OWNER", ignoreCase = true) == true
-                        }
-                        ?.get("displayName")
-                        ?.toString()
-                        ?.takeIf { it.isNotBlank() }
-                        ?: "Parent"
-
-                    prefs.parentName = actualParentName
-
-                    val updates = mapOf(
-                        "used" to true,
-                        "familyId" to familyId,
-                        "parentName" to actualParentName,
-                        "pairedAt" to com.google.firebase.Timestamp.now()
-                    )
-                    Log.d("Pair_Debug", updates.toString())
-                    docRef.update(updates).await()
-                    true
-                } else {
-                    Log.w(TAG, "ANDROID: Pair code $code is invalid, used, or expired")
-                    false
-                }
-            } else {
-                Log.w(
-                    TAG,
-                    "ANDROID: Pair code $code NOT FOUND in Firestore at ${FirebaseConfig.COL_PAIRING_CODES}/$code"
-                )
-                false
+            val normalizedCode = code.trim()
+            require(Regex("^\\d{6}$").matches(normalizedCode)) {
+                "Enter the 6-digit pairing code shown on the child device."
             }
+            require(parentalConsentAccepted) {
+                "Please confirm parental consent before connecting."
+            }
+            val user = auth.currentUser
+                ?: return Result.failure(IllegalStateException("Please sign in as a parent first."))
+            user.reload().await()
+            if (!user.isEmailVerified) {
+                return Result.failure(IllegalStateException("Verify your email before pairing."))
+            }
+            user.getIdToken(true).await()
+            val familyResult = functions.getHttpsCallable("ensureParentFamily")
+                .call(emptyMap<String, Any>()).await()
+            val familyPayload = familyResult.getData() as? Map<*, *>
+            val familyId = (familyPayload?.get("familyId") as? String)
+                ?.takeIf { it.isNotBlank() }
+                ?: return Result.failure(IllegalStateException("Family setup returned no family ID."))
+
+            val displayName = user.displayName?.trim()?.takeIf { it.isNotEmpty() }
+                ?: "Parent"
+            val result = functions.getHttpsCallable("acceptPairingCode")
+                .call(mapOf(
+                    "pairingCode" to normalizedCode,
+                    "familyId" to familyId,
+                    "parentName" to displayName,
+                    "parentalConsentAccepted" to true,
+                    "parentalConsentVersion" to "2026-09-27"
+                )).await()
+            val payload = result.getData() as? Map<*, *>
+            val childId = payload?.get("childId") as? String
+            if (payload?.get("success") != true || childId.isNullOrBlank()) {
+                return Result.failure(IllegalStateException("Pairing response was incomplete."))
+            }
+            prefs.familyId = familyId
+            prefs.pairedChildId = childId
+            prefs.parentName = displayName
+            prefs.userRole = "PARENT"
+            prefs.lastFirestoreWrite = System.currentTimeMillis()
+            Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "ANDROID: Error during pair code validation", e)
-            errorLogger.addError(TAG, "Pairing validation failed", e)
-            false
+            Log.e(TAG, "Secure parent pairing failed", e)
+            errorLogger.addError(TAG, "Secure parent pairing failed", e)
+            Result.failure(e)
         }
     }
 

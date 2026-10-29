@@ -160,7 +160,7 @@ fun KidsGuardApp(
                 "PARENT" -> {
                     val currentUser =
                         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                    if (currentUser == null) {
+                    if (currentUser == null || currentUser.isAnonymous || !currentUser.isEmailVerified) {
                         Screen.ParentLogin
                     } else if (pairedId == null) {
                         Screen.ParentSetup
@@ -227,9 +227,9 @@ fun KidsGuardApp(
                     prefHelper.userRole = role
                     val nextScreen = when (role) {
                         "PARENT" -> {
-                            val currentUser =
-                                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                            if (currentUser == null) Screen.ParentLogin else if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                            // Always show Parent Login/Registration when Parent is selected.
+                            // A Firebase anonymous session must never bypass parent authentication.
+                            Screen.ParentLogin
                         }
 
                         "CHILD" -> if (prefHelper.pairedChildId == null) Screen.ChildSetup else Screen.Home

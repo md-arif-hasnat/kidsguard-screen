@@ -6659,14 +6659,22 @@ export const ensureParentFamily =
 
     return db.runTransaction(async (transaction) => {
       const parentSnapshot = await transaction.get(parentRef);
+      // Android email sign-in may precede creation of a parent profile.
+      // Provision only the authenticated, verified user's own parent record.
+      // Existing profiles are retained without changing their access level.
+      const parentData = parentSnapshot.exists
+        ? (parentSnapshot.data() || {})
+        : {};
       if (!parentSnapshot.exists) {
-        throw new functions.https.HttpsError(
-          'not-found',
-          'Parent profile not found.'
-        );
+        transaction.create(parentRef, {
+          uid,
+          email: typeof authenticatedUser.token.email === 'string'
+            ? authenticatedUser.token.email : '',
+          displayName: typeof authenticatedUser.token.name === 'string'
+            ? authenticatedUser.token.name : 'Parent',
+          createdAt: FieldValue.serverTimestamp()
+        });
       }
-
-      const parentData = parentSnapshot.data() || {};
       const existingFamilyId =
         typeof parentData.familyId === 'string' &&
         parentData.familyId

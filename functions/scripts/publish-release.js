@@ -26,6 +26,8 @@ const releaseData = {
   apkDownloadUrl,
   apkSha256,
   mandatoryUpdate: false,
+  forceUpdate: false,
+  rolloutPaused: false,
   releaseChannel: "stable",
   updateMessage: "A new KidsGuard version is available. Please update for the latest improvements.",
   releaseNotes,

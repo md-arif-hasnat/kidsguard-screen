@@ -5,6 +5,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +29,7 @@ fun ParentSetupScreen(
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
     var isConnecting by remember { mutableStateOf(false) }
+    var consentAccepted by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
     Scaffold(
@@ -63,7 +66,7 @@ fun ParentSetupScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Enter the KDG code shown on your child's phone",
+                text = "Enter the 6-digit code shown on your child's phone",
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -72,39 +75,56 @@ fun ParentSetupScreen(
             OutlinedTextField(
                 value = code,
                 onValueChange = { 
-                    code = it.uppercase()
+                    code = it.filter { ch -> ch.isDigit() }.take(6)
                     error = ""
                 },
-                label = { Text("Pairing Code (e.g., KDG-123456)") },
+                label = { Text("6-digit pairing code") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = error.isNotEmpty(),
                 supportingText = { if (error.isNotEmpty()) Text(error) }
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Checkbox(
+                    checked = consentAccepted,
+                    onCheckedChange = { consentAccepted = it; error = "" }
+                )
+                Text(
+                    "I confirm that I am the parent or authorized guardian and consent to linking this child device for parental controls, activity monitoring, location and safety alerts.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    if (code.length >= 6) {
+                    if (code.length == 6 && consentAccepted) {
                         isConnecting = true
+                        error = ""
                         scope.launch {
-                            val success = authRepository.validateAndPair(code)
-                            if (success) {
-                                // The authRepository.validateAndPair already updates pairedChildId in createOrUpdateFamily
-                                // We don't need to manually set it here, especially not to the pairing code.
-                                onSetupComplete()
-                            } else {
-                                error = "Invalid or expired pairing code."
+                            try {
+                                authRepository.validateAndPair(code, consentAccepted)
+                                    .onSuccess { onSetupComplete() }
+                                    .onFailure { cause ->
+                                        error = cause.message ?: "Unable to connect this child device."
+                                    }
+                            } finally {
                                 isConnecting = false
                             }
                         }
                     } else {
-                        error = "Code must be at least 6 characters."
+                        error = if (!consentAccepted) "Parental consent is required."
+                            else "Enter a valid 6-digit pairing code."
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = code.isNotBlank() && !isConnecting
+                enabled = code.length == 6 && consentAccepted && !isConnecting
             ) {
                 if (isConnecting) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
