@@ -33,6 +33,19 @@ jobs:
           npm run build --prefix functions
           npm run test:security --prefix functions
 
+      - name: Prepare Firebase production parameters
+        working-directory: functions
+        run: |
+          printf '%s\n' \
+            'PADDLE_RECURRING_ADDONS_JSON=[]' \
+            'PLATFORM_OWNER_EMAIL=freshmartbd123@gmail.com' \
+            'INTERNAL_DASHBOARD_URL=https://kidsguard-screen.vercel.app' \
+            'RESEND_FROM_EMAIL="KidsGuard <noreply@kidsguard-screen.purevelofood.com>"' \
+            'GOOGLE_PLAY_PACKAGE_NAME=secure.kidsguard.app' \
+            'GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID=kidsguard_family' \
+            'GOOGLE_PLAY_RTDN_TOPIC=google-play-rtdn' \
+            > .env.kidsguard-0626
+
       - name: Deploy only parent pairing callables
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
