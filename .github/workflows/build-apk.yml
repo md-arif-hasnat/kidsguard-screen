@@ -221,7 +221,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
-          APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/app-release.apk
+          APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/KidsGuard-v${{ steps.version.outputs.version_name }}.apk
           APK_SIZE: ${{ steps.metadata.outputs.size }}
           APK_SHA256: ${{ steps.metadata.outputs.sha256 }}
           RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
