@@ -58,8 +58,17 @@ export default function DownloadPage() {
   }, []);
 
   const handleDownload = () => {
-    const targetUrl = config?.apkDownloadUrl || "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v1.0.0/KidsGuard-v1.0.0.apk";
-    window.open(targetUrl, '_blank');
+    // GitHub publishes the Android APK asset as app-release.apk.
+    // Older Firestore release metadata can still point to the wrong v87 filename.
+    const officialV87Apk = "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v1.0.87/app-release.apk";
+    const configuredUrl = config?.apkDownloadUrl;
+    const currentVersion = config?.latestVersionName?.replace(/^v/, "");
+    const targetUrl =
+      !configuredUrl || currentVersion === "1.0.87"
+        ? officialV87Apk
+        : configuredUrl;
+    // Same-tab navigation works reliably on mobile browsers and avoids popup blockers.
+    window.location.assign(targetUrl);
   };
 
   if (loading) {
