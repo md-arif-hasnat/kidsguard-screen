@@ -67,6 +67,11 @@ android {
     }
 
     buildTypes {
+        create("github") {
+            initWith(getByName("release"))
+            buildConfigField("boolean", "ALLOW_SIDELOAD_UPDATES", "true")
+            matchingFallbacks += listOf("release")
+        }
         release {
             optimization {
                 enable = false
