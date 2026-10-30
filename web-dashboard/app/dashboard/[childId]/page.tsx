@@ -871,7 +871,7 @@ const handleSaveOfflineAlertSettings = async () => {
                   </button>
                 )}
                 {hasPremiumAccess && (
-
+                  <>
                 <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
                         <div className="flex min-w-0 items-center gap-3">
@@ -1210,6 +1210,7 @@ const handleSaveOfflineAlertSettings = async () => {
                                                 </section>
                 </CollapsiblePanel>
                 </div>
+                  </>
                 )}
             </div>
         </>
