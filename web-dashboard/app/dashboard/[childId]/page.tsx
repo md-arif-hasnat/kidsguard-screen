@@ -132,7 +132,7 @@ export default function ChildDashboard() {
   }, [searchParams]);
 
   const handleTabChange = (tab: Tab) => {
-    if (tab !== 'overview' && tab !== 'youtube-history' && !hasPremiumAccess) {
+    if (tab !== 'overview' && tab !== 'youtube-history' && tab !== 'location' && !hasPremiumAccess) {
       setShowSubscribePrompt(true);
       return;
     }
@@ -699,7 +699,7 @@ const handleSaveOfflineAlertSettings = async () => {
           )}
       </div>
 
-      {!hasPremiumAccess && activeTab !== 'overview' && activeTab !== 'youtube-history' ? (
+      {!hasPremiumAccess && activeTab !== 'overview' && activeTab !== 'youtube-history' && activeTab !== 'location' ? (
         <button onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-3xl border-2 border-amber-300 bg-amber-50 p-10 text-center font-bold text-amber-950">🔒 Please subscribe to see more</button>
       ) : null}
 
@@ -862,16 +862,11 @@ const handleSaveOfflineAlertSettings = async () => {
                 </div>
 
                 <div className="space-y-8">
-                {hasPremiumAccess ? (
-                  <>{canControl && <RemoteControlPanel childId={childId} />}</>
-                ) : (
-                  <button type="button" onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 text-left text-amber-950 shadow-sm">
-                    <span className="font-black">🔒 Command history and premium controls</span>
-                    <p className="mt-2 text-sm">Please subscribe to see more.</p>
-                  </button>
-                )}
-                {hasPremiumAccess && (
-                  <>
+                {canControl && (hasPremiumAccess
+                  ? <RemoteControlPanel childId={childId} />
+                  : <button type="button" onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-5 text-left font-bold text-amber-950">🔒 Command history and controls — Please subscribe to see more</button>)}
+                <div className="relative">
+                  <div className={!hasPremiumAccess ? 'pointer-events-none select-none blur-[2px] opacity-65' : ''} aria-hidden={!hasPremiumAccess}>
                 <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
                         <div className="flex min-w-0 items-center gap-3">
@@ -1209,21 +1204,32 @@ const handleSaveOfflineAlertSettings = async () => {
                                                     )}
                                                 </section>
                 </CollapsiblePanel>
-                  </>
-                )}
+                  </div>
+                  {!hasPremiumAccess && <button type="button" onClick={() => setShowSubscribePrompt(true)} className="absolute inset-0 z-10 flex items-start justify-center rounded-2xl bg-amber-50/40 p-5 text-center" aria-label="Please subscribe to see more"><span className="rounded-xl border border-amber-300 bg-amber-100 px-5 py-3 font-bold text-amber-900 shadow">🔒 Please subscribe to see more</span></button>}
                 </div>
             </div>
         </>
       )}
 
-      {hasPremiumAccess && activeTab === 'location' && (
+      {activeTab === 'location' && (
           <CollapsiblePanel
             title="Live Location & Recent History"
             description="Map, device telemetry and recent location records"
             icon={MapPin}
             contentClassName="bg-slate-50/50"
           >
-            <ChildLocationPanel childId={childId} onViewHistory={() => handleTabChange('history')} />
+            {hasPremiumAccess ? (
+              <ChildLocationPanel childId={childId} onViewHistory={() => handleTabChange('history')} />
+            ) : (
+              <div className="space-y-4 p-4">
+                <div className="relative h-[350px] overflow-hidden rounded-2xl bg-slate-100">
+                  <LiveMap childLocation={currentMapLocation} defaultRegion={profile?.region} avatarId={displayData.avatarId} currentZoneName={displayData.currentZone} safeZoneStatus={status?.safeZoneStatus} safeZones={displayZones} routeHistory={[]} deviations={[]} followChild={true} />
+                </div>
+                <button type="button" onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 text-center font-bold text-amber-950">
+                  🔒 Please subscribe to see more location history and activity.
+                </button>
+              </div>
+            )}
           </CollapsiblePanel>
       )}
 
