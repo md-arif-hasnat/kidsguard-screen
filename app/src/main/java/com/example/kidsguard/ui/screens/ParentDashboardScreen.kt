@@ -788,7 +788,7 @@ private fun ParentChildHub(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { (label, icon, action) ->
                         Column(Modifier.weight(1f).clickable {
-                            if (premium || label == "Overview" || label == "Locations") action()
+                            if (premium || label == "Overview") action()
                             else onLocked()
                         }, horizontalAlignment = Alignment.CenterHorizontally) {
                             Surface(color = Color(0xFFE5F2FF), shape = RoundedCornerShape(16.dp)) {
