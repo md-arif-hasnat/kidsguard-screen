@@ -166,7 +166,7 @@ export default function YouTubeHistoryPanel({ childId, hasPremiumAccess = true, 
   }, [childId, family?.familyId, profileLoading, isChildAccessible]);
 
   const loadMore = async () => {
-    if (!lastDoc || loadingMore || !family?.familyId) return;
+    if (!hasPremiumAccess || !lastDoc || loadingMore || !family?.familyId) return;
 
     setLoadingMore(true);
     try {
@@ -182,13 +182,14 @@ export default function YouTubeHistoryPanel({ childId, hasPremiumAccess = true, 
   };
 
   const filteredHistory = useMemo(() => {
-    return YouTubeHistoryRepository.filterHistory(history, searchQuery, dateFilter);
-  }, [history, searchQuery, dateFilter]);
+    const permittedHistory = hasPremiumAccess ? history : history.slice(0, 2);
+    return YouTubeHistoryRepository.filterHistory(permittedHistory, searchQuery, dateFilter);
+  }, [history, hasPremiumAccess, searchQuery, dateFilter]);
 
   const groupedHistory = useMemo(() => {
     const groups: Record<string, YouTubeActivity[]> = {};
 
-    (hasPremiumAccess ? filteredHistory : filteredHistory.slice(0, 2)).forEach(activity => {
+    filteredHistory.forEach(activity => {
       const date = new Date(activity.capturedAt).toDateString();
       if (!groups[date]) groups[date] = [];
       groups[date].push(activity);
