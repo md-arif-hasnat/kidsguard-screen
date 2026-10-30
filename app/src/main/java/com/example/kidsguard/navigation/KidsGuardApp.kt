@@ -2,6 +2,10 @@ package com.example.kidsguard.navigation
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -237,7 +241,10 @@ fun KidsGuardApp(
 
     Scaffold(bottomBar = {
         if (parentNavVisible) {
-            NavigationBar {
+            NavigationBar(
+                modifier = Modifier.navigationBarsPadding().height(64.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0)
+            ) {
                 NavigationBarItem(
                     selected = startScreen == Screen.ParentDashboard,
                     onClick = { onScreenChange(Screen.ParentDashboard) },
