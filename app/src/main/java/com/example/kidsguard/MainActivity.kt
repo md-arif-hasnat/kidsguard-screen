@@ -50,6 +50,14 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Parent and Child should both refresh the in-app update state on return
         // from login, notifications, or the app background.
+        if (::prefHelper.isInitialized && prefHelper.userRole == "CHILD" &&
+            prefHelper.pairedChildId != null && ::trackingManager.isInitialized) {
+            // Restore the existing, visible child session after returning to the app.
+            // Never generate a new identity or require a new pairing on a transient disconnect.
+            trackingManager.startTracking()
+            setupUnpairListener()
+            if (::childStatusManager.isInitialized) childStatusManager.updateStatus()
+        }
         if (::updateRepository.isInitialized) {
             lifecycleScope.launch {
                 updateRepository.checkForUpdates()
@@ -450,10 +458,12 @@ class MainActivity : ComponentActivity() {
                             Log.w("MainActivity", "Unpair listener error", e)
                             return@addSnapshotListener
                         }
-                        if (snapshot != null && snapshot.exists()) {
+                        if (snapshot != null && snapshot.exists() &&
+                            !snapshot.metadata.isFromCache && !snapshot.metadata.hasPendingWrites()) {
                             val cloudFamilyId = snapshot.getString("familyId")
                             // Trigger unpair ONLY if we were paired and now familyId is gone from cloud
-                            if (cloudFamilyId == null && currentlyPaired) {
+                            if (cloudFamilyId == null && currentlyPaired &&
+                                prefHelper.pairedChildId != null) {
                                 Log.i("MainActivity", "Unpair detected! Child removed from family.")
                                 handleUnpair()
                             }
