@@ -144,6 +144,7 @@ export default function ChildDashboard() {
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const hasChildAccess = isChildAccessible(childId);
+  const [statusNow, setStatusNow] = useState(() => Date.now());
   const subscriptionStatus = String(family?.subscription?.status || 'NONE').toUpperCase();
   const toMillis = (value: unknown): number | null => {
     if (!value) return null;
@@ -164,7 +165,7 @@ export default function ChildDashboard() {
   const [showSubscribePrompt, setShowSubscribePrompt] = useState(false);
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
-  const [statusNow, setStatusNow] = useState(() => Date.now());
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       setStatusNow(Date.now());
