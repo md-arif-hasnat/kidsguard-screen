@@ -780,7 +780,7 @@ private fun ParentChildHub(
         Triple("Alerts", Icons.Default.Notifications, onAlerts)
     )
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -868,16 +868,19 @@ private fun ParentChildHub(
                 }
             }
             Text("Usage Analytics · Sample", style = MaterialTheme.typography.titleMedium)
-            listOf(
-                Triple("Social", "2h 15m", Color(0xFF5376E9)),
-                Triple("Games", "1h 40m", Color(0xFFDF6BBA)),
-                Triple("Other", "55m", Color(0xFF39B6A8))
-            ).forEach { (label, time, color) ->
-                Surface(color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(14.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(label, fontWeight = FontWeight.Bold)
-                        Text(time, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("Social", "2h 15m", Color(0xFF5376E9)),
+                    Triple("Games", "1h 40m", Color(0xFFDF6BBA)),
+                    Triple("Other", "55m", Color(0xFF39B6A8))
+                ).forEach { (label, time, color) ->
+                    Surface(modifier = Modifier.weight(1f), color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(label, fontWeight = FontWeight.Bold, color = color)
+                            Spacer(Modifier.height(8.dp))
+                            Text(time, fontWeight = FontWeight.Bold)
+                            LinearProgressIndicator(progress = { 0.6f }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), color = color)
+                        }
                     }
                 }
             }
