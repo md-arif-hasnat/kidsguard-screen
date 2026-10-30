@@ -233,7 +233,7 @@ fun KidsGuardApp(
             !it.isAnonymous && it.isEmailVerified
         } == true
     val parentNavVisible = parentSignedIn &&
-        startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection, Screen.ParentSetup)
+        startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection)
 
     Scaffold(bottomBar = {
         if (parentNavVisible) {
