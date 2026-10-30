@@ -65,6 +65,11 @@ fun ParentSettingsScreen(
     onOpenSubscription: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val languagePrefs = remember(context) { context.getSharedPreferences("kids_guard_parent_ui", android.content.Context.MODE_PRIVATE) }
+    var preferredLanguage by remember { mutableStateOf(languagePrefs.getString("parent_language", "English") ?: "English") }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showFaqDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember {
         mutableStateOf(false)
     }
@@ -186,6 +191,19 @@ fun ParentSettingsScreen(
                     )
                 }
             }
+
+            ControlRow(
+                icon = Icons.Default.Language,
+                title = "Language",
+                subtitle = "Preferred language: $preferredLanguage",
+                onClick = { showLanguageDialog = true }
+            )
+            ControlRow(
+                icon = Icons.Default.HelpOutline,
+                title = "FAQ",
+                subtitle = "Common questions about KidsGuard",
+                onClick = { showFaqDialog = true }
+            )
 
             // App Settings
             Text(
@@ -336,6 +354,47 @@ fun ParentSettingsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Logout")
             }
+        }
+        if (showLanguageDialog) {
+            AlertDialog(
+                onDismissRequest = { showLanguageDialog = false },
+                title = { Text("Language preference") },
+                text = {
+                    Column {
+                        Text("Choose your preferred language. Full app translation will be added separately.")
+                        listOf("English", "বাংলা").forEach { language ->
+                            TextButton(onClick = {
+                                preferredLanguage = language
+                                languagePrefs.edit().putString("parent_language", language).apply()
+                                showLanguageDialog = false
+                            }) { Text(language) }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showLanguageDialog = false }) { Text("Close") } }
+            )
+        }
+        if (showFaqDialog) {
+            AlertDialog(
+                onDismissRequest = { showFaqDialog = false },
+                title = { Text("Frequently Asked Questions") },
+                text = {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Text("How do I add a child?", fontWeight = FontWeight.Bold)
+                        Text("Open Children and select Add Child to start pairing.")
+                        Spacer(Modifier.height(12.dp))
+                        Text("Why can't I open a feature?", fontWeight = FontWeight.Bold)
+                        Text("Some features require an active subscription or trial.")
+                        Spacer(Modifier.height(12.dp))
+                        Text("How do I switch children?", fontWeight = FontWeight.Bold)
+                        Text("Tap Children in the bottom navigation and select another child.")
+                        Spacer(Modifier.height(12.dp))
+                        Text("Why is the location not visible?", fontWeight = FontWeight.Bold)
+                        Text("Check the child device connection and location permissions.")
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showFaqDialog = false }) { Text("Close") } }
+            )
         }
         if (showExportDataDialog) {
             AlertDialog(
