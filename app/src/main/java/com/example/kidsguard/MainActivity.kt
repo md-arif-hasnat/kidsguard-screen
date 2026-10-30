@@ -46,6 +46,17 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        // Parent and Child should both refresh the in-app update state on return
+        // from login, notifications, or the app background.
+        if (::updateRepository.isInitialized) {
+            lifecycleScope.launch {
+                updateRepository.checkForUpdates()
+            }
+        }
+    }
+
     private lateinit var prefHelper: PreferenceHelper
     private lateinit var repository: SafeZoneRepository
     private lateinit var locationRepository: LocationRepository
