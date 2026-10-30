@@ -747,3 +747,115 @@ fun ActivitySummaryCard(data: DashboardUiModel, onOpenFeed: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun ParentChildHub(
+    childId: String?,
+    syncProvider: RemoteSyncProvider,
+    premium: Boolean,
+    onLocked: () -> Unit,
+    onOverview: () -> Unit,
+    onLocation: () -> Unit,
+    onSafeZones: () -> Unit,
+    onActivity: () -> Unit,
+    onHistory: () -> Unit,
+    onRoutes: () -> Unit,
+    onDetail: () -> Unit,
+    onAlerts: () -> Unit,
+    onChildren: () -> Unit,
+    onAi: () -> Unit,
+    onProfile: () -> Unit
+) {
+    val status by (childId?.let { syncProvider.getChildStatus(it) }
+        ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+    val folders = listOf(
+        Triple("Overview", Icons.Default.Dashboard, onOverview),
+        Triple("Locations", Icons.Default.Map, onLocation),
+        Triple("YouTube", Icons.Default.PlayCircle, onActivity),
+        Triple("Safe Zones", Icons.Default.Shield, onSafeZones),
+        Triple("App Activity", Icons.Default.BarChart, onActivity),
+        Triple("History", Icons.Default.History, onHistory),
+        Triple("Routes", Icons.Default.Route, onRoutes),
+        Triple("Screen Time", Icons.Default.Timer, onDetail),
+        Triple("Alerts", Icons.Default.Notifications, onAlerts)
+    )
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text(status?.childName ?: "Child Dashboard",
+                style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            folders.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (label, icon, action) ->
+                        Column(Modifier.weight(1f).clickable {
+                            if (premium || label == "Overview" || label == "Locations") action()
+                            else onLocked()
+                        }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Surface(color = Color(0xFFE5F2FF), shape = RoundedCornerShape(16.dp)) {
+                                Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                                    Icon(icon, contentDescription = null, tint = Color(0xFF1865AF))
+                                }
+                            }
+                            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 2,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Text("Live Location", style = MaterialTheme.typography.titleMedium)
+            val point = status?.lastLocation?.let {
+                com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
+            }
+            if (point != null) {
+                val camera = com.google.maps.android.compose.rememberCameraPositionState {
+                    position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(point, 14f)
+                }
+                LaunchedEffect(point) {
+                    camera.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(point))
+                }
+                com.google.maps.android.compose.GoogleMap(
+                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    cameraPositionState = camera
+                ) {
+                    com.google.maps.android.compose.Marker(
+                        state = com.google.maps.android.compose.rememberMarkerState(position = point),
+                        title = status?.childName ?: "Child"
+                    )
+                }
+            } else {
+                Surface(Modifier.fillMaxWidth().height(200.dp),
+                    color = Color(0xFFE9EEF5), shape = RoundedCornerShape(18.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("Waiting for real child location")
+                    }
+                }
+            }
+            Text("Usage Analytics · Sample", style = MaterialTheme.typography.titleMedium)
+            listOf(
+                Triple("Social", "2h 15m", Color(0xFF5376E9)),
+                Triple("Games", "1h 40m", Color(0xFFDF6BBA)),
+                Triple("Other", "55m", Color(0xFF39B6A8))
+            ).forEach { (label, time, color) ->
+                Surface(color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(label, fontWeight = FontWeight.Bold)
+                        Text(time, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Text("Sample values — real analytics coming later",
+                style = MaterialTheme.typography.labelSmall)
+        }
+        NavigationBar {
+            NavigationBarItem(selected = false, onClick = onChildren,
+                icon = { Icon(Icons.Default.People, null) }, label = { Text("Children") })
+            NavigationBarItem(selected = false, onClick = {
+                if (premium) onAi() else onLocked()
+            }, icon = { Icon(Icons.Default.AutoAwesome, null) }, label = { Text("AI") })
+            NavigationBarItem(selected = false, onClick = onProfile,
+                icon = { Icon(Icons.Default.Person, null) }, label = { Text("Profile") })
+        }
+    }
+}
