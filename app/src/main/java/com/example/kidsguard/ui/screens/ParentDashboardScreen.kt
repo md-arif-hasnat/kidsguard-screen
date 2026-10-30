@@ -151,8 +151,8 @@ fun ParentDashboardScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { showExitDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Change Role")
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Children")
                     }
                 },
                 actions = {
