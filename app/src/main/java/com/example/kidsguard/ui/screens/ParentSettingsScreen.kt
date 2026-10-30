@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Warning
@@ -65,7 +67,6 @@ fun ParentSettingsScreen(
     onOpenSubscription: () -> Unit,
     onLogout: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val languagePrefs = remember(context) { context.getSharedPreferences("kids_guard_parent_ui", android.content.Context.MODE_PRIVATE) }
     var preferredLanguage by remember { mutableStateOf(languagePrefs.getString("parent_language", "English") ?: "English") }
     var showLanguageDialog by remember { mutableStateOf(false) }
