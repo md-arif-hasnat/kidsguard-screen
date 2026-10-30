@@ -208,7 +208,7 @@ fun ParentDashboardScreen(
                         onOpenSafeZones = onOpenSafeZones,
                         onOpenLocationHistory = onOpenLocationHistory,
                         onOpenRouteHistory = onOpenRouteHistory,
-                        onOpenChildDetail = { onOpenChildDetail(selectedChildId ?: "") },
+                        onOpenChildDetail = { if (hasPremiumAccess) onOpenChildDetail(selectedChildId ?: "") else showSubscribePrompt = true },
                         onLock = {
                             selectedChildId?.let { id ->
                                 remoteCommandRepository.sendLockDevice(id)
