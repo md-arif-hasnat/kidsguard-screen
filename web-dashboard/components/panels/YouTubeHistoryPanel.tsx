@@ -28,6 +28,9 @@ import RemoteImage from '@/components/RemoteImage';
 
 interface YouTubeHistoryPanelProps {
   childId: string;
+  hasPremiumAccess?: boolean;
+  childName?: string;
+  onSubscribe?: () => void;
 }
 
 type DateFilter = 'all' | 'today' | '7d' | '30d';
@@ -119,7 +122,7 @@ function ThumbnailCandidateSequence({
   );
 }
 
-export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProps) {
+export default function YouTubeHistoryPanel({ childId, hasPremiumAccess = true, childName = 'your child', onSubscribe }: YouTubeHistoryPanelProps) {
   const { family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
 
   const [history, setHistory] = useState<YouTubeActivity[]>([]);
@@ -185,7 +188,7 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
   const groupedHistory = useMemo(() => {
     const groups: Record<string, YouTubeActivity[]> = {};
 
-    filteredHistory.forEach(activity => {
+    (hasPremiumAccess ? filteredHistory : filteredHistory.slice(0, 2)).forEach(activity => {
       const date = new Date(activity.capturedAt).toDateString();
       if (!groups[date]) groups[date] = [];
       groups[date].push(activity);
@@ -194,7 +197,7 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
     return Object.entries(groups).sort((a, b) => {
       return new Date(b[0]).getTime() - new Date(a[0]).getTime();
     });
-  }, [filteredHistory]);
+  }, [filteredHistory, hasPremiumAccess]);
 
   const getDateLabel = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -279,6 +282,13 @@ export default function YouTubeHistoryPanel({ childId }: YouTubeHistoryPanelProp
         </div>
       ) : (
         <div className="space-y-12">
+          {!hasPremiumAccess && (
+            <button type="button" onClick={onSubscribe} className="w-full rounded-3xl border-2 border-amber-300 bg-amber-50 p-6 text-left text-amber-950 shadow-sm hover:bg-amber-100">
+              <span className="text-2xl" aria-hidden="true">🔒</span>
+              <p className="mt-2 text-base font-bold">Please subscribe to see all the videos watched by {childName}.</p>
+              <p className="mt-1 text-sm">Preview the first two videos for free.</p>
+            </button>
+          )}
           {groupedHistory.map(([dateStr, activities]) => (
             <details key={dateStr} className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 [&::-webkit-details-marker]:hidden">
