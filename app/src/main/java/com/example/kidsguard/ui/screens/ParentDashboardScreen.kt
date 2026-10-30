@@ -363,20 +363,9 @@ fun DashboardContent(
             }
         }
 
-        if (!hasPremiumAccess) {
-            Card(
-                onClick = onSubscribe,
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7D6)),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                    Text("🔒 Premium features", style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Please subscribe to see more.", color = Color(0xFF92400E))
-                }
-            }
-        } else {
+        // Keep all overview cards visible. Intercept premium interactions for free users.
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Quick actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         
         QuickActionsGrid(
@@ -415,6 +404,27 @@ fun DashboardContent(
         }
 
         ActivitySummaryCard(data, onOpenActivityFeed)
+            }
+            if (!hasPremiumAccess) {
+                Box(
+                    modifier = Modifier.matchParentSize()
+                        .clickable(onClick = onSubscribe),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Surface(
+                        color = Color(0xFFFFF7D6),
+                        shape = RoundedCornerShape(16.dp),
+                        shadowElevation = 3.dp
+                    ) {
+                        Text(
+                            "🔒 Please subscribe to see more",
+                            modifier = Modifier.padding(14.dp),
+                            color = Color(0xFF78350F),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
         
         Spacer(modifier = Modifier.height(32.dp))
