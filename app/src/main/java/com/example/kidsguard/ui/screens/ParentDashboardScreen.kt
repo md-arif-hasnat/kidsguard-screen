@@ -1,6 +1,10 @@
 package com.example.kidsguard.ui.screens
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.Timestamp
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -105,6 +109,27 @@ fun ParentDashboardScreen(
 
     var isRefreshing by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
+    var showSubscribePrompt by remember { mutableStateOf(false) }
+    var hasPremiumAccess by remember { mutableStateOf(false) }
+    DisposableEffect(prefHelper.familyId) {
+        val familyId = prefHelper.familyId
+        val listener = if (!familyId.isNullOrBlank()) {
+            FirebaseFirestore.getInstance().collection("families").document(familyId)
+                .addSnapshotListener { document, error ->
+                    if (error != null || document == null) {
+                        hasPremiumAccess = false
+                    } else {
+                        val subscription = document.get("subscription") as? Map<*, *>
+                        val status = (subscription?.get("status") as? String)?.uppercase() ?: "NONE"
+                        val trialEnds = subscription?.get("trialEndsAt") as? Timestamp
+                        val activeTrial = status in setOf("TRIAL", "TRIALING") &&
+                            trialEnds != null && trialEnds.toDate().time > System.currentTimeMillis()
+                        hasPremiumAccess = status == "ACTIVE" || activeTrial
+                    }
+                }
+        } else null
+        onDispose { listener?.remove() }
+    }
 
     fun refreshDashboard() {
         scope.launch {
@@ -148,13 +173,13 @@ fun ParentDashboardScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = onOpenLiveMap,
+                    onClick = { if (hasPremiumAccess) onOpenLiveMap() else showSubscribePrompt = true },
                     icon = { Icon(Icons.Default.Map, null) },
                     label = { Text("Map") }
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = onOpenNotifications,
+                    onClick = { if (hasPremiumAccess) onOpenNotifications() else showSubscribePrompt = true },
                     icon = { Icon(Icons.Default.Notifications, null) },
                     label = { Text("Alerts") }
                 )
@@ -202,7 +227,9 @@ fun ParentDashboardScreen(
                         onOpenChildList = onOpenChildList,
                         syncProvider = syncProvider,
                         selectedChildId = selectedChildId,
-                        role = currentRole
+                        role = currentRole,
+                        hasPremiumAccess = hasPremiumAccess,
+                        onSubscribe = { showSubscribePrompt = true }
                     )
                 }
                 is DashboardState.Error -> {
@@ -214,6 +241,25 @@ fun ParentDashboardScreen(
                     }
                 }
             }
+        }
+
+        if (showSubscribePrompt) {
+            AlertDialog(
+                onDismissRequest = { showSubscribePrompt = false },
+                containerColor = Color(0xFFFFF7D6),
+                title = { Text("Unlock more with KidsGuard", color = Color(0xFF78350F)) },
+                text = { Text("Please subscribe to see more.", color = Color(0xFF92400E)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showSubscribePrompt = false
+                        context.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://kidsguard-screen.vercel.app/manage-subscription")))
+                    }) { Text("See plans") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSubscribePrompt = false }) { Text("Later") }
+                }
+            )
         }
 
         if (showExitDialog) {
@@ -264,7 +310,9 @@ fun DashboardContent(
     onOpenChildList: () -> Unit,
     syncProvider: RemoteSyncProvider,
     selectedChildId: String?,
-    role: FamilyRole
+    role: FamilyRole,
+    hasPremiumAccess: Boolean,
+    onSubscribe: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -315,6 +363,20 @@ fun DashboardContent(
             }
         }
 
+        if (!hasPremiumAccess) {
+            Card(
+                onClick = onSubscribe,
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7D6)),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                    Text("🔒 Premium features", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Please subscribe to see more.", color = Color(0xFF92400E))
+                }
+            }
+        } else {
         Text("Quick actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         
         QuickActionsGrid(
@@ -353,6 +415,7 @@ fun DashboardContent(
         }
 
         ActivitySummaryCard(data, onOpenActivityFeed)
+        }
         
         Spacer(modifier = Modifier.height(32.dp))
     }

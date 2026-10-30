@@ -132,6 +132,10 @@ export default function ChildDashboard() {
   }, [searchParams]);
 
   const handleTabChange = (tab: Tab) => {
+    if (tab !== 'overview' && tab !== 'youtube-history' && !hasPremiumAccess) {
+      setShowSubscribePrompt(true);
+      return;
+    }
     setActiveTab(tab);
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set('tab', tab);
@@ -140,9 +144,28 @@ export default function ChildDashboard() {
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const hasChildAccess = isChildAccessible(childId);
+  const [statusNow, setStatusNow] = useState(() => Date.now());
+  const subscriptionStatus = String(family?.subscription?.status || 'NONE').toUpperCase();
+  const toMillis = (value: unknown): number | null => {
+    if (!value) return null;
+    if (typeof value === 'number') return value;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'object' && value !== null) {
+      const timestamp = value as { toMillis?: () => number; seconds?: number };
+      if (typeof timestamp.toMillis === 'function') return timestamp.toMillis();
+      if (typeof timestamp.seconds === 'number') return timestamp.seconds * 1000;
+    }
+    return null;
+  };
+  const trialEndsAt = toMillis(family?.subscription?.trialEndsAt);
+  // Trial length is determined by billing (7 or 14 days), never a hard-coded UI duration.
+  const trialIsCurrent = ['TRIAL', 'TRIALING'].includes(subscriptionStatus) &&
+    trialEndsAt !== null && trialEndsAt > statusNow;
+  const hasPremiumAccess = subscriptionStatus === 'ACTIVE' || trialIsCurrent;
+  const [showSubscribePrompt, setShowSubscribePrompt] = useState(false);
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
-  const [statusNow, setStatusNow] = useState(() => Date.now());
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       setStatusNow(Date.now());
@@ -606,6 +629,19 @@ const handleSaveOfflineAlertSettings = async () => {
         </div>
       </header>
 
+      {showSubscribePrompt && (
+        <div role="dialog" aria-modal="true" aria-label="Subscription required" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" onClick={() => setShowSubscribePrompt(false)}>
+          <div className="w-full max-w-sm rounded-3xl border-2 border-amber-300 bg-amber-50 p-7 text-center shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="mb-3 text-4xl" aria-hidden="true">🔒</div>
+            <h2 className="text-xl font-black text-amber-950">Unlock more with KidsGuard</h2>
+            <p className="mt-3 text-amber-900">Please subscribe to see more.</p>
+            <div className="mt-6 flex flex-col gap-3">
+              <button className="rounded-xl bg-amber-500 px-5 py-3 font-bold text-slate-950 hover:bg-amber-400" onClick={() => router.push('/manage-subscription')}>See subscription options</button>
+              <button className="rounded-xl px-5 py-2 font-semibold text-amber-900" onClick={() => setShowSubscribePrompt(false)}>Maybe later</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Tab Switcher */}
       <div className="relative mb-8 -mx-4 px-4 md:mx-0 md:px-0 group">
           {showLeftArrow && (
@@ -662,6 +698,10 @@ const handleSaveOfflineAlertSettings = async () => {
               </div>
           )}
       </div>
+
+      {!hasPremiumAccess && activeTab !== 'overview' && activeTab !== 'youtube-history' ? (
+        <button onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-3xl border-2 border-amber-300 bg-amber-50 p-10 text-center font-bold text-amber-950">🔒 Please subscribe to see more</button>
+      ) : null}
 
       {activeTab === 'overview' && (
         <>
@@ -822,8 +862,16 @@ const handleSaveOfflineAlertSettings = async () => {
                 </div>
 
                 <div className="space-y-8">
-                {canControl && <RemoteControlPanel childId={childId} />}
-
+                {hasPremiumAccess ? (
+                  <>{canControl && <RemoteControlPanel childId={childId} />}</>
+                ) : (
+                  <button type="button" onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 text-left text-amber-950 shadow-sm">
+                    <span className="font-black">🔒 Command history and premium controls</span>
+                    <p className="mt-2 text-sm">Please subscribe to see more.</p>
+                  </button>
+                )}
+                {hasPremiumAccess && (
+                  <>
                 <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
                         <div className="flex min-w-0 items-center gap-3">
@@ -1161,12 +1209,14 @@ const handleSaveOfflineAlertSettings = async () => {
                                                     )}
                                                 </section>
                 </CollapsiblePanel>
+                  </>
+                )}
                 </div>
             </div>
         </>
       )}
 
-      {activeTab === 'location' && (
+      {hasPremiumAccess && activeTab === 'location' && (
           <CollapsiblePanel
             title="Live Location & Recent History"
             description="Map, device telemetry and recent location records"
@@ -1177,7 +1227,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'app-activity' && (
+      {hasPremiumAccess && activeTab === 'app-activity' && (
           <CollapsiblePanel
             title="App Activity"
             description="Screen-time totals and detailed app usage"
@@ -1188,7 +1238,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'installed-apps' && (
+      {hasPremiumAccess && activeTab === 'installed-apps' && (
           <CollapsiblePanel
             title="Installed Applications"
             description="Search apps and manage blocks, schedules and limits"
@@ -1199,7 +1249,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'safe-zones' && (
+      {hasPremiumAccess && activeTab === 'safe-zones' && (
           <CollapsiblePanel
             title="Safe Zones"
             description={`${safeZones.length} configured zone${safeZones.length === 1 ? '' : 's'}`}
@@ -1210,7 +1260,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'history' && (
+      {hasPremiumAccess && activeTab === 'history' && (
           <CollapsiblePanel
             title="Route History"
             description="Replay past routes, visits and movement records"
@@ -1228,11 +1278,11 @@ const handleSaveOfflineAlertSettings = async () => {
             icon={Youtube}
             contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
           >
-            <YouTubeHistoryPanel childId={childId} />
+            <YouTubeHistoryPanel childId={childId} hasPremiumAccess={hasPremiumAccess} childName={displayData.name} onSubscribe={() => setShowSubscribePrompt(true)} />
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'browser-history' && (
+      {hasPremiumAccess && activeTab === 'browser-history' && (
           <CollapsiblePanel
             title="Browser History"
             description="Visited websites grouped by date"
@@ -1243,7 +1293,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'intelligence' && (
+      {hasPremiumAccess && activeTab === 'intelligence' && (
           <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <h2 className="text-xl font-bold text-slate-900">Activity Intelligence</h2>
@@ -1302,7 +1352,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'wellbeing' && (
+      {hasPremiumAccess && activeTab === 'wellbeing' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1363,7 +1413,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'internet' && (
+      {hasPremiumAccess && activeTab === 'internet' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1442,7 +1492,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'health' && (
+      {hasPremiumAccess && activeTab === 'health' && (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-xl font-bold text-slate-900">Device Health \u0026 Diagnostics</h2>
               {status ? (
@@ -1460,7 +1510,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'modes' && (
+      {hasPremiumAccess && activeTab === 'modes' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               <CollapsiblePanel
                 title="Protection Modes"
