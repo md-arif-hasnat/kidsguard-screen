@@ -301,7 +301,15 @@ class UpdateRepository(private val context: Context) {
             return
         }
 
-        val downloadUri = Uri.parse(info.apkDownloadUrl.trim())
+        // The public release workflow publishes app-release.apk as the canonical
+        // asset. Do not trust stale, version-named GitHub URLs from cached config.
+        val officialVersion = info.latestVersionName.trim().removePrefix("v")
+        val officialUrl = if (officialVersion.matches(Regex("^1\\.0\\.[0-9]+$"))) {
+            "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v$officialVersion/app-release.apk"
+        } else {
+            info.apkDownloadUrl.trim()
+        }
+        val downloadUri = Uri.parse(officialUrl)
         if (
             downloadUri.scheme?.lowercase() != "https" ||
             downloadUri.host.isNullOrBlank()
