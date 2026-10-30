@@ -305,7 +305,7 @@ class UpdateRepository(private val context: Context) {
         // asset. Do not trust stale, version-named GitHub URLs from cached config.
         val officialVersion = info.latestVersionName.trim().removePrefix("v")
         val officialUrl = if (officialVersion.matches(Regex("^1\\.0\\.[0-9]+$"))) {
-            "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v$officialVersion/app-release.apk"
+            "https://github.com/md-arif-hasnat/kidsguard-screen/releases/download/v$officialVersion/KidsGuard-v$officialVersion.apk"
         } else {
             info.apkDownloadUrl.trim()
         }

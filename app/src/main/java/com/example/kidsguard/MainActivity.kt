@@ -311,7 +311,7 @@ class MainActivity : ComponentActivity() {
                     val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
                     if (user == null || user.isAnonymous || !user.isEmailVerified) Screen.ParentLogin
                     else if (prefHelper.pairedChildId == null) Screen.ParentSetup
-                    else Screen.ParentDashboard
+                    else Screen.ChildList
                 }
                 prefHelper.userRole == "CHILD" -> {
                     if (prefHelper.pairedChildId == null) {
