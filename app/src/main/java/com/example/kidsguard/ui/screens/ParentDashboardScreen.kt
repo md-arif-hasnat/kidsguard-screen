@@ -119,8 +119,8 @@ fun ParentDashboardScreen(
             CenterAlignedTopAppBar(
                 title = { 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("KidsGuard Parent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                        Text("PROTECT • GUIDE • GROW", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("KidsGuard", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Family dashboard", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -139,7 +139,7 @@ fun ParentDashboardScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 NavigationBarItem(
                     selected = true,
                     onClick = { /* Already Home */ },
@@ -269,23 +269,27 @@ fun DashboardContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 18.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Your family", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Stay connected and keep everyday routines simple.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         ChildSelectorCard(onOpenChildList, syncProvider, prefHelper, selectedChildId)
 
         if (activeSos != null && activeSos.status == "ACTIVE") {
             SosAlertCard(activeSos, onResolveSos, onViewSosHistory)
         }
 
-        AiSummaryCard(summary, onViewSummary)
-
         // Main Child Status Card (Clickable to detail)
         Card(
-            modifier = Modifier.fillMaxWidth().clickable { onOpenChildDetail() }
+            modifier = Modifier.fillMaxWidth().clickable { onOpenChildDetail() },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(data.childName.ifEmpty { "Unnamed Child" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     OnlineStatusBadge(data.isOnline)
@@ -311,7 +315,7 @@ fun DashboardContent(
             }
         }
 
-        Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text("Quick actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         
         QuickActionsGrid(
             onLock = onLock,
@@ -322,6 +326,8 @@ fun DashboardContent(
             onOpenSafeZones = onOpenSafeZones,
             canControl = RoleHelper.canSendRemoteCommands(role)
         )
+
+        AiSummaryCard(summary, onViewSummary)
 
         RouteIntelligenceCard(
             activeDeviations = activeDeviations,
@@ -365,7 +371,8 @@ fun ChildSelectorCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenChildList() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -403,7 +410,7 @@ fun QuickActionsGrid(
     canControl: Boolean
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.Lock, "Lock", Color.Red, onLock, Modifier.weight(1f), enabled = canControl)
             QuickActionButton(Icons.Default.LockOpen, "Unlock", Color.Green, onUnlock, Modifier.weight(1f), enabled = canControl)
         }
@@ -422,7 +429,7 @@ fun QuickActionsGrid(
 fun QuickActionButton(icon: ImageVector, label: String, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(64.dp),
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.filledTonalButtonColors(containerColor = color.copy(alpha = 0.1f), contentColor = color)
