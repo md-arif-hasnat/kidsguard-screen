@@ -1208,6 +1208,7 @@ const handleSaveOfflineAlertSettings = async () => {
                   {!hasPremiumAccess && <button type="button" onClick={() => setShowSubscribePrompt(true)} className="absolute inset-0 z-10 flex items-start justify-center rounded-2xl bg-amber-50/40 p-5 text-center" aria-label="Please subscribe to see more"><span className="rounded-xl border border-amber-300 bg-amber-100 px-5 py-3 font-bold text-amber-900 shadow">🔒 Please subscribe to see more</span></button>}
                 </div>
             </div>
+            </div>
         </>
       )}
 
