@@ -254,6 +254,43 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Restore the account's server-side family/children after a Parent login.
+     * A Parent phone does not own the child's local pairedChildId preference.
+     */
+    suspend fun restoreParentFamily(): Boolean {
+        val uid = auth.currentUser?.uid ?: return false
+        return try {
+            val parent = db.collection(FirebaseConfig.COL_PARENTS)
+                .document(uid).get().await()
+            val familyId = parent.getString("activeFamilyId")
+                ?: parent.getString("familyId")
+                ?: parent.getString("ownedFamilyId")
+                ?: return false
+            val family = db.collection(FirebaseConfig.COL_FAMILIES)
+                .document(familyId).get().await()
+            if (!family.exists()) return false
+            val ownerId = family.getString("ownerId")
+            val memberUids = family.get("memberUids") as? List<*>
+            if (ownerId != uid && memberUids?.contains(uid) != true) return false
+            prefs.familyId = familyId
+            val children = (family.get("childDeviceIds") as? List<*>)
+                ?.filterIsInstance<String>()?.filter { it.isNotBlank() }
+                ?: emptyList()
+            if (children.isNotEmpty()) {
+                val existing = prefs.selectedChildId
+                val selected = existing?.takeIf { it in children } ?: children.first()
+                prefs.selectedChildId = selected
+                // Legacy dashboard checks pairedChildId; do not require re-pairing.
+                prefs.pairedChildId = selected
+                true
+            } else false
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not restore existing Parent family", error)
+            false
+        }
+    }
+
     suspend fun signInWithEmail(email: String, password: String): Boolean {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
