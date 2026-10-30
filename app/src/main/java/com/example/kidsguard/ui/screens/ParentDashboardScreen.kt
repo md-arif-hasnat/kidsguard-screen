@@ -111,6 +111,7 @@ fun ParentDashboardScreen(
     var showExitDialog by remember { mutableStateOf(false) }
     var showSubscribePrompt by remember { mutableStateOf(false) }
     var hasPremiumAccess by remember { mutableStateOf(false) }
+    var classicOverview by remember { mutableStateOf(false) }
     DisposableEffect(prefHelper.familyId) {
         val familyId = prefHelper.familyId
         val listener = if (!familyId.isNullOrBlank()) {
@@ -164,7 +165,7 @@ fun ParentDashboardScreen(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            if (classicOverview) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 NavigationBarItem(
                     selected = true,
                     onClick = { /* Already Home */ },
@@ -192,7 +193,23 @@ fun ParentDashboardScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
                 is DashboardState.Success -> {
-                    DashboardContent(
+                    if (!classicOverview) ParentChildHub(
+                        childId = selectedChildId,
+                        syncProvider = syncProvider,
+                        premium = hasPremiumAccess,
+                        onLocked = { showSubscribePrompt = true },
+                        onOverview = { classicOverview = true },
+                        onLocation = onOpenLiveMap,
+                        onSafeZones = onOpenSafeZones,
+                        onActivity = onOpenActivityFeed,
+                        onHistory = onOpenLocationHistory,
+                        onRoutes = onOpenRouteHistory,
+                        onDetail = { onOpenChildDetail(selectedChildId ?: "") },
+                        onAlerts = onOpenNotifications,
+                        onChildren = onOpenChildList,
+                        onAi = onOpenDailySummary,
+                        onProfile = onOpenSettings
+                    ) else DashboardContent(
                         data = state.data,
                         summary = summary,
                         prefHelper = prefHelper,
