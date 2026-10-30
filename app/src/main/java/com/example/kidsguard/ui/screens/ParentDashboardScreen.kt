@@ -162,28 +162,7 @@ fun ParentDashboardScreen(
                 }
             )
         },
-        bottomBar = {
-            if (classicOverview) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { /* Already Home */ },
-                    icon = { Icon(Icons.Default.Dashboard, null) },
-                    label = { Text("Overview") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { if (hasPremiumAccess) onOpenLiveMap() else showSubscribePrompt = true },
-                    icon = { Icon(Icons.Default.Map, null) },
-                    label = { Text("Map") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { if (hasPremiumAccess) onOpenNotifications() else showSubscribePrompt = true },
-                    icon = { Icon(Icons.Default.Notifications, null) },
-                    label = { Text("Alerts") }
-                )
-            }
-        }
+
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (val state = dashboardState) {
@@ -924,46 +903,6 @@ private fun ParentChildHub(
             Text("Sample values — real analytics coming later",
                 style = MaterialTheme.typography.labelSmall)
         }
-        NavigationBar {
-            NavigationBarItem(
-                selected = true,
-                onClick = { /* Already viewing selected child's Home */ },
-                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                label = { Text("Home") }
-            )
-            NavigationBarItem(
-                selected = false, onClick = onChildren,
-                icon = { Icon(Icons.Default.People, contentDescription = "Children") },
-                label = { Text("Children") }
-            )
-            NavigationBarItem(
-                selected = false,
-                onClick = { if (premium) onAi() else onLocked() },
-                icon = {
-                    Surface(
-                        color = Color(0xFFE0E7FF),
-                        shape = CircleShape
-                    ) {
-                        Icon(
-                            Icons.Default.AutoAwesome,
-                            contentDescription = "AI",
-                            tint = Color(0xFF4F46E5),
-                            modifier = Modifier.padding(10.dp).size(25.dp)
-                        )
-                    }
-                },
-                label = { Text("AI", fontWeight = FontWeight.Bold) }
-            )
-            NavigationBarItem(
-                selected = false, onClick = onAlerts,
-                icon = { Icon(Icons.Default.Notifications, contentDescription = "Alerts") },
-                label = { Text("Alerts") }
-            )
-            NavigationBarItem(
-                selected = false, onClick = onProfile,
-                icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-                label = { Text("Profile") }
-            )
-        }
+
     }
 }
