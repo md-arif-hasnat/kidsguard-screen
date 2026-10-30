@@ -178,7 +178,7 @@ fun KidsGuardApp(
                     } else if (pairedId == null) {
                         Screen.ParentSetup
                     } else {
-                        Screen.ParentDashboard
+                        Screen.ChildList
                     }
                 }
 
@@ -264,7 +264,7 @@ fun KidsGuardApp(
                         }
                         onScreenChange(
                             if (hasExistingChildren || prefHelper.pairedChildId != null)
-                                Screen.ParentDashboard else Screen.ParentSetup
+                                Screen.ChildList else Screen.ParentSetup
                         )
                     }
                 },

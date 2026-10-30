@@ -307,7 +307,12 @@ class MainActivity : ComponentActivity() {
             when {
                 prefHelper.isLocked -> Screen.Locked
                 prefHelper.userRole == "NONE" -> Screen.RoleSelection
-                prefHelper.userRole == "PARENT" -> if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
+                prefHelper.userRole == "PARENT" -> {
+                    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                    if (user == null || user.isAnonymous || !user.isEmailVerified) Screen.ParentLogin
+                    else if (prefHelper.pairedChildId == null) Screen.ParentSetup
+                    else Screen.ChildList
+                }
                 prefHelper.userRole == "CHILD" -> {
                     if (prefHelper.pairedChildId == null) {
                         Screen.ChildSetup
