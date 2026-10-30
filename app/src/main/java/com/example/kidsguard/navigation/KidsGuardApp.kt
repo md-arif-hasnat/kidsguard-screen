@@ -1,6 +1,15 @@
 package com.example.kidsguard.navigation
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -223,6 +232,48 @@ fun KidsGuardApp(
         }
     }
 
+    val parentSignedIn = prefHelper.userRole == "PARENT" &&
+        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let {
+            !it.isAnonymous && it.isEmailVerified
+        } == true
+    val parentNavVisible = parentSignedIn &&
+        startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection)
+
+    Scaffold(bottomBar = {
+        if (parentNavVisible) {
+            NavigationBar(
+                modifier = Modifier.navigationBarsPadding().height(64.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0)
+            ) {
+                NavigationBarItem(
+                    selected = startScreen == Screen.ParentDashboard,
+                    onClick = { onScreenChange(Screen.ParentDashboard) },
+                    icon = { Icon(Icons.Default.Home, "Home") }, label = { Text("Home") }
+                )
+                NavigationBarItem(
+                    selected = startScreen == Screen.ChildList,
+                    onClick = { onScreenChange(Screen.ChildList) },
+                    icon = { Icon(Icons.Default.People, "Children") }, label = { Text("Children") }
+                )
+                NavigationBarItem(
+                    selected = startScreen == Screen.DailySummary,
+                    onClick = { onScreenChange(Screen.DailySummary) },
+                    icon = { Icon(Icons.Default.AutoAwesome, "AI") }, label = { Text("AI") }
+                )
+                NavigationBarItem(
+                    selected = startScreen == Screen.Notifications,
+                    onClick = { onScreenChange(Screen.Notifications) },
+                    icon = { Icon(Icons.Default.Notifications, "Alerts") }, label = { Text("Alerts") }
+                )
+                NavigationBarItem(
+                    selected = startScreen == Screen.Settings,
+                    onClick = { onScreenChange(Screen.Settings) },
+                    icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") }
+                )
+            }
+        }
+    }) { parentInsets ->
+    androidx.compose.foundation.layout.Box(modifier = Modifier.padding(parentInsets)) {
     Crossfade(targetState = startScreen, label = "screenTransition") { screen ->
         when (screen) {
             Screen.RoleSelection -> RoleSelectionScreen(
@@ -737,5 +788,7 @@ fun KidsGuardApp(
                 onDismiss = { onScreenChange(Screen.Home) }
             )
         }
+    }
+    }
     }
 }
