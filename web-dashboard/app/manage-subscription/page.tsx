@@ -436,7 +436,7 @@ export default function ManageSubscriptionPage() {
                 Current status
               </p>
               <p className="mt-1 font-bold text-slate-900">
-                {promotionalAccessExpired ? "EXPIRED" : status}
+                {neverSubscribed ? "Not Subscribed" : promotionalAccessExpired ? "EXPIRED" : status}
               </p>
             </div>
             <div>
