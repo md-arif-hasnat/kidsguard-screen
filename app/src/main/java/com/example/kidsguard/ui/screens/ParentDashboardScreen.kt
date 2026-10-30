@@ -259,10 +259,15 @@ fun ParentDashboardScreen(
         }
 
         if (showParentMenu) {
-            androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { showParentMenu = false }
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showParentMenu = false },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
             ) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                Surface(modifier = Modifier.fillMaxHeight().fillMaxWidth(0.82f),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 12.dp) {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 32.dp)) {
                     Text("KidsGuard Menu", style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold)
                     listOf(
@@ -287,6 +292,8 @@ fun ParentDashboardScreen(
                         )
                     }
                     Spacer(Modifier.height(20.dp))
+                }
+                }
                 }
             }
         }
