@@ -132,6 +132,10 @@ export default function ChildDashboard() {
   }, [searchParams]);
 
   const handleTabChange = (tab: Tab) => {
+    if (tab !== 'overview' && tab !== 'youtube-history' && !hasPremiumAccess) {
+      setShowSubscribePrompt(true);
+      return;
+    }
     setActiveTab(tab);
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set('tab', tab);
@@ -140,6 +144,9 @@ export default function ChildDashboard() {
 
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const hasChildAccess = isChildAccessible(childId);
+  const subscriptionStatus = String(family?.subscription?.status || 'NONE').toUpperCase();
+  const hasPremiumAccess = ['ACTIVE', 'TRIAL', 'TRIALING'].includes(subscriptionStatus);
+  const [showSubscribePrompt, setShowSubscribePrompt] = useState(false);
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [statusNow, setStatusNow] = useState(() => Date.now());
@@ -606,6 +613,19 @@ const handleSaveOfflineAlertSettings = async () => {
         </div>
       </header>
 
+      {showSubscribePrompt && (
+        <div role="dialog" aria-modal="true" aria-label="Subscription required" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" onClick={() => setShowSubscribePrompt(false)}>
+          <div className="w-full max-w-sm rounded-3xl border-2 border-amber-300 bg-amber-50 p-7 text-center shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="mb-3 text-4xl" aria-hidden="true">🔒</div>
+            <h2 className="text-xl font-black text-amber-950">Unlock more with KidsGuard</h2>
+            <p className="mt-3 text-amber-900">Please subscribe to see more.</p>
+            <div className="mt-6 flex flex-col gap-3">
+              <button className="rounded-xl bg-amber-500 px-5 py-3 font-bold text-slate-950 hover:bg-amber-400" onClick={() => router.push('/manage-subscription')}>See subscription options</button>
+              <button className="rounded-xl px-5 py-2 font-semibold text-amber-900" onClick={() => setShowSubscribePrompt(false)}>Maybe later</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Tab Switcher */}
       <div className="relative mb-8 -mx-4 px-4 md:mx-0 md:px-0 group">
           {showLeftArrow && (
@@ -662,6 +682,10 @@ const handleSaveOfflineAlertSettings = async () => {
               </div>
           )}
       </div>
+
+      {!hasPremiumAccess && activeTab !== 'overview' && activeTab !== 'youtube-history' ? (
+        <button onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-3xl border-2 border-amber-300 bg-amber-50 p-10 text-center font-bold text-amber-950">🔒 Please subscribe to see more</button>
+      ) : null}
 
       {activeTab === 'overview' && (
         <>
@@ -1228,7 +1252,7 @@ const handleSaveOfflineAlertSettings = async () => {
             icon={Youtube}
             contentClassName="bg-slate-50/50 [&>div>header:first-child]:hidden"
           >
-            <YouTubeHistoryPanel childId={childId} />
+            <YouTubeHistoryPanel childId={childId} hasPremiumAccess={hasPremiumAccess} childName={displayData.name} onSubscribe={() => setShowSubscribePrompt(true)} />
           </CollapsiblePanel>
       )}
 
