@@ -111,6 +111,7 @@ fun ParentDashboardScreen(
     var showExitDialog by remember { mutableStateOf(false) }
     var showSubscribePrompt by remember { mutableStateOf(false) }
     var hasPremiumAccess by remember { mutableStateOf(false) }
+    var classicOverview by remember { mutableStateOf(false) }
     DisposableEffect(prefHelper.familyId) {
         val familyId = prefHelper.familyId
         val listener = if (!familyId.isNullOrBlank()) {
@@ -164,7 +165,7 @@ fun ParentDashboardScreen(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            if (classicOverview) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 NavigationBarItem(
                     selected = true,
                     onClick = { /* Already Home */ },
@@ -192,7 +193,23 @@ fun ParentDashboardScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
                 is DashboardState.Success -> {
-                    DashboardContent(
+                    if (!classicOverview) ParentChildHub(
+                        childId = selectedChildId,
+                        syncProvider = syncProvider,
+                        premium = hasPremiumAccess,
+                        onLocked = { showSubscribePrompt = true },
+                        onOverview = { classicOverview = true },
+                        onLocation = onOpenLiveMap,
+                        onSafeZones = onOpenSafeZones,
+                        onActivity = onOpenActivityFeed,
+                        onHistory = onOpenLocationHistory,
+                        onRoutes = onOpenRouteHistory,
+                        onDetail = { onOpenChildDetail(selectedChildId ?: "") },
+                        onAlerts = onOpenNotifications,
+                        onChildren = onOpenChildList,
+                        onAi = onOpenDailySummary,
+                        onProfile = onOpenSettings
+                    ) else DashboardContent(
                         data = state.data,
                         summary = summary,
                         prefHelper = prefHelper,
@@ -727,6 +744,154 @@ fun ActivitySummaryCard(data: DashboardUiModel, onOpenFeed: () -> Unit) {
                 Text("View Full Activity Feed")
                 Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
+        }
+    }
+}
+
+@Composable
+private fun ParentChildHub(
+    childId: String?,
+    syncProvider: RemoteSyncProvider,
+    premium: Boolean,
+    onLocked: () -> Unit,
+    onOverview: () -> Unit,
+    onLocation: () -> Unit,
+    onSafeZones: () -> Unit,
+    onActivity: () -> Unit,
+    onHistory: () -> Unit,
+    onRoutes: () -> Unit,
+    onDetail: () -> Unit,
+    onAlerts: () -> Unit,
+    onChildren: () -> Unit,
+    onAi: () -> Unit,
+    onProfile: () -> Unit
+) {
+    val status by (childId?.let { syncProvider.getChildStatus(it) }
+        ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+    val folders = listOf(
+        Triple("Overview", Icons.Default.Dashboard, onOverview),
+        Triple("Locations", Icons.Default.Map, onLocation),
+        Triple("YouTube", Icons.Default.PlayCircle, onActivity),
+        Triple("Safe Zones", Icons.Default.Shield, onSafeZones),
+        Triple("App Activity", Icons.Default.BarChart, onActivity),
+        Triple("History", Icons.Default.History, onHistory),
+        Triple("Routes", Icons.Default.Route, onRoutes),
+        Triple("Screen Time", Icons.Default.Timer, onDetail),
+        Triple("Alerts", Icons.Default.Notifications, onAlerts)
+    )
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(status?.childName ?: "Child Dashboard",
+                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (status?.online == true) "● Online" else "● Offline",
+                            color = if (status?.online == true) Color(0xFF16A34A) else Color.Gray
+                        )
+                        Text("Battery: ${status?.batteryPercent ?: 0}%",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(onClick = onChildren) {
+                        Icon(Icons.Default.People, null)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Children")
+                    }
+                }
+            }
+            Text("Functions", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            folders.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (label, icon, action) ->
+                        Column(Modifier.weight(1f).clickable {
+                            if (premium || label == "Overview") action()
+                            else onLocked()
+                        }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            val palette = listOf(
+                                Color(0xFF2563EB), Color(0xFF06B6D4),
+                                Color(0xFF8B5CF6), Color(0xFF22C55E),
+                                Color(0xFFF97316), Color(0xFFEC4899),
+                                Color(0xFF0D9488), Color(0xFF6366F1),
+                                Color(0xFFEF4444)
+                            )
+                            val tint = palette[folders.indexOfFirst { it.first == label }.coerceAtLeast(0) % palette.size]
+                            Surface(color = tint.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(20.dp)) {
+                                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                                    Icon(icon, contentDescription = null, tint = tint,
+                                        modifier = Modifier.size(30.dp))
+                                }
+                            }
+                            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 2,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Text("Live Location", style = MaterialTheme.typography.titleMedium)
+            val point = status?.lastLocation?.let {
+                com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
+            }
+            if (point != null) {
+                val camera = com.google.maps.android.compose.rememberCameraPositionState {
+                    position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(point, 14f)
+                }
+                LaunchedEffect(point) {
+                    camera.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(point))
+                }
+                com.google.maps.android.compose.GoogleMap(
+                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    cameraPositionState = camera
+                ) {
+                    com.google.maps.android.compose.Marker(
+                        state = com.google.maps.android.compose.rememberMarkerState(position = point),
+                        title = status?.childName ?: "Child"
+                    )
+                }
+            } else {
+                Surface(Modifier.fillMaxWidth().height(200.dp),
+                    color = Color(0xFFE9EEF5), shape = RoundedCornerShape(18.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("Waiting for real child location")
+                    }
+                }
+            }
+            Text("Usage Analytics · Sample", style = MaterialTheme.typography.titleMedium)
+            listOf(
+                Triple("Social", "2h 15m", Color(0xFF5376E9)),
+                Triple("Games", "1h 40m", Color(0xFFDF6BBA)),
+                Triple("Other", "55m", Color(0xFF39B6A8))
+            ).forEach { (label, time, color) ->
+                Surface(color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(label, fontWeight = FontWeight.Bold)
+                        Text(time, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Text("Sample values — real analytics coming later",
+                style = MaterialTheme.typography.labelSmall)
+        }
+        NavigationBar {
+            NavigationBarItem(selected = false, onClick = onChildren,
+                icon = { Icon(Icons.Default.People, null) }, label = { Text("Children") })
+            NavigationBarItem(selected = false, onClick = {
+                if (premium) onAi() else onLocked()
+            }, icon = { Icon(Icons.Default.AutoAwesome, null) }, label = { Text("AI") })
+            NavigationBarItem(selected = false, onClick = onProfile,
+                icon = { Icon(Icons.Default.Person, null) }, label = { Text("Profile") })
         }
     }
 }
