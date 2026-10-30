@@ -67,7 +67,8 @@ fun ParentSettingsScreen(
     onOpenSubscription: () -> Unit,
     onLogout: () -> Unit
 ) {
-    val languagePrefs = remember(context) { context.getSharedPreferences("kids_guard_parent_ui", android.content.Context.MODE_PRIVATE) }
+    val languageContext = LocalContext.current
+    val languagePrefs = remember(languageContext) { languageContext.getSharedPreferences("kids_guard_parent_ui", android.content.Context.MODE_PRIVATE) }
     var preferredLanguage by remember { mutableStateOf(languagePrefs.getString("parent_language", "English") ?: "English") }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
