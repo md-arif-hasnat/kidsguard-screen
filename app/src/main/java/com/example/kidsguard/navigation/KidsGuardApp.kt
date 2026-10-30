@@ -1,5 +1,6 @@
 package com.example.kidsguard.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
@@ -239,6 +240,10 @@ fun KidsGuardApp(
     val parentNavVisible = parentSignedIn &&
         startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection)
 
+    BackHandler(enabled = parentSignedIn && startScreen == Screen.ParentDashboard) {
+        onScreenChange(Screen.ChildList)
+    }
+
     Scaffold(bottomBar = {
         if (parentNavVisible) {
             NavigationBar(
@@ -460,7 +465,7 @@ fun KidsGuardApp(
                     onScreenChange(Screen.ChildDetail)
                 },
                 onOpenNotifications = { onScreenChange(Screen.Notifications) },
-                onBack = { onScreenChange(Screen.RoleSelection) },
+                onBack = { onScreenChange(Screen.ChildList) },
                 locationRepository = locationRepository,
                 safeZoneRepository = repository,
                 locationProvider = locationProvider,
