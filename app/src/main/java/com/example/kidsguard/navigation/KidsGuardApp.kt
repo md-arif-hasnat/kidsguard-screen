@@ -116,6 +116,16 @@ fun KidsGuardApp(
     val userRole = prefHelper.userRole
     val pairedId = prefHelper.pairedChildId
 
+    // Refresh on parent login/dashboard navigation as well as Activity resume.
+    // Login does not recreate the Activity, so an onResume-only check is insufficient.
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.ParentLogin ||
+            currentScreen == Screen.ParentSetup ||
+            currentScreen == Screen.ParentDashboard) {
+            updateRepository.checkForUpdates()
+        }
+    }
+
     // Update Dialog State
     val updateState by updateRepository.updateState.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
