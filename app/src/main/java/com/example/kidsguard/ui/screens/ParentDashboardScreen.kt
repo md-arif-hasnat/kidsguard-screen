@@ -266,11 +266,11 @@ fun ParentDashboardScreen(
             AlertDialog(
                 onDismissRequest = { showExitDialog = false },
                 title = { Text("Change Role") },
-                text = { Text("Are you sure you want to go back to role selection? This will logout of the parent dashboard.") },
+                text = { Text("Are you sure you want to go back to role selection? Your parent account will stay signed in.") },
                 confirmButton = {
                     Button(onClick = {
                         showExitDialog = false
-                        prefHelper.userRole = "NONE"
+                        // Returning to role selection must not silently erase the parent role.
                         onBack()
                     }) {
                         Text("Confirm")
