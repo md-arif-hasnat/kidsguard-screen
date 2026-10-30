@@ -7,6 +7,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.example.kidsguard.data.PreferenceHelper
@@ -63,6 +64,7 @@ import com.example.kidsguard.ui.screens.UpdateDialog
 import com.example.kidsguard.ui.screens.WebBlockedScreen
 import com.example.kidsguard.ui.screens.WhatsNewDialog
 import com.example.kidsguard.ui.screens.YouTubeDebugScreen
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 
 
@@ -100,6 +102,7 @@ fun KidsGuardApp(
     onLockedScreenUnlock: () -> Unit = { onScreenChange(Screen.Home) }
 ) {
     val context = LocalContext.current
+    val parentScope = rememberCoroutineScope()
     val prefHelper = remember { PreferenceHelper(context) }
     val locationProvider = remember { LocalLocationProvider(context) }
 
@@ -254,9 +257,16 @@ fun KidsGuardApp(
                 authRepository = authRepository,
                 onLoginSuccess = {
                     onParentLoginSuccess()
-                    val next =
-                        if (prefHelper.pairedChildId == null) Screen.ParentSetup else Screen.ParentDashboard
-                    onScreenChange(next)
+                    parentScope.launch {
+                        val hasExistingChildren = authRepository.restoreParentFamily()
+                        if (hasExistingChildren) {
+                            selectedChildIdFlow.value = prefHelper.selectedChildId
+                        }
+                        onScreenChange(
+                            if (hasExistingChildren || prefHelper.pairedChildId != null)
+                                Screen.ParentDashboard else Screen.ParentSetup
+                        )
+                    }
                 },
                 onBack = {
                     prefHelper.userRole = "NONE"
