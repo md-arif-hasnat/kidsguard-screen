@@ -782,8 +782,34 @@ private fun ParentChildHub(
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text(status?.childName ?: "Child Dashboard",
-                style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(status?.childName ?: "Child Dashboard",
+                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (status?.online == true) "● Online" else "● Offline",
+                            color = if (status?.online == true) Color(0xFF16A34A) else Color.Gray
+                        )
+                        Text("Battery: ${status?.batteryPercent ?: 0}%",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(onClick = onChildren) {
+                        Icon(Icons.Default.People, null)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Children")
+                    }
+                }
+            }
+            Text("Functions", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
             folders.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { (label, icon, action) ->
@@ -791,9 +817,19 @@ private fun ParentChildHub(
                             if (premium || label == "Overview") action()
                             else onLocked()
                         }, horizontalAlignment = Alignment.CenterHorizontally) {
-                            Surface(color = Color(0xFFE5F2FF), shape = RoundedCornerShape(16.dp)) {
-                                Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
-                                    Icon(icon, contentDescription = null, tint = Color(0xFF1865AF))
+                            val palette = listOf(
+                                Color(0xFF2563EB), Color(0xFF06B6D4),
+                                Color(0xFF8B5CF6), Color(0xFF22C55E),
+                                Color(0xFFF97316), Color(0xFFEC4899),
+                                Color(0xFF0D9488), Color(0xFF6366F1),
+                                Color(0xFFEF4444)
+                            )
+                            val tint = palette[folders.indexOfFirst { it.first == label }.coerceAtLeast(0) % palette.size]
+                            Surface(color = tint.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(20.dp)) {
+                                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                                    Icon(icon, contentDescription = null, tint = tint,
+                                        modifier = Modifier.size(30.dp))
                                 }
                             }
                             Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 2,
