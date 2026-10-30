@@ -117,17 +117,19 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: ./gradlew assembleRelease bundleRelease --stacktrace
+        run: ./gradlew assembleGithub assembleRelease bundleRelease --stacktrace
 
       - name: Verify Android release artifacts
         if: steps.guard.outputs.release_needed == 'true'
         run: |
-          APK="app/build/outputs/apk/release/app-release.apk"
+          APK="app/build/outputs/apk/github/app-github.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
+          PLAY_APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$PLAY_APK"
           test -s "$APK"
           test -s "$AAB"
           test "$(apkanalyzer manifest application-id "$APK")" = "secure.kidsguard.app"
-          if apkanalyzer manifest permissions "$APK" | grep -Fqx \
+          if apkanalyzer manifest permissions "$PLAY_APK" | grep -Fqx \
             'android.permission.REQUEST_INSTALL_PACKAGES'; then
             echo "Play release APK still requests REQUEST_INSTALL_PACKAGES."
             exit 1
@@ -135,6 +137,11 @@ jobs:
           apkanalyzer manifest print "$APK" > "$RUNNER_TEMP/release-manifest.xml"
           grep -Fq 'android:name="isMonitoringTool"' "$RUNNER_TEMP/release-manifest.xml"
           grep -Fq 'android:value="child_monitoring"' "$RUNNER_TEMP/release-manifest.xml"
+          if ! apkanalyzer manifest permissions "$APK" | grep -Fqx \
+            'android.permission.REQUEST_INSTALL_PACKAGES'; then
+            echo "GitHub APK must request install permission for in-app update."
+            exit 1
+          fi
           sha256sum "$APK" "$AAB"
 
       - name: Prepare release metadata
@@ -145,7 +152,7 @@ jobs:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
         run: |
-          APK="app/build/outputs/apk/release/app-release.apk"
+          APK="app/build/outputs/apk/github/app-github.apk"
           if [ -s "$APK" ]; then
             SIZE=$(du -h "$APK" | cut -f1)
           else
@@ -187,7 +194,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: KidsGuard-release-apk-v${{ steps.version.outputs.version_name }}
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/github/app-github.apk
           if-no-files-found: error
 
       - name: Upload Play AAB artifact
@@ -205,7 +212,7 @@ jobs:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
         run: |
           TAG="v$VERSION_NAME"
-          APK="app/build/outputs/apk/release/app-release.apk"
+          APK="app/build/outputs/apk/github/app-github.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
           cp "$APK" "KidsGuard-v$VERSION_NAME.apk"
           gh release create "$TAG" \
