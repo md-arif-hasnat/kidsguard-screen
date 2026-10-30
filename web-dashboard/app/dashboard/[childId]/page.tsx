@@ -145,7 +145,22 @@ export default function ChildDashboard() {
   const { profile, family, role, isChildAccessible, loading: profileLoading } = useParentProfile();
   const hasChildAccess = isChildAccessible(childId);
   const subscriptionStatus = String(family?.subscription?.status || 'NONE').toUpperCase();
-  const hasPremiumAccess = ['ACTIVE', 'TRIAL', 'TRIALING'].includes(subscriptionStatus);
+  const toMillis = (value: unknown): number | null => {
+    if (!value) return null;
+    if (typeof value === 'number') return value;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'object' && value !== null) {
+      const timestamp = value as { toMillis?: () => number; seconds?: number };
+      if (typeof timestamp.toMillis === 'function') return timestamp.toMillis();
+      if (typeof timestamp.seconds === 'number') return timestamp.seconds * 1000;
+    }
+    return null;
+  };
+  const trialEndsAt = toMillis(family?.subscription?.trialEndsAt);
+  // Trial length is determined by billing (7 or 14 days), never a hard-coded UI duration.
+  const trialIsCurrent = ['TRIAL', 'TRIALING'].includes(subscriptionStatus) &&
+    trialEndsAt !== null && trialEndsAt > statusNow;
+  const hasPremiumAccess = subscriptionStatus === 'ACTIVE' || trialIsCurrent;
   const [showSubscribePrompt, setShowSubscribePrompt] = useState(false);
   const [status, setStatus] = useState<ChildStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
