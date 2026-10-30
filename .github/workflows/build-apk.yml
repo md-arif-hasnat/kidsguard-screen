@@ -207,37 +207,13 @@ jobs:
           TAG="v$VERSION_NAME"
           APK="app/build/outputs/apk/release/app-release.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
+          cp "$APK" "KidsGuard-v$VERSION_NAME.apk"
           gh release create "$TAG" \
-            "$APK#KidsGuard-v$VERSION_NAME.apk" \
-            "$AAB#KidsGuard-v$VERSION_NAME.aab" \
+            "KidsGuard-v$VERSION_NAME.apk" \
+            "$AAB" \
             --title "KidsGuard v$VERSION_NAME" \
             --notes-file release-notes-generated.md \
             --repo "$GITHUB_REPOSITORY"
-
-      - name: Ensure legacy version-named APK URL resolves
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION_NAME: ${{ steps.version.outputs.version_name }}
-        run: |
-          TAG="v$VERSION_NAME"
-          ASSET="KidsGuard-v$VERSION_NAME.apk"
-          if gh release view "$TAG" --json assets --repo "$GITHUB_REPOSITORY" \
-            --jq '.assets[].name' | grep -Fxq "$ASSET"; then
-            echo "$ASSET already published."
-          else
-            APK="app/build/outputs/apk/release/app-release.apk"
-            if [ ! -s "$APK" ]; then
-              mkdir -p "$RUNNER_TEMP/kidsguard-release"
-              gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-                --pattern 'app-release.apk' --dir "$RUNNER_TEMP/kidsguard-release"
-              APK="$RUNNER_TEMP/kidsguard-release/app-release.apk"
-            fi
-            test -s "$APK"
-            cp "$APK" "$RUNNER_TEMP/$ASSET"
-            gh release upload "$TAG" "$RUNNER_TEMP/$ASSET" --repo "$GITHUB_REPOSITORY"
-            echo "Published compatible APK alias: $ASSET"
-          fi
 
       - name: Sync release to Firestore
         if: success()
@@ -246,7 +222,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
-          APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/app-release.apk
+          APK_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/KidsGuard-v${{ steps.version.outputs.version_name }}.apk
           APK_SIZE: ${{ steps.metadata.outputs.size }}
           APK_SHA256: ${{ steps.metadata.outputs.sha256 }}
           RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
