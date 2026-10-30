@@ -32,8 +32,8 @@ android {
         applicationId = "secure.kidsguard.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 95
-        versionName = "1.0.95"
+        versionCode = 96
+        versionName = "1.0.96"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -71,6 +71,7 @@ android {
             initWith(getByName("release"))
             buildConfigField("boolean", "ALLOW_SIDELOAD_UPDATES", "true")
             matchingFallbacks += listOf("release")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
         release {
             optimization {
