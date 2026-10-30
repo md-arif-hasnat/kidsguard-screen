@@ -862,7 +862,15 @@ const handleSaveOfflineAlertSettings = async () => {
                 </div>
 
                 <div className="space-y-8">
-                {canControl && <RemoteControlPanel childId={childId} />}
+                {hasPremiumAccess ? (
+                  <>{canControl && <RemoteControlPanel childId={childId} />}</>
+                ) : (
+                  <button type="button" onClick={() => setShowSubscribePrompt(true)} className="w-full rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 text-left text-amber-950 shadow-sm">
+                    <span className="font-black">🔒 Command history and premium controls</span>
+                    <p className="mt-2 text-sm">Please subscribe to see more.</p>
+                  </button>
+                )}
+                {hasPremiumAccess && (
 
                 <details className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6 md:p-8 [&::-webkit-details-marker]:hidden">
@@ -1202,11 +1210,12 @@ const handleSaveOfflineAlertSettings = async () => {
                                                 </section>
                 </CollapsiblePanel>
                 </div>
+                )}
             </div>
         </>
       )}
 
-      {activeTab === 'location' && (
+      {hasPremiumAccess && activeTab === 'location' && (
           <CollapsiblePanel
             title="Live Location & Recent History"
             description="Map, device telemetry and recent location records"
@@ -1217,7 +1226,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'app-activity' && (
+      {hasPremiumAccess && activeTab === 'app-activity' && (
           <CollapsiblePanel
             title="App Activity"
             description="Screen-time totals and detailed app usage"
@@ -1228,7 +1237,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'installed-apps' && (
+      {hasPremiumAccess && activeTab === 'installed-apps' && (
           <CollapsiblePanel
             title="Installed Applications"
             description="Search apps and manage blocks, schedules and limits"
@@ -1239,7 +1248,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'safe-zones' && (
+      {hasPremiumAccess && activeTab === 'safe-zones' && (
           <CollapsiblePanel
             title="Safe Zones"
             description={`${safeZones.length} configured zone${safeZones.length === 1 ? '' : 's'}`}
@@ -1250,7 +1259,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'history' && (
+      {hasPremiumAccess && activeTab === 'history' && (
           <CollapsiblePanel
             title="Route History"
             description="Replay past routes, visits and movement records"
@@ -1272,7 +1281,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'browser-history' && (
+      {hasPremiumAccess && activeTab === 'browser-history' && (
           <CollapsiblePanel
             title="Browser History"
             description="Visited websites grouped by date"
@@ -1283,7 +1292,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </CollapsiblePanel>
       )}
 
-      {activeTab === 'intelligence' && (
+      {hasPremiumAccess && activeTab === 'intelligence' && (
           <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <h2 className="text-xl font-bold text-slate-900">Activity Intelligence</h2>
@@ -1342,7 +1351,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'wellbeing' && (
+      {hasPremiumAccess && activeTab === 'wellbeing' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1403,7 +1412,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'internet' && (
+      {hasPremiumAccess && activeTab === 'internet' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1482,7 +1491,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'health' && (
+      {hasPremiumAccess && activeTab === 'health' && (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-xl font-bold text-slate-900">Device Health \u0026 Diagnostics</h2>
               {status ? (
@@ -1500,7 +1509,7 @@ const handleSaveOfflineAlertSettings = async () => {
           </div>
       )}
 
-      {activeTab === 'modes' && (
+      {hasPremiumAccess && activeTab === 'modes' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               <CollapsiblePanel
                 title="Protection Modes"
