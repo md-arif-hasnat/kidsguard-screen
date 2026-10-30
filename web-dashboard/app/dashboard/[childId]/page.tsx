@@ -1209,9 +1209,9 @@ const handleSaveOfflineAlertSettings = async () => {
                                                     )}
                                                 </section>
                 </CollapsiblePanel>
-                </div>
                   </>
                 )}
+                </div>
             </div>
         </>
       )}
