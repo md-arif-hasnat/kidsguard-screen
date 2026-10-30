@@ -112,6 +112,7 @@ fun ParentDashboardScreen(
     var showSubscribePrompt by remember { mutableStateOf(false) }
     var hasPremiumAccess by remember { mutableStateOf(false) }
     var classicOverview by remember { mutableStateOf(false) }
+    var showParentMenu by remember { mutableStateOf(false) }
     DisposableEffect(prefHelper.familyId) {
         val familyId = prefHelper.familyId
         val listener = if (!familyId.isNullOrBlank()) {
@@ -155,11 +156,8 @@ fun ParentDashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onOpenChildList) {
-                        Icon(Icons.Default.Group, contentDescription = "Children")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    IconButton(onClick = { showParentMenu = true }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Parent Menu")
                     }
                 }
             )
@@ -260,6 +258,38 @@ fun ParentDashboardScreen(
             }
         }
 
+        if (showParentMenu) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showParentMenu = false }
+            ) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    Text("KidsGuard Menu", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                    listOf(
+                        Triple("Family Overview", Icons.Default.People, onOpenChildList),
+                        Triple("Weekly Reports", Icons.Default.BarChart, onOpenDailySummary),
+                        Triple("Notifications", Icons.Default.Notifications, onOpenNotifications),
+                        Triple("SOS Center", Icons.Default.Warning, onOpenSosHistory),
+                        Triple("Family", Icons.Default.Group, onOpenChildList),
+                        Triple("Security", Icons.Default.Security, onOpenSafeZones),
+                        Triple("Support & Beta", Icons.Default.HelpOutline, onOpenSettings),
+                        Triple("Settings", Icons.Default.Settings, onOpenSettings)
+                    ).forEach { (label, icon, navigate) ->
+                        ListItem(
+                            headlineContent = { Text(label) },
+                            leadingContent = { Icon(icon, null) },
+                            modifier = Modifier.clickable {
+                                showParentMenu = false
+                                if (hasPremiumAccess || label in listOf(
+                                        "Family Overview", "Family", "SOS Center", "Settings", "Support & Beta"
+                                    )) navigate() else showSubscribePrompt = true
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
+        }
         if (showSubscribePrompt) {
             AlertDialog(
                 onDismissRequest = { showSubscribePrompt = false },
