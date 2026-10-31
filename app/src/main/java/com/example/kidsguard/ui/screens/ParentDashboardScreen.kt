@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -784,16 +785,28 @@ private fun ParentChildHub(
 ) {
     val status by (childId?.let { syncProvider.getChildStatus(it) }
         ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+    val history by (childId?.let { syncProvider.getLocationHistory(it) }
+        ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = emptyList())
+    val recentLocation = status?.lastLocation?.takeIf {
+        it.latitude in -90.0..90.0 && it.longitude in -180.0..180.0 &&
+            (it.latitude != 0.0 || it.longitude != 0.0)
+    } ?: history.filter {
+        it.latitude in -90.0..90.0 && it.longitude in -180.0..180.0 &&
+            (it.latitude != 0.0 || it.longitude != 0.0)
+    }.maxByOrNull { it.timestamp }
     val folders = listOf(
         Triple("Overview", Icons.Default.Dashboard, onOverview),
         Triple("Locations", Icons.Default.Map, onLocation),
-        Triple("YouTube", Icons.Default.PlayCircle, onActivity),
         Triple("Safe Zones", Icons.Default.Shield, onSafeZones),
         Triple("App Activity", Icons.Default.BarChart, onActivity),
         Triple("History", Icons.Default.History, onHistory),
         Triple("Routes", Icons.Default.Route, onRoutes),
         Triple("Screen Time", Icons.Default.Timer, onDetail),
-        Triple("Alerts", Icons.Default.Notifications, onAlerts)
+        Triple("Alerts", Icons.Default.Notifications, onAlerts),
+        Triple("Child Details", Icons.Default.Person, onDetail),
+        Triple("Location History", Icons.Default.Place, onHistory),
+        Triple("Route History", Icons.Default.Timeline, onRoutes),
+        Triple("All Activities", Icons.Default.List, onActivity)
     )
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 14.dp),
@@ -826,37 +839,52 @@ private fun ParentChildHub(
             }
             Text("Functions", style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold)
-            folders.chunked(4).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { (label, icon, action) ->
-                        Column(Modifier.weight(1f).clickable {
-                            if (premium || label == "Overview") action()
-                            else onLocked()
-                        }, horizontalAlignment = Alignment.CenterHorizontally) {
-                            val palette = listOf(
-                                Color(0xFF2563EB), Color(0xFF06B6D4),
-                                Color(0xFF8B5CF6), Color(0xFF22C55E),
-                                Color(0xFFF97316), Color(0xFFEC4899),
-                                Color(0xFF0D9488), Color(0xFF6366F1),
-                                Color(0xFFEF4444)
-                            )
-                            val tint = palette[folders.indexOfFirst { it.first == label }.coerceAtLeast(0) % palette.size]
-                            Surface(color = tint.copy(alpha = 0.14f),
-                                shape = RoundedCornerShape(20.dp)) {
-                                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
-                                    Icon(icon, contentDescription = null, tint = tint,
-                                        modifier = Modifier.size(30.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                folders.chunked(8).forEach { page ->
+                    Column(
+                        Modifier.width(350.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        page.chunked(4).forEach { row ->
+                            Row(Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { (label, icon, action) ->
+                                    Column(
+                                        Modifier.weight(1f).clickable {
+                                            if (premium || label == "Overview" || label == "Locations") action()
+                                            else onLocked()
+                                        },
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                                                Icon(icon, contentDescription = label,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(26.dp))
+                                            }
+                                        }
+                                        Text(label, style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 2,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    }
                                 }
+                                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                             }
-                            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 2,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
-                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
+            Text("Swipe left for more functions →",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Live Location", style = MaterialTheme.typography.titleMedium)
-            val point = status?.lastLocation?.let {
+            val point = recentLocation?.let {
                 com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
             }
             if (point != null) {
@@ -877,31 +905,28 @@ private fun ParentChildHub(
                 }
             } else {
                 Surface(Modifier.fillMaxWidth().height(200.dp),
-                    color = Color(0xFFE9EEF5), shape = RoundedCornerShape(18.dp)) {
+                    color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(18.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("Waiting for real child location")
                     }
                 }
             }
-            Text("Usage Analytics · Sample", style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("Social", "2h 15m", Color(0xFF5376E9)),
-                    Triple("Games", "1h 40m", Color(0xFFDF6BBA)),
-                    Triple("Other", "55m", Color(0xFF39B6A8))
-                ).forEach { (label, time, color) ->
-                    Surface(modifier = Modifier.weight(1f), color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(18.dp)) {
-                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(label, fontWeight = FontWeight.Bold, color = color)
-                            Spacer(Modifier.height(8.dp))
-                            Text(time, fontWeight = FontWeight.Bold)
-                            LinearProgressIndicator(progress = { 0.6f }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), color = color)
-                        }
-                    }
+            Text("Location status", style = MaterialTheme.typography.titleMedium)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(if (recentLocation == null) "No location received yet"
+                        else recentLocation.fullAddress?.takeIf { it.isNotBlank() }
+                            ?: "${recentLocation.latitude}, ${recentLocation.longitude}")
+                    Text("Recorded positions: ${history.size}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Text("Sample values — real analytics coming later",
-                style = MaterialTheme.typography.labelSmall)
+
         }
 
     }

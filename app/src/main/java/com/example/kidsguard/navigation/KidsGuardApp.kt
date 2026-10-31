@@ -232,12 +232,58 @@ fun KidsGuardApp(
         }
     }
 
+    var showChildPermissionWarning by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(
+        enabled = userRole == "CHILD" && startScreen == Screen.ChildSetup &&
+            prefHelper.pairedChildId == null
+    ) {
+        // Abandon only an incomplete role choice. Never clear an established pairing.
+        prefHelper.userRole = "NONE"
+        onScreenChange(Screen.RoleSelection)
+    }
+
+    androidx.activity.compose.BackHandler(enabled = userRole == "CHILD" && startScreen == Screen.PermissionChecklist) {
+        showChildPermissionWarning = true
+    }
+
     val parentSignedIn = prefHelper.userRole == "PARENT" &&
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let {
             !it.isAnonymous && it.isEmailVerified
         } == true
     val parentNavVisible = parentSignedIn &&
         startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection)
+
+    if (showChildPermissionWarning) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showChildPermissionWarning = false },
+            containerColor = androidx.compose.ui.graphics.Color(0xFFFFF3B0),
+            title = { Text("Permission required") },
+            text = {
+                val missing = buildList {
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context))
+                        add("Location")
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context))
+                        add("Background location")
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context))
+                        add("Notifications")
+                    if (!com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context))
+                        add("Accessibility")
+                    if (!com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(context))
+                        add("Notification access")
+                    if (!prefHelper.hasRequiredMonitoringConsents())
+                        add("Monitoring consent")
+                }
+                Text("Cannot open the Child Dashboard yet. Required: " +
+                    (if (missing.isEmpty()) "Review the permission checklist." else missing.joinToString(", ")) +
+                    ". You can still leave the app using Android Home.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showChildPermissionWarning = false }) {
+                    Text("Review permissions")
+                }
+            }
+        )
+    }
 
     Scaffold(bottomBar = {
         if (parentNavVisible) {
@@ -365,8 +411,12 @@ fun KidsGuardApp(
                     }
                 },
                 onBack = {
-                    prefHelper.userRole = "NONE"
-                    onScreenChange(Screen.RoleSelection)
+                    if (prefHelper.pairedChildId == null) {
+                        prefHelper.userRole = "NONE"
+                        onScreenChange(Screen.RoleSelection)
+                    } else {
+                        onScreenChange(Screen.Home)
+                    }
                 }
             )
 
@@ -426,7 +476,7 @@ fun KidsGuardApp(
                 if (hasCorePermissions) {
                     PermissionChecklistScreen(
                         onBack = {
-                            onScreenChange(Screen.Home)
+                            showChildPermissionWarning = true
                         }
                     )
                 } else {
@@ -435,7 +485,7 @@ fun KidsGuardApp(
                             onScreenChange(Screen.Home)
                         },
                         onBack = {
-                            onScreenChange(Screen.Home)
+                            showChildPermissionWarning = true
                         }
                     )
                 }
