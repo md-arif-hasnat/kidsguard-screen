@@ -249,7 +249,25 @@ fun KidsGuardApp(
             onDismissRequest = { showChildPermissionWarning = false },
             containerColor = androidx.compose.ui.graphics.Color(0xFFFFF3B0),
             title = { Text("Permission required") },
-            text = { Text("You cannot return to the Child Dashboard until the required permissions and consent are enabled. Review the checklist to see what is missing.") },
+            text = {
+                val missing = buildList {
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasLocationPermission(context))
+                        add("Location")
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasBackgroundLocationPermission(context))
+                        add("Background location")
+                    if (!com.example.kidsguard.utils.PermissionUtils.hasNotificationPermission(context))
+                        add("Notifications")
+                    if (!com.example.kidsguard.utils.PermissionUtils.isAccessibilityServiceEnabled(context))
+                        add("Accessibility")
+                    if (!com.example.kidsguard.utils.NotificationAccessHelper.isEnabled(context))
+                        add("Notification access")
+                    if (!prefHelper.hasRequiredMonitoringConsents())
+                        add("Monitoring consent")
+                }
+                Text("Cannot open the Child Dashboard yet. Required: " +
+                    (if (missing.isEmpty()) "Review the permission checklist." else missing.joinToString(", ")) +
+                    ". You can still leave the app using Android Home.")
+            },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { showChildPermissionWarning = false }) {
                     Text("Review permissions")
