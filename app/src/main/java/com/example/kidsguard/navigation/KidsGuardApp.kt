@@ -233,6 +233,15 @@ fun KidsGuardApp(
     }
 
     var showChildPermissionWarning by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(
+        enabled = userRole == "CHILD" && startScreen == Screen.ChildSetup &&
+            prefHelper.pairedChildId == null
+    ) {
+        // Abandon only an incomplete role choice. Never clear an established pairing.
+        prefHelper.userRole = "NONE"
+        onScreenChange(Screen.RoleSelection)
+    }
+
     androidx.activity.compose.BackHandler(enabled = userRole == "CHILD" && startScreen == Screen.PermissionChecklist) {
         showChildPermissionWarning = true
     }
@@ -402,8 +411,12 @@ fun KidsGuardApp(
                     }
                 },
                 onBack = {
-                    prefHelper.userRole = "NONE"
-                    onScreenChange(Screen.RoleSelection)
+                    if (prefHelper.pairedChildId == null) {
+                        prefHelper.userRole = "NONE"
+                        onScreenChange(Screen.RoleSelection)
+                    } else {
+                        onScreenChange(Screen.Home)
+                    }
                 }
             )
 
