@@ -232,12 +232,31 @@ fun KidsGuardApp(
         }
     }
 
+    var showChildPermissionWarning by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = userRole == "CHILD" && startScreen == Screen.PermissionChecklist) {
+        showChildPermissionWarning = true
+    }
+
     val parentSignedIn = prefHelper.userRole == "PARENT" &&
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let {
             !it.isAnonymous && it.isEmailVerified
         } == true
     val parentNavVisible = parentSignedIn &&
         startScreen !in setOf(Screen.ParentLogin, Screen.RoleSelection)
+
+    if (showChildPermissionWarning) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showChildPermissionWarning = false },
+            containerColor = androidx.compose.ui.graphics.Color(0xFFFFF3B0),
+            title = { Text("Permission required") },
+            text = { Text("You cannot return to the Child Dashboard until the required permissions and consent are enabled. Review the checklist to see what is missing.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showChildPermissionWarning = false }) {
+                    Text("Review permissions")
+                }
+            }
+        )
+    }
 
     Scaffold(bottomBar = {
         if (parentNavVisible) {
@@ -426,7 +445,7 @@ fun KidsGuardApp(
                 if (hasCorePermissions) {
                     PermissionChecklistScreen(
                         onBack = {
-                            onScreenChange(Screen.Home)
+                            showChildPermissionWarning = true
                         }
                     )
                 } else {
@@ -435,7 +454,7 @@ fun KidsGuardApp(
                             onScreenChange(Screen.Home)
                         },
                         onBack = {
-                            onScreenChange(Screen.Home)
+                            showChildPermissionWarning = true
                         }
                     )
                 }
