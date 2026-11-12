@@ -52,34 +52,10 @@ class KidsGuardNotificationListener : NotificationListenerService() {
             return
         }
 
-        Log.d(
-            "KidsGuardMediaSession",
-            """
-                    MEDIA_SESSION_FOUND
-                    package=${snapshot.packageName}
-                    title=${snapshot.title}
-                    artist=${snapshot.artist}
-                    album=${snapshot.album}
-                    mediaId=${snapshot.mediaId}
-                    mediaUri=${snapshot.mediaUri}
-                    artworkUri=${snapshot.artworkUri}
-                    durationMs=${snapshot.durationMs}
-                    playbackState=${snapshot.playbackState}
-                    """.trimIndent()
-        )
+        // Do not emit video titles, identifiers or media URIs into diagnostics.
+        // The monitored YouTube history is managed by its dedicated repository.
+        Log.d("KidsGuardMediaSession", "MEDIA_SESSION_FOUND")
 
-        youtubeRepository.addDebugLog(
-            "MEDIA_SESSION_FOUND " +
-                    "package=${snapshot.packageName} " +
-                    "title=${snapshot.title} " +
-                    "artist=${snapshot.artist} " +
-                    "album=${snapshot.album} " +
-                    "mediaId=${snapshot.mediaId} " +
-                    "mediaUri=${snapshot.mediaUri} " +
-                    "artworkUri=${snapshot.artworkUri} " +
-                    "durationMs=${snapshot.durationMs} " +
-                    "playbackState=${snapshot.playbackState}"
-        )
     }
 
 
