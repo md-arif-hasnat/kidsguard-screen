@@ -87,10 +87,13 @@ object PermissionUtils {
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             ) ?: return false
 
-            enabledServices.contains(
-                componentName.flattenToString(),
-                ignoreCase = true
-            )
+            // Android stores an exact colon-separated list of flattened components.
+            // Substring matching can falsely treat another service as KidsGuard.
+            enabledServices
+                .split(':')
+                .any { enabled ->
+                    ComponentName.unflattenFromString(enabled.trim()) == componentName
+                }
         } catch (e: Exception) {
             false
         }
