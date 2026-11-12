@@ -5,6 +5,7 @@ on:
     branches: [release/v1.0.98-play-testing]
     paths:
       - ".github/workflows/v98-dependency-remediation.yml"
+      - "functions/package.json"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +26,7 @@ jobs:
       - name: Apply compatible production dependency security patches
         working-directory: functions
         run: |
+          npm install --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --omit=dev || true
           npm ci --ignore-scripts
           npm run build
