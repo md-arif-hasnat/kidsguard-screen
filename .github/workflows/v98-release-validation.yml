@@ -30,8 +30,13 @@ jobs:
         run: npm ci
       - name: Compile and execute unit tests
         run: npm test
-      - name: Retention test
-        run: npm run test:retention
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Retention test using Firestore emulator
+        working-directory: .
+        run: npx --yes firebase-tools@14 emulators:exec --only firestore "cd functions && npm run test:retention"
 
   firestore-rules-check:
     runs-on: ubuntu-latest
