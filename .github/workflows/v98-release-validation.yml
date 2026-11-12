@@ -56,7 +56,7 @@ jobs:
       - name: Run Firestore emulator tests
         run: npx --yes firebase-tools@14 emulators:exec --only firestore "node web-dashboard/tests/firestore.rules.test.mjs"
       - name: Run Storage emulator tests
-        run: npx --yes firebase-tools@14 emulators:exec --only storage "node web-dashboard/tests/storage.rules.test.mjs"
+        run: npx --yes firebase-tools@14 emulators:exec --only firestore,storage "node web-dashboard/tests/storage.rules.test.mjs"
 
   android-build-check:
     runs-on: ubuntu-latest
@@ -67,7 +67,7 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
       - name: Install compile SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: chmod +x gradlew
