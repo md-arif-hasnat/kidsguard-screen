@@ -1,0 +1,43 @@
+name: v98 Dependency Remediation
+
+on:
+  push:
+    branches: [release/v1.0.98-play-testing]
+    paths:
+      - ".github/workflows/v98-dependency-remediation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Apply compatible production dependency security patches
+        working-directory: functions
+        run: |
+          npm audit fix --package-lock-only --omit=dev || true
+          npm ci --ignore-scripts
+          npm run build
+          npm test
+          npm audit --omit=dev --audit-level=moderate || true
+      - name: Commit remediation lockfile on test branch only
+        run: |
+          if git diff --quiet -- functions/package-lock.json; then
+            echo "No compatible lockfile changes found."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add functions/package-lock.json
+          git commit -m "Update compatible Functions dependencies after security audit"
+          git push origin HEAD:release/v1.0.98-play-testing
