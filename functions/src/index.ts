@@ -1,3 +1,4 @@
+import {evaluateRateLimit} from './callableRateLimit';
 // Keep the existing Gen 1 API contract explicit while using the current SDK.
 import * as functions from 'firebase-functions/v1';
 import {initializeApp} from 'firebase-admin/app';
@@ -4610,6 +4611,43 @@ function getAllowedChildSlots(
     Math.max(2, totalAllowedSlots)
   );
 }
+/**
+ * Durable per-user limit for expensive/sensitive callable actions. Firestore
+ * transactions prevent concurrent requests from all consuming one remaining slot.
+ * Only call after authentication and the relevant authorization checks.
+ */
+async function enforceCallableRateLimit(
+  operation: 'pairing' | 'weeklyReport',
+  uid: string,
+  maxRequests: number,
+  windowMs: number
+): Promise<void> {
+  const ref = db.collection('callableRateLimits').doc(operation + '_' + uid);
+  const now = Date.now();
+  const decision = await db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    const next = evaluateRateLimit(snapshot.data() || {}, now, maxRequests, windowMs);
+    if (next.allowed) {
+      tx.set(ref, {
+        count: next.count,
+        windowStartedAtMillis: next.windowStartedAtMillis,
+        expiresAtMillis: next.windowStartedAtMillis + windowMs,
+        operation,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    }
+    return next;
+  });
+  if (!decision.allowed) {
+    console.warn('Callable rate limit reached', {operation, retryAfterMs: decision.retryAfterMs});
+    throw new functions.https.HttpsError(
+      'resource-exhausted',
+      'Too many requests. Please try again later.',
+      {retryAfterMs: decision.retryAfterMs}
+    );
+  }
+}
+
 export const acceptPairingCode = functions.https.onCall(
   async (data, context) => {
     const parentalConsentVersion = '2026-09-27';
@@ -4690,6 +4728,9 @@ export const acceptPairingCode = functions.https.onCall(
         'You do not have permission to add a child to this family.'
       );
     }
+
+    // Protect six-digit pairing codes against online guessing (per parent).
+    await enforceCallableRateLimit('pairing', uid, 12, 15 * 60 * 1000);
 
 // pairing code Firestore-এ আছে, ব্যবহৃত হয়নি এবং expire করেনি—এগুলো যাচাই করব।
 
@@ -10597,6 +10638,9 @@ export const generateWeeklySafetyReportNow = functions.https.onCall(
     if (!familySnapshot.exists || !members.has(context.auth.uid)) {
       throw new functions.https.HttpsError("permission-denied", "Family access denied.");
     }
+
+    // Report generation performs costly database reads and must be bounded.
+    await enforceCallableRateLimit('weeklyReport', context.auth.uid, 4, 60 * 60 * 1000);
 
     const periodEnd = Date.now();
     const periodStart = periodEnd - 7 * 24 * 60 * 60 * 1000;

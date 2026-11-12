@@ -393,7 +393,7 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
                 fontWeight = FontWeight.Black
             )
             Text(
-                "For KidsGuard to monitor and protect this device, the following permissions must be active.",
+                "KidsGuard uses location for live location and safety zones, app usage for screen-time reports, accessibility for supported activity monitoring and blocking, and overlays for lock screens. Review each permission in Android Settings before granting it.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -602,12 +602,10 @@ fun PermissionChecklistScreen(onBack: () -> Unit) {
             ) {
                 Button(
                     onClick = onBack,
+                    enabled = allDone,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (allDone) MaterialTheme.colorScheme.primary else Color.Gray
-                    )
+                        .height(56.dp)
                 ) {
                     if (allDone) {
                         Icon(Icons.Default.Check, contentDescription = null)
