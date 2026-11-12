@@ -13,6 +13,9 @@ class KidsGuardNotificationListener : NotificationListenerService() {
         YouTubeHistoryRepository.getInstance(applicationContext)
     }
 
+    // Reuse preferences wrapper rather than allocating on every notification.
+    private val preferences by lazy { PreferenceHelper(applicationContext) }
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         //MediaSessionMetadataReader.refresh(applicationContext)
@@ -25,7 +28,7 @@ class KidsGuardNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
 
-        if (!PreferenceHelper(applicationContext)
+        if (!preferences
                 .notificationAccessDisclosureAccepted
         ) {
             return
