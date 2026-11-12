@@ -2,7 +2,7 @@
   "name": "kidsguard-functions",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test tests/google-play-billing.test.cjs tests/internal-login-defense.test.cjs tests/internal-session-defense.test.cjs tests/release-version.test.cjs",
+    "test": "npm run build && node --test tests/google-play-billing.test.cjs tests/internal-login-defense.test.cjs tests/internal-session-defense.test.cjs tests/release-version.test.cjs tests/callable-rate-limit.test.cjs",
     "test:retention": "npm run build && node --test tests/retention.test.cjs",
     "test:login-defense": "npm run build && node --test tests/internal-login-defense.test.cjs",
     "test:session-defense": "npm run build && node --test tests/internal-session-defense.test.cjs",
