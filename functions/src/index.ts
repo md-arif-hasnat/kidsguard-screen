@@ -4639,7 +4639,7 @@ async function enforceCallableRateLimit(
     return next;
   });
   if (!decision.allowed) {
-    console.warn('Callable rate limit reached', {operation, uid, retryAfterMs: decision.retryAfterMs});
+    console.warn('Callable rate limit reached', {operation, retryAfterMs: decision.retryAfterMs});
     throw new functions.https.HttpsError(
       'resource-exhausted',
       'Too many requests. Please try again later.',
