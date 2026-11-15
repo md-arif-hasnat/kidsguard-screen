@@ -55,7 +55,7 @@ jobs:
           test "$(apkanalyzer manifest application-id "$APK")" = "secure.kidsguard.app"
           grep -Eq '^[[:space:]]*versionCode = 98$' app/build.gradle.kts
           grep -Eq '^[[:space:]]*versionName = "1.0.98"$' app/build.gradle.kts
-          apksigner verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
           sha256sum "$APK"
       - name: Upload signed phone test APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
