@@ -592,6 +592,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Rate limit counters are backend-only. Never expose counts or permit
+    // clients to reset their own quotas.
+    match /callableRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
     // Rules will be added collection by collection.
     match /{document=**} {
       allow read, write: if false;

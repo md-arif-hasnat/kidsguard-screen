@@ -180,7 +180,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
 
             Log.w(
                 TAG_RUNTIME,
-                "KIDSGUARD_TAMPER_BLOCKED package=$packageName class=$className"
+                "KIDSGUARD_SETTINGS_REVIEWED package=$packageName class=$className"
             )
             val tamperReason = when {
                 className.contains("Uninstall", ignoreCase = true) ||
@@ -207,20 +207,14 @@ class KidsGuardAccessibilityService : AccessibilityService() {
                 reason = tamperReason
             )
 
-            // Keep an emergency recovery path available when the KidsGuard UI
-            // cannot be opened (for example after a broken update). Android's
-            // own Device Admin and package-uninstall confirmations remain in
-            // control, while the parent is still alerted immediately.
-            if (isCriticalTamperScreen) {
-                Log.w(
-                    TAG_RUNTIME,
-                    "KIDSGUARD_RECOVERY_REMOVAL_ALLOWED " +
-                        "package=$packageName class=$className"
-                )
-                return
-            }
-
-            performGlobalAction(GLOBAL_ACTION_BACK)
+            // The Android user must always be able to review and revoke
+            // Accessibility, Device Admin and other special access in Settings.
+            // Notify the linked parent but never intercept system confirmations.
+            Log.i(
+                TAG_RUNTIME,
+                "KIDSGUARD_SYSTEM_SETTINGS_ALLOWED " +
+                    "package=$packageName class=$className"
+            )
             return
         }
 
@@ -545,7 +539,7 @@ class KidsGuardAccessibilityService : AccessibilityService() {
         // if (!com.example.kidsguard.BuildConfig.DEBUG) return
         Log.v(
             TAG_YT_TRACE,
-            "Event: ${event.eventType}, Class: ${event.className}, ID: ${event.source?.viewIdResourceName}, Text: ${event.text}"
+            "Event type=${event.eventType} (content omitted for privacy)"
         )
     }
 
